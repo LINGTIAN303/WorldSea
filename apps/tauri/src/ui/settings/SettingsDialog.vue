@@ -49,7 +49,6 @@
             <AccessibilityPanel v-if="cat.id === 'accessibility'" :search-query="searchQuery" />
             <StorageManagementTab v-if="cat.id === 'storage'" :search-query="searchQuery" @card-change="onPanelCardChange" />
             <AboutPanel v-if="cat.id === 'about'" :search-query="searchQuery" @card-change="onPanelCardChange" />
-            <div v-if="cat.id === 'agent'" class="agent-set-embed"><SpaceAgentSettingsPanel :search-query="searchQuery" @close="close" @dirty="onDirty" /></div>
           </template>
           <div v-if="matchedCategories.length === 0" class="set-empty">未找到匹配的设置项</div>
         </template>
@@ -69,7 +68,6 @@
           <template v-else-if="activeSection === 'storage'">
             <StorageManagementTab ref="storageRef" :search-query="searchQuery" @card-change="onPanelCardChange" />
           </template>
-          <div v-else-if="activeSection === 'agent'" class="agent-set-embed"><SpaceAgentSettingsPanel ref="agentSetRef" :search-query="searchQuery" @close="close" @dirty="onDirty" @card-change="onPanelCardChange" /></div>
         </template>
       </div>
 
@@ -97,7 +95,6 @@ import ShortcutsPanel from './panels/ShortcutsPanel.vue'
 import VoicePanel from './panels/VoicePanel.vue'
 import AccessibilityPanel from './panels/AccessibilityPanel.vue'
 // Agent 设置面板（embedded 封装，2026-08-09 迁入主设置）
-import SpaceAgentSettingsPanel from '@/space/panels/SpaceAgentSettingsPanel.vue'
 // 关于面板（2026-09-05 自左栏底部更多菜单迁入为独立 Tab）
 import AboutPanel from './panels/AboutPanel.vue'
 
@@ -143,7 +140,6 @@ const categories = [
   { id: 'shortcuts', icon: 'cat-shortcuts', label: '快捷键' },
   { id: 'voice', icon: 'volume-on', label: '语音' },
   { id: 'storage', icon: 'cat-storage', label: '存储' },
-  { id: 'agent', icon: 'bot', label: 'Agent' },
   { id: 'accessibility', icon: 'motion', label: '无障碍' },
   { id: 'about', icon: 'info', label: '关于' },
 ]
@@ -235,7 +231,6 @@ const shortcutsRef = ref<InstanceType<typeof ShortcutsPanel> | null>(null)
 const voiceRef = ref<InstanceType<typeof VoicePanel> | null>(null)
 const storageRef = ref<InstanceType<typeof StorageManagementTab> | null>(null)
 const accessibilityRef = ref<InstanceType<typeof AccessibilityPanel> | null>(null)
-const agentSetRef = ref<InstanceType<typeof SpaceAgentSettingsPanel> | null>(null)
 const aboutRef = ref<InstanceType<typeof AboutPanel> | null>(null)
 const panelRefs: Record<string, { value: any }> = {
   appearance: appearanceRef,
@@ -248,7 +243,6 @@ const panelRefs: Record<string, { value: any }> = {
   voice: voiceRef,
   storage: storageRef,
   accessibility: accessibilityRef,
-  agent: agentSetRef,
   about: aboutRef,
 }
 /** 叠放翻卡上报：左列高亮跟随当前卡片 */
@@ -352,7 +346,6 @@ const CATEGORY_KEYWORDS: Record<string, string> = {
   shortcuts: '快捷键 键盘 快捷 绑定 shortcut keyboard',
   voice: '语音 识别 输入 麦克风 连续 语言 voice',
   storage: '存储 清理 孤立 文件 诊断 缓存 空间 配额 storage cleanup orphan diagnostic',
-  agent: 'Agent 模型 供应商 用量 Skills MCP 搜索 多模态 终端 安全 人格预设 思考级别 危险操作 确认 规则 规则文件 内置工具 工具目录 权限级别 插件 扩展 打包 分发 agent model provider usage skill mcp search vision terminal safety persona thinking builtin tools plugin',
   accessibility: '动画效果 减弱动态 动画 动效 消息 脉冲 状态 面板 侧边栏 弹窗 控件 启动 眩晕 降低 可访问 reduce motion accessibility',
   about: '关于 版本 产品 WorldSea about version',
 }
@@ -479,24 +472,6 @@ function close() {
 }
 
 .set-cards { margin-top: 12px; padding: 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; flex: 1; min-width: 0; min-height: 0; }
-
-/* Agent 设置内嵌：撑满卡片区高度，纵向导航 + 内容区自适应 */
-.agent-set-embed {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-.agent-set-embed :deep(.space-agent-settings) {
-  flex: 1;
-  min-height: 0;
-  /* 去掉外层面板背景/内边距，让卡片直接浮在设置背景上、卡片间缝隙透出背景（与其余标签页一致） */
-  background: transparent;
-  padding: 0;
-}
-.agent-set-embed :deep(.space-agent-settings .panel-header) {
-  display: none;
-}
 
 .set-empty { text-align: center; padding: 32px 0; color: var(--text-tertiary, var(--color-text-tertiary)); font-size: var(--font-size-sm); }
 
