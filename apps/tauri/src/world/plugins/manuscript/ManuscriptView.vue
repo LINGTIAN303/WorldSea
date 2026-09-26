@@ -191,7 +191,6 @@ import BookInfoDialog from './components/BookInfoDialog.vue'
 import { useChapterEditor } from './composables/useChapterEditor'
 import { useChapterSnapshots } from './composables/useChapterSnapshots'
 import type { Entity } from '@worldsea/entity-core'
-import { useAgentPluginBridge } from '@/composables/useAgentPluginBridge'
 // 「章节 ↔ 大纲节点」关联的唯一写入入口（新建章节归属节点时用，保证双侧一致）
 import { linkChapterToNode } from '@/entity/chapterLink'
 
@@ -463,22 +462,6 @@ watch(current, (val, old) => {
   }
 })
 
-// ── Agent bridge（视图侧仅剩 UI 动作；2026-09-14 全局桥拍板后，数据动作
-//    create_chapter/update_chapter/list_chapters/get_chapter_content/reorder_chapters
-//    已上移 @/agent/agentDataBridges.ts——与视图挂载解耦，未挂载也必达）──
-useAgentPluginBridge('manuscript', (event) => {
-  const { action } = event
-  switch (action) {
-    case 'export_document': {
-      // 触发导出对话框（格式与范围由用户确认，Agent 不越权直接下载）
-      showExport.value = true
-      break
-    }
-    default:
-      // insert_mention / split_chapter 挂账（见计划文档 §二）；数据动作走全局桥
-      console.warn(`[Agent→manuscript] 未实现或非 UI 动作: ${action}`, event.payload)
-  }
-})
 </script>
 
 <style scoped>

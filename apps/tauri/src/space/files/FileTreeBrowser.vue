@@ -136,7 +136,6 @@ import { FileIcon, WsIcon, useConfirm } from '@worldsea/ui-kit'
 import TuiModal from '../../components/ui/TuiModal.vue'
 import TuiButton from '../../components/ui/TuiButton.vue'
 import { invoke } from '@/agent/composables/transport'
-import { useAgent } from '@/agent/composables/useAgent'
 import { resolveWorkspaceDir, ensureWorkspaceDir } from '../workspace'
 import { useFileTrash, type FileTrashRecord } from '@/composables/fileTrash'
 import { toastInfo, toastError } from '@/composables/useToast'
@@ -176,7 +175,7 @@ interface InputDialog {
 
 const props = withDefaults(
   defineProps<{
-    /** 显式根目录；缺省回退 currentWorkdir → resolveWorkspaceDir() */
+    /** 显式根目录；缺省回退 resolveWorkspaceDir() */
     rootPath?: string | null
     /** 是否窄栏压缩（左栏会话侧边栏内嵌时） */
     compact?: boolean
@@ -194,7 +193,6 @@ const emit = defineEmits<{ select: [node: FsNode] }>()
 /** 暴露刷新（父级面板头刷新按钮调用；保留展开状态） */
 defineExpose({ refresh })
 
-const { currentWorkdir } = useAgent()
 const { confirm } = useConfirm()
 
 const currentPath = ref<string | null>(null)
@@ -449,9 +447,9 @@ async function openInExplorer(): Promise<void> {
   }
 }
 
-/** 初始化：解析根路径（props 显式根优先；缺省回落 currentWorkdir → 统一根/默认工作区） */
+/** 初始化：解析根路径（props 显式根优先；缺省回落统一根/默认工作区） */
 async function init(): Promise<void> {
-  const wd = props.rootPath ?? currentWorkdir.value ?? (await resolveWorkspaceDir())
+  const wd = props.rootPath ?? (await resolveWorkspaceDir())
   if (!wd) {
     resolvedRoot.value = null
     currentPath.value = null
@@ -628,14 +626,11 @@ function formatSize(bytes: number): string {
 }
 
 onMounted(init)
-// 根/会话切换（workdir 变化）时重新初始化
+// 根切换时重新初始化
 watch(
   () => props.rootPath,
   () => void init(),
 )
-watch(currentWorkdir, () => {
-  if (!props.rootPath) void init()
-})
 </script>
 
 <style scoped>

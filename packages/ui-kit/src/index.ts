@@ -193,7 +193,6 @@ export {
   useTextSelection,
   type TextSelectionInfo,
 } from './composables/useTextSelection'
-export { useSmartFillContextMenu } from './composables/useSmartFillContextMenu'
 
 // ----------------------------------------------------------------------------
 // Motion Composables — delegated to @worldsea/motion-kit

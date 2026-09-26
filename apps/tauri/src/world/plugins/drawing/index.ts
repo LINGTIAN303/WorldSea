@@ -7,19 +7,6 @@ export const manifest = {
   version: '2.0.0',
   description: '自由绘画、植入世界观图示。支持多图层、形状工具、画板持久化。',
   author: 'WorldSea',
-  agentSkills: ['image-generation'],
-  agentCapabilities: [
-    { action: 'create_drawing', description: '创建画板', params: ['name', 'width', 'height'] },
-    { action: 'update_drawing', description: '更新画板', params: ['drawingId', 'changes'] },
-    { action: 'export_drawing', description: '导出画板为图片', params: ['drawingId', 'format'] },
-    { action: 'render_to_drawing', description: '将 AI 生成图像渲染到画板', params: ['drawingId', 'imageUrl'] },
-  ],
-  permissions: [
-    { name: 'storage:read', description: '读取实体数据' },
-    { name: 'entities:write', description: '创建和编辑画板' },
-    { name: 'schema:register', description: '注册实体类型和关系类型' },
-    { name: 'views:register', description: '注册视图' },
-  ],
 }
 
 export function apply(_ctx: unknown, api: WorldPluginApi) {

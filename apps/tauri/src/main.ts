@@ -20,8 +20,6 @@ installFileDragGuard()
 import { registerValidationApi } from '@worldsea/entity-core'
 import { registerBackend } from '@worldsea/canvas-engine/core'
 import { injectAllKeyframes } from '@worldsea/motion-kit'
-import { preloadSupportingModels } from './agent/composables/preloadModels'
-import { installModelFetchWatcher } from './agent/composables/useModelFetchWatcher'
 
 /**
  * Tauri 端后端初始化
@@ -68,9 +66,3 @@ app.mount('#app')
 initializeBackend().catch((err) => {
   console.error('[Tauri 端入口] 后端初始化失败:', err)
 })
-
-// D2 启动预拉：对所有支持模型列表的供应商后台刷新模型缓存（fire-and-forget）
-preloadSupportingModels()
-
-// settingsStore 全局 watch：任意入口切换供应商时自动拉取云端模型列表
-installModelFetchWatcher()

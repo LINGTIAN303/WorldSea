@@ -7,19 +7,6 @@ export const manifest = {
   version: '1.0.0',
   description: '棋盘式战术推演，在网格上布置实体作为棋子',
   author: 'WorldSea',
-  agentSkills: ['tactical-planner'],
-  agentCapabilities: [
-    { action: 'deploy_unit', description: '部署单位', params: ['unitId', 'position', 'formation'] },
-    { action: 'move_unit', description: '移动单位', params: ['unitId', 'newPosition'] },
-    { action: 'get_battle_state', description: '获取战场状态' },
-    { action: 'simulate_turn', description: '模拟战斗回合', params: ['actions'] },
-  ],
-  permissions: [
-    { name: 'storage:read', description: '读取实体数据' },
-    { name: 'entities:write', description: '创建和编辑战术棋盘' },
-    { name: 'schema:register', description: '注册实体类型和关系类型' },
-    { name: 'views:register', description: '注册视图' },
-  ],
 }
 
 export function apply(_ctx: unknown, api: WorldPluginApi) {

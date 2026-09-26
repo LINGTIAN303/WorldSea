@@ -1,4 +1,4 @@
-// 动态表单 composable：formData 状态、初始化、字段输入事件（含 name/text 事件总线与 ghost 500ms 防抖）。
+// 动态表单 composable：formData 状态、初始化、字段输入事件（含 name/text 事件总线）。
 // 详细说明见 docs/details/注释/packages/plugin-sdk/entity-form-modal.md
 import { ref, watch, type Ref } from 'vue'
 import { getEventBus, type Entity } from '@worldsea/entity-core'
@@ -8,16 +8,12 @@ export interface UseDynamicFormOptions {
   entity: () => Entity | null
   sortedFields: Ref<FormFieldDef[]>
   resolvedEntityType: Ref<string>
-  isSmartFillField: (field: FormFieldDef) => boolean
-  ghostVisible: Ref<boolean>
 }
 
 export function useDynamicForm(options: UseDynamicFormOptions) {
   const formData = ref<Record<string, string>>({})
   const nameError = ref('')
   const prevFieldValues = ref<Record<string, string>>({})
-
-  let _ghostDebounceTimer: ReturnType<typeof setTimeout> | null = null
 
   function initFormData() {
     const data: Record<string, string> = {}
@@ -44,30 +40,6 @@ export function useDynamicForm(options: UseDynamicFormOptions) {
     if (field.key === 'name') {
       const text = formData.value[field.key] || ''
       getEventBus().emit('name:input', { entityId, text })
-    }
-    // Smart Fill: 字段输入时触发 ghost text 接续预览（500ms 防抖）
-    if (options.isSmartFillField(field)) {
-      const currentText = String(formData.value[field.key] || '')
-      if (!currentText.trim()) {
-        options.ghostVisible.value = false
-        if (_ghostDebounceTimer) clearTimeout(_ghostDebounceTimer)
-        return
-      }
-      if (_ghostDebounceTimer) clearTimeout(_ghostDebounceTimer)
-      _ghostDebounceTimer = setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('worldsea:smart-fill:request', {
-          detail: {
-            type: 'suggest_field',
-            entityType: options.resolvedEntityType.value,
-            entityId: options.entity()?.id,
-            fieldKey: field.key,
-            fieldLabel: field.label,
-            currentText,
-            mode: 'continue',
-            isEditing: !!options.entity()?.id,
-          },
-        }))
-      }, 500)
     }
   }
 

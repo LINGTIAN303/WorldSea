@@ -7,17 +7,6 @@ export const manifest = {
   version: '2.0.0',
   description: '世界观中的概念、规则、百科条目',
   author: 'WorldSea',
-  agentSkills: ['worldbuilding'],
-  agentCapabilities: [
-    { action: 'create_entity', description: '创建概念', params: ['name', 'description'] },
-    { action: 'update_entity', description: '更新概念属性', params: ['entityId', 'changes'] },
-  ],
-  permissions: [
-    { name: 'storage:read', description: '读取实体数据' },
-    { name: 'entities:write', description: '创建和编辑概念' },
-    { name: 'schema:register', description: '注册实体类型和关系类型' },
-    { name: 'views:register', description: '注册视图' },
-  ],
 }
 
 export function apply(_ctx: unknown, api: WorldPluginApi) {

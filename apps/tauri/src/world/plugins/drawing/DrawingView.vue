@@ -163,7 +163,6 @@ import { WsSpinner } from '@worldsea/ui-kit'
 import ToolbarOverflow from '@/components/ui/ToolbarOverflow.vue'
 import { useDrawingPersistence } from './composables/useDrawingPersistence'
 import { useDrawingLayers } from './composables/useDrawingLayers'
-import { useAgentPluginBridge } from '@/composables/useAgentPluginBridge'
 import { DRAWING_TOOLS, DEFAULT_BRUSH_SIZE, DEFAULT_COLOR, DEFAULT_BG_COLOR, MAX_LAYERS, MAX_HISTORY, AUTOSAVE_DELAY } from './drawingConfig'
 import type { DrawingTool, DrawingLayer } from './types'
 
@@ -648,47 +647,6 @@ function flushCurrentDrawing() {
 }
 
 // ─── Agent 桥接 ──────────────────────────────────────────────────
-useAgentPluginBridge('drawing', async (event) => {
-  const { action, payload } = event
-  switch (action) {
-    case 'create_drawing': {
-      const entity = await createDrawing({
-        name: (payload.name as string) || 'AI 创建的画板',
-        width: (payload.width as number) || 800,
-        height: (payload.height as number) || 500,
-      })
-      openDrawing(entity.id)
-      break
-    }
-    case 'export_drawing': {
-      const drawingId = (payload.drawingId as string) || selectedDrawingId.value
-      if (drawingId) {
-        exportImage()
-      }
-      break
-    }
-    case 'render_to_drawing': {
-      const imageUrl = payload.imageUrl as string
-      if (!imageUrl || !selectedDrawingId.value) break
-      const c = getActiveCtx()
-      const canvas = canvasRef.value
-      if (!c || !canvas) break
-      const img = new Image()
-      img.crossOrigin = 'anonymous'
-      img.onload = () => {
-        c.drawImage(img, 0, 0, canvas.width, canvas.height)
-        composite()
-        localSaveState()
-        autoSave()
-      }
-      img.src = imageUrl
-      break
-    }
-    default:
-      console.log(`[Agent→drawing] ${action}`, payload)
-  }
-})
-
 // ─── 生命周期 ────────────────────────────────────────────────────
 onMounted(async () => {
   await loadDrawings()

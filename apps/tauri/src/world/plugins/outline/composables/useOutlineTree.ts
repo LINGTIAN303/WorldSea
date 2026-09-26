@@ -1,9 +1,9 @@
 /**
- * useOutlineTree —— 大纲树的读操作 + 少量写操作（Agent 桥与白板右栏共用）
+ * useOutlineTree —— 大纲树的读操作 + 少量写操作（白板与右栏共用）
  *
  * 【消费者现状】独立树视图 `OutlineView.vue` 已于 2026-09-16 下线（浏览形态改由白板承载）。
- * 本模块**存活的部分**只有四个：`flatNodes`（读）、`syncParentChildRelation`（BoardView 用）、
- * `deleteNode` / `moveNode`（agentDataBridges 的 Agent 路径用）。
+ * 本模块**存活的部分**：`flatNodes`（读）、`syncParentChildRelation`（BoardView 用）。
+ * （`deleteNode` / `moveNode` 已于 2026-09-27 随旧 Agent 数据桥删除；旧桥其余消费路径见批计划。）
  * 其余（`treeData` / `addRootNode` / `addChildNode` / `statusLabel`）仅供已下线的
  * OutlineView 使用，属施工分解 §十三 C 类「待消化」挂账——按「不允许无记录地删能力」保留。
  * （`nodeIcon` 已于 2026-09-18 随 Q6-③ 删除：它无调用方且返回 emoji，违反项目图标约定。）
@@ -103,25 +103,11 @@ export function useOutlineTree() {
     return id
   }
 
-  async function deleteNode(id: string) {
-    const children = flatNodes.value.filter(e => (e.properties.parentId as string || '') === id)
-    for (const c of children) await deleteNode(c.id)
-    await es.remove(id) // 级联清理关联关系；内存态由 store 同步维护
-  }
-
-  async function moveNode(nodeId: string, newParentId: string, newOrder: number) {
-    const node = flatNodes.value.find(e => e.id === nodeId)
-    if (!node) return
-    // 必须合并：只写 { parentId, order } 会抹掉 status / 摘要 / 关联章节 / content（见文件头约束 ①）
-    await es.update(nodeId, {
-      properties: { ...node.properties, parentId: newParentId, order: newOrder },
-    } as Partial<Entity>)
-    await syncParentChildRelation(nodeId, newParentId)
-  }
-
   // 2026-09-18（Q6-③）：删除 `nodeIcon` —— 它返回 emoji（✅/📝/📋），既违反项目
   // 「禁用 emoji 图标」约定，又**已无任何调用方**（唯一使用者是 09-17 删除的 OutlineView）。
   // 图标语义由白板的表现形式层承担（`WsIcon` SVG）。
+  // 2026-09-27（E6）：删除 `deleteNode` / `moveNode` —— 其唯一调用方是旧 Agent 数据桥
+  // `agent/agentDataBridges.ts`（随旧 Agent 面一并退场）；白板的删除/移动走白板自身路径。
 
   function statusLabel(e: Entity): string {
     return (e.properties.status as string) || '未写'
@@ -129,9 +115,8 @@ export function useOutlineTree() {
 
   return {
     flatNodes, treeData,
-    addRootNode, addChildNode, deleteNode, moveNode,
-    // Agent bridge（outline create_node/batch_create）建子节点时同步 parent_child 关系；
-    // BoardView 的右栏重排同样复用
+    addRootNode, addChildNode,
+    // 建子节点 / 右栏重排时同步 parent_child 关系
     syncParentChildRelation,
     statusLabel,
   }

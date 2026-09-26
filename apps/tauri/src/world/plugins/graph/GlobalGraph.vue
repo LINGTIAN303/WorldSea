@@ -97,7 +97,6 @@ import NodeDetailPanel from './components/NodeDetailPanel.vue'
 import ClusterPanel from './components/ClusterPanel.vue'
 import TimelineSlider from './components/TimelineSlider.vue'
 import type { ClusterInfo } from './composables/useGraphClustering'
-import { useAgentPluginBridge } from '@/composables/useAgentPluginBridge'
 
 const entityStore = useEntityStore()
 const relationStore = useRelationStore()
@@ -542,9 +541,6 @@ watch([graphNodes, graphEdges], () => {
   incrementalUpdate()
 }, { deep: true })
 
-useAgentPluginBridge('graph', (event) => {
-  console.log(`[Agent→${event.pluginId}] ${event.action}`, event.payload)
-})
 </script>
 
 <style scoped>

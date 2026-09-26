@@ -7,7 +7,7 @@
 
 - **模板**：128 行，未改动。
 - **编排**：按序调用 4 个 composable 并串联状态；`watch(() => props.modelValue)` 打开弹窗时执行 `initFormData()` + 恢复 `activePreset`；`close()` 清空错误并 emit；`defineExpose({ syncEntityRefAfterCreate })`。
-- **Smart Fill（智能填充）逻辑保留在组件**：本次任务范围外的第六类逻辑，未拆出。仅将其中 10 个基础 ref（`focusedFieldKey`/`hoveredFieldKey`/`ghostText`/`ghostFieldKey`/`ghostVisible`/`focusTriggerVisible`/`focusTriggerRect`/`focusTriggerFieldKey`/`SMART_FILL_TYPES`/`isSmartFillField`）的**声明位置提前**到 composable 调用区之前——因为 `useDynamicForm.onFieldInput` 需要注入 `ghostVisible` 与 `isSmartFillField`，声明顺序决定依赖注入方式。
+- **Smart Fill（智能填充）：2026-09-27 E6 已整体退场**——✨ 建议 / ghost 续写 / 空字段提示 / 焦点触发 / 预览面板 / 底栏「AI 智能填充」及其事件桥一并删除（旧 Agent 面残留）；`useDynamicForm` 不再有 ghost 依赖注入。（原注：本逻辑曾保留在组件、未拆出；其 10 个基础 ref 的声明位置提前以配合 `useDynamicForm.onFieldInput`。）
 
 ## Composables 职责边界与依赖
 

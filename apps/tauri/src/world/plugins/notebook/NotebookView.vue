@@ -538,8 +538,8 @@ async function migrateBacklinks(): Promise<void> {
     }, 'user', { skipUndo: true })  // 一次性数据迁移，非用户操作，不进撤销栈
   }
 }
-// Agent→notebook 的 8 个数据动作已上移至 app 级全局桥（@/agent/agentDataBridges.ts，
-// 2026-09-14 架构拍板：与视图挂载解耦，视图未挂载也必达）；视图内无 UI 动作残留。
+// Agent→notebook 的 8 个数据动作原经 app 级全局桥（@/agent/agentDataBridges.ts，2026-09-14 架构拍板：
+// 与视图挂载解耦、未挂载也必达）——该桥已于 2026-09-27 随旧 Agent 面退场删除；视图内无 UI 动作残留。
 </script>
 
 <style scoped>

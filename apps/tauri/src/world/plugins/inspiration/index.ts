@@ -7,16 +7,6 @@ export const manifest = {
   version: '2.0.0',
   description: '收集创作灵感、参考图、摘抄、链接等素材',
   author: 'WorldSea',
-  agentSkills: [],
-  agentCapabilities: [
-    { action: 'get_inspiration', description: '获取灵感素材' },
-  ],
-  permissions: [
-    { name: 'storage:read', description: '读取实体数据' },
-    { name: 'entities:write', description: '创建和编辑素材' },
-    { name: 'schema:register', description: '注册实体类型和关系类型' },
-    { name: 'views:register', description: '注册视图' },
-  ],
 }
 
 export function apply(_ctx: unknown, api: WorldPluginApi) {

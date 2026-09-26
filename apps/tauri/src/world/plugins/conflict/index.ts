@@ -7,17 +7,6 @@ export const manifest = {
   version: '2.0.0',
   description: '管理世界观中的战争、战役、冲突事件',
   author: 'WorldSea',
-  agentSkills: ['worldbuilding', 'roleplay'],
-  agentCapabilities: [
-    { action: 'create_entity', description: '创建冲突', params: ['name', 'description'] },
-    { action: 'update_entity', description: '更新冲突', params: ['entityId', 'changes'] },
-  ],
-  permissions: [
-    { name: 'storage:read', description: '读取实体数据' },
-    { name: 'entities:write', description: '创建和编辑冲突' },
-    { name: 'schema:register', description: '注册实体类型和关系类型' },
-    { name: 'views:register', description: '注册视图' },
-  ],
 }
 
 export function apply(_ctx: unknown, api: WorldPluginApi) {

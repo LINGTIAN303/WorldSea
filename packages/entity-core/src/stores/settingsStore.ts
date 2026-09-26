@@ -1,8 +1,15 @@
 import { defineStore } from 'pinia'
 import { ref, watch, computed, type Ref } from 'vue'
 import { useTheme } from '../composables/useTheme'
-import { getProjectManager } from '../core'
 import { watchDebounced } from '@worldsea/perf-kit/render'
+import {
+  loadStoredSproutToggles,
+  saveSproutToggles,
+  loadProjectSproutToggles,
+  loadStoredSproutGroups,
+  saveSproutGroups as persistSproutGroups,
+  loadProjectSproutGroups as persistProjectSproutGroups,
+} from './sproutPersistence'
 
 export interface SproutToggle {
   id: string
@@ -35,7 +42,6 @@ export interface CustomProviderEntry {
   modelId: string
 }
 
-const STORAGE_KEY_PLUGINS = 'worldsea_plugin_toggles'
 const STORAGE_KEY_UNDO_LIMIT = 'worldsea_undo_history_limit'
 const STORAGE_KEY_MULTI_STEP_REDO = 'worldsea_multi_step_redo'
 const STORAGE_KEY_MAX_CENTER_NODES = 'worldsea_max_center_nodes'
@@ -151,54 +157,24 @@ const DEFAULT_SPROUTS: SproutToggle[] = [
   { id: 'official.orchestration', label: '创作编排', icon: 'lightning', active: true, category: 'system' },
 ]
 
+/** 芽清单内的 id 集合（持久化面归一用；见 `./sproutPersistence`）。 */
+const KNOWN_SPROUT_IDS = new Set(DEFAULT_SPROUTS.map(s => s.id))
+
 function loadSprouts(): SproutToggle[] {
-  // 优先从项目 DB 的 project_settings 表读取
-  // 同步初始化时先从 localStorage 加载，异步加载项目 DB 数据后更新
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY_PLUGINS)
-    if (!raw) return DEFAULT_SPROUTS.map(p => ({ ...p }))
-    const saved = JSON.parse(raw) as { id: string; active: boolean }[]
-    return DEFAULT_SPROUTS.map(def => {
-      const found = saved.find((s: any) => s.id === def.id)
-      return { ...def, active: found ? found.active : def.active }
-    })
-  } catch {
-    return DEFAULT_SPROUTS.map(p => ({ ...p }))
-  }
+  // 同步初始化先从 localStorage 加载（含一次性归一写回）；项目 DB 数据由 loadProjectSprouts 异步更新
+  return loadStoredSproutToggles(DEFAULT_SPROUTS)
 }
 
 /**
- * 异步加载项目级芽开关。
- * 从项目 DB 的 project_settings 表读取，更新 sprouts ref。
- * 切换项目后调用。
+ * 异步加载项目级芽开关（项目 DB `project_settings.plugin_toggles`，切换项目后调用）。
  */
 async function loadProjectSprouts(): Promise<SproutToggle[] | null> {
-  try {
-    const pm = getProjectManager()
-    const db = pm.getCurrentProjectDb()
-    const entry = await db.table('project_settings').get('plugin_toggles')
-    if (!entry) return null
-    const saved = JSON.parse((entry as any).value) as { id: string; active: boolean }[]
-    return DEFAULT_SPROUTS.map(def => {
-      const found = saved.find((s: any) => s.id === def.id)
-      return { ...def, active: found ? found.active : def.active }
-    })
-  } catch {
-    return null
-  }
+  return loadProjectSproutToggles(DEFAULT_SPROUTS)
 }
 
 function saveSprouts(sprouts: SproutToggle[]) {
-  const data = JSON.stringify(sprouts.map(p => ({ id: p.id, active: p.active })))
-  // 同时写入 localStorage（回退）和项目 DB（键名保持 plugin_toggles，待芽收束为工具时统一迁移）
-  localStorage.setItem(STORAGE_KEY_PLUGINS, data)
-  try {
-    const pm = getProjectManager()
-    const db = pm.getCurrentProjectDb()
-    db.table('project_settings').put({ key: 'plugin_toggles', value: data })
-  } catch {
-    // 项目系统未初始化，仅保存到 localStorage
-  }
+  // localStorage（回退）+ 项目 DB 两处写；细口径见 `./sproutPersistence`
+  saveSproutToggles(sprouts)
 }
 
 // ─── 芽分组（2026-09-13）：用户自建的激活范围方案 ───
@@ -209,48 +185,20 @@ export interface SproutGroup {
   name: string
   sproutIds: string[]
 }
-const STORAGE_KEY_SPROUT_GROUPS = 'worldsea_sprout_groups'
 /** 全停用兜底：保留此角色芽视图（人物志）为激活态 */
 const FALLBACK_SPROUT_ID = 'official.characters'
 
 function loadSproutGroups(): SproutGroup[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY_SPROUT_GROUPS)
-    const arr = raw ? JSON.parse(raw) as SproutGroup[] : []
-    return Array.isArray(arr)
-      ? arr.filter(g => g && typeof g.id === 'string' && typeof g.name === 'string' && Array.isArray(g.sproutIds))
-      : []
-  } catch {
-    return []
-  }
+  return loadStoredSproutGroups<SproutGroup>(KNOWN_SPROUT_IDS)
 }
 
 function saveSproutGroups(groups: SproutGroup[]) {
-  const data = JSON.stringify(groups)
-  localStorage.setItem(STORAGE_KEY_SPROUT_GROUPS, data)
-  try {
-    const pm = getProjectManager()
-    const db = pm.getCurrentProjectDb()
-    db.table('project_settings').put({ key: 'sprout_groups', value: data })
-  } catch {
-    // 项目系统未初始化，仅保存到 localStorage
-  }
+  persistSproutGroups(groups)
 }
 
 /** 异步加载项目级芽分组（切换项目后调用，模式同 loadProjectSprouts） */
 async function loadProjectSproutGroups(): Promise<SproutGroup[] | null> {
-  try {
-    const pm = getProjectManager()
-    const db = pm.getCurrentProjectDb()
-    const entry = await db.table('project_settings').get('sprout_groups')
-    if (!entry) return null
-    const arr = JSON.parse((entry as any).value) as SproutGroup[]
-    return Array.isArray(arr)
-      ? arr.filter(g => g && typeof g.id === 'string' && typeof g.name === 'string' && Array.isArray(g.sproutIds))
-      : []
-  } catch {
-    return null
-  }
+  return persistProjectSproutGroups<SproutGroup>(KNOWN_SPROUT_IDS)
 }
 
 function loadCustomProviders(): CustomProviderEntry[] {

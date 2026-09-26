@@ -122,7 +122,7 @@
 | `apps/tauri/src/plugins/bootstrap.ts:4` | `registerWorldviewSprout`（`@agent/index`） | import | 芽注册进 `worldview` 工具（剪除前芽数 27；`official.module-builder` 已于 2026-09-25 剪除，现为 26） |
 | `apps/tauri/src/composables/useProjectSwitcher.ts:8` | `setAgentCurrentProjectId`（`@agent/session/manager`） | import | 切项目同步 Agent 会话 |
 | 8 个 `agent-descriptor.ts`（`plugin-sdk` 380 / `canvas-engine` 357 / `entity-core` 337 / `ui-kit` 93 / `font-kit` 80 / `agent-core` 63 / `motion-kit` 46 + mindmap 168） | — | export | 产品包向 Agent 暴露规格 |
-| `sprouts/official/{drawing,graph,magic,manuscript,timeline}/…View.vue`、`tactical-board/composables/useTacticalAgentBridge.ts`、`workflow/components/PipelineChat.vue` | `useAgentPluginBridge`（30 行） | 事件 | `worldsea:agent:plugin-action` UI 动作消费（`PipelineChat.vue` 已于 2026-09-26 **E5 退场**——源级删除；其余为死链保留） |
+| `sprouts/official/{drawing,graph,magic,manuscript,timeline}/…View.vue`、`tactical-board/composables/useTacticalAgentBridge.ts`、`workflow/components/PipelineChat.vue` | `useAgentPluginBridge`（30 行） | 事件 | `worldsea:agent:plugin-action` UI 动作消费——**全部已退场**（E5 删 `PipelineChat`；E6 2026-09-27 删其余 6 芽监听与本 composable 本体） |
 | `sprouts/official/workflow/components/{ExecutionPanel,StepConfigEditor}.vue` | `useOrchestrator` / `import('@/agent/composables/transport')` | import | 工作流调用 Agent 编排（2026-09-26 **E5 已退场**：`ExecutionPanel` 整体删除；`StepConfigEditor` 的 `subagent_list_specs` 导入段删除，不再触旧面） |
 | `sprouts/official/manuscript/components/AISidebar.vue:42` | `useAgent` | import | 编辑器内嵌 Agent（2026-09-26 **E5 已退场**——源级删除，文件不存在） |
 | `sprouts/official/notebook/**`、`outline/composables/useOutlineTree.ts:6` | 被 `agentDataBridges.ts` 反向 import | import（反向） | Agent→芽 的数据动作实现落在产品芽内 |

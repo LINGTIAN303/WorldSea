@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-09-25",
+  "updatedAt": "2026-09-26",
   "note": "存量基线（P4）：files = 超限文件行数冻结（只禁增长）；other = 存量违规豁免（新增违例不在内）",
   "files": {
     "crates/agent-kernel/src/agent/input.rs": 455,
@@ -93,11 +93,10 @@
     "apps/tauri/src-tauri/src/entity_commands.rs": 1226,
     "apps/tauri/src-tauri/src/frontend_tool_bridge.rs": 471,
     "apps/tauri/src-tauri/src/http_bridge/rpc.rs": 1885,
-    "apps/tauri/src-tauri/src/lib.rs": 753,
+    "apps/tauri/src-tauri/src/lib.rs": 759,
     "apps/tauri/src-tauri/src/mcp_client.rs": 1361,
     "apps/tauri/src-tauri/src/search_commands.rs": 738,
     "apps/tauri/src-tauri/src/whisper.rs": 571,
-    "apps/tauri/src/agent/agentDataBridges.ts": 536,
     "apps/tauri/src/agent/AgentMessageList.vue": 685,
     "apps/tauri/src/agent/AgentSettingsPanel.vue": 1757,
     "apps/tauri/src/agent/components/OrchestrationSegment.vue": 520,
@@ -118,7 +117,7 @@
     "apps/tauri/src/space/chat/SessionSidebar.vue": 1271,
     "apps/tauri/src/space/files/CodeEditor.vue": 475,
     "apps/tauri/src/space/files/FilePreview.vue": 958,
-    "apps/tauri/src/space/files/FileTreeBrowser.vue": 971,
+    "apps/tauri/src/space/files/FileTreeBrowser.vue": 966,
     "apps/tauri/src/space/group-chat/components/AgentCapabilityDrawer.vue": 434,
     "apps/tauri/src/space/group-chat/components/AgentPrivateChat.vue": 901,
     "apps/tauri/src/space/group-chat/components/AgentProfileCreator.vue": 437,
@@ -136,12 +135,30 @@
     "apps/tauri/src/space/panels/RulesPanel.vue": 517,
     "apps/tauri/src/space/panels/SemanticSearchCard.vue": 469,
     "apps/tauri/src/space/panels/SpaceAgentSettingsPanel.vue": 499,
-    "apps/tauri/src/world/plugins/mindmap/MindmapView.vue": 1105,
     "apps/tauri/src/subagent/components/SubAgentView.vue": 1414,
     "apps/tauri/src/ui/boot/SplashScreen.vue": 436,
     "apps/tauri/src/ui/entity/CustomRelationTypeDialog.vue": 404,
     "apps/tauri/src/ui/layout/sidebar/SidebarV2.vue": 553,
-    "apps/tauri/src/ui/settings/SettingsDialog.vue": 511,
+    "apps/tauri/src/ui/settings/SettingsDialog.vue": 485,
+    "apps/tauri/src/world/plugins/characters/CharacterList.vue": 471,
+    "apps/tauri/src/world/plugins/custom/DashboardView.vue": 647,
+    "apps/tauri/src/world/plugins/drawing/DrawingView.vue": 773,
+    "apps/tauri/src/world/plugins/graph/GlobalGraph.vue": 594,
+    "apps/tauri/src/world/plugins/manuscript/components/ChapterList.vue": 559,
+    "apps/tauri/src/world/plugins/manuscript/ManuscriptView.vue": 677,
+    "apps/tauri/src/world/plugins/mindmap/MindmapView.vue": 1105,
+    "apps/tauri/src/world/plugins/notebook/components/FolderTree.vue": 437,
+    "apps/tauri/src/world/plugins/notebook/NotebookView.vue": 621,
+    "apps/tauri/src/world/plugins/outline/board/BoardView.vue": 1230,
+    "apps/tauri/src/world/plugins/outline/board/components/BoardCanvas.vue": 675,
+    "apps/tauri/src/world/plugins/outline/board/components/BoardInspector.vue": 521,
+    "apps/tauri/src/world/plugins/outline/board/components/NodeSidebar.vue": 580,
+    "apps/tauri/src/world/plugins/outline/board/composables/useBoardLayout.ts": 444,
+    "apps/tauri/src/world/plugins/outline/board/layoutSchema.ts": 455,
+    "apps/tauri/src/world/plugins/tactical-board/composables/boardOverlay.ts": 425,
+    "apps/tauri/src/world/plugins/tactical-board/TacticalBoardView.vue": 758,
+    "apps/tauri/src/world/plugins/timeline/components/TimelineChart.vue": 433,
+    "apps/tauri/src/world/plugins/timeline/TimelineView.vue": 441,
     "packages/agent-core/src/orchestrator/types.ts": 497,
     "packages/agent-core/src/orchestrator/working-memory.ts": 540,
     "packages/agent-runtime/src/governor-modules.ts": 641,
@@ -159,7 +176,7 @@
     "packages/agent-runtime/src/tools/retrofit-tools.ts": 492,
     "packages/agent-runtime/src/tools/terminal-launcher-tools.ts": 430,
     "packages/agent-runtime/src/tools/video-gen-tools.ts": 661,
-    "packages/agent-runtime/src/tools/worldview/actions.ts": 1120,
+    "packages/agent-runtime/src/tools/worldview/actions.ts": 1081,
     "packages/canvas-engine/src/core/useSmallCanvasGraph.ts": 516,
     "packages/canvas-engine/src/tree/useTreeCanvas.ts": 458,
     "packages/core-api-types/src/index.ts": 526,
@@ -168,14 +185,14 @@
     "packages/entity-core/src/core/ProjectManager.ts": 420,
     "packages/entity-core/src/core/StorageBackend.ts": 614,
     "packages/entity-core/src/relations/index.ts": 617,
-    "packages/entity-core/src/stores/settingsStore.ts": 538,
+    "packages/entity-core/src/stores/settingsStore.ts": 485,
     "packages/font-kit/src/fontInstaller.ts": 687,
     "packages/memory-archive/src/core/ArchiveManager.ts": 993,
     "packages/memory-archive/src/core/RecallEngine.ts": 526,
     "packages/memory-archive/src/scheduler/ArchiveScheduler.ts": 1344,
     "packages/memory-archive/src/storage/FsStorageAdapter.ts": 424,
     "packages/memory-archive/src/storage/IdbStorageAdapter.ts": 469,
-    "packages/plugin-sdk/src/components/EntityFormModal.vue": 838,
+    "packages/plugin-sdk/src/components/EntityFormModal.vue": 490,
     "packages/plugin-sdk/src/components/EntityRelationSelector.vue": 597,
     "packages/plugin-sdk/src/components/GenericEntityView.vue": 815,
     "packages/plugin-sdk/src/components/ImageField.vue": 402,
@@ -183,7 +200,6 @@
     "packages/plugin-sdk/src/components/UniversalRelationPanel.vue": 924,
     "packages/shared-composables/src/agent/turnModel.ts": 1563,
     "packages/shared-composables/src/agent/useOrchestrator.ts": 411,
-    "packages/shared-composables/src/agent/useSmartFillChat.ts": 406,
     "packages/shared-composables/src/agent/__tests__/turnModel.spec.ts": 1219,
     "packages/shared-composables/src/companion/useCompanionMode.ts": 753,
     "packages/shared-ui/src/agent/a2ui/A2UIComponent.vue": 861,
@@ -192,7 +208,7 @@
     "packages/shared-ui/src/agent/blocks/StepChain.vue": 649,
     "packages/shared-ui/src/agent/bubbles/markdownStream.ts": 432,
     "packages/shared-ui/src/agent/message-list/useMessageWindowing.ts": 739,
-    "packages/ui-kit/src/components/data/ImportExportModal.vue": 523,
+    "packages/ui-kit/src/components/data/ImportExportModal.vue": 516,
     "packages/ui-kit/src/components/entity/InfoPanel.vue": 610,
     "packages/ui-kit/src/components/entity/RegionMap.vue": 644,
     "packages/ui-kit/src/components/font/AnimatedFontExportPanel.vue": 583,
@@ -201,31 +217,13 @@
     "packages/ui-kit/src/components/layout/Sidebar.vue": 613,
     "packages/ui-kit/src/components/layout/WelcomeOverlay.vue": 432,
     "packages/ui-kit/src/components/settings/panels/AppearancePanel.vue": 405,
-    "packages/ui-kit/src/composables/useShortcuts.ts": 434,
-    "apps/tauri/src/world/plugins/drawing/DrawingView.vue": 815,
-    "apps/tauri/src/world/plugins/manuscript/components/ChapterList.vue": 559,
-    "apps/tauri/src/world/plugins/manuscript/ManuscriptView.vue": 726,
-    "apps/tauri/src/world/plugins/notebook/components/FolderTree.vue": 437,
-    "apps/tauri/src/world/plugins/notebook/NotebookView.vue": 621,
-    "apps/tauri/src/world/plugins/outline/board/BoardView.vue": 1230,
-    "apps/tauri/src/world/plugins/outline/board/components/BoardCanvas.vue": 675,
-    "apps/tauri/src/world/plugins/outline/board/components/BoardInspector.vue": 521,
-    "apps/tauri/src/world/plugins/outline/board/components/NodeSidebar.vue": 580,
-    "apps/tauri/src/world/plugins/outline/board/composables/useBoardLayout.ts": 444,
-    "apps/tauri/src/world/plugins/outline/board/layoutSchema.ts": 455,
-    "apps/tauri/src/world/plugins/timeline/components/TimelineChart.vue": 433,
-    "apps/tauri/src/world/plugins/timeline/TimelineView.vue": 481,
-    "apps/tauri/src/world/plugins/characters/CharacterList.vue": 471,
-    "apps/tauri/src/world/plugins/custom/DashboardView.vue": 647,
-    "apps/tauri/src/world/plugins/graph/GlobalGraph.vue": 598,
-    "apps/tauri/src/world/plugins/tactical-board/composables/boardOverlay.ts": 425,
-    "apps/tauri/src/world/plugins/tactical-board/TacticalBoardView.vue": 784
+    "packages/ui-kit/src/composables/useShortcuts.ts": 434
   },
   "other": [
     {
       "check": "ts-cycle",
       "key": "cycle:agent-runtime-ts|entity-core",
-      "note": "TS 包级依赖环：entity-core → agent-runtime-ts → entity-core"
+      "note": "TS 包级依赖环：agent-runtime-ts → entity-core → agent-runtime-ts"
     },
     {
       "check": "ts-cycle",
@@ -234,33 +232,13 @@
     },
     {
       "check": "ts-cycle",
-      "key": "cycle:agent-runtime-ts|canvas-engine|entity-core",
-      "note": "TS 包级依赖环：entity-core → agent-runtime-ts → canvas-engine → entity-core"
-    },
-    {
-      "check": "ts-cycle",
       "key": "cycle:agent-runtime-ts|plugin-sdk|ui-kit",
-      "note": "TS 包级依赖环：agent-runtime-ts → plugin-sdk → ui-kit → agent-runtime-ts"
+      "note": "TS 包级依赖环：ui-kit → agent-runtime-ts → plugin-sdk → ui-kit"
     },
     {
       "check": "ts-cycle",
-      "key": "cycle:agent-runtime-ts|entity-core|plugin-sdk|ui-kit",
-      "note": "TS 包级依赖环：entity-core → agent-runtime-ts → plugin-sdk → ui-kit → entity-core"
-    },
-    {
-      "check": "ts-cycle",
-      "key": "cycle:plugin-sdk|ui-kit",
-      "note": "TS 包级依赖环：plugin-sdk → ui-kit → plugin-sdk"
-    },
-    {
-      "check": "ts-cycle",
-      "key": "cycle:agent-runtime-ts|entity-core|font-kit|plugin-sdk|ui-kit",
-      "note": "TS 包级依赖环：entity-core → agent-runtime-ts → plugin-sdk → ui-kit → font-kit → entity-core"
-    },
-    {
-      "check": "ts-cycle",
-      "key": "cycle:agent-runtime-ts|entity-core|plugin-sdk",
-      "note": "TS 包级依赖环：entity-core → agent-runtime-ts → plugin-sdk → entity-core"
+      "key": "cycle:agent-runtime-ts|ui-kit",
+      "note": "TS 包级依赖环：ui-kit → agent-runtime-ts → ui-kit"
     }
   ]
 }

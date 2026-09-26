@@ -2,17 +2,6 @@ import type { WorldPluginApi } from '../../api'
 import CombatStatView from './CombatStatView.vue'
 
 export const manifest = { id: 'official.combat_stats', name: '战力', version: '2.0.0', description: '管理角色战斗力数据', author: 'WorldSea',
-  agentSkills: ['analysis-engine'],
-  agentCapabilities: [
-    { action: 'create_entity', description: '创建战斗属性', params: ['name', 'description'] },
-    { action: 'update_entity', description: '更新战斗属性', params: ['entityId', 'changes'] },
-  ],
-  permissions: [
-    { name: 'storage:read', description: '读取实体数据' },
-    { name: 'entities:write', description: '创建和编辑战力' },
-    { name: 'schema:register', description: '注册实体类型和关系类型' },
-    { name: 'views:register', description: '注册视图' },
-  ],
 }
 
 export function apply(_ctx: unknown, api: WorldPluginApi) {

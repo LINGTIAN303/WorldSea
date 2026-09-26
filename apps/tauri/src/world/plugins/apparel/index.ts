@@ -7,17 +7,6 @@ export const manifest = {
   version: '2.0.0',
   description: '服饰视图——展示和管理 Item 中拥有 ApparelFacet 的实体',
   author: 'WorldSea',
-  agentSkills: ['worldbuilding'],
-  agentCapabilities: [
-    { action: 'create_entity', description: '创建服饰', params: ['name', 'description'] },
-    { action: 'update_entity', description: '更新服饰属性', params: ['entityId', 'changes'] },
-  ],
-  permissions: [
-    { name: 'storage:read', description: '读取实体数据' },
-    { name: 'entities:write', description: '创建和编辑服饰' },
-    { name: 'schema:register', description: '注册实体类型和关系类型' },
-    { name: 'views:register', description: '注册视图' },
-  ],
 }
 
 /**

@@ -136,7 +136,6 @@ import { useTimelineSort } from './composables/useTimelineSort'
 import { useConflictDetection } from './composables/useConflictDetection'
 import { detectEras, parseDateRange } from './composables/useDateParser'
 import { useTimelineDrag } from './composables/useTimelineDrag'
-import { useAgentPluginBridge } from '@/composables/useAgentPluginBridge'
 import { entitySchemaRegistry } from '@worldsea/entity-core'
 
 const entityStore = useEntityStore()
@@ -395,45 +394,6 @@ onMounted(async () => {
   register({ id: 'timeline.redo', keys: ['ctrl', 'y'], scope: 'view', description: '时间轴：重做', handler: () => redo(entityStore, relationStore) })
 })
 
-useAgentPluginBridge('timeline', async (event) => {
-  const { action, payload } = event
-
-  if (action === 'create_event') {
-    await entityStore.loadAll()
-    toastSuccess(`Agent 已创建事件「${payload.name || '未命名事件'}」`)
-  }
-
-  else if (action === 'update_event') {
-    await entityStore.loadAll()
-    toastSuccess(`Agent 已更新事件`)
-  }
-
-  else if (action === 'sort_events') {
-    const method = String(payload.method || 'chronological')
-    if (method !== (sortMode.value === 'chrono' ? 'chronological' : 'reverse')) {
-      toggleSortMode()
-    }
-  }
-
-  else if (action === 'export') {
-    const format = String(payload.format || 'json')
-    const items = filteredEvents.value.map(e => ({
-      id: e.id, name: e.name, description: e.description,
-      date: e.properties.date, dateEnd: e.properties.dateEnd,
-      era: e.properties.era, importance: e.properties.importance,
-      location: e.properties.location,
-    }))
-    const text = format === 'csv'
-      ? 'id,name,date,era,importance\n' + items.map(i => `${i.id},${i.name},${i.date},${i.era},${i.importance}`).join('\n')
-      : JSON.stringify(items, null, 2)
-    const blob = new Blob([text], { type: format === 'csv' ? 'text/csv' : 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url; a.download = `timeline-export.${format}`; a.click()
-    URL.revokeObjectURL(url)
-    toastSuccess('时间线已导出')
-  }
-})
 </script>
 
 <style scoped>

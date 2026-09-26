@@ -7,17 +7,6 @@ export const manifest = {
   version: '2.0.0',
   description: '自由笔记与知识管理',
   author: 'WorldSea',
-  agentSkills: ['writing', 'worldbuilding'],
-  agentCapabilities: [
-    { action: 'create_entity', description: '创建笔记', params: ['title'] },
-    { action: 'update_entity', description: '更新笔记', params: ['entityId', 'changes'] },
-  ],
-  permissions: [
-    { name: 'storage:read', description: '读取实体数据' },
-    { name: 'entities:write', description: '创建和编辑笔记' },
-    { name: 'schema:register', description: '注册实体类型和关系类型' },
-    { name: 'views:register', description: '注册视图' },
-  ],
 }
 
 export function apply(_ctx: unknown, api: WorldPluginApi) {

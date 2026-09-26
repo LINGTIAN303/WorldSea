@@ -104,10 +104,6 @@ export function setWorldRulesThreshold(n) {
 }
 export async function attachWorldRulesIfTriggered() {}`,
   },
-  {
-    match: /composables\/useAgentPluginBridge$/,
-    code: 'export function useAgentPluginBridge() { return {} }',
-  },
   { match: /agent\/composables\/useOrchestrator$/, code: 'export function useOrchestrator() { return {} }' },
   {
     match: /agent\/composables\/preloadModels$/,
@@ -125,7 +121,6 @@ export async function attachWorldRulesIfTriggered() {}`,
     match: /shared-composables\/agent\/useMcpConnections$/,
     code: 'export function useMcpConnections() { return { ensureLoaded: async () => {}, takeAutoReconnectFailed: () => [], getMCPConnections: () => [] } }',
   },
-  { match: /agentDataBridges$/, code: 'export function installAgentDataBridges() {}' },
   // 组件（相对与别名两种写法归一到同一判定）
   { match: /space\/AgentSpace\.vue$/, code: STUB_COMPONENT },
 ]

@@ -152,6 +152,25 @@ fn geometry_plan_transfers_maximize_and_never_writes_geometry_over_it() {
 }
 
 #[test]
+fn geometry_snapshot_carries_minimized_and_apply_skips_it() {
+    // E6（2026-09-27 走查缺陷）：最小化来源的占位几何（Windows ≈ -32000 / 标题栏尺寸）不得转移给
+    // 目标窗——否则目标窗「打开即不可见」并被窗口状态插件持久化。锁源码约定（删掉守卫即报红）。
+    let source = read_text("src/workspace_window.rs");
+    assert!(source.contains("minimized: window.is_minimized()"), "快照须记录最小化态");
+    assert!(source.contains("if geometry.minimized {"), "apply_geometry 须在最小化来源时跳过几何转移");
+}
+
+#[test]
+fn restored_geometry_sanity_rules() {
+    // 启动自检判据：正常几何可用；最小化/离屏占位与过小尺寸判不可用；读不到则不动。
+    assert!(restored_geometry_is_usable(Some((343, 69)), Some((1280, 800))));
+    assert!(!restored_geometry_is_usable(Some((-32000, -32000)), Some((181, 24))), "最小化占位几何必须判不可用");
+    assert!(!restored_geometry_is_usable(Some((-25600, -25600)), Some((159, 27))));
+    assert!(!restored_geometry_is_usable(Some((343, 69)), Some((100, 24))), "尺寸过小不可用");
+    assert!(restored_geometry_is_usable(None, None), "读不到几何 → 不动");
+}
+
+#[test]
 fn geometry_size_reads_inner_to_match_set_size() {
     // 走查缺陷回归（逐次放大）的判据：写口径是 inner（tauri-runtime-wry: SetSize → set_inner_size），
     // 故快照必须读 `inner_size`；本测锁源码约定（读改回 outer 即报红）

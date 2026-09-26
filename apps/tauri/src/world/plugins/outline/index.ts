@@ -9,17 +9,6 @@ export const manifest = {
   version: '2.0.0',
   description: '大纲管理与章节规划',
   author: 'WorldSea',
-  agentSkills: ['writing'],
-  agentCapabilities: [
-    { action: 'create_entity', description: '创建大纲节点', params: ['title'] },
-    { action: 'update_entity', description: '更新大纲节点', params: ['entityId', 'changes'] },
-  ],
-  permissions: [
-    { name: 'storage:read', description: '读取实体数据' },
-    { name: 'entities:write', description: '创建和编辑大纲节点' },
-    { name: 'schema:register', description: '注册实体类型和关系类型' },
-    { name: 'views:register', description: '注册视图' },
-  ],
 }
 
 export function apply(_ctx: unknown, api: WorldPluginApi) {

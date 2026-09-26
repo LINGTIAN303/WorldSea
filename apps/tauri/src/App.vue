@@ -1,24 +1,14 @@
 <script setup lang="ts">
-import { computed, onMounted, watch } from 'vue'
+import { onMounted, watch } from 'vue'
 import Shell from './ui/layout/Shell.vue'
 import AgentSpace from './space/AgentSpace.vue'
-import AvatarBadge from './ui/AvatarBadge.vue'
-import { provideAgentUiDeps, type ActivityLogItem, type AgentFontPrefs, type PersonaFontInfo } from '@worldsea/shared-composables/agent/deps'
-import { useFontStore } from './stores/fontStore'
-import { usePersonaFontStore } from './space/stores/persona-font-store'
-import { useActivityLog } from './agent/composables/useActivityLog'
 import { useUIStore } from './stores/uiStore'
 import { useTheme } from './components/ui/useTheme'
 import { useTheme as useEntityTheme, useSettingsStore } from '@worldsea/entity-core'
 import { useGlobalEvents, setActiveViewId, setAgentSpaceActive, enableGlobalTooltips } from '@worldsea/ui-kit'
 import { bootstrapShell } from './plugins/boot'
 import { useProjectSwitcher } from './composables/useProjectSwitcher'
-import { registerProjectSwitchListener } from './agent/composables/useAgentRust'
 import { useSystemBridge } from './composables/useSystemBridge'
-import { installAgentDataBridges } from './agent/agentDataBridges'
-import { useMcpConnections } from '@worldsea/shared-composables/agent/useMcpConnections'
-import { useAgent } from './agent/composables/useAgent'
-import { toastWarn } from '@/composables/useToast'
 import SplashScreen from './ui/boot/SplashScreen.vue'
 import GlobalEditMenu from './ui/GlobalEditMenu.vue'
 import BootErrorScreen from './ui/boot/BootErrorScreen.vue'
@@ -50,39 +40,6 @@ const uiStore = useUIStore()
 const projectSwitcher = useProjectSwitcher()
 // entity-core 主题引擎（强调色轴）：模块加载时已完成旧主题 id → accent id 迁移
 const { setAccent, restorePersistedTheme } = useEntityTheme()
-
-// ── Agent UI 依赖注入（AgentUiDeps）────────────────────────────
-// 深度模式消息气泡（DeepMessageArea / useMarkdownRender）依赖 useAgentUiDeps()，
-// Tauri 端此前未注入导致「[useAgentUiDeps] 未注入 AgentUiDeps」崩溃。此处补齐。
-// - fontPrefs 取 fontStore.prefs.agent（FontLayer 含 'agent'）
-// - persona/enterAnimation 取 persona-font-store 当前档案
-// - activityLogs 取 useActivityLog 模块级日志
-// - replaceFontSpans：{font:...} 内联标记解析，先做 passthrough（后续可接 fontSpanParser 完整实现）
-const fontStore = useFontStore()
-const personaFontStore = usePersonaFontStore()
-const { logs: activityLogsValue } = useActivityLog()
-
-// fontFamily：Agent 层字体串（fallback 兜底）
-const agentFontFamily = computed(() => {
-  const family = fontStore.prefs.agent.family
-  return family ? `"${family}", sans-serif` : 'sans-serif'
-})
-
-provideAgentUiDeps({
-  fontFamily: agentFontFamily,
-  enterAnimation: computed(() => personaFontStore.activeProfile.animationStyle.messageEnter),
-  fontPrefs: computed<AgentFontPrefs>(() => {
-    const { family, weight, style } = fontStore.prefs.agent
-    return { family, weight, style }
-  }),
-  persona: computed<PersonaFontInfo>(() => {
-    const p = personaFontStore.activeProfile
-    return { fontFamily: p.fontFamily, sizeScale: p.sizeScale, weightDefault: p.weightDefault as string }
-  }),
-  activityLogs: computed<ActivityLogItem[]>(() => activityLogsValue.value as unknown as ActivityLogItem[]),
-  replaceFontSpans: (text: string) => text, // {font:...} 标记暂 passthrough，后续接完整 parser
-  AvatarBadge,
-})
 
 /**
  * 主题两轴统一落地（2026-09-13 收束：主题 = 底色 × 强调色；AppearancePanel 派发 ws-set-theme）。
@@ -145,40 +102,10 @@ onMounted(async () => {
   } catch (err) {
     console.error('[App] 项目系统初始化失败:', err)
   }
-  // 项目=目录（2026-09-03）：注册「项目切换 → Agent 新会话」联动（幂等单例；init 之后再监听，
-  // 避免启动时无项目也触发草稿会话）
-  try {
-    await registerProjectSwitchListener()
-  } catch (err) {
-    console.warn('[App] 注册项目切换联动失败:', err)
-  }
-  // Agent 工作台视图已退役（2026-08-09）：能力迁入 AgentSpace 执行面板，
-  // Shell 仅承载官方芽视图；默认进入 AgentSpace（currentShell 持久化）
-  // 启动已迁移芽（Phase C：注册视图/实体类型）
+  // 产品壳装配：视图同步单点 + 首屏默认视图（芽视图由第二棵树注册，见 src/world/）
   await bootstrapShell()
-  // Agent→芽 数据动作全局桥（2026-09-14 架构拍板）：App 启动即注册、与视图挂载
-  // 解耦——写/查动作必达 store；UI 动作仍由视图内 useAgentPluginBridge 消费。
-  // 幂等；须在 bootstrapShell 之后（实体类型/视图注册完成）
-  try {
-    installAgentDataBridges()
-  } catch (err) {
-    console.error('[App] Agent 数据桥安装失败:', err)
-  }
   // 系统层桥初始化：托盘事件监听 + 最近项目同步（异步，不阻塞启动）
   void setupSystemBridge()
-  // T09②（2026-09-01）：MCP 启动自动重连失败提示——启动拉取配置+状态合并视图，
-  // 已启用但未连上的连接（服务器未起/网络/鉴权）toast 提示一次，便于用户排查。
-  try {
-    const { ensureLoaded: ensureMcpLoaded, takeAutoReconnectFailed } = useMcpConnections({ getAgent: () => useAgent() })
-    await ensureMcpLoaded()
-    const failed = takeAutoReconnectFailed()
-    if (failed.length > 0) {
-      const names = failed.map((f) => f.name).join('、')
-      toastWarn(`MCP 自动重连失败：${names}（请检查服务器是否启动或配置是否正确）`)
-    }
-  } catch (err) {
-    console.error('[App] MCP 启动状态检测失败:', err)
-  }
   // 核心启动完成 → 通知 SplashScreen 淡出（bootState: 'booting' → 'ready'）
   uiStore.markReady()
 })

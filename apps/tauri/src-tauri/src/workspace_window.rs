@@ -83,6 +83,9 @@ struct WindowGeometry {
     position: Option<PhysicalPosition<i32>>,
     size: Option<PhysicalSize<u32>>,
     maximized: bool,
+    /// 快照时窗口处于最小化（E6）：此时 position/size 是平台占位值（Windows ≈ -32000 / 标题栏尺寸），
+    /// **不可转移**给目标窗。
+    minimized: bool,
 }
 
 fn snapshot(window: &WebviewWindow) -> WindowGeometry {
@@ -90,6 +93,7 @@ fn snapshot(window: &WebviewWindow) -> WindowGeometry {
         position: window.outer_position().ok(),
         size: window.inner_size().ok(),
         maximized: window.is_maximized().unwrap_or(false),
+        minimized: window.is_minimized().unwrap_or(false),
     }
 }
 
@@ -106,7 +110,16 @@ fn geometry_plan(source_maximized: bool, target_maximized: bool) -> (bool, bool)
 
 /// 几何平移：**最大化态只平移最大化**——最大化下几何无意义，且对最大化窗 `set_size`/`set_position`
 /// 会把它顶掉（走查现象：最大化被取消并放大）。非最大化态先还原目标窗（可能停在最大化）再落几何。
+///
+/// ★ **最小化来源不转移几何（E6 2026-09-27 走查修复）**：最小化窗的 position/size 是平台占位值
+/// （Windows：位置 ≈ -32000、尺寸 ≈ 标题栏大小）——转移过去会把目标窗也变成「不可见窗」
+/// （实证：托盘在「工作台已最小化」时切回 Agent 面 → 主窗变成 159×27 @ -25600,-25600，且被
+/// 窗口状态插件持久化 → 应用此后「打开即不可见」）。调用方随后仍会 show/unminimize/focus，
+/// 目标窗保持自身几何即可。
 fn apply_geometry(target: &WebviewWindow, geometry: &WindowGeometry) {
+    if geometry.minimized {
+        return;
+    }
     let target_maximized = target.is_maximized().unwrap_or(false);
     let (transfer_maximize, unmaximize_first) = geometry_plan(geometry.maximized, target_maximized);
     if transfer_maximize {
@@ -133,6 +146,32 @@ impl WindowGeometry {
         let size = self.size.map(|s| format!("{}x{}", s.width, s.height)).unwrap_or_else(|| "?x?".to_string());
         format!("{size}@{position}{}", if self.maximized { " max" } else { "" })
     }
+}
+
+/// 还原几何是否可用（纯函数，供单测）：位置离屏（平台最小化占位 ≈ -32000）或尺寸小于下限 → 不可用。
+fn restored_geometry_is_usable(position: Option<(i32, i32)>, size: Option<(u32, u32)>) -> bool {
+    const OFFSCREEN: i32 = -10_000;
+    const MIN_W: u32 = 320;
+    const MIN_H: u32 = 240;
+    match (position, size) {
+        (Some((x, y)), Some((w, h))) => x > OFFSCREEN && y > OFFSCREEN && w >= MIN_W && h >= MIN_H,
+        // 读不到几何（平台异常）→ 视为可用，不动
+        _ => true,
+    }
+}
+
+/// 启动自检（E6 2026-09-27）：窗口状态插件会把「退出时最小化」的窗口按占位几何保存/还原，
+/// 下次启动 → 应用「打开即不可见」（走查实证：主窗 159×27 @ -25600,-25600）。主窗就位后调用一次；
+/// 不可用时复位为默认尺寸并居中（随后的正常退出会覆盖掉坏状态）。
+pub(crate) fn sanitize_restored_geometry(window: &WebviewWindow) {
+    let position = window.outer_position().ok().map(|p| (p.x, p.y));
+    let size = window.inner_size().ok().map(|s| (s.width, s.height));
+    if restored_geometry_is_usable(position, size) {
+        return;
+    }
+    eprintln!("[DSH-SHELL] window: 还原几何不可用（{position:?} / {size:?}）→ 复位 1280×800 并居中");
+    let _ = window.set_size(PhysicalSize::new(1280u32, 800u32));
+    let _ = window.center();
 }
 
 /// 关闭键语义（lib.rs 的 CloseRequested 分支调用）：回 Agent 空间；主窗缺失等异常态至少把工作台窗藏起。

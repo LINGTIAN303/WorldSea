@@ -62,7 +62,7 @@ async function createBoard(
 
 /**
  * 动态 import 缓存：entity-core/store 链首次编译较重（冷启动，实测 4.6s），
- * 放 beforeAll 预热并放宽预算，避免在用例内吃 5s 默认超时（照 agentDataBridges.spec 的做法）。
+ * 放 beforeAll 预热并放宽预算，避免在用例内吃 5s 默认超时。
  */
 let useEntityStoreRef: (() => EntityStoreApi) | null = null
 let useBoardLayoutRef: (() => BoardLayoutApi) | null = null

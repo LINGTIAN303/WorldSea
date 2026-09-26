@@ -435,6 +435,12 @@ pub fn run() {
                 nav_fence::install(&window);
             }
 
+            // E6（2026-09-27）：还原几何自检——窗口状态插件会把「退出时最小化」的窗口按占位几何还原，
+            // 使应用「打开即不可见」；主窗就位后校验一次，不可用则复位默认并居中。
+            if let Some(window) = app.get_webview_window("main") {
+                workspace_window::sanitize_restored_geometry(&window);
+            }
+
             // ── B2 壳接入（2026-09-23）＋ C1-a 协议桥（2026-09-24）──────────────
             // 装配全在 dsh_shell::install（spawn/就绪/守护）与 dsh_bridge::attach（协议页/回退）：
             // UI origin 与传输面分离，界面 100% 保留；口径见 docs/plans/ 的准备方案 §六 与 C1 批计划 §三。

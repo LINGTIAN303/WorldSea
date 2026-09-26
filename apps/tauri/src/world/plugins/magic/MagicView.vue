@@ -20,7 +20,6 @@ import { WsIcon } from '@worldsea/ui-kit'
 import { SchemaRenderer, CustomDropdown, type RelationTabDef } from '@worldsea/plugin-sdk'
 import SkillTreeView from './SkillTreeView.vue'
 import type { Entity } from '@worldsea/entity-core'
-import { useAgentPluginBridge } from '@/composables/useAgentPluginBridge'
 import { schemaGetEntityType } from '@/core/coreBackend'
 
 /** 实体类型 schema 加载器（从 WASM/后端加载，供 SchemaRenderer 注入） */
@@ -41,9 +40,6 @@ const magicTabs: RelationTabDef[] = [
   { id: 'counters', label: '克制关系', icon: 'shield', relationType: 'counters' },
 ]
 
-useAgentPluginBridge('magic', (event) => {
-  console.log(`[Agent→${event.pluginId}] ${event.action}`, event.payload)
-})
 </script>
 <style scoped>
 /* 根容器撑满视图高度，保证 SchemaRenderer → GenericEntityView 空状态可垂直居中 */

@@ -10,8 +10,6 @@ export interface FormFieldDef {
   refType?: string
   relationType?: string
   autoLink?: boolean | { targetType: string; relationType: string; searchField?: string; createIfMissing?: boolean }
-  /** 是否启用智能填充。默认 text/textarea/richtext 为 true，其他类型为 false */
-  smartFill?: boolean
 }
 
 export interface RelationTabDef {

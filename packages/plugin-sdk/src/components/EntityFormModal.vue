@@ -23,21 +23,16 @@
           @dragover.prevent="onDragOver(i)"
           @dragleave="onDragLeave"
           @drop="onDrop(i)"
-          @mouseenter="onFieldMouseEnter(field.key)"
-          @mouseleave="onFieldMouseLeave(field.key)"
         >
-          <label><WsIcon name="grip" size="xs" class="efm-drag-handle" /> {{ field.label }}<span v-if="field.required" class="efm-required">*</span><button v-if="isSparkleVisible(field)" class="efm-smart-fill-btn" @click="onSmartFillClick(field)" title="AI 建议">✨</button><button v-if="field.source && field.source !== 'builtin'" class="efm-field-del" @click="removeField(field.key)" title="删除此字段">✕</button></label>
+          <label><WsIcon name="grip" size="xs" class="efm-drag-handle" /> {{ field.label }}<span v-if="field.required" class="efm-required">*</span><button v-if="field.source && field.source !== 'builtin'" class="efm-field-del" @click="removeField(field.key)" title="删除此字段">✕</button></label>
           <div v-if="field.type === 'text'" class="efm-input-wrap">
-            <input v-model="formData[field.key]" :placeholder="field.placeholder" :aria-label="field.label" @input="onFieldInput(field)" @focus="onFieldFocus(field.key); onFieldFocusForTrigger(field, $event)" @blur="onFieldBlur(field.key); onFieldBlurForTrigger(field)" @keydown="onFieldKeydown(field, $event)" />
-            <SmartFillGhostText v-if="isSmartFillField(field) && ghostVisible && ghostFieldKey === field.key" :visible="true" :suggestion="ghostText" :current-text="formData[field.key] || ''" />
+            <input v-model="formData[field.key]" :placeholder="field.placeholder" :aria-label="field.label" @input="onFieldInput(field)" />
           </div>
           <div v-else-if="field.type === 'textarea'" class="efm-input-wrap">
-            <textarea v-model="formData[field.key]" :rows="field.rows || 3" :placeholder="field.placeholder" :aria-label="field.label" @input="onFieldInput(field)" @focus="onFieldFocus(field.key); onFieldFocusForTrigger(field, $event)" @blur="onFieldBlur(field.key); onFieldBlurForTrigger(field)" @keydown="onFieldKeydown(field, $event)"></textarea>
-            <SmartFillGhostText v-if="isSmartFillField(field) && ghostVisible && ghostFieldKey === field.key" :visible="true" :suggestion="ghostText" :current-text="formData[field.key] || ''" />
+            <textarea v-model="formData[field.key]" :rows="field.rows || 3" :placeholder="field.placeholder" :aria-label="field.label" @input="onFieldInput(field)"></textarea>
           </div>
           <div v-else-if="field.type === 'richtext'" class="efm-richtext-wrap">
             <RichTextEditor v-model="formData[field.key]" />
-            <button v-if="isSparkleVisible(field)" class="efm-smart-fill-inline" @click="onSmartFillClick(field)" title="AI 建议">✨</button>
           </div>
           <CustomDropdown v-else-if="field.type === 'select'" :model-value="formData[field.key]" @update:model-value="formData[field.key] = $event" :options="[{ value: '', label: '—' }, ...(field.options || [])]" />
           <input v-else-if="field.type === 'tags'" v-model="formData[field.key]" placeholder="逗号分隔" :aria-label="field.label" />
@@ -89,55 +84,23 @@
           </div>
         </div>
       </div>
-      <EmptyFieldHint
-        :visible="showEmptyFieldHint"
-        @click="onSmartFillAll"
-      />
-      <FieldFocusTrigger
-        :visible="focusTriggerVisible"
-        :field-rect="focusTriggerRect"
-        @click="onFieldFocusTriggerClick"
-      />
       <div v-if="nameError" class="efm-error">{{ nameError }}</div>
       <div class="efm-footer">
-        <button class="efm-btn efm-btn-smart-fill" @click="onSmartFillAll" title="为所有空字段生成 AI 建议">✨ AI 智能填充</button>
         <div class="efm-footer-spacer"></div>
         <button class="efm-btn efm-btn-cancel" @click="close">取消</button>
         <button class="efm-btn efm-btn-save" @click="save">保存</button>
       </div>
       <div class="resize-handle-right" @mousedown="modalResizable.onResizeStart"></div>
     </div>
-    <!-- Smart Fill 预览面板 -->
-    <SmartFillPreview
-      :visible="smartFillPreview.visible"
-      :current-fields="smartFillPreview.currentFields"
-      :suggestions="smartFillPreview.suggestions"
-      :field-labels="smartFillPreview.fieldLabels"
-      :accepted="smartFillPreview.accepted"
-      :rejected="smartFillPreviewRejected"
-      :include-existing="smartFillIncludeExisting"
-      @close="onSmartFillPreviewClose"
-      @accept="onSmartFillPreviewAccept"
-      @reject="onSmartFillPreviewReject"
-      @accept-all="onSmartFillPreviewAcceptAll"
-      @reject-all="onSmartFillPreviewRejectAll"
-      @apply="onSmartFillPreviewApply"
-      @toggle-include-existing="onToggleIncludeExisting"
-    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { toastSuccess, toastWarn } from '@worldsea/ui-kit'
 import { useDialog, useResizable } from '../composables'
-import { ref, watch, computed, reactive, nextTick, onBeforeUnmount, onUnmounted } from 'vue'
+import { ref, watch, nextTick, onBeforeUnmount } from 'vue'
 import { RichTextEditor, WsIcon, useModalShortcuts } from '@worldsea/ui-kit'
 import CustomDropdown from './CustomDropdown.vue'
 import ImageField from './ImageField.vue'
-import SmartFillGhostText from './SmartFillGhostText.vue'
-import SmartFillPreview from './SmartFillPreview.vue'
-import EmptyFieldHint from './EmptyFieldHint.vue'
-import FieldFocusTrigger from './FieldFocusTrigger.vue'
 import { useFieldOrderStore, useEntityStore } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
 
@@ -198,22 +161,6 @@ const fieldOrderStore = useFieldOrderStore()
 const dialog = useDialog()
 const entityStore = useEntityStore()
 
-// ── Smart Fill 基础状态（完整逻辑见下方 Smart Fill 区块；refs 提前声明供 useDynamicForm 依赖注入）──
-const SMART_FILL_TYPES = new Set(['text', 'textarea', 'richtext'])
-const focusedFieldKey = ref<string | null>(null)
-const hoveredFieldKey = ref<string | null>(null)
-const ghostText = ref('')
-const ghostFieldKey = ref('')
-const ghostVisible = ref(false)
-const focusTriggerVisible = ref(false)
-const focusTriggerRect = ref<DOMRect | null>(null)
-const focusTriggerFieldKey = ref<string | null>(null)
-
-function isSmartFillField(field: FormFieldDef): boolean {
-  if (field.smartFill === false) return false
-  return SMART_FILL_TYPES.has(field.type)
-}
-
 // ── 字段与预设 ─────────────────────────────────────────────────────────
 const presets = useFieldPresets({
   fields: () => props.fields,
@@ -236,8 +183,6 @@ const form = useDynamicForm({
   entity: () => props.entity,
   sortedFields,
   resolvedEntityType,
-  isSmartFillField,
-  ghostVisible,
 })
 const { formData, nameError, initFormData, onFieldInput } = form
 
@@ -285,247 +230,7 @@ function close() {
 
 defineExpose({ syncEntityRefAfterCreate })
 
-// ── Smart Fill（智能填充）──────────────────────────────────────────────
-
-const emptyFieldCount = computed(() => {
-  return sortedFields.value.filter(f => {
-    if (!isSmartFillField(f)) return false
-    const value = formData.value[f.key]
-    return !value || !value.trim()
-  }).length
-})
-
-const showEmptyFieldHint = computed(() => emptyFieldCount.value >= 3)
-
-function onFieldMouseEnter(key: string) {
-  hoveredFieldKey.value = key
-}
-
-function onFieldMouseLeave(key: string) {
-  if (hoveredFieldKey.value === key) {
-    hoveredFieldKey.value = null
-  }
-}
-
-/** 判断✨图标是否可见：hover 且非输入状态 */
-function isSparkleVisible(field: FormFieldDef): boolean {
-  if (!isSmartFillField(field)) return false
-  // 输入中且有 ghost text 时隐藏✨
-  if (focusedFieldKey.value === field.key && ghostVisible.value) return false
-  // 仅 hover 时显示
-  return hoveredFieldKey.value === field.key
-}
-
-function onFieldFocus(key: string) {
-  focusedFieldKey.value = key
-}
-
-function onFieldBlur(key: string) {
-  if (focusedFieldKey.value === key) {
-    focusedFieldKey.value = null
-    if (ghostFieldKey.value === key) {
-      ghostVisible.value = false
-    }
-  }
-}
-
-function onFieldFocusForTrigger(field: FormFieldDef, event: FocusEvent) {
-  if (!isSmartFillField(field)) return
-  const target = event.target as HTMLElement
-  focusTriggerRect.value = target.getBoundingClientRect()
-  focusTriggerFieldKey.value = field.key
-  focusTriggerVisible.value = true
-}
-
-function onFieldBlurForTrigger(_field: FormFieldDef) {
-  setTimeout(() => {
-    focusTriggerVisible.value = false
-  }, 200)
-}
-
-function onFieldFocusTriggerClick() {
-  if (!focusTriggerFieldKey.value) return
-  const field = sortedFields.value.find(f => f.key === focusTriggerFieldKey.value)
-  if (!field) return
-  window.dispatchEvent(new CustomEvent('worldsea:smart-fill:chat-open', {
-    detail: {
-      entityType: resolvedEntityType.value,
-      entityId: props.entity?.id,
-      entityName: props.entity?.name,
-      fieldKey: field.key,
-    },
-  }))
-  focusTriggerVisible.value = false
-}
-
-function onFieldKeydown(field: FormFieldDef, e: KeyboardEvent) {
-  if (!ghostVisible.value || ghostFieldKey.value !== field.key) return
-  if (e.key === 'Tab' || e.key === 'Enter') {
-    e.preventDefault()
-    formData.value[field.key] = (formData.value[field.key] || '') + ghostText.value
-    ghostVisible.value = false
-    ghostText.value = ''
-    ghostFieldKey.value = ''
-  } else if (e.key === 'Escape') {
-    e.preventDefault()
-    ghostVisible.value = false
-    ghostText.value = ''
-    ghostFieldKey.value = ''
-  }
-}
-
-/** ✨ 按钮点击：请求字段级独立建议 */
-function onSmartFillClick(field: FormFieldDef) {
-  const detail = {
-    type: 'suggest_field' as const,
-    entityType: resolvedEntityType.value,
-    entityId: props.entity?.id,
-    fieldKey: field.key,
-    fieldLabel: field.label,
-    currentText: formData.value[field.key] || '',
-    mode: 'suggest' as const,
-    isEditing: !!props.entity?.id,
-  }
-  window.dispatchEvent(new CustomEvent('worldsea:smart-fill:request', { detail }))
-}
-
-/** "AI 智能填充"按钮：请求一键填充 */
-function onSmartFillAll() {
-  const emptyFields: string[] = []
-  const fieldLabels: Record<string, string> = {}
-  for (const field of sortedFields.value) {
-    const value = formData.value[field.key]
-    if (isSmartFillField(field) && (!value || !value.trim())) {
-      emptyFields.push(field.key)
-      fieldLabels[field.key] = field.label
-    }
-  }
-  if (!smartFillIncludeExisting.value && emptyFields.length === 0) {
-    toastWarn('没有空字段需要填充')
-    return
-  }
-  const detail = {
-    type: 'smart_fill' as const,
-    entityType: resolvedEntityType.value,
-    entityId: props.entity?.id,
-    currentFields: { ...formData.value },
-    emptyFields: smartFillIncludeExisting.value ? [] : emptyFields,
-    includeExisting: smartFillIncludeExisting.value,
-  }
-  window.dispatchEvent(new CustomEvent('worldsea:smart-fill:request', { detail }))
-}
-
-// 监听 Smart Fill 结果
-function handleSmartFillResult(e: Event) {
-  const result = (e as CustomEvent).detail
-  if (!result) return
-
-  if (result.type === 'field_suggestion' && result.fieldKey) {
-    // 字段级建议 → 设置 ghost text
-    ghostText.value = result.suggestion || ''
-    ghostFieldKey.value = result.fieldKey
-    ghostVisible.value = true
-  } else if (result.type === 'smart_fill_result' && result.suggestions) {
-    // 一键填充结果 → 由预览面板处理（见下方匿名监听器），此处不再直接填入
-  }
-}
-
-// 注册/清理事件监听
-window.addEventListener('worldsea:smart-fill:result', handleSmartFillResult)
-
-// ── Smart Fill Preview 状态 ──────────────────────────────────────────
-
-const smartFillIncludeExisting = ref(false)
-
-function onToggleIncludeExisting(value: boolean) {
-  smartFillIncludeExisting.value = value
-  // 仅在有实际填充需求时重新请求，避免无空字段时弹出 toastWarn
-  if (value || emptyFieldCount.value > 0) {
-    onSmartFillAll()
-  }
-}
-
-const smartFillPreview = reactive({
-  visible: false,
-  currentFields: {} as Record<string, string>,
-  suggestions: {} as Record<string, string>,
-  fieldLabels: {} as Record<string, string>,
-  accepted: new Set<string>(),
-})
-
-const smartFillPreviewRejected = computed(() => {
-  const all = new Set(Object.keys(smartFillPreview.suggestions))
-  for (const key of smartFillPreview.accepted) all.delete(key)
-  return all
-})
-
-function onSmartFillPreviewClose() {
-  smartFillPreview.visible = false
-}
-
-function onSmartFillPreviewAccept(key: string) {
-  smartFillPreview.accepted.add(key)
-}
-
-function onSmartFillPreviewReject(key: string) {
-  smartFillPreview.accepted.delete(key)
-}
-
-function onSmartFillPreviewAcceptAll() {
-  smartFillPreview.accepted = new Set(Object.keys(smartFillPreview.suggestions))
-}
-
-function onSmartFillPreviewRejectAll() {
-  smartFillPreview.accepted = new Set()
-}
-
-function onSmartFillPreviewApply() {
-  // 将已接受的建议写入表单
-  for (const key of smartFillPreview.accepted) {
-    if (smartFillPreview.suggestions[key] !== undefined) {
-      formData.value[key] = smartFillPreview.suggestions[key]
-    }
-  }
-  smartFillPreview.visible = false
-  const count = smartFillPreview.accepted.size
-  toastSuccess(`已应用 ${count} 个字段建议`)
-}
-
-// 预览面板专用结果监听器（命名函数以便清理）
-function handleSmartFillPreviewResult(e: Event) {
-  const result = (e as CustomEvent).detail
-  if (!result) return
-  if (result.type === 'smart_fill_result' && result.suggestions) {
-    const labels: Record<string, string> = {}
-    for (const field of sortedFields.value) {
-      labels[field.key] = field.label
-    }
-    smartFillPreview.currentFields = { ...formData.value }
-    smartFillPreview.suggestions = result.suggestions
-    smartFillPreview.fieldLabels = labels
-    smartFillPreview.accepted = new Set()
-    smartFillPreview.visible = true
-  }
-}
-
-window.addEventListener('worldsea:smart-fill:result', handleSmartFillPreviewResult)
-
-// ── Smart Fill Write-Back 监听 ──────────────────────────────────────────
-function handleSmartFillWriteBack(e: Event) {
-  const detail = (e as CustomEvent).detail as { fieldKey: string; value: string } | undefined
-  if (!detail?.fieldKey) return
-  formData.value[detail.fieldKey] = detail.value
-}
-
-window.addEventListener('worldsea:smart-fill:write-back', handleSmartFillWriteBack)
-
 onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
-
-onUnmounted(() => {
-  window.removeEventListener('worldsea:smart-fill:result', handleSmartFillResult)
-  window.removeEventListener('worldsea:smart-fill:result', handleSmartFillPreviewResult)
-  window.removeEventListener('worldsea:smart-fill:write-back', handleSmartFillWriteBack)
-})
 </script>
 
 <style scoped>
@@ -651,24 +356,7 @@ onUnmounted(() => {
 }
 .efm-field-del { background: none; border: none; color: var(--danger, var(--color-danger)); font-size: var(--font-size-xs); cursor: pointer; padding: 0 2px; margin-left: 4px; opacity: 0.3; transition: opacity 0.15s; }
 .efm-field-del:hover { opacity: 1; }
-/* Smart Fill ✨ 按钮 */
-.efm-smart-fill-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: var(--font-size-xs);
-  padding: 0 3px;
-  margin-left: 4px;
-  opacity: 0;
-  transition: opacity 0.15s, transform 0.15s;
-}
-.efm-field:hover .efm-smart-fill-btn {
-  opacity: 1;
-}
-.efm-smart-fill-btn:hover {
-  transform: scale(1.2);
-}
-/* Input wrap (for ghost text overlay) */
+/* Input wrap（与输入控件同宽，供绝对定位装饰） */
 .efm-input-wrap {
   position: relative;
 }
@@ -684,44 +372,8 @@ onUnmounted(() => {
   max-width: 100%;
   overflow: hidden;
 }
-/* Richtext smart fill button */
 .efm-richtext-wrap {
   position: relative;
-}
-.efm-smart-fill-inline {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  background: var(--glass-bg, var(--color-bg-surface));
-  border: 1px solid var(--border-color, var(--border));
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: var(--font-size-xs);
-  padding: 2px 6px;
-  opacity: 0;
-  transition: opacity 0.15s;
-  z-index: 2;
-}
-.efm-field:hover .efm-smart-fill-inline {
-  opacity: 1;
-}
-.efm-smart-fill-inline:hover {
-  opacity: 1;
-}
-/* AI 智能填充按钮 */
-.efm-btn-smart-fill {
-  background: transparent;
-  color: var(--accent);
-  border: 1px dashed var(--accent);
-  font-size: var(--font-size-sm);
-  padding: 7px 16px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background 0.15s, border-style 0.15s;
-}
-.efm-btn-smart-fill:hover {
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
-  border-style: solid;
 }
 .efm-footer-spacer {
   flex: 1;

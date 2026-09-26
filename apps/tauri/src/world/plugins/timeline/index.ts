@@ -7,18 +7,6 @@ export const manifest = {
   version: '2.0.0',
   description: '管理世界观中的历史事件与时间线',
   author: 'WorldSea',
-  agentSkills: ['worldbuilding'],
-  agentCapabilities: [
-    { action: 'create_entity', description: '创建事件', params: ['name', 'description'] },
-    { action: 'update_entity', description: '更新事件属性', params: ['entityId', 'changes'] },
-  ],
-  permissions: [
-    { name: 'storage:read', description: '读取实体数据' },
-    { name: 'entities:write', description: '创建和编辑事件' },
-    { name: 'relations:read', description: '查询关联关系' },
-    { name: 'schema:register', description: '注册实体类型和关系类型' },
-    { name: 'views:register', description: '注册视图' },
-  ],
 }
 
 export function apply(_ctx: unknown, api: WorldPluginApi) {

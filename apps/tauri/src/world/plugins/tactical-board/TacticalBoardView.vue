@@ -158,7 +158,6 @@ import { useAwareness, type AwarenessMode } from './composables/useAwareness'
 import { useBoardPersistence } from './composables/useBoardPersistence'
 import type { UnitRenderData, HighlightCell } from './composables/boardDraw'
 import { useBoardAnimation } from './composables/useBoardAnimation'
-import { useTacticalAgentBridge } from './composables/useTacticalAgentBridge'
 import { useKeyboardShortcuts } from './composables/useKeyboardShortcuts'
 
 const es = useEntityStore()
@@ -585,31 +584,6 @@ useKeyboardShortcuts({
   waitAction,
   cancelAction,
   toggleAwareness: onToggleAwareness,
-})
-
-// --- Agent plugin bridge ---
-useTacticalAgentBridge({
-  onDeployEntity,
-  onMoveUnit: (x, y) => {
-    selectedCell.value = { x, y }
-    if (battlePhase.value === 'battle' && !actionState.value) {
-      beginMoveAction()
-    }
-  },
-  onSimulateTurn: (full) => {
-    if (battlePhase.value === 'battle') {
-      if (full) onToggleAutoAI()
-      else ai.runAISingleStep()
-    }
-  },
-  getBattleState: () => ({
-    phase: battlePhase.value,
-    turn: currentTurn.value,
-    units: units.value.map(u => ({ id: u.id, name: u.name, team: u.team, hp: u.hp, x: u.x, y: u.y, acted: u.acted })),
-    gridType: gridType.value,
-    gridSize: Number(gridSize.value),
-    combatStats: combatStatsSummary.value,
-  }),
 })
 
 onMounted(async () => {
