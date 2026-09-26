@@ -125,7 +125,6 @@
             <button class="ms-action-btn" title="快照" @click="saveSnapshot"><WsIcon name="image" size="sm" /></button>
             <button class="ms-action-btn" :class="{ active: showHistory }" title="历史" @click="showHistory = !showHistory"><WsIcon name="manuscript" size="sm" /></button>
             <button class="ms-action-btn" title="手机预览" @click="showPreview = true"><WsIcon name="keyboard" size="sm" /></button>
-            <button class="ms-action-btn" :class="{ active: showAI }" title="AI 辅助" @click="showAI = !showAI"><WsIcon name="profile" size="sm" /></button>
             <button class="ms-action-btn" title="导出" @click="showExport = true"><WsIcon name="item" size="sm" /></button>
           </div>
         </div>
@@ -151,16 +150,6 @@
       </div>
 
       <WsEmpty v-else preset="no-data" title="选择一个章节开始写作" />
-
-      <AISidebar
-        ref="aiSidebarRef"
-        :visible="showAI"
-        :chapter-content="previewHTML"
-        :chapter-title="current?.name || ''"
-        :selected-text="selectedText"
-        @close="showAI = false"
-        @adopt="adoptAIResult"
-      />
     </div>
 
     <PhonePreview
@@ -197,7 +186,6 @@ import { WsIcon, WsEmpty, useConfirm } from '@worldsea/ui-kit'
 import ChapterEditor from './components/ChapterEditor.vue'
 import ChapterList from './components/ChapterList.vue'
 import PhonePreview from './components/PhonePreview.vue'
-import AISidebar from './components/AISidebar.vue'
 import ExportDialog from './components/ExportDialog.vue'
 import BookInfoDialog from './components/BookInfoDialog.vue'
 import { useChapterEditor } from './composables/useChapterEditor'
@@ -218,11 +206,8 @@ const editTitle = ref('')
 const editStatus = ref('草稿')
 const filterOutline = ref('')
 const showPreview = ref(false)
-const showAI = ref(false)
 const showExport = ref(false)
-const selectedText = ref('')
 const sidebarCollapsed = ref(false)
-const aiSidebarRef = ref<{ runAI: (mode: string) => void } | null>(null)
 
 // ── 书籍导航（2026-09-14 书籍实体）──
 // selectedBookId: null = 书籍列表层；'' = 未归书虚拟组；其他 = book 实体 id
@@ -232,15 +217,8 @@ const inBook = computed(() => selectedBookId.value !== null)
 const {
   editor, saveStatus, wordCount, loadChapter, flushSave,
   setMentionPopover, onMentionSelect,
-  setSlashCommandPopover, setSlashCommandCallback, onSlashCommandSelect,
+  setSlashCommandPopover, onSlashCommandSelect,
 } = useChapterEditor(current)
-
-setSlashCommandCallback((commandId: string) => {
-  showAI.value = true
-  nextTick(() => {
-    aiSidebarRef.value?.runAI(commandId)
-  })
-})
 
 const { snapshots, showHistory, loadSnapshots, createSnapshot, restoreSnapshot, deleteSnapshot } = useChapterSnapshots(current)
 
@@ -468,16 +446,6 @@ async function deleteSnap(idx: number) {
 
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleString()
-}
-
-function adoptAIResult(text: string) {
-  if (!editor.value) return
-  const { from, to } = editor.value.state.selection
-  if (from !== to) {
-    editor.value.chain().focus().insertContentAt({ from, to }, text).run()
-  } else {
-    editor.value.chain().focus().insertContent(text).run()
-  }
 }
 
 onMounted(async () => {

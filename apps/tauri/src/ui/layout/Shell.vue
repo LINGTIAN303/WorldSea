@@ -54,6 +54,7 @@ import { useShortcuts, useUndoRedo, useGlobalEvents } from '@worldsea/ui-kit'
 import { usePluginStore, useDirtyTracker, useEntityStore, useRelationStore, entitySchemaRegistry, relationshipRegistry, useUIStore, useSettingsStore } from '@worldsea/entity-core'
 import { useFileSystemProject } from '@worldsea/entity-core/composables'
 import { useProjectSwitcher } from '@/composables/useProjectSwitcher'
+import { toggleShell } from '@/composables/shellSwitch'
 import CompanionNotification from '../companion/CompanionNotification.vue'
 import { useCompanionMode } from '@worldsea/shared-composables/companion/useCompanionMode'
 
@@ -175,7 +176,9 @@ onMounted(() => {
   register({ id: 'sidebar.toggle', keys: ['ctrl', 'b'], description: '切换侧边栏', scope: 'global', handler: () => uiStore.toggleSidebar() })
   register({ id: 'search.open', keys: ['ctrl', 'k'], description: '全局搜索', scope: 'global', handler: () => { searchOpen.value = true } })
   register({ id: 'settings.open', keys: ['ctrl', ','], description: '打开设置', scope: 'global', handler: () => { window.dispatchEvent(new CustomEvent('ws-open-settings')) } })
-  register({ id: 'shell.toggle', keys: ['ctrl', 'tab'], description: '切换 Agent 空间 ⇄ 工作台', scope: 'global', preventDefault: true, handler: () => { uiStore.setShell(uiStore.currentShell === 'workbench' ? 'space' : 'workbench') } })
+  // 空间切换交统一入口（shellSwitch）：新壳里 = 壳级窗口互斥切换（dsh 窗 ⇄ 工作台窗），
+  // 无壳桥时回退页内壳切换。此前直落页内 setShell('space') → 工作台渲染被桩空的旧 Agent 面（空页）。
+  register({ id: 'shell.toggle', keys: ['ctrl', 'tab'], description: '切换 Agent 空间 ⇄ 工作台', scope: 'global', preventDefault: true, handler: () => { toggleShell() } })
   register({ id: 'project.manager', keys: ['ctrl', 'shift', 'p'], description: '打开项目（选择目录）', scope: 'global', handler: () => { void openProjectFolderDialog() } })
   register({ id: 'global.undo', keys: ['ctrl', 'z'], description: '撤销', scope: 'global', handler: () => undo(entityStore, relationStore), preventDefault: true })
   register({ id: 'global.redo', keys: ['ctrl', 'y'], description: '重做', scope: 'global', handler: () => redo(entityStore, relationStore), preventDefault: true })

@@ -1,11 +1,11 @@
 import type { WorldPluginApi } from '../../api'
-import WorkflowView from './WorkflowView.vue'
+import OrchestrationView from './OrchestrationView.vue'
 
 export const manifest = {
-  id: 'official.workflow',
+  id: 'official.orchestration',
   name: '创作编排',
   version: '2.0.0',
-  description: '创作编排面板。将复杂创作目标拆解为有序步骤（Pipeline），支持 Agent 自动提议、逐步执行、用户审阅介入、模板复用。',
+  description: '创作编排面板。将复杂创作目标拆解为有序创作计划（Pipeline），支持步骤库、步骤连接、模板复用。',
   author: 'WorldSea',
   agentSkills: ['creation-orchestrator'],
   agentCapabilities: [
@@ -46,10 +46,10 @@ export function apply(_ctx: unknown, api: WorldPluginApi) {
   })
 
   api.registerView({
-    id: 'workflow',
+    id: 'orchestration',
     label: '创作编排',
     icon: 'lightning',
-    component: WorkflowView,
+    component: OrchestrationView,
     // 全屏画布：工具条悬浮胶囊，不占 44px，hover 顶部浮现
     toolbar: 'overlay',
   })

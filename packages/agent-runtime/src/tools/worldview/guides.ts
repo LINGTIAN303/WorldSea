@@ -267,7 +267,7 @@ export const SPROUT_GUIDES: Record<string, SproutGuide> = {
       '画布数据（画布内容 / 图层 / 缩放 / 平移）存于实体 properties；视图为画布形态。该芽无专属动作——实体读写经通用实体工具。',
     ].join('\n'),
   },
-  'official.workflow': {
+  'official.orchestration': {
     overview: [
       '创作编排：创作 Pipeline（pipeline 实体）与流程模板的视图。',
       '',

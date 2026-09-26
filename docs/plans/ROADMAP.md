@@ -53,11 +53,11 @@
 - **备注**：已有 SmartFillChat / SmartFillContextMenu / SmartFillChatTrigger 基础，需明确迭代目标
 
 ### 13. 创作编排插件的迭代优化
-- **简述**：迭代 `workflow` 插件（创作编排）
-- **涉及模块**：`src/plugins/official/workflow/`、`src-tauri/src/workflow/`（Rust 端 engine/executor/dispatch_protocol）
+- **简述**：迭代 `official.orchestration` 插件（创作编排；2026-09-26 E5 前用名 `workflow`）
+- **涉及模块**：`apps/tauri/src/world/plugins/orchestration/`（树内插件）、`src-tauri/src/workflow/`（Rust 端 engine/executor/dispatch_protocol）
 - **状态**：待启动
 - **优先级**：—
-- **备注**：Rust 端已有完整 workflow 引擎（dispatch/dry_run/runs/settings + executor），前端迭代需对接
+- **备注**：Rust 端有完整 workflow 引擎（dispatch/dry_run/runs/settings + executor）；但应用内的对接通道（旧前端 `workflowApi`/`useWorkflowEngineRun`）为**占位未接**，已于 **E5（2026-09-26）退场**（执行面板/运行历史/「交给 Agent 执行」「直接执行」一并删除，插件收敛为创作计划编排器）。重接需随 D2（Agent 操作产品域）一并设计
 
 ### 14. 思维导图插件的真实实现
 - **简述**：将 `mindmap` 插件从占位实现替换为真实可用的思维导图

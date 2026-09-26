@@ -32,59 +32,29 @@
 
     <div class="pt-actions">
       <slot name="actions">
-        <button
-          class="pt-btn pt-btn--primary"
-          :disabled="pipeline.status === 'running'"
-          @click="$emit('run-agent')"
-        >
-          <IconRobot :size="14" />
-          交给 Agent 执行
-        </button>
-        <button
-          class="pt-btn pt-btn--engine"
-          :disabled="pipeline.status === 'running'"
-          :title="'绕过 Agent 编排，直接调用 Rust Workflow 引擎执行（兜底通道）'"
-          @click="$emit('run-direct')"
-        >
-          <IconBolt :size="14" />
-          直接执行
-        </button>
         <button class="pt-btn" @click="$emit('save-template')">
           <IconDeviceFloppy :size="14" />
           存为模板
         </button>
         <button class="pt-btn pt-btn--danger" @click="$emit('delete')" aria-label="删除流水线"><IconTrash :size="14" /></button>
-        <button
-          v-if="showSidebarToggle"
-          class="pt-btn pt-btn--icon"
-          @click="$emit('toggle-sidebar')"
-          :title="sidebarVisible ? '收起侧栏' : '展开侧栏'"
-        >
-          {{ sidebarVisible ? '◀' : '▶' }}
-        </button>
       </slot>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { IconPencil, IconCheck, IconRobot, IconBolt, IconDeviceFloppy, IconTrash } from '@tabler/icons-vue'
+import { IconPencil, IconCheck, IconDeviceFloppy, IconTrash } from '@tabler/icons-vue'
 import type { CreationPipeline, PipelineStatus } from '../types'
 
 defineProps<{
   pipeline: CreationPipeline
   editing: boolean
-  showSidebarToggle?: boolean
-  sidebarVisible?: boolean
 }>()
 
 const emit = defineEmits<{
   back: []
-  'run-agent': []
-  'run-direct': []
   'save-template': []
   delete: []
-  'toggle-sidebar': []
   'toggle-edit': [value: boolean]
   'change-status': [status: PipelineStatus]
 }>()
@@ -131,16 +101,5 @@ function onStatusChange(e: Event) {
   background: color-mix(in srgb, var(--warning, #d97706) 15%, var(--bg-secondary, #f4f4f5));
   color: var(--warning, #d97706);
 }
-.pt-btn--primary { background: var(--primary, #4f46e5); color: var(--text-on-primary, #fff); border-color: transparent; }
-.pt-btn--primary:hover { opacity: 0.9; }
-.pt-btn--primary:disabled { opacity: 0.5; cursor: not-allowed; }
-.pt-btn--engine {
-  background: color-mix(in srgb, var(--success, #16a34a) 18%, var(--bg-secondary, #f4f4f5));
-  color: var(--success, #16a34a);
-  border-color: color-mix(in srgb, var(--success, #16a34a) 40%, transparent);
-}
-.pt-btn--engine:hover { background: color-mix(in srgb, var(--success, #16a34a) 28%, var(--bg-secondary, #f4f4f5)); }
-.pt-btn--engine:disabled { opacity: 0.5; cursor: not-allowed; }
 .pt-btn--danger { color: var(--danger, #dc2626); }
-.pt-btn--icon { min-width: 28px; display: flex; align-items: center; justify-content: center; }
 </style>

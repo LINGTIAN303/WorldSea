@@ -52,14 +52,9 @@ export function useChapterEditor(currentChapter: Ref<Entity | null>) {
 
   let slashCommandPopoverRef: SlashCommandPopoverApi | null = null
   let slashCommandRef: ((props: { id: string; label?: string }) => void) | null = null
-  let slashCommandCallback: ((commandId: string) => void) | null = null
 
   function setSlashCommandPopover(ref: SlashCommandPopoverApi | null) {
     slashCommandPopoverRef = ref
-  }
-
-  function setSlashCommandCallback(cb: (commandId: string) => void) {
-    slashCommandCallback = cb
   }
 
   function onSlashCommandSelect(item: SlashCommandItem) {
@@ -70,8 +65,6 @@ export function useChapterEditor(currentChapter: Ref<Entity | null>) {
       setTimeout(() => {
         editor.value?.chain().focus().insertContent('@').run()
       }, 0)
-    } else if (slashCommandCallback) {
-      slashCommandCallback(item.id)
     }
   }
 
@@ -293,7 +286,6 @@ export function useChapterEditor(currentChapter: Ref<Entity | null>) {
     setMentionPopover,
     onMentionSelect,
     setSlashCommandPopover,
-    setSlashCommandCallback,
     onSlashCommandSelect,
   }
 }

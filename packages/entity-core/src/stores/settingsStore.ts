@@ -148,7 +148,7 @@ const DEFAULT_SPROUTS: SproutToggle[] = [
   { id: 'official.drawing', label: '画板', icon: 'drawing', active: false, category: 'visual' },
   { id: 'official.tactical-board', label: '战术棋盘', icon: 'tactical-board', active: false, category: 'visual' },
   { id: 'official.notebook', label: '笔记本', icon: 'notebook', active: true, category: 'visual' },
-  { id: 'official.workflow', label: '创作编排', icon: 'lightning', active: true, category: 'system' },
+  { id: 'official.orchestration', label: '创作编排', icon: 'lightning', active: true, category: 'system' },
 ]
 
 function loadSprouts(): SproutToggle[] {

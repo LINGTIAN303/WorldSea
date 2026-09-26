@@ -267,15 +267,3 @@ export interface CreationTemplate {
   /** 预定义的连接（fromIndex/toIndex 指向 steps 数组索引） */
   connections: (Omit<StepConnection, 'from' | 'to'> & { fromIndex: number; toIndex: number })[]
 }
-
-// ─── Agent 通信 ──────────────────────────────────────────────────────────
-
-/** Pipeline 步骤 → Agent prompt 的转换结果 */
-export interface AgentStepPrompt {
-  /** 发送给 Agent 的 prompt */
-  prompt: string
-  /** 绑定的技能 ID */
-  skillIds: string[]
-  /** 上下文实体 ID */
-  contextEntityIds?: string[]
-}

@@ -1,28 +1,15 @@
 <template>
-  <div v-if="pipeline" class="pd-view" :class="{ 'pd-view--editing': editing, 'pd-view--with-sidebar': sidebarVisible }">
+  <div v-if="pipeline" class="pd-view" :class="{ 'pd-view--editing': editing }">
     <div class="pd-main">
       <PipelineToolbar
       :pipeline="pipeline"
       :editing="editing"
-      :show-sidebar-toggle="true"
-      :sidebar-visible="sidebarVisible"
       @back="$emit('back')"
-      @run-agent="$emit('run-agent')"
-      @run-direct="onRunDirect"
       @save-template="$emit('save-template')"
       @delete="$emit('delete')"
       @change-status="handleChangeStatus"
       @toggle-edit="editing = $event"
-      @toggle-sidebar="sidebarVisible = !sidebarVisible"
     />
-
-      <ExecutionPanel
-        :current-step="currentStep"
-        :progress="progress"
-        :execution-log="executionLog"
-        :engine-state="engineState"
-        @cancel-engine="onCancelEngine"
-      />
 
       <!-- 编辑模式提示条 -->
       <div v-if="editing" class="pd-edit-banner">
@@ -37,13 +24,8 @@
           :step="step"
           :index="idx"
           :is-last="idx === pipeline.steps.length - 1"
-          :current-step-id="currentStep?.id"
           :edit-mode="editing"
-          @select="(id: string) => $emit('select-step', id)"
-          @confirm="(id: string) => $emit('confirm-step', id)"
-          @skip="(id: string) => $emit('skip-step', id)"
           @delete="(id: string) => $emit('remove-step', id)"
-          @retry="(id: string) => $emit('retry-step', id)"
           @update-step="(id, changes) => $emit('update-step', id, changes)"
           @reorder="(from, to) => $emit('reorder-steps', from, to)"
         />
@@ -94,19 +76,9 @@
           <p class="pd-empty__desc">为「{{ pipeline.name }}」添加步骤，定义创作流程</p>
         </div>
 
-        <!-- Agent 设计入口 -->
-        <div class="pd-empty__agent" role="button" tabindex="0" @click="$emit('send-prompt', `/skill:creation-orchestrator 请为「${pipeline.name}」设计创作步骤。${pipeline.description ? '目标：' + pipeline.description : ''}`)" @keydown.enter.prevent="$emit('send-prompt', `/skill:creation-orchestrator 请为「${pipeline.name}」设计创作步骤。${pipeline.description ? '目标：' + pipeline.description : ''}`)" @keydown.space.prevent="$emit('send-prompt', `/skill:creation-orchestrator 请为「${pipeline.name}」设计创作步骤。${pipeline.description ? '目标：' + pipeline.description : ''}`)">
-          <span class="pd-empty__agent-icon"><TemplateIcon name="sparkles" :size="20" /></span>
-          <div class="pd-empty__agent-info">
-            <span class="pd-empty__agent-title">让 Agent 帮你设计</span>
-            <span class="pd-empty__agent-desc">描述你的创作目标，Agent 自动生成步骤</span>
-          </div>
-          <span class="pd-empty__arrow">→</span>
-        </div>
-
         <!-- 手动添加步骤 -->
         <div class="pd-empty__manual">
-          <h4>或手动添加步骤</h4>
+          <h4>从步骤库添加</h4>
           <div class="pd-empty__steps">
             <div
               v-for="item in stepLibraryItems"
@@ -128,55 +100,31 @@
           </div>
         </div>
       </div>
-
-      <!-- Agent 聊天入口 -->
-      <PipelineChat
-        :pipeline="pipeline"
-        @send-prompt="(prompt: string) => $emit('send-prompt', prompt)"
-      />
     </div>
-
-    <!-- 运行历史侧栏 -->
-    <aside v-if="sidebarVisible" class="pd-sidebar">
-      <RunHistorySidebar ref="runHistoryRef" @select-run="onSelectRun" />
-    </aside>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import { IconPencil, IconLink, IconX } from '@tabler/icons-vue'
 import type { CreationPipeline, PipelineStep, PipelineStatus, StepLibraryItem, StepConnection } from '../types'
 import PipelineToolbar from '../components/PipelineToolbar.vue'
 import PipelineStepNode from '../components/PipelineStepNode.vue'
-import ExecutionPanel from '../components/ExecutionPanel.vue'
-import PipelineChat from '../components/PipelineChat.vue'
-import RunHistorySidebar from '../components/RunHistorySidebar.vue'
 import StepTypeIcon from '../components/StepTypeIcon.vue'
 import TemplateIcon from '../components/TemplateIcon.vue'
 import { useStepLibrary } from '../composables/useStepLibrary'
-import { useWorkflowEngineRun } from '../composables/useWorkflowEngineRun'
 
 const props = defineProps<{
   pipeline: CreationPipeline | null
-  currentStep: PipelineStep | null
-  progress: number
-  executionLog: string[]
 }>()
 
 const emit = defineEmits<{
   back: []
-  'run-agent': []
   'save-template': []
   delete: []
-  'select-step': [stepId: string]
-  'confirm-step': [stepId: string]
-  'skip-step': [stepId: string]
   'remove-step': [stepId: string]
-  'retry-step': [stepId: string]
   'update-step': [stepId: string, changes: Partial<Pick<PipelineStep, 'title' | 'config'>>]
   'reorder-steps': [fromIndex: number, toIndex: number]
-  'send-prompt': [prompt: string]
   'change-status': [status: PipelineStatus]
   'add-step': [item: StepLibraryItem]
   'add-connection': [connection: StepConnection]
@@ -184,19 +132,6 @@ const emit = defineEmits<{
 }>()
 
 const editing = ref(false)
-const sidebarVisible = ref(false)
-const runHistoryRef = ref<InstanceType<typeof RunHistorySidebar> | null>(null)
-
-// 直接 Dispatch 兜底通道（P0-1-B1）
-const { state: engineRunState, start: startEngineRun, cancel: cancelEngineRun } = useWorkflowEngineRun()
-
-/** 仅在引擎通道非 idle 时显示，避免占用 ExecutionPanel 空间 */
-const engineState = computed(() => {
-  if (engineRunState.value.status === 'idle') return null
-  // readonly(state) 返回 DeepReadonly，需浅拷贝解包以兼容 ExecutionPanel 的可变 prop 类型
-  const s = engineRunState.value
-  return { ...s, log: [...s.log] }
-})
 
 // 步骤库数据（空状态展示用）
 const { library: stepLibraryItems } = useStepLibrary()
@@ -208,39 +143,6 @@ const newConnTo = ref('')
 
 function handleChangeStatus(status: PipelineStatus) {
   emit('change-status', status)
-}
-
-/** 运行历史选中 run 回调（预留：未来可在此加载节点日志） */
-function onSelectRun(_runId: string) {
-  // P0-1-A2：仅展示列表，节点日志查看留待后续
-}
-
-/**
- * 直接执行（P0-1-B1 兜底通道）
- *
- * 当前实现：用 pipeline.id 直接调 workflow_run。
- * 若 Rust 端找不到对应 workflow，错误会显示在 Engine 通道，
- * 后续可在 start() 前先 workflowCreate/Update 做映射（留待 P0-1-C）。
- */
-async function onRunDirect() {
-  if (!props.pipeline) return
-  await startEngineRun({
-    id: props.pipeline.id,
-    params: {
-      // 把 pipeline 基础信息作为 params 传给引擎，便于调试
-      name: props.pipeline.name,
-      description: props.pipeline.description,
-      stepCount: props.pipeline.steps.length,
-    },
-    triggeredBy: 'manual',
-  })
-  // 运行结束后刷新侧栏
-  runHistoryRef.value?.loadRuns()
-}
-
-/** 取消引擎运行 */
-function onCancelEngine() {
-  void cancelEngineRun()
 }
 
 /** 获取步骤标题（用于连接展示） */
@@ -259,7 +161,7 @@ function handleAddConnection() {
 </script>
 
 <style scoped>
-/* 视图根：默认纵向 flex；侧栏打开时切换为横向 flex */
+/* 视图根：纵向 flex */
 .pd-view {
   display: flex; flex-direction: column;
   height: 100%; padding: 16px; gap: 12px; overflow: hidden;
@@ -267,20 +169,11 @@ function handleAddConnection() {
 .pd-view--editing {
   background: color-mix(in srgb, var(--warning, #d97706) 3%, var(--bg-primary, #ffffff));
 }
-.pd-view--with-sidebar { flex-direction: row; }
 
-/* 主区域：侧栏打开时占据剩余空间，并自身滚动 */
+/* 主区域 */
 .pd-main {
   flex: 1; min-width: 0;
   display: flex; flex-direction: column; gap: 12px; overflow: auto;
-}
-
-/* 侧栏：固定宽度，纵向滚动，与主区域之间用 border 分隔 */
-.pd-sidebar {
-  width: 320px; flex-shrink: 0;
-  padding-left: 12px;
-  border-left: 1px solid var(--border, #e4e4e7);
-  overflow: auto;
 }
 
 .pd-edit-banner {
@@ -303,23 +196,6 @@ function handleAddConnection() {
 .pd-empty__icon { font-size: 40px; }
 .pd-empty__hero h3 { margin: 0; font-size: var(--fs-lg); font-weight: 600; }
 .pd-empty__desc { margin: 0; font-size: var(--fs-md); opacity: 0.6; }
-
-.pd-empty__agent {
-  display: flex; align-items: center; gap: 12px; width: 100%; max-width: 480px;
-  padding: 14px 16px; border-radius: var(--radius-md); cursor: pointer;
-  background: color-mix(in srgb, var(--primary, #4f46e5) 10%, var(--bg-secondary, #f4f4f5));
-  border: 1px solid color-mix(in srgb, var(--primary, #4f46e5) 30%, transparent);
-  transition: background 0.15s, border-color 0.15s;
-}
-.pd-empty__agent:hover {
-  background: color-mix(in srgb, var(--primary, #4f46e5) 18%, var(--bg-secondary, #f4f4f5));
-  border-color: var(--primary, #4f46e5);
-}
-.pd-empty__agent-icon { font-size: 28px; flex-shrink: 0; }
-.pd-empty__agent-info { flex: 1; display: flex; flex-direction: column; gap: 2px; }
-.pd-empty__agent-title { font-size: var(--fs-base); font-weight: 600; }
-.pd-empty__agent-desc { font-size: var(--fs-sm); opacity: 0.6; }
-.pd-empty__arrow { font-size: 18px; color: var(--primary, #4f46e5); flex-shrink: 0; }
 
 .pd-empty__manual {
   width: 100%; max-width: 480px;

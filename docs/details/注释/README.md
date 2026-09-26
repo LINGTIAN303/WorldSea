@@ -136,8 +136,7 @@
 | src-tauri/src/web_fetch_text.rs | [web-fetch.md](tauri/web-fetch.md) | 文本层：实体解码矩阵、空白规整、相对链接归一（remove_dot_segments）、属性扫描的边界判定与同后缀属性规避 |
 | vite.config.ts | [vite-config.md](tauri/vite-config.md) | Tauri 端 Vite 配置：IPC 直连设计原则、WASM 算法降级、端口与构建触发 |
 | src/memory-archive/adapters/TauriFsOperations.ts | [TauriFsOperations.md](tauri/TauriFsOperations.md) | FsOperations 的 Tauri 实现：cmd_fs_* 命令映射 |
-| src/plugins/workflow/api/workflowApi.ts | [workflowApi.md](tauri/workflowApi.md) | Workflow 引擎命令调用层：28 个命令镜像、设计要点 |
-| src/plugins/workflow/composables/useWorkflowEngineRun.ts | [useWorkflowEngineRun.md](tauri/useWorkflowEngineRun.md) | 直接 Dispatch 兜底通道运行控制器：工作机制与注意 |
+| ~~src/plugins/workflow/api/workflowApi.ts~~ / ~~useWorkflowEngineRun.ts~~ | — | **2026-09-26 E5 随创作编排执行出口退场**：两文件为引擎通道占位（stub）已删除，对应注释文档同步删除（git 历史可找回） |
 | 拆分记录（2026-08-06） | — | coreBackend.ts 按领域拆为 src/core/api/（schema / retrofit / entity / algo / health / runtime + index 聚合），coreBackend.ts 保留 `export * from './api'`，类型统一来自 @worldsea/core-api-types，公共导出签名不变，原 import 处无需改动；各新文件无 ≥ 10 行连续注释块，未生成新文档 |
 
 ### web（apps/web，已删除 2026-08-08）

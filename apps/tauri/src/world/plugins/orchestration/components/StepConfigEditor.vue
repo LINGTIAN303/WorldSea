@@ -113,19 +113,6 @@
       <label class="sce-label">车道数上限</label>
       <input class="sce-input" type="number" :value="localCfg.maxLanes" @input="setField('maxLanes', num('maxLanes'))" min="1" max="8" />
       <label class="sce-label">子 Agent 规格 <span class="sce-hint">JSON 数组；id/name/description/systemPrompt</span></label>
-      <div class="sce-spec-import">
-        <button type="button" class="sce-btn" @click="loadRegisteredSpecs">从已注册规格导入</button>
-        <span class="sce-spec-count" v-if="registeredSpecs.length">{{ registeredSpecs.length }} 条可用</span>
-      </div>
-      <div v-if="registeredSpecs.length" class="sce-spec-list">
-        <div v-for="s in registeredSpecs" :key="s.id" class="sce-spec-row">
-          <div class="sce-spec-info">
-            <span class="sce-spec-name">{{ s.name }} <em>{{ s.id }}</em></span>
-            <span class="sce-spec-desc">{{ s.description }}</span>
-          </div>
-          <button type="button" class="sce-btn sce-btn--mini" @click="addRegisteredSpec(s)">添加</button>
-        </div>
-      </div>
       <textarea class="sce-textarea" :value="specsText" @input="onSpecsInput" rows="5" placeholder='[{"id":"worldbuilder","name":"世界观架构师","description":"…","systemPrompt":"…"}]' />
     </template>
   </div>
@@ -215,38 +202,6 @@ function onSpecsInput(e: Event) {
   }
 }
 
-// ─── 从已注册子 Agent 规格导入（multi-agent specs UX 提升）──────────────
-interface RegisteredSpec {
-  id: string
-  name: string
-  description: string
-  system_prompt: string
-}
-
-const registeredSpecs = ref<RegisteredSpec[]>([])
-
-/** 拉取后端 subagent_list_specs（已注册规格跨会话共享） */
-async function loadRegisteredSpecs() {
-  try {
-    const { invoke } = await import('@/agent/composables/transport')
-    const list = (await invoke('subagent_list_specs')) as RegisteredSpec[] | null
-    registeredSpecs.value = list ?? []
-  } catch {
-    registeredSpecs.value = []
-  }
-}
-
-/** 把已注册规格追加进当前 specs（同 id 覆盖），与 JSON 文本双向同步 */
-function addRegisteredSpec(s: RegisteredSpec) {
-  const item = { id: s.id, name: s.name, description: s.description ?? '', systemPrompt: s.system_prompt ?? '' }
-  const specs: any[] = Array.isArray(localCfg.specs) ? [...localCfg.specs] : []
-  const idx = specs.findIndex(x => x.id === item.id)
-  if (idx >= 0) specs[idx] = item
-  else specs.push(item)
-  localCfg.specs = specs
-  emit('update:config', { ...localCfg, specs } as StepConfig)
-}
-
 // ─── 下拉选择数据 ──────────────────────────────────────────
 const { allTemplates } = usePipelineTemplates()
 
@@ -302,28 +257,5 @@ onMounted(async () => {
 }
 .sce-checkbox-label input[type="checkbox"] {
   accent-color: var(--primary, #4f46e5);
-}
-.sce-btn {
-  padding: 4px 10px; border-radius: 5px; border: 1px solid var(--border, #e4e4e7);
-  background: var(--bg-secondary, #f4f4f5); color: var(--text-primary, #18181b);
-  font-size: var(--fs-xs); cursor: pointer; line-height: 1.4;
-}
-.sce-btn:hover { border-color: var(--primary, #4f46e5); color: var(--primary, #4f46e5); }
-.sce-btn--mini { padding: 2px 8px; flex-shrink: 0; }
-.sce-spec-import { display: flex; align-items: center; gap: 8px; }
-.sce-spec-count { font-size: var(--fs-xs); opacity: 0.5; }
-.sce-spec-list {
-  display: flex; flex-direction: column; gap: 4px; max-height: 150px; overflow-y: auto;
-  border: 1px dashed var(--border, #e4e4e7); border-radius: 5px; padding: 6px;
-}
-.sce-spec-row {
-  display: flex; align-items: center; gap: 8px; padding: 4px 6px;
-  border-radius: 4px; background: var(--bg-secondary, #f4f4f5);
-}
-.sce-spec-info { display: flex; flex-direction: column; flex: 1; min-width: 0; }
-.sce-spec-name { font-size: var(--fs-sm); font-weight: 500; }
-.sce-spec-name em { font-style: normal; opacity: 0.45; font-size: var(--fs-xs); margin-left: 4px; }
-.sce-spec-desc {
-  font-size: var(--fs-xs); opacity: 0.6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 </style>

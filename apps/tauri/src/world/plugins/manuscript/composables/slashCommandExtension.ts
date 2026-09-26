@@ -8,12 +8,9 @@ export interface SlashCommandItem {
   description: string
 }
 
+// E5（2026-09-26）：5 条 AI 项（续写/润色/角色对话/情节分析/世界观检查）随「AI 辅助」面板一并退场
+//（菜单项指向的旧页内 Agent 已不可用）；余「提及实体」为本地编辑器能力。
 export const SLASH_COMMANDS: SlashCommandItem[] = [
-  { id: 'continue', label: '续写', icon: '✍️', description: 'AI 续写后续内容' },
-  { id: 'polish', label: '润色', icon: '✨', description: 'AI 润色选中文本' },
-  { id: 'dialogue', label: '角色对话', icon: '💬', description: 'AI 生成角色对话' },
-  { id: 'analyze', label: '情节分析', icon: '📊', description: 'AI 分析情节结构' },
-  { id: 'check', label: '世界观检查', icon: '🔍', description: 'AI 检查设定一致性' },
   { id: 'mention', label: '提及实体', icon: '@', description: '插入 @ 提及实体' },
 ]
 

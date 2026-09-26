@@ -13,8 +13,6 @@ declare global {
     __TAURI_INTERNALS__?: unknown
     /** Tauri 旧版全局对象 */
     __TAURI__?: unknown
-    /** 子 Agent 注册表（由 useOrchestrator 维护，供 PipelineStepNode 读取） */
-    __worldsea_sub_agents?: Map<string, unknown>
     /** WASM 失败通知回调（由 AppMessageHandler 注册，供 worldseaCore 调用） */
     __worldsea_notify_wasm_failure__?: (reason: string) => void
     /** Notebook 列表摘要（调试用，由 NotebookView 注入） */

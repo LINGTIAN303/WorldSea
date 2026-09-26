@@ -3,7 +3,7 @@
     class="psn-node"
     :class="[
       `psn--${step.status}`,
-      { 'psn--current': step.id === currentStepId, 'psn--editing': isEditingConfig, 'psn--edit-mode': editMode, 'psn--drag-over': isDragOver },
+      { 'psn--editing': isEditingConfig, 'psn--edit-mode': editMode, 'psn--drag-over': isDragOver },
     ]"
     :draggable="editMode"
     @dragstart="onDragStart"
@@ -36,38 +36,11 @@
         <span class="psn-badge" :style="{ color: stepColor(step.type) }">{{ typeLabel(step.type) }}</span>
         <span class="psn-status" :class="`status--${step.status}`">{{ statusLabel(step.status) }}</span>
 
-        <!-- 操作按钮：编辑模式下始终可见，非编辑模式下 hover 可见 -->
+        <!-- 操作按钮：编辑模式下始终可见，非编辑模式下 hover 可见（待执行/失败步也可直接编辑或删除） -->
         <div class="psn-ops" :class="{ 'psn-ops--visible': editMode }" v-if="step.status === 'pending' || step.status === 'failed' || editMode">
-          <button v-if="step.status === 'failed'" class="psn-op psn-op--retry" title="重试" @click.stop="$emit('retry', step.id)"><IconRefresh :size="14" /></button>
           <button class="psn-op" title="编辑配置" @click.stop="isEditingConfig = !isEditingConfig"><IconPencil :size="14" /></button>
           <button class="psn-op psn-op--danger" title="删除步骤" @click.stop="$emit('delete', step.id)"><IconTrash :size="14" /></button>
         </div>
-      </div>
-
-      <!-- user-review 步骤：等待用户确认 -->
-      <div v-if="step.type === 'user-review' && step.status === 'running'" class="psn-body">
-        <p class="psn-instruction">{{ (step.config as any).instruction }}</p>
-        <div class="psn-actions">
-          <button class="psn-btn psn-btn--primary" @click.stop="$emit('confirm', step.id)">确认</button>
-          <button v-if="(step.config as any).skippable" class="psn-btn" @click.stop="$emit('skip', step.id)">跳过</button>
-        </div>
-      </div>
-
-      <!-- running 状态：展示子 Agent 信息 -->
-      <div v-if="step.status === 'running' && step.type !== 'user-review'" class="psn-body">
-        <div v-if="runningAgent" class="psn-agent-info">
-          <span class="psn-agent-icon">{{ runningAgent.icon }}</span>
-          <span class="psn-agent-name">{{ runningAgent.name }} 执行中</span>
-          <span v-if="runningAgent.duration" class="psn-agent-duration">
-            {{ formatDuration(runningAgent.duration) }}
-          </span>
-        </div>
-        <p v-else class="psn-agent-info">子 Agent 正在启动...</p>
-      </div>
-
-      <!-- 完成输出 -->
-      <div v-if="step.output?.summary" class="psn-output">
-        <p>{{ step.output.summary }}</p>
       </div>
 
       <!-- 配置编辑面板 -->
@@ -87,10 +60,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, watch, onMounted, onBeforeUnmount } from 'vue'
+import { ref, nextTick, watch } from 'vue'
 import type { PipelineStep, StepType, StepStatus, StepConfig } from '../types'
 import { STEP_TYPE_LABELS, STEP_TYPE_COLORS } from '../composables/useStepLibrary'
-import { IconRefresh, IconPencil, IconTrash } from '@tabler/icons-vue'
+import { IconPencil, IconTrash } from '@tabler/icons-vue'
 import StepTypeIcon from './StepTypeIcon.vue'
 import StepConfigEditor from './StepConfigEditor.vue'
 
@@ -98,38 +71,14 @@ const props = defineProps<{
   step: PipelineStep
   index: number
   isLast: boolean
-  currentStepId?: string | null
   editMode: boolean
 }>()
 
 const emit = defineEmits<{
-  select: [stepId: string]
-  confirm: [stepId: string]
-  skip: [stepId: string]
   delete: [stepId: string]
-  retry: [stepId: string]
   'update-step': [stepId: string, changes: Partial<Pick<PipelineStep, 'title' | 'config'>>]
   'reorder': [fromIndex: number, toIndex: number]
 }>()
-
-/** 从全局 window 读取子 Agent 列表（避免 useOrchestrator 的 onBeforeUnmount 副作用） */
-function getSubAgentsFromWindow(): any[] {
-  const map = window.__worldsea_sub_agents as Map<string, any> | undefined
-  return map ? Array.from(map.values()) : []
-}
-
-// 轮询刷新子 Agent 状态（轻量，仅在 running 时激活）
-const subAgentTick = ref(0)
-let tickTimer: ReturnType<typeof setInterval> | null = null
-
-onMounted(() => {
-  tickTimer = setInterval(() => {
-    if (props.step.status === 'running') subAgentTick.value++
-  }, 1000)
-})
-onBeforeUnmount(() => {
-  if (tickTimer) { clearInterval(tickTimer); tickTimer = null }
-})
 
 // ─── 编辑状态 ──────────────────────────────────────────
 const isEditingConfig = ref(false)
@@ -145,17 +94,6 @@ watch(() => props.step.config, (newCfg) => {
     editConfig.value = { ...newCfg } as StepConfig
   }
 }, { deep: true })
-
-/** 查找当前步骤对应的子 Agent */
-const runningAgent = computed(() => {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  void subAgentTick.value // 触发重算依赖
-  if (props.step.status !== 'running') return null
-  return getSubAgentsFromWindow().find(a =>
-    a.id.includes(props.step.id) &&
-    (a.status === 'running' || a.status === 'pending')
-  )
-})
 
 // ─── 标题编辑 ─────────────────────────────────────────
 function startEditTitle() {
@@ -225,12 +163,6 @@ function statusLabel(status: StepStatus): string {
   }
   return map[status] || status
 }
-
-function formatDuration(ms: number): string {
-  if (ms < 1000) return `${ms}ms`
-  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`
-  return `${(ms / 60000).toFixed(1)}min`
-}
 </script>
 
 <style scoped>
@@ -240,10 +172,6 @@ function formatDuration(ms: number): string {
 }
 .psn--edit-mode { cursor: grab; }
 .psn--edit-mode:active { cursor: grabbing; }
-.psn--current {
-  outline: 2px solid var(--primary, #4f46e5);
-  outline-offset: 2px; border-radius: var(--radius-mid);
-}
 .psn--editing {
   outline: 2px solid var(--warning, #d97706);
   outline-offset: 2px; border-radius: var(--radius-mid);
@@ -292,7 +220,6 @@ function formatDuration(ms: number): string {
 }
 .psn-op:hover { background: var(--bg-tertiary, #e4e4e7); }
 .psn-op--danger:hover { background: color-mix(in srgb, var(--danger, #dc2626) 20%, transparent); }
-.psn-op--retry:hover { background: color-mix(in srgb, var(--warning, #d97706) 20%, transparent); }
 
 .status--pending { color: var(--text-secondary, #6b7280); }
 .status--running { color: var(--warning, #d97706); }
@@ -300,26 +227,12 @@ function formatDuration(ms: number): string {
 .status--failed { color: var(--danger, #dc2626); }
 .status--skipped { color: var(--text-secondary, #6b7280); font-style: italic; }
 
-.psn-body { margin-top: 8px; padding: 10px; background: var(--bg-tertiary, #e4e4e7); border-radius: var(--radius-sm); }
-.psn-instruction { margin: 0 0 8px; font-size: var(--fs-md); line-height: 1.5; }
-.psn-actions { display: flex; gap: 6px; }
-
 .psn-btn {
   padding: 5px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border, #e4e4e7);
   background: var(--bg-secondary, #f4f4f5); color: var(--text-primary, #18181b);
   cursor: pointer; font-size: var(--fs-sm);
 }
 .psn-btn--primary { background: var(--primary, #4f46e5); color: var(--text-on-primary, #fff); border-color: transparent; }
-
-.psn-agent-info {
-  display: flex; align-items: center; gap: 6px; font-size: var(--fs-sm);
-}
-.psn-agent-icon { font-size: var(--fs-base); }
-.psn-agent-name { color: var(--warning, #d97706); font-weight: 500; }
-.psn-agent-duration { font-size: var(--fs-xs); opacity: 0.5; margin-left: auto; }
-
-.psn-output { margin-top: 8px; padding: 8px 10px; background: var(--bg-tertiary, #e4e4e7); border-radius: var(--radius-sm); font-size: var(--fs-sm); opacity: 0.8; }
-.psn-output p { margin: 0; }
 
 .psn-edit {
   margin-top: 8px; padding: 12px; background: var(--bg-tertiary, #e4e4e7); border-radius: var(--radius-sm);

@@ -92,7 +92,7 @@ const FALLBACK_TYPE_MAP: Record<string, string[]> = {
   'official.tactical-board': ['tactical-board'],
   'official.notebook': ['notebook'],
   'official.manuscript': ['manuscript'],
-  'official.workflow': ['workflow', 'workflow_run'],
+  'official.orchestration': ['pipeline'],
 }
 
 const pluginEntityTypes = computed(() => {

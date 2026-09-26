@@ -12,7 +12,7 @@
 import { invoke, listen, type UnlistenFn } from '../agent/composables/transport'
 import { isTauri, hasTauriInvoke } from '@worldsea/entity-core/core'
 import { useProjectSwitcher } from './useProjectSwitcher'
-import { useUIStore } from '@/stores/uiStore'
+import { switchShell } from './shellSwitch'
 
 /** Tauri 环境且 IPC 桥真正可用（预览/浏览器注入占位标志时桥缺失，需规避 invoke/listen 崩溃） */
 const canUseTauri = () => isTauri() && hasTauriInvoke()
@@ -21,8 +21,6 @@ let setupDone = false
 const unlisteners: UnlistenFn[] = []
 
 export function useSystemBridge() {
-  const uiStore = useUIStore()
-
   /** 将当前项目列表同步到托盘「最近项目」子菜单 */
   async function syncRecentProjects(): Promise<void> {
     if (!canUseTauri()) return
@@ -70,9 +68,9 @@ export function useSystemBridge() {
     }
   }
 
-  /** 切换到 Agent 对话空间（托盘「打开 Agent 对话」→ space 壳 AgentSpace） */
+  /** 切到 Agent 面（托盘「打开 Agent 对话」）：新壳里 = 显示 dsh 主窗（壳桥切换），无桥回退页内 space 壳 */
   function openAgentView(): void {
-    uiStore.setShell('space')
+    switchShell('space')
   }
 
   /** 挂载托盘事件监听 + 初始同步（应用启动时调用一次，幂等） */
