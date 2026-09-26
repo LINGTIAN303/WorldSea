@@ -22,7 +22,7 @@
 
     <div class="rs-detail" v-if="selectedStep">
       <div class="rs-detail-header">
-        <span class="rs-detail-icon">{{ selectedStep.icon }}</span>
+        <span class="rs-detail-icon"><WsIcon :name="selectedStep.icon" size="sm" /></span>
         <span class="rs-detail-name">{{ selectedStep.name }}</span>
         <button class="rs-detail-close" @click="canvas.setSelectedId(null)">✕</button>
       </div>
@@ -149,7 +149,7 @@ onMounted(async () => {
 .rs-canvas-container { width: 100%; height: 100%; }
 .rs-detail { position: absolute; right: 16px; top: 56px; width: 240px; background: var(--color-bg-surface); border: 1px solid var(--color-border); border-radius: var(--radius-mid); padding: 12px; box-shadow: var(--shadow-modal); z-index: 10; max-height: calc(100% - 72px); overflow-y: auto; }
 .rs-detail-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-.rs-detail-icon { font-size: var(--font-size-xl); }
+.rs-detail-icon { display: inline-flex; align-items: center; }
 .rs-detail-name { font-size: var(--font-size-base); font-weight: var(--font-weight-semibold); color: var(--color-text-primary); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rs-detail-close { background: none; border: none; color: var(--color-text-secondary); cursor: pointer; font-size: var(--font-size-base); padding: 2px; }
 .rs-detail-close:hover { color: var(--color-danger); }

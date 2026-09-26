@@ -357,7 +357,7 @@
 ##### 1.5 Tauri 集成
 - [x] 将 `crates/agent-runtime` 接入 `src-tauri/Cargo.toml`
 - [x] 暴露 Tauri 命令（14 个）：`agent_prompt` / `agent_steer` / `agent_follow_up` / `agent_abort` / `agent_update_model` / `agent_update_thinking_level` / `agent_clear_history` / `agent_subscribe` / `agent_dispose` / `agent_state` / `agent_is_streaming` / `agent_trim_context` / `agent_get_runtime_messages` / `agent_set_runtime_messages`
-- [x] 前端 [useAgentRust.ts](../../../apps/tauri/src/agent/composables/useAgentRust.ts) 封装 Tauri invoke + 事件监听
+- [x] 前端 `useAgentRust.ts` 封装 Tauri invoke + 事件监听
 - [x] 集成 `AgentRegistry` 多实例管理（按 sessionId 区分）
 - [x] `TauriEventListener` 实现事件桥接（OrchestratorEvent → app.emit）
 - [ ] 验收：浏览器经 Tauri 调用 Rust Agent，流式事件回传（推迟到阶段 2.0 端到端实测）

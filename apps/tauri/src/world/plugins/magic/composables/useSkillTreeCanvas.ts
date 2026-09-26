@@ -54,17 +54,18 @@ function drawSkillNode(
 
   ctx.shadowBlur = 0
 
-  ctx.font = '16px sans-serif'
-  ctx.fillStyle = text
-  ctx.textAlign = 'left'
-  ctx.textBaseline = 'middle'
-  ctx.fillText(node.icon, x + 8, y + NODE_H / 2 - 6)
+  // 体系标记 = 实心小圆（图标语义由色相承担；画布不吃 SVG 图标，emoji 已按约定退场）
+  ctx.beginPath()
+  ctx.arc(x + 14, y + NODE_H / 2 - 6, 4, 0, Math.PI * 2)
+  ctx.fillStyle = hexToRgba(node.color, 0.9)
+  ctx.fill()
 
   ctx.font = '13px sans-serif'
   ctx.fillStyle = text
   ctx.textAlign = 'left'
+  ctx.textBaseline = 'middle'
   const nameText = node.name.length > 10 ? node.name.slice(0, 10) + '…' : node.name
-  ctx.fillText(nameText, x + 30, y + NODE_H / 2 - 6)
+  ctx.fillText(nameText, x + 24, y + NODE_H / 2 - 6)
 
   ctx.font = '10px sans-serif'
   ctx.fillStyle = tertiary

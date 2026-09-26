@@ -8,7 +8,7 @@
       </Teleport>
       <div v-if="loading" class="dv-board-loading"><WsSpinner /></div>
       <div v-else-if="drawingEntities.length === 0" class="dv-board-empty">
-        <div class="dv-be-icon">🎨</div>
+        <div class="dv-be-icon"><WsIcon name="palette" :size="48" /></div>
         <h3>还没有画板</h3>
         <p>创建一个画板，开始自由绘画</p>
         <button class="dv-btn dv-btn--primary" @click="showCreateDialog = true">创建第一个画板</button>
@@ -17,7 +17,7 @@
         <div v-for="d in drawingEntities" :key="d.id" class="dv-board-card" role="button" tabindex="0" :aria-label="`打开画板 ${d.name}`" @click="openDrawing(d.id)" @keydown.enter.prevent="openDrawing(d.id)" @keydown.space.prevent="openDrawing(d.id)">
           <div class="dv-card-thumb">
             <img v-if="d.properties.thumbnail" :src="d.properties.thumbnail" alt="" />
-            <span v-else class="dv-card-placeholder">🎨</span>
+            <span v-else class="dv-card-placeholder"><WsIcon name="palette" :size="32" /></span>
           </div>
           <div class="dv-card-info">
             <span class="dv-card-name">{{ d.name }}</span>
@@ -132,13 +132,13 @@
               @click="activeLayerIndex = layers.length - 1 - idx"
             >
               <button class="dv-layer-vis" @click.stop="toggleLayerVisibility(layers.length - 1 - idx)" :title="layer.visible ? '隐藏' : '显示'">
-                {{ layer.visible ? '👁' : '🚫' }}
+                <WsIcon name="eye" size="xs" :class="{ 'dv-layer-icon-off': !layer.visible }" />
               </button>
               <span class="dv-layer-name" v-if="renamingIdx !== idx" @dblclick="startRename(idx)">{{ layer.name }}</span>
               <input v-else class="dv-layer-rename" v-model="renameValue"
                 @blur="finishRename(idx)" @keydown.enter="finishRename(idx)" ref="renameInput" />
               <span class="dv-layer-lock" @click.stop="toggleLayerLock(layers.length - 1 - idx)" :title="layer.locked ? '解锁' : '锁定'">
-                {{ layer.locked ? '🔒' : '' }}
+                <WsIcon v-if="layer.locked" name="lock" size="xs" />
               </span>
               <button class="dv-layer-del" @click.stop="removeLayer(layers.length - 1 - idx)" :disabled="layers.length <= 1" title="删除">✕</button>
             </div>
@@ -758,10 +758,12 @@ watch([layers, activeLayerIndex], () => {
 .dv-layer-item { display: flex; align-items: center; gap: 4px; padding: 4px 6px; border-radius: var(--radius-xs); cursor: pointer; font-size: var(--font-size-xs, 12px); color: var(--color-text-secondary); transition: background 0.1s; }
 .dv-layer-item:hover { background: var(--color-bg-hover); }
 .dv-layer-item.active { background: color-mix(in srgb, var(--color-primary) 15%, transparent); color: var(--color-primary); }
-.dv-layer-vis { border: none; background: none; cursor: pointer; font-size: var(--fs-sm); padding: 0; width: 18px; }
+.dv-layer-vis { border: none; background: none; cursor: pointer; padding: 0; width: 18px; display: inline-flex; align-items: center; justify-content: center; color: var(--color-text-secondary); }
+/* 隐藏态：同一 eye 图标降透明度（等价于原「👁/🚫」两态；图标不换形，避免误读为「禁止」） */
+.dv-layer-icon-off { opacity: 0.3; }
 .dv-layer-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dv-layer-rename { flex: 1; padding: 1px 4px; border: 1px solid var(--color-primary); border-radius: var(--radius-2xs); background: var(--color-bg-base); color: var(--color-text-primary); font-size: var(--font-size-xs, 12px); outline: none; }
-.dv-layer-lock { font-size: var(--fs-2xs); cursor: pointer; width: 16px; text-align: center; }
+.dv-layer-lock { cursor: pointer; width: 16px; text-align: center; display: inline-flex; align-items: center; justify-content: center; color: var(--color-text-secondary); }
 .dv-layer-del { border: none; background: none; cursor: pointer; font-size: var(--fs-2xs); color: var(--color-text-tertiary); padding: 0 2px; opacity: 0; transition: opacity 0.1s; }
 .dv-layer-item:hover .dv-layer-del { opacity: 1; }
 .dv-layer-del:hover { color: var(--color-danger); }

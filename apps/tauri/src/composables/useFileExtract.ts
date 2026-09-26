@@ -1,6 +1,6 @@
 /** useFileExtract：文档内容提取（docx/pdf/text 统一解析，pdfjs 改 Web Worker），详细见 docs/details/注释/web/composables/useFileExtract.md */
 
-import { ensurePdfWorker } from '@/space/files/pdfjsSetup'
+import { ensurePdfWorker } from '@/components/files/pdfjsSetup'
 
 /// 支持的文档扩展名
 const DOC_EXTENSIONS = ['.docx']

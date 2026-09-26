@@ -15,9 +15,10 @@ export interface RealmStep {
   icon: string
 }
 
+// 体系图标取 ui-kit 图标集名（禁 emoji 当图标；2026-09-27 E7 收拾）
 const SYSTEM_ICONS: Record<string, string> = {
-  '修仙': '🧘', '魔法': '🔮', '武道': '🥋',
-  '异能': '⚡', '科技': '🔬', '混合': '🌀', '其他': '⚡',
+  '修仙': 'star', '魔法': 'magic', '武道': 'weapon',
+  '异能': 'lightning', '科技': 'wrench', '混合': 'grid', '其他': 'activity',
 }
 
 const SYSTEM_COLORS: Record<string, string> = {
@@ -75,7 +76,7 @@ export function useRealmStaircaseData() {
         bottleneck: (e.properties.bottleneck as string) || '',
         power: (e.properties.power as string) || '',
         color: SYSTEM_COLORS[sys] || '#8b949e',
-        icon: SYSTEM_ICONS[sys] || '⚡',
+        icon: SYSTEM_ICONS[sys] || 'activity',
       }
     })
     result.sort((a, b) => a.tier - b.tier)

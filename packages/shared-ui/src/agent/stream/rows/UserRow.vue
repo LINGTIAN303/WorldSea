@@ -74,7 +74,7 @@ import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { WsIcon } from '@worldsea/ui-kit'
 import { useMessageActions } from '../../bubbles/useMessageActions'
 import { renderMarkdownHtml } from '../../bubbles/useMarkdownRender'
-import '../../bubbles/agent-markdown.css'
+import '../../markdown/markdown.css'
 import type { AgentMessage, UserContentSegment } from '../../bubbles/types'
 
 /** 用户行 props：消息体 + 是否 hover（驱动操作栏显隐）+ 分支可操作性（上层注入） */

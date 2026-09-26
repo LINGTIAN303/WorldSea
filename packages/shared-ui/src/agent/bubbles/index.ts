@@ -8,10 +8,10 @@
  * useAgentRenderPlan/deepPhases），保留供群聊/私聊链路的复用资产。
  */
 export { default as MessageBlocks } from './MessageBlocks.vue'
-// 代码语法高亮（Prism 轻量）：副作用 import 注入高亮器，须在使用前加载
-import './codeHighlight'
-export { useMarkdownRender, handleCodeCopyClick, renderMarkdownHtml, stripJsonBlocks } from './useMarkdownRender'
-export { highlightCode } from './codeHighlight'
+// 渲染内核 / 复制处理器 / 代码高亮已抽到产品级 `../markdown`（2026-09-27 E7）；此处保持旧调用面
+import '../markdown'
+export { useMarkdownRender, stripJsonBlocks } from './useMarkdownRender'
+export { handleCodeCopyClick, renderMarkdownHtml, highlightCode } from '../markdown'
 export { useMessageExport } from './useMessageExport'
 export { useThinkingFold } from './useThinkingFold'
 export { useMessageActions } from './useMessageActions'

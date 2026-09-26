@@ -37,7 +37,7 @@ WorldSea 是 Agent 产品、Harness 工程。文件系统对 Harness 不是"存�
 
 ### 2.2 Agent 工作空间（会话绑定工作目录）
 
-- **会话级 `workdir`** 持久化于 Rust SQLite；默认根**固定 `~/.worldsea/workspace`**，设计为"不跟随项目"（对齐 OpenClaw 惯例，[workspace.ts](../../apps/tauri/src/space/workspace.ts)）
+- **会话级 `workdir`** 持久化于 Rust SQLite；默认根**固定 `~/.worldsea/workspace`**，设计为"不跟随项目"（对齐 OpenClaw 惯例，[workspace.ts](../../apps/tauri/src/composables/workspace.ts)）
 - **目录实体**：`cmd_save_workdir/list_workdirs`（SQLite），作为下拉候选 + 会话树分组
 - **消费方四处**：① coding 工具链词法边界（[coding-agent-tools.ts](../../packages/agent-runtime/src/tools/coding-agent-tools.ts) `resolveWithinWorkspace`：相对路径 join、越界拒绝、无 workdir 放行）；② shell cwd 缺省；③ 前端工具桥上下文注入（useAgentRust 的 `toolBridgeContext.workspace`）；④ 右栏 `apps/tauri/src/space/panels/WorkspacePanel.vue`
 - **WorkspacePanel**：应用内文件资源管理器雏形（目录树/新建/重命名/删除/上传/只读预览），但**只覆盖 workdir 范围**、只支持文本、走 `cmd_fs_*`

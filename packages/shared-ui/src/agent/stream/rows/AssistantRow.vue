@@ -72,7 +72,7 @@ import { useEntityMiniPanel } from '@worldsea/shared-composables/entity/useEntit
 import { useMarkdownRender, handleCodeCopyClick } from '../../bubbles/useMarkdownRender'
 import { useMessageActions } from '../../bubbles/useMessageActions'
 import type { AgentMessage, BlockActionEvent } from '../../bubbles/types'
-import '../../bubbles/agent-markdown.css'
+import '../../markdown/markdown.css'
 
 /** 正文行 props：消息体 + 是否 hover（驱动操作栏显隐）+ 是否 ③ 结果层 */
 const props = defineProps<{

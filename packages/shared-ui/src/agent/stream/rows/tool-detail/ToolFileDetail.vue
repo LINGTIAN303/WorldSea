@@ -50,7 +50,7 @@ import { computed } from 'vue'
 import { IconFolder } from '@tabler/icons-vue'
 import { FileIcon } from '@worldsea/ui-kit'
 
-import { highlightCode } from '../../../bubbles/codeHighlight'
+import { highlightCode } from '../../../../markdown'
 import { num, parseToolResult, str } from './toolResult'
 import type { ToolItem } from './types'
 

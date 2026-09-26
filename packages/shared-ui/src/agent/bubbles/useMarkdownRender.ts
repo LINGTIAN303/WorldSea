@@ -3,11 +3,12 @@ import { computed } from 'vue'
 import { useStreamingRenderer } from '@worldsea/perf-kit/render'
 import { useEntityMentionIndex } from '@worldsea/shared-composables/agent/useEntityMentionIndex'
 import { useAgentUiDeps } from '@worldsea/shared-composables/agent/deps'
+// 渲染内核已抽到产品级 `../../markdown`（2026-09-27 E7）
 import {
   createMarkdownStreamRenderer,
   renderFullMarkdown,
   type StreamRenderedHtml,
-} from './markdownStream'
+} from '../../markdown'
 
 /**
  * 从 Markdown 文本中剥离顶层 JSON 对象块
@@ -112,30 +113,4 @@ export function useMarkdownRender(getContent: () => string) {
   const renderedMarkdown = computed(() => streamRendered.value.stableHtml + streamRendered.value.tailHtml)
 
   return { rawMarkdown, throttledRaw, renderedMarkdown, renderMd, stableHtml, tailHtml }
-}
-
-/** 代码块复制按钮事件处理器（v-html 内按钮无法直接绑定，由气泡根元素事件委托调用）。
- *  命中 .ws-code-copy 时读取 data-copy 写入剪贴板，按钮短暂显示「已复制」。
- *  @returns 是否处理了代码复制（true 时调用方可不再走 mention 分支） */
-export function handleCodeCopyClick(e: MouseEvent): boolean {
-  const btn = (e.target as HTMLElement).closest?.('.ws-code-copy') as HTMLElement | null
-  if (!btn) return false
-  const text = btn.dataset.copy ?? ''
-  navigator.clipboard.writeText(text).catch(() => {})
-  btn.textContent = '已复制'
-  setTimeout(() => {
-    btn.textContent = '复制'
-  }, 1600)
-  return true
-}
-
-/**
- * 模块级纯函数：渲染单段 Markdown 为已消毒 HTML（无 mention 注入，无 rAF 节流、无增量）。
- *
- * 供无实体索引的轻场景复用（如群聊/私聊气泡），与 `useMarkdownRender` 共用同一
- * marked 实例 + 代码块外壳 + 流式降级，保证跨入口代码块体验一致。
- * 调用方需要复制按钮时，在 v-html 容器根元素上绑定 `@click` 并调用 `handleCodeCopyClick`。
- */
-export function renderMarkdownHtml(text: string): string {
-  return renderFullMarkdown(text, null)
 }

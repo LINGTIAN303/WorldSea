@@ -80,7 +80,7 @@ export function mimeFromExt(name: string): string {
 /** 实体数据根（项目级目录；项目系统未就绪 / 非 Tauri 返回 null） */
 async function resolveRoot(): Promise<string | null> {
   try {
-    const { resolveEntityDataDir } = await import('@/space/workspace')
+    const { resolveEntityDataDir } = await import('@/composables/workspace')
     return await resolveEntityDataDir()
   } catch {
     return null

@@ -7,7 +7,9 @@
   "types": "src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./agent/*": "./src/agent/*"
+    "./agent/*": "./src/agent/*",
+    "./markdown": "./src/markdown/index.ts",
+    "./markdown/*": "./src/markdown/*"
   },
   "scripts": {
     "typecheck": "vue-tsc --noEmit",

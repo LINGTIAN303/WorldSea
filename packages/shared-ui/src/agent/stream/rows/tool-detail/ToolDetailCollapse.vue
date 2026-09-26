@@ -37,7 +37,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
-import { highlightCode } from '../../../bubbles/codeHighlight'
+import { highlightCode } from '../../../../markdown'
 import ArtifactCard from '../ArtifactCard.vue'
 import { extractExternalizedHashes, parseArtifactEnvelope } from '../artifact'
 import type { ToolItem } from './types'

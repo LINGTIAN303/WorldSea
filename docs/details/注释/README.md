@@ -116,14 +116,6 @@
 
 | 代码文件 | 详细注释文档 | 摘要 |
 |---|---|---|
-| src/agent/composables/useAgentRust.ts | [useAgentRust.md](tauri/useAgentRust.md) | Agent Backend 适配器：Rust 命令映射、事件协议、ProviderConfig 镜像 |
-| src/agent/composables/useLoopControlRust.ts | [useLoopControlRust.md](tauri/useLoopControlRust.md) | Loop Engineering 适配层：命令映射、事件/配置/状态序列化契约、使用示例 |
-| src/agent/composables/useLongTaskRust.ts | [useLongTaskRust.md](tauri/useLongTaskRust.md) | 长任务管理器（Rust SQLite）：状态机/心跳/checkpoint/协作式取消 |
-| src/agent/components/LoopControlStatus.vue | [LoopControlStatus.md](tauri/LoopControlStatus.md) | Loop 实时状态条：数据来源、展示内容与设计原则 |
-| src/agent/components/SubAgentSection.vue | [SubAgentSection.md](tauri/SubAgentSection.md) | 子 Agent 委派过程展示（running/completed/error 三态） |
-| src/subagent/composables/useSubagentRust.ts | [useSubagentRust.md](tauri/useSubagentRust.md) | 子 Agent 规格管理：subagent_* 命令封装、snake_case 参数契约 |
-| src/subagent/components/SubAgentView.vue | [SubAgentView.md](tauri/SubAgentView.md) | 子 Agent 规格管理界面：列表 + 新增/编辑表单交互 |
-| src/subagent/templates.ts | [templates.md](tauri/templates.md) | 子 Agent 预设模板：前端预填、后端零默认规格 |
 | src/terminal/composables/useTerminalRust.ts | [useTerminalRust.md](tauri/useTerminalRust.md) | 终端服务适配器：terminal_* 命令参数约定、模块级单例 |
 | src/terminal/components/TerminalView.vue | [TerminalView.md](tauri/TerminalView.md) | 终端界面：单次命令 + 持久化会话 + Shell 检测交互 |
 | src/core/coreBackend.ts | [coreBackend.md](tauri/coreBackend.md) | coreBackend Phase 3 端分离：移除 WASM、纯 invoke 路径、签名兼容；2026-08-06 收敛为 api/ 领域拆分聚合（re-export） |
@@ -270,8 +262,8 @@
 | 代码文件 | 详细注释文档 | 摘要 |
 |---|---|---|
 | src/agent/blocks/interactive-tool/utils.ts | [utils.md](packages/shared-ui/agent/blocks/interactive-tool/utils.md) | InteractiveToolCall 共享工具函数（标签/格式化/截断） |
-| src/agent/bubbles/codeHighlight.ts | [codeHighlight.md](packages/shared-ui/agent/bubbles/codeHighlight.md) | Prism 语法高亮 + **内容键 memo**（C7：消除「内容未变却重复高亮」两条热路径；参考实现供门禁判别力自证） |
-| src/agent/bubbles/markdownStream.ts | [markdownStream.md](packages/shared-ui/agent/bubbles/markdownStream.md) | 流式 Markdown 内核（C2）：分块判定线（最后一个内容 token）+ 保守回退（def/html）+ 增量渲染器（token 缓存，增量 ≡ 全量契约） |
+ | src/markdown/codeHighlight.ts | [codeHighlight.md](packages/shared-ui/markdown/codeHighlight.md) | Prism 语法高亮 + **内容键 memo**（C7：消除「内容未变却重复高亮」两条热路径；参考实现供门禁判别力自证） |
+ | src/markdown/markdownStream.ts | [markdownStream.md](packages/shared-ui/markdown/markdownStream.md) | 流式 Markdown 内核（C2）：分块判定线（最后一个内容 token）+ 保守回退（def/html）+ 增量渲染器（token 缓存，增量 ≡ 全量契约） |
 | src/agent/bubbles/useMarkdownRender.ts | [useMarkdownRender.md](packages/shared-ui/agent/bubbles/useMarkdownRender.md) | Markdown 渲染 composable（Vue 接线：rAF 节流 + 字体段 + JSON 剥离；增量内核见 markdownStream.md） |
 | src/agent/message-list/useMessageWindowing.ts | [useMessageWindowing.md](packages/shared-ui/agent/message-list/useMessageWindowing.md) | 消息列表窗口化 + 滚动锚定 composable |
 | src/agent/stream/rows/thinkSummary.ts | [thinkSummary.md](packages/shared-ui/agent/stream/rows/thinkSummary.md) | 推理行摘要（C1 推理流式专项）：定向扫描替代全文逐行切分（等价性契约 + 判别力自证；参考实现留在源码供门禁对照） |

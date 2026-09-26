@@ -97,52 +97,16 @@
     "apps/tauri/src-tauri/src/mcp_client.rs": 1361,
     "apps/tauri/src-tauri/src/search_commands.rs": 738,
     "apps/tauri/src-tauri/src/whisper.rs": 571,
-    "apps/tauri/src/agent/AgentMessageList.vue": 685,
-    "apps/tauri/src/agent/AgentSettingsPanel.vue": 1757,
-    "apps/tauri/src/agent/components/OrchestrationSegment.vue": 520,
-    "apps/tauri/src/agent/composables/useAgentRust.ts": 3694,
-    "apps/tauri/src/agent/composables/useGroupChat.ts": 476,
-    "apps/tauri/src/agent/composables/useLongTaskRust.ts": 517,
-    "apps/tauri/src/agent/composables/useLoopControlRust.ts": 823,
-    "apps/tauri/src/agent/panels/ActivityLog.vue": 444,
-    "apps/tauri/src/agent/panels/ContextPanel.vue": 456,
-    "apps/tauri/src/agent/panels/KnowledgeWall.vue": 772,
-    "apps/tauri/src/agent/panels/McpPanel.vue": 1131,
-    "apps/tauri/src/agent/panels/model/ProviderTypeDialog.vue": 570,
-    "apps/tauri/src/agent/panels/SessionLogPanel.vue": 1011,
-    "apps/tauri/src/agent/SkillsStorePanel.vue": 702,
-    "apps/tauri/src/space/AgentSpace.vue": 794,
-    "apps/tauri/src/space/chat/ChatInput.vue": 1656,
-    "apps/tauri/src/space/chat/ModelSwitcher.vue": 743,
-    "apps/tauri/src/space/chat/SessionSidebar.vue": 1271,
-    "apps/tauri/src/space/files/CodeEditor.vue": 475,
-    "apps/tauri/src/space/files/FilePreview.vue": 958,
-    "apps/tauri/src/space/files/FileTreeBrowser.vue": 966,
-    "apps/tauri/src/space/group-chat/components/AgentCapabilityDrawer.vue": 434,
-    "apps/tauri/src/space/group-chat/components/AgentPrivateChat.vue": 901,
-    "apps/tauri/src/space/group-chat/components/AgentProfileCreator.vue": 437,
-    "apps/tauri/src/space/group-chat/components/CasualMessageBubble.vue": 439,
-    "apps/tauri/src/space/group-chat/components/CreateAgentDialog.vue": 865,
-    "apps/tauri/src/space/group-chat/components/GroupChatView.vue": 562,
-    "apps/tauri/src/space/group-chat/components/GroupMessageBubble.vue": 485,
-    "apps/tauri/src/space/group-chat/components/ProviderSlotEditor.vue": 809,
-    "apps/tauri/src/space/group-chat/composables/useCasualChatEngine.ts": 800,
-    "apps/tauri/src/space/group-chat/engine/GroupChatEngine.ts": 609,
-    "apps/tauri/src/space/group-chat/GroupChatCoordinator.ts": 838,
-    "apps/tauri/src/space/group-chat/rust/RustGroupChatBackend.ts": 431,
-    "apps/tauri/src/space/panels/ExecPanel.vue": 522,
-    "apps/tauri/src/space/panels/PersonaMirror.vue": 578,
-    "apps/tauri/src/space/panels/RulesPanel.vue": 517,
-    "apps/tauri/src/space/panels/SemanticSearchCard.vue": 469,
-    "apps/tauri/src/space/panels/SpaceAgentSettingsPanel.vue": 499,
-    "apps/tauri/src/subagent/components/SubAgentView.vue": 1414,
+    "apps/tauri/src/components/files/CodeEditor.vue": 475,
+    "apps/tauri/src/components/files/FilePreview.vue": 958,
+    "apps/tauri/src/components/files/FileTreeBrowser.vue": 966,
     "apps/tauri/src/ui/boot/SplashScreen.vue": 436,
     "apps/tauri/src/ui/entity/CustomRelationTypeDialog.vue": 404,
     "apps/tauri/src/ui/layout/sidebar/SidebarV2.vue": 553,
     "apps/tauri/src/ui/settings/SettingsDialog.vue": 485,
     "apps/tauri/src/world/plugins/characters/CharacterList.vue": 471,
     "apps/tauri/src/world/plugins/custom/DashboardView.vue": 647,
-    "apps/tauri/src/world/plugins/drawing/DrawingView.vue": 773,
+    "apps/tauri/src/world/plugins/drawing/DrawingView.vue": 775,
     "apps/tauri/src/world/plugins/graph/GlobalGraph.vue": 594,
     "apps/tauri/src/world/plugins/manuscript/components/ChapterList.vue": 559,
     "apps/tauri/src/world/plugins/manuscript/ManuscriptView.vue": 677,
@@ -206,8 +170,8 @@
     "packages/shared-ui/src/agent/blocks/BlockManuscript.vue": 825,
     "packages/shared-ui/src/agent/blocks/export-corrector/useExportCorrector.ts": 500,
     "packages/shared-ui/src/agent/blocks/StepChain.vue": 649,
-    "packages/shared-ui/src/agent/bubbles/markdownStream.ts": 432,
     "packages/shared-ui/src/agent/message-list/useMessageWindowing.ts": 739,
+    "packages/shared-ui/src/markdown/markdownStream.ts": 432,
     "packages/ui-kit/src/components/data/ImportExportModal.vue": 516,
     "packages/ui-kit/src/components/entity/InfoPanel.vue": 610,
     "packages/ui-kit/src/components/entity/RegionMap.vue": 644,
@@ -223,7 +187,7 @@
     {
       "check": "ts-cycle",
       "key": "cycle:agent-runtime-ts|entity-core",
-      "note": "TS 包级依赖环：agent-runtime-ts → entity-core → agent-runtime-ts"
+      "note": "TS 包级依赖环：entity-core → agent-runtime-ts → entity-core"
     },
     {
       "check": "ts-cycle",
@@ -232,13 +196,33 @@
     },
     {
       "check": "ts-cycle",
-      "key": "cycle:agent-runtime-ts|plugin-sdk|ui-kit",
-      "note": "TS 包级依赖环：ui-kit → agent-runtime-ts → plugin-sdk → ui-kit"
+      "key": "cycle:agent-runtime-ts|canvas-engine|entity-core",
+      "note": "TS 包级依赖环：entity-core → agent-runtime-ts → canvas-engine → entity-core"
     },
     {
       "check": "ts-cycle",
-      "key": "cycle:agent-runtime-ts|ui-kit",
-      "note": "TS 包级依赖环：ui-kit → agent-runtime-ts → ui-kit"
+      "key": "cycle:agent-runtime-ts|plugin-sdk|ui-kit",
+      "note": "TS 包级依赖环：agent-runtime-ts → plugin-sdk → ui-kit → agent-runtime-ts"
+    },
+    {
+      "check": "ts-cycle",
+      "key": "cycle:agent-runtime-ts|entity-core|plugin-sdk|ui-kit",
+      "note": "TS 包级依赖环：entity-core → agent-runtime-ts → plugin-sdk → ui-kit → entity-core"
+    },
+    {
+      "check": "ts-cycle",
+      "key": "cycle:plugin-sdk|ui-kit",
+      "note": "TS 包级依赖环：plugin-sdk → ui-kit → plugin-sdk"
+    },
+    {
+      "check": "ts-cycle",
+      "key": "cycle:agent-runtime-ts|entity-core|font-kit|plugin-sdk|ui-kit",
+      "note": "TS 包级依赖环：entity-core → agent-runtime-ts → plugin-sdk → ui-kit → font-kit → entity-core"
+    },
+    {
+      "check": "ts-cycle",
+      "key": "cycle:agent-runtime-ts|entity-core|plugin-sdk",
+      "note": "TS 包级依赖环：entity-core → agent-runtime-ts → plugin-sdk → entity-core"
     }
   ]
 }

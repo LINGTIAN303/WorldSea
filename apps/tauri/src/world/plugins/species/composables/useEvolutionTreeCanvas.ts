@@ -81,7 +81,7 @@ function drawEvoNode(
   if (node.population) {
     ctx.font = '9px sans-serif'
     ctx.fillStyle = hexToRgba(node.color, 0.7)
-    ctx.fillText('👥 ' + node.population, x + 34, y + NODE_H / 2 + 20)
+    ctx.fillText(String(node.population), x + 34, y + NODE_H / 2 + 20)
   }
 
   ctx.restore()

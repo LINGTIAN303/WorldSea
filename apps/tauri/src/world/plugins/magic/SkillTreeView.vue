@@ -33,7 +33,7 @@
 
     <div class="st-detail" v-if="selectedNode">
       <div class="st-detail-header">
-        <span class="st-detail-icon">{{ selectedNode.icon }}</span>
+        <span class="st-detail-icon"><WsIcon :name="selectedNode.icon" size="sm" /></span>
         <span class="st-detail-name">{{ selectedNode.name }}</span>
         <button class="st-detail-close" @click="deselectNode">✕</button>
       </div>
@@ -47,16 +47,16 @@
       </div>
       <div class="st-detail-section" v-if="prerequisites.length > 0">
         <span class="st-section-title">前置技能</span>
-        <div v-for="p in prerequisites" :key="p.id" class="st-link" role="button" tabindex="0" :aria-label="`打开 ${p.name}`" @click="selectById(p.id)" @keydown.enter.prevent="selectById(p.id)" @keydown.space.prevent="selectById(p.id)">{{ p.icon }} {{ p.name }}</div>
+        <div v-for="p in prerequisites" :key="p.id" class="st-link" role="button" tabindex="0" :aria-label="`打开 ${p.name}`" @click="selectById(p.id)" @keydown.enter.prevent="selectById(p.id)" @keydown.space.prevent="selectById(p.id)"><WsIcon :name="p.icon" size="xs" class="st-link-icon" /> {{ p.name }}</div>
       </div>
       <div class="st-detail-section" v-if="upgrades.length > 0">
         <span class="st-section-title">进阶技能</span>
-        <div v-for="u in upgrades" :key="u.id" class="st-link" role="button" tabindex="0" :aria-label="`打开 ${u.name}`" @click="selectById(u.id)" @keydown.enter.prevent="selectById(u.id)" @keydown.space.prevent="selectById(u.id)">{{ u.icon }} {{ u.name }}</div>
+        <div v-for="u in upgrades" :key="u.id" class="st-link" role="button" tabindex="0" :aria-label="`打开 ${u.name}`" @click="selectById(u.id)" @keydown.enter.prevent="selectById(u.id)" @keydown.space.prevent="selectById(u.id)"><WsIcon :name="u.icon" size="xs" class="st-link-icon" /> {{ u.name }}</div>
       </div>
       <div class="st-detail-section" v-if="counteredBy.length > 0 || countersList.length > 0">
         <span class="st-section-title">克制关系</span>
-        <div v-for="c in countersList" :key="'c-'+c.id" class="st-link st-link-red" role="button" tabindex="0" :aria-label="`打开 ${c.name}`" @click="selectById(c.id)" @keydown.enter.prevent="selectById(c.id)" @keydown.space.prevent="selectById(c.id)">克制 {{ c.icon }} {{ c.name }}</div>
-        <div v-for="c in counteredBy" :key="'cb-'+c.id" class="st-link st-link-red" role="button" tabindex="0" :aria-label="`打开 ${c.name}`" @click="selectById(c.id)" @keydown.enter.prevent="selectById(c.id)" @keydown.space.prevent="selectById(c.id)">被 {{ c.icon }} {{ c.name }} 克制</div>
+        <div v-for="c in countersList" :key="'c-'+c.id" class="st-link st-link-red" role="button" tabindex="0" :aria-label="`打开 ${c.name}`" @click="selectById(c.id)" @keydown.enter.prevent="selectById(c.id)" @keydown.space.prevent="selectById(c.id)">克制 <WsIcon :name="c.icon" size="xs" class="st-link-icon" /> {{ c.name }}</div>
+        <div v-for="c in counteredBy" :key="'cb-'+c.id" class="st-link st-link-red" role="button" tabindex="0" :aria-label="`打开 ${c.name}`" @click="selectById(c.id)" @keydown.enter.prevent="selectById(c.id)" @keydown.space.prevent="selectById(c.id)">被 <WsIcon :name="c.icon" size="xs" class="st-link-icon" /> {{ c.name }} 克制</div>
       </div>
     </div>
   </div>
@@ -232,7 +232,9 @@ onMounted(async () => {
 .st-canvas-container { width: 100%; height: 100%; }
 .st-detail { position: absolute; right: 16px; top: 56px; width: 240px; background: var(--color-bg-surface); border: 1px solid var(--color-border); border-radius: var(--radius-mid); padding: 12px; box-shadow: var(--shadow-modal); z-index: 10; }
 .st-detail-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-.st-detail-icon { font-size: var(--font-size-xl); }
+.st-detail-icon { font-size: var(--font-size-xl); display: inline-flex; align-items: center; }
+/* 关系行内图标：与文字基线对齐（图标为 SVG，非文字字形） */
+.st-link-icon { vertical-align: -2px; margin-right: 2px; }
 .st-detail-name { font-size: var(--font-size-base); font-weight: var(--font-weight-semibold); color: var(--color-text-primary); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .st-detail-close { background: none; border: none; color: var(--color-text-secondary); cursor: pointer; font-size: var(--font-size-base); padding: 2px; }
 .st-detail-close:hover { color: var(--color-danger); }

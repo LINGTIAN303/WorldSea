@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { onMounted, watch } from 'vue'
 import Shell from './ui/layout/Shell.vue'
-import AgentSpace from './space/AgentSpace.vue'
 import { useUIStore } from './stores/uiStore'
 import { useTheme } from './components/ui/useTheme'
 import { useTheme as useEntityTheme, useSettingsStore } from '@worldsea/entity-core'
@@ -65,15 +64,13 @@ function onSetTheme(e: Event) {
 const { on: onGlobalEvent } = useGlobalEvents()
 onGlobalEvent('ws-set-theme', onSetTheme)
 
-// N9 视图上下文注入：Agent 空间（currentShell==='space'）→ view 快捷键失效（setActiveViewId(null)），
-// 主视图（workbench）→ 跟随当前 view。两壳 v-show 常驻，芽视图组件在 Agent 空间仍挂载，
-// 不注入会导致其 view 快捷键（角色 n/delete 等）在 Agent 空间误触发。
-// space 上下文（2026-09-06）：Agent 空间壳激活时 space scope 快捷键生效，workbench 下失效。
+// 视图上下文注入：view 快捷键跟随当前视图（旧 Agent 空间壳已随本体删除，2026-09-27 E7；
+// space scope 由此恒为未激活）
 watch(
   () => [uiStore.currentShell, uiStore.currentView] as const,
   ([shell, view]) => {
     setAgentSpaceActive(shell === 'space')
-    setActiveViewId(shell === 'space' ? null : view)
+    setActiveViewId(view)
   },
   { immediate: true },
 )
@@ -82,8 +79,7 @@ onMounted(async () => {
   // 全局 Tooltip 接管：摘除全站原生 title，统一为自定义浮层（2026-09-06 方案A）
   enableGlobalTooltips()
   // 全局拦截浏览器原生右键菜单（2026-09-06 桌面应用惯例）：事件仍正常传播，
-  // 各组件自定义右键菜单（SessionSidebar/TerminalView 等）不受影响；
-  // 输入元素的编辑菜单由 GlobalEditMenu 组件接管
+  // 各组件自定义右键菜单不受影响；输入元素的编辑菜单由 GlobalEditMenu 组件接管
   document.addEventListener('contextmenu', e => e.preventDefault())
   // 应用初始主题（html data-theme 由此建立；apply 为同步函数，需传入当前主题模式）
   applyTheme(themeMode.value)
@@ -113,14 +109,9 @@ onMounted(async () => {
 
 <template>
   <!-- 跳过导航直达主内容（WCAG 2.4.1 Bypass Blocks）：仅键盘/读屏聚焦时可见。
-       两壳常驻故 id 各一，按当前壳路由到可见目标 -->
-  <a :href="uiStore.currentShell === 'space' ? '#agent-space-main' : '#main-content'" class="skip-link">跳到主内容</a>
-  <!-- 两壳 v-show 常驻（2026-08-10）：AgentSpace 与 Shell 均不卸载。
-       视图工具条已在 ViewContainer 随流占位，其 Teleport 目标 #view-toolbar-*
-       随 ViewContainer 常驻——壳切换时目标始终存在，避免同树卸载冲突。
-       代价：两壳常驻内存增加（见项目记忆预估）。 -->
-  <AgentSpace v-show="uiStore.currentShell === 'space'" />
-  <Shell v-show="uiStore.currentShell === 'workbench'" />
+       本页即工作台（Agent 面为 dsh 独立窗口，旧 Agent 空间壳已随本体删除 2026-09-27 E7） -->
+  <a href="#main-content" class="skip-link">跳到主内容</a>
+  <Shell />
 
   <!-- 统一输入框右键菜单（撤销/重做/剪切/复制/粘贴/删除/全选）；
        非输入元素的右键由 onMounted 的全局 contextmenu 拦截 -->

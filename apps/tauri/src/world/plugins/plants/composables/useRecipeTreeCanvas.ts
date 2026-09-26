@@ -85,7 +85,8 @@ function drawRecipeNode(
     ctx.fillText(node.rarity, x + NODE_W - 8, y + NODE_H / 2 + 6)
   }
 
-  const typeTag = node.nodeType === 'plant' ? '🌿' : node.nodeType === 'item' ? '📦' : '🔮'
+  // 类型角标用单字（画布不吃 SVG 图标，emoji 已按「禁 emoji 当图标」约定退场）
+  const typeTag = node.nodeType === 'plant' ? '植' : node.nodeType === 'item' ? '物' : '法'
   ctx.font = '8px sans-serif'
   ctx.textAlign = 'right'
   ctx.fillStyle = tertiary

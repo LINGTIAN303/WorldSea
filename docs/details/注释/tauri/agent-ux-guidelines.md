@@ -1,7 +1,7 @@
 # Agent UX 视觉指引（union-polar·克制派）
 
 > 来源：Agent 前端 UI/UX 工作主文档（阶段0 审美基准，2026-08-19）
-> 关联：[usePlanRust.md](usePlanRust.md)、[useSubagentRust.md](useSubagentRust.md)、编排面板各阶段
+> 关联：[usePlanRust.md](usePlanRust.md)、`useSubagentRust.md`、编排面板各阶段
 > 定位：本项目 **Agent 能力前端呈现层** 的统一视觉宪法——本文档是每个阶段（编排面板/输出渲染/配置统一/全审计）的审美判据。
 
 ## 一、总基调

@@ -30,14 +30,14 @@
           <template v-for="cat in categories" :key="cat.key">
             <div v-if="getIssuesByCategory(cat.key).length > 0" class="category-group">
               <div class="category-header" role="button" tabindex="0" :aria-expanded="expandedCategories[cat.key]" @click="toggleCategory(cat.key)" @keydown.enter.prevent="toggleCategory(cat.key)" @keydown.space.prevent="toggleCategory(cat.key)">
-                <span class="category-icon">{{ cat.icon }}</span>
+                <span class="category-icon"><WsIcon :name="cat.icon" size="sm" /></span>
                 <span class="category-label">{{ cat.label }}</span>
                 <span class="category-count">{{ getIssuesByCategory(cat.key).length }}</span>
                 <span class="category-toggle">{{ expandedCategories[cat.key] ? '▼' : '▶' }}</span>
               </div>
               <div v-if="expandedCategories[cat.key]" class="category-issues">
                 <div v-for="issue in getIssuesByCategory(cat.key)" :key="issue.id" class="issue-item" :class="'severity-' + issue.severity">
-                  <span class="issue-severity-icon">{{ severityIcon(issue.severity) }}</span>
+                  <span class="issue-severity-icon"><WsIcon :name="severityIcon(issue.severity)" size="xs" /></span>
                   <div class="issue-content">
                     <div class="issue-message">{{ issue.message }}</div>
                     <div class="issue-suggestion" v-if="issue.suggestion">建议：{{ issue.suggestion }}</div>
@@ -65,7 +65,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue'
-import { useModalShortcuts } from '@worldsea/ui-kit'
+import { WsIcon, useModalShortcuts } from '@worldsea/ui-kit'
 import { useConsistencyChecker, type ConsistencyIssue } from '@worldsea/entity-core'
 import { useRelationStore } from '@worldsea/entity-core'
 
@@ -92,11 +92,12 @@ const infoCount = computed(() => getIssueCountBySeverity('info'))
 
 const danglingRelations = computed(() => issues.value.filter(i => i.category === 'dangling_relation'))
 
+// 图标取 ui-kit 图标集名（禁 emoji 当图标；2026-09-27 E7 收拾）
 const categories = [
-  { key: 'dangling_relation' as const, label: '悬空关系', icon: '🔗' },
-  { key: 'missing_required' as const, label: '缺少必填字段', icon: '📝' },
-  { key: 'type_mismatch' as const, label: '类型不匹配', icon: '⚠️' },
-  { key: 'orphan_entity' as const, label: '孤立实体', icon: '🏝️' },
+  { key: 'dangling_relation' as const, label: '悬空关系', icon: 'link' },
+  { key: 'missing_required' as const, label: '缺少必填字段', icon: 'edit' },
+  { key: 'type_mismatch' as const, label: '类型不匹配', icon: 'warning' },
+  { key: 'orphan_entity' as const, label: '孤立实体', icon: 'location' },
 ]
 
 function getIssuesByCategory(category: ConsistencyIssue['category']): ConsistencyIssue[] {
@@ -109,9 +110,9 @@ function toggleCategory(key: string) {
 
 function severityIcon(severity: ConsistencyIssue['severity']): string {
   switch (severity) {
-    case 'error': return '❌'
-    case 'warning': return '⚠️'
-    case 'info': return 'ℹ️'
+    case 'error': return 'close'
+    case 'warning': return 'warning'
+    case 'info': return 'info'
   }
 }
 

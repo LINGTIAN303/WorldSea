@@ -7,7 +7,7 @@
  */
 // 副作用：统一行样式 + Prism 代码高亮注入（行内 Markdown 代码块需用）
 import './stream.css'
-import '../bubbles/codeHighlight'
+import '../../markdown'
 // 副作用：全 5 类行组件注册
 export * from './rows'
 // 列表渲染容器（纯行渲染，不负责窗口化）

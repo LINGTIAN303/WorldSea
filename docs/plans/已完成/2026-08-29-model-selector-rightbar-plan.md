@@ -10,8 +10,8 @@
 
 延续 Agent 空间走查后的视觉/交互收尾。本计划聚焦两处 UI：
 
-1. **输入栏模型选择器**（[ModelSwitcher.vue](../../../apps/tauri/src/space/chat/ModelSwitcher.vue)）：下拉高度、分组标题、入口胶囊、供应商 Logo、思考档位悬停浮窗、AutoModel 入口图标。
-2. **右栏**（[AgentSpace.vue](../../../apps/tauri/src/space/AgentSpace.vue) + [ExecPanel.vue](../../../apps/tauri/src/space/panels/ExecPanel.vue)）：执行 tab 11 区改宫格、配置 tab 档案占位、创作 tab 图标 + 视图切换改浮窗菜单。
+1. **输入栏模型选择器**（`ModelSwitcher.vue`）：下拉高度、分组标题、入口胶囊、供应商 Logo、思考档位悬停浮窗、AutoModel 入口图标。
+2. **右栏**（`AgentSpace.vue` + `ExecPanel.vue`）：执行 tab 11 区改宫格、配置 tab 档案占位、创作 tab 图标 + 视图切换改浮窗菜单。
 
 数据修正涉及 [model-registry.ts](../../../packages/agent-runtime/src/providers/model-registry.ts) 的 `thinkingModes` 三处（用户已确认）。
 

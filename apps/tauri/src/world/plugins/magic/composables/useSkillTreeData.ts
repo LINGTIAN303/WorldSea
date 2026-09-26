@@ -24,10 +24,11 @@ export interface SkillTreeData {
   edges: SkillEdge[]
 }
 
+// 体系图标取 ui-kit 图标集名（禁 emoji 当图标；2026-09-27 E7 收拾）
 const TYPE_ICONS: Record<string, string> = {
-  '元素魔法': '🔥', '心灵魔法': '🧠', '神术/圣光': '✨', '黑魔法/诅咒': '💀',
-  '自然魔法': '🌿', '符文/附魔': '🔣', '炼金术': '⚗️', '武术/战技': '🥋',
-  '科技/异能': '⚡', '通用': '🔮',
+  '元素魔法': 'sun', '心灵魔法': 'eye', '神术/圣光': 'sparkle', '黑魔法/诅咒': 'skull',
+  '自然魔法': 'plant', '符文/附魔': 'tag', '炼金术': 'palette', '武术/战技': 'weapon',
+  '科技/异能': 'lightning', '通用': 'magic',
 }
 
 export function useSkillTreeData() {
@@ -50,7 +51,7 @@ export function useSkillTreeData() {
         x: 0,
         y: 0,
         color: info.coolColor,
-        icon: TYPE_ICONS[mt] || '🔮',
+        icon: TYPE_ICONS[mt] || 'magic',
       }
     })
   )

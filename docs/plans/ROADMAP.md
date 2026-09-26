@@ -220,7 +220,7 @@
 
 ### 29. 项目空间 × Agent 工作空间统一
 - **简述**：统一工作台项目空间与 Agent 工作空间的文件系统：一个项目 = 一个目录 = 一个事实源，Agent 与人与工具共享
-- **涉及模块**：`packages/entity-core/`（ProjectManager/FileStorageBackend/useFileSystemProject/useFsWatcher）、`apps/tauri/src/space/workspace.ts`、`apps/tauri/src/space/chat/WorkdirSelect.vue`、`apps/tauri/src/space/panels/WorkspacePanel.vue`、`apps/tauri/src-tauri/src/fs_commands.rs`、`project_commands.rs`、Rust session 数据模型
+- **涉及模块**：`packages/entity-core/`（ProjectManager/FileStorageBackend/useFileSystemProject/useFsWatcher）、`apps/tauri/src/composables/workspace.ts`、`apps/tauri/src/space/chat/WorkdirSelect.vue`、`apps/tauri/src/space/panels/WorkspacePanel.vue`、`apps/tauri/src-tauri/src/fs_commands.rs`、`project_commands.rs`、Rust session 数据模型
 - **状态**：进行中
 - **优先级**：—
 - **备注**：方案 [workspace-unification-plan.md](workspace-unification-plan.md)。**M0-M4 全部落地（2026-08-28/29）**：M1 项目目录默认根 + 输入栏唯一绑定入口；M2 共享边界契约 + E1 写保护；M3 session.project_id 锚点 + WorkspacePanel 空间级升级 + 术语统一；M4 数据源分叉收敛（Agent 实体读切文件主存储，EntityDb 降为前端 fallback 专用）+ shell 盲区词法防护 + 桥收敛评估。验证：commands 101 / tauri 30 / vitest 26 / typecheck / build 全绿；**剩端到端走查清单 6 项待真机**（方案 §五 M4 段）。**2026-09-10 校准**：①UI 载体演进——WorkdirSelect/WorkspacePanel 已被后续重构删除，职能分别由空态 ProjectSwitcher pill 与左栏 files 视图（FileTreeBrowser）承接；②场景底座扩展（scenes_root 主权 + 会话按场景过滤）与 A1/M1 语义交汇已兼容（全局模式=场景根，项目模式=项目目录）；③剩收尾：走查清单 ⑤⑥ 两项 + project_id 消费缺位（按项目过滤/记忆隔离，建议并入 A1 记忆系统设计联做）

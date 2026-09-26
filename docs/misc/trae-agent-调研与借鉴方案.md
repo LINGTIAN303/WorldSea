@@ -272,7 +272,7 @@ if self.model_provider == "openai":
     schema["additionalProperties"] = False
 ```
 
-**`model_provider` 在工具构造时注入**（`tools_registry[name](model_provider=provider)`），每个工具自己感知目标 Provider。
+**`model_provider` 在工具构造时注入**（`tools_registry`name``），每个工具自己感知目标 Provider。
 
 > **对位 WorldSea**：`Tool::parameters()` 直接返回 `serde_json::Value`（`crates/agent-kernel/src/tool.rs:39`），
 > 在 `agent-kernel` 全库检索 `additionalProperties` / `strict` **零命中** → **未做 Provider 适配**。
