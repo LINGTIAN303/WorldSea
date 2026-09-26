@@ -41,7 +41,7 @@ export function useProjectSwitcher() {
 
   /**
    * 工作台实体存储根解析（2026-09-03 拍板，默认项目三层分离）：
-   * - 默认项目 dirPath = `~/.WorldSea` 根（显示/定位基准）→ 实体落 `根/worlddata`
+   * - 默认项目 dirPath = `<home>/WorldSea` 根（E1 单一可见根）→ 实体落 `根/worlddata`
    * - 普通项目 = dirPath 本身（打开目录即两边同源）
    * 防御性剥离历史残留的 worldentity/worlddata 段，避免双重嵌套路径（worldentity/worldentity）。
    */
@@ -84,12 +84,12 @@ export function useProjectSwitcher() {
     }
     try {
       const { open } = await import('@tauri-apps/plugin-dialog')
-      // 打开文件夹定位基准 = 全局根 ~/.WorldSea（2026-09-03 拍板）
+      // 打开文件夹定位基准 = 全局根 <home>/WorldSea（2026-09-03 拍板）
       let defaultPath: string | undefined
       try {
         const { homeDir } = await import('@tauri-apps/api/path')
         const home = await homeDir()
-        if (home) defaultPath = `${home.replace(/[\\/]+$/, '')}/.WorldSea`
+        if (home) defaultPath = `${home.replace(/[\\/]+$/, '')}/WorldSea`
       } catch { /* 定位失败仅回到系统默认位置 */ }
       const selected = await open({ directory: true, title: '打开项目目录', multiple: false, defaultPath })
       if (!selected) return false
@@ -131,7 +131,7 @@ export function useProjectSwitcher() {
 
     // 3. 默认项目兜底归位（无项目/未选目录 = 全局根，2026-09-03 拍板）
     //    · 系统默认项目（isDefault，或旧「默认项目」名——一次性补标记）不可移除；
-    //    · 其 dirPath 恒为全局根 ~/.WorldSea（选择器显示 / 打开文件夹定位基准；
+    //    · 其 dirPath 恒为单一可见根 `<home>/WorldSea`（E1；选择器显示 / 打开文件夹定位基准；
     //      修历史残留 dirPath 如 worldentity / tream_test）；
     //    · 默认项目数据分落子目录：工作台实体 → dirPath/worlddata（entityDirOf），
     //      Agent 工作路径 → dirPath/agent（workspace.ts resolveWorkspaceDir 特判）；
@@ -147,7 +147,7 @@ export function useProjectSwitcher() {
         const { homeDir } = await import('@tauri-apps/api/path')
         const home = await homeDir()
         if (home) {
-          const rootDir = `${home.replace(/[\\/]+$/, '')}/.WorldSea`
+          const rootDir = `${home.replace(/[\\/]+$/, '')}/WorldSea`
           if (normalizeDir(dirPath ?? '') !== normalizeDir(rootDir)) {
             await pm.setProjectDir(projectId, rootDir)
             dirPath = rootDir

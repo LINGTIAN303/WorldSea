@@ -32,18 +32,16 @@ use worldsea_skills_store::{
 };
 
 /**
- * 获取 skills 根目录（§六 迁移后：~/.WorldSea/skills），确保目录存在。
+ * 获取 skills 根目录（E1 起：`<可见根>/skills` = `%USERPROFILE%\WorldSea\skills`），确保目录存在。
  *
- * 2026-09-03 迁移：个人技能导入区从 app_data/skills 迁至用户主目录 ~/.WorldSea/skills
+ * 2026-09-03 迁移：个人技能导入区从 app_data/skills 迁至用户主目录（当时 `~/.WorldSea/skills`；E1 起为 `WorldSea/skills`）
  * （跟随用户跨项目）。首次进入时若旧 app_data/skills 有存量则一次性复制（幂等），
  * 旧目录保留留痕不删除。install/import_local/list/uninstall/注册表扫描的唯一目录来源。
  */
 fn skills_dir(app: &AppHandle) -> Result<std::path::PathBuf, String> {
-    let home = app
-        .path()
-        .home_dir()
-        .map_err(|e| format!("无法定位用户主目录: {e}"))?;
-    let dir = home.join(".WorldSea").join("skills");
+    // E1（2026-09-25）：个人技能导入区随「单一可见根」= `%USERPROFILE%\WorldSea\skills`
+    // （旧 `~/.WorldSea/skills` 由 data_root::migrate_legacy_home_root 在启动期一次性搬入）
+    let dir = crate::data_root::sub("skills")?;
     ensure_home_skills_migrated(app, &dir)?;
     std::fs::create_dir_all(&dir)
         .map_err(|e| format!("创建 skills 目录失败: {e}"))?;

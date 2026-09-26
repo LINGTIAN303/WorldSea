@@ -47,7 +47,7 @@ async function resolveKbPath(scope: KBScope): Promise<string> {
     return `${dataDir}/.worldsea/kb.json`
   }
   // project scope：项目=目录（2026-09-03）——目录即项目，无独立绑定。
-  // FileStorageBackend 绑定目录在项目 initialize/切换时已设置（无目录项目归 ~/.WorldSea/worlddata）。
+  // FileStorageBackend 绑定目录在项目 initialize/切换时已设置（无目录项目归 <home>/WorldSea/worlddata，E1）。
   const backend = getStorageBackend() as { projectDir?: string | null }
   const projectDir = backend.projectDir ?? null
   if (!projectDir) throw new Error('未绑定项目目录，无法访问项目知识库')

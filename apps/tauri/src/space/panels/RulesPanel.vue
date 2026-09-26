@@ -313,7 +313,7 @@ onMounted(async () => {
     workdir.value = await resolveWorkspaceDir()
   } catch { workdir.value = null }
   try {
-    // §六 2026-09-03：全局规则目录取共享来源（~/.WorldSea/rules 优先，回退旧 appData 路径）
+    // §六 2026-09-03：全局规则目录取共享来源（<home>/WorldSea/rules 优先，回退旧 appData 路径）
     rulesDir.value = await getGlobalRulesDir()
   } catch { rulesDir.value = null }
   // 全量探测存在性（卡片状态点；异步尽力而为）

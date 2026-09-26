@@ -191,6 +191,9 @@ pub fn spawn_and_wait_ready(
         .stderr(Stdio::piped());
     // DSH_HOME 一律显式传入（默认=应用数据目录下的隔离 home，或 WORLDSEA_DSH_HOME 覆盖）
     command.env("DSH_HOME", &home);
+    // E1（2026-09-25）：把**解析后的**工作区显式交给 dsh（overlay 的 `workspace-controller.documentsDirectory`
+    // 读它 → 「首次使用默认工作区」候选落在单一可见根内，不再指向 Documents\deepseek-harness）
+    command.env("WORLDSEA_WORKSPACE", &workspace);
     // C5（凭证批）：凭据取向 = 库优先 + env 兜底（判定、留痕与反证开关见 dsh_credentials.rs）
     crate::dsh_credentials::apply_credential_env(&mut command, &home);
     let mut child = command

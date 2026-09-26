@@ -24,9 +24,9 @@ pub async fn cmd_get_app_data_dir(app: tauri::AppHandle) -> Result<String, Strin
     Ok(dir.to_string_lossy().replace('\\', "/"))
 }
 
-/// 获取用户主目录路径（§六 全局层迁移 ~/.WorldSea）
+/// 获取用户主目录路径（§六 全局层迁移；E1 起创作数据根 = `<home>/WorldSea`）
 ///
-/// 全局规则（~/.WorldSea/rules）与个人技能导入区（~/.WorldSea/skills）的载体根。
+/// 全局规则（`<home>/WorldSea/rules`）与个人技能导入区（`<home>/WorldSea/skills`）的载体根（E1 单一可见根）。
 /// 前端 `getHomeDirCached` 缓存后供 globalRulesDirSync / RulesPanel 使用（双端一致）。
 #[tauri::command]
 pub async fn cmd_get_home_dir(app: tauri::AppHandle) -> Result<String, String> {

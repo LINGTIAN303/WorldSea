@@ -195,6 +195,13 @@ DSH_HOME="D:/WorldSea/.独立项/b0-home" node apps/cli/lib/bin.js web --no-open
 - **注释陷阱（已两次踩到）**：注释里写 `sprouts/official/*/index.ts` 会因 `*/` **提前终结块注释** → 改用全角 `〈〉` 或换措辞。
 - **真机口径**：`__WS_WORLD_TREE__.plugins/skipped/rejected`；启停看 `plugins` 计数与侧栏标签同步；视图真源可经能力桥 `world.views.list` 核。
 
+**目录口径（E1，2026-09-25，详见 [E1 批计划](../../plans/2026-09-25-E1-目录口径批计划.md)）**：
+
+- **单一可见根 = `%USERPROFILE%\WorldSea`**（也正是 dsh 工作区）→ 根下 `worlddata\`（默认项目实体）· `agent\`（默认项目 Agent 工作区）· `rules\`（全局规则）· `skills\`（个人技能导入区）；旧 `~/.WorldSea` 退役。
+- **一次性搬迁**：启动期 `data_root::migrate_legacy_home_root()` 把旧根四子目录**复制**到新根（旧存在且新不存在才拷；**只拷不删**，日志前缀 `[WORLDSEA-DATA]`）；`WORLDSEA_NO_DATA_MIGRATE=1` 反证关。
+- **dsh 首次使用候选（4A）**：壳 spawn 显式导出 `WORLDSEA_WORKSPACE`；overlay 把 `workspace-controller.documentsDirectory` 指向它 → 新候选落在根内（不再倾向 `Documents\deepseek-harness`）。**存量** registry 条目（历史候选）不自动改——由用户在 dsh UI 处置或按 API 改写。
+- **写边界裁定（5A）**：产品域 `cmd_fs_*` **保留宽口径**（本地创作工具语义；仅拒 `~/.ssh` / `~/.gnupg` / 系统目录）；dsh 侧严沙箱（cwd + tmp）——**两套写规则并存是显式设计**，非缺陷（`fs_commands.rs` 头注留档）。
+
 **C2 完成态（2026-09-25）**：**25 个官方芽全部在树内**（`world/plugins/**`，插件 id 沿用 `official.*`）；`sprouts/` 目录已删除；**旧芽机器退场**（`PluginManager` / `PluginSandbox` / `plugin-manifest` / 旧 `bootstrap` 全删，含 Phase-3 死代码 `plugins/workflow/`）——产品壳只留 `plugins/{boot.ts,viewSync.ts}`：
 - `boot.ts` 的 `bootstrapShell()` = 视图生命周期同步装配 + 首屏默认视图（原 `bootstrapSprouts` 的装载/注册职责归树）；
 - 启动顺序：`main.ts`（App 挂载）→ `App.vue` 的 `bootstrapShell()` → 工作台入口的 `installWorldTree()`（树的装载读芽清单）；

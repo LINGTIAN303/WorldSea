@@ -79,7 +79,7 @@ const { setupOrchListener, teardownOrchListener, setupOrchSupervisorListener, te
 // 组件仅消费状态（单一状态源），不再各自实例化监听。
 const { activeRun, finishedRuns, resetOrchestrationTrace, setupOrchestrationTraceListener, teardownOrchestrationTraceListener } = useOrchestrationTrace()
 
-// ── app 数据目录 + 用户主目录缓存（H6-③ MCP 配置 + H5 全局规则共用；§六 ~/.WorldSea）──
+// ── app 数据目录 + 用户主目录缓存（H6-③ MCP 配置 + H5 全局规则共用；§六；E1 起根 = <home>/WorldSea）──
 // 同步镜像 + 异步获取缓存：buildBridgeContext 为同步函数，白名单注入读镜像值；
 // 异步获取完成后回填，后续工具调用即带上（首次调用可能缺省，下一次补齐）。
 let appDataDirSync: string | undefined
@@ -92,7 +92,7 @@ async function getAppDataDirCached(): Promise<string | undefined> {
   return appDataDirSync
 }
 
-/** 用户主目录缓存（§六 全局层载体 ~/.WorldSea 的根；globalRulesDirSync/RulesPanel 共用） */
+/** 用户主目录缓存（§六 全局层载体根（E1 起创作数据在 `<home>/WorldSea`）；globalRulesDirSync/RulesPanel 共用） */
 let homeDirSync: string | undefined
 async function getHomeDirCached(): Promise<string | undefined> {
   if (homeDirSync) return homeDirSync
@@ -110,7 +110,7 @@ async function getMcpConfigPath(): Promise<string | undefined> {
 }
 
 /** 写边界白名单（workdir 外精确放行文件）：MCP 配置 + 全局规则目录（用户与 Agent 均可编辑——拍板「共同维护」）
- *  §六 2026-09-03：放行 ~/.WorldSea/rules 六件（新载体，Agent 可直编）；旧 appData 路径已移除（T20 清理）
+ *  §六 2026-09-03：放行 `<home>/WorldSea/rules` 六件（E1 单一可见根，Agent 可直编）；旧 appData 路径已移除（T20 清理）
  *
  *  ⚠ A1 乙3①（2026-09-11）：**MEMORY.md 除外**——它与其余五件性质不同：
  *  - 其余五件：用户与 Agent 共同维护，Agent 直编文件即生效 → 需放行 fs 写入
@@ -121,7 +121,7 @@ async function getMcpConfigPath(): Promise<string | undefined> {
  */
 function extraWritablePathsFor(base?: string): string[] | undefined {
   if (!base) return undefined
-  const homeRulesDir = homeDirSync ? `${homeDirSync}/.WorldSea/rules` : undefined
+  const homeRulesDir = homeDirSync ? `${homeDirSync}/WorldSea/rules` : undefined
   return [
     `${base}/worldsea/mcp.json`,
     ...(homeRulesDir
@@ -1701,7 +1701,7 @@ let toolBridgeContext: IToolContext | null = null
 function buildBridgeContext(): IToolContext {
   // H6-③ 配置化 + H5 规则体系（2026-08-30）：fire-and-forget 预取 app 数据目录，
   // 回填 appDataDirSync 后随 workspace.extraWritablePaths 注入白名单（缓存幂等）。
-  // §六（2026-09-03）：并行预取 home 目录 + 迁移 ~/.WorldSea 全局层
+  // §六（2026-09-03）：并行预取 home 目录 + 迁移全局层（E1 起目标根 = <home>/WorldSea）
   void getAppDataDirCached()
   void getHomeDirCached()
   void ensureGlobalHomeOnce()
@@ -2153,13 +2153,13 @@ async function newSession(
 ): Promise<RustSessionInfo> {
   // 任务29/A1 统一根 + 项目=目录（2026-09-03）：workdir = currentWorkdir（project:switched 处理器/切会话恢复），
   // 未设置则回退当前默认根（resolveWorkspaceDir() 无参 = 当前项目目录优先 /
-  // 默认项目特判 ~/.WorldSea/agent，无项目兜底同 agent）——见 docs/plans/workspace-unification-plan.md
+  // 默认项目特判 <home>/WorldSea/agent，无项目兜底同 agent）——见 docs/plans/workspace-unification-plan.md
   // 场景根主权修正（2026-09-10 症状①）：全局模式（默认项目/无项目）下 workdir 传 null——
-  // ~/.WorldSea/agent 不在 scenes_root（%APPDATA%/com.worldsea.app/scenes）领地内，传入会被
+  // <home>/WorldSea/agent 不在 scenes_root（%APPDATA%/com.worldsea.app/scenes）领地内，传入会被
   // 后端领地判据误判为「用户项目目录」保留 → 场景会话全部落「默认工作区」组；传 null 由
   // 后端主权规则强制 scenes/<hint>（workdir.is_none() 分支）。普通项目继续传 dirPath（项目模式）。
   // 项目模式 workdir 取当前项目目录（2026-09-10 翻转修复）：不再直接吃 currentWorkdir 残留——
-  // 上一会话可能属于其它项目/全局工作区（如 ~/.WorldSea/agent），残留传入会让新会话
+  // 上一会话可能属于其它项目/全局工作区（如 <home>/WorldSea/agent），残留传入会让新会话
   // 重复落「默认工作区」组；「项目=目录」语义下会话恒跟随当前项目目录。
   let workdir: string | null = null
   let globalMode = false
@@ -2177,7 +2177,7 @@ async function newSession(
     await ensureWorkspaceDir(workdir)
   }
   // 方案A（2026-09-03）：实体存储根与工作区根解耦——默认项目（未开目录）Agent 工作区在
-  // ~/.WorldSea/agent、工作台实体在 ~/.WorldSea/worlddata（resolveEntityDataDir 特判），
+  // <home>/WorldSea/agent、工作台实体在 <home>/WorldSea/worlddata（resolveEntityDataDir 特判），
   // 必须把后者作为 entityStorageRoot 传给后端实体读工具，否则读侧扫 agent/entities（空白）
   // 与写入侧（FileStorageBackend → worlddata/entities）分裂，模型创建实体后读不到。
   // 普通项目 resolveEntityDataDir()=dirPath=workdir（同源）→ 传 null 由后端回退 workdir。
@@ -2343,7 +2343,7 @@ export function registerProjectSwitchListener(): void {
     const projectId = (e as CustomEvent<{ projectId: string }>).detail?.projectId
     if (!projectId) return
     void (async () => {
-      // 项目=目录：workdir 统一走 resolveWorkspaceDir（默认项目特判 → ~/.WorldSea/agent；
+      // 项目=目录：workdir 统一走 resolveWorkspaceDir（默认项目特判 → <home>/WorldSea/agent；
       // 普通项目 → dirPath；边缘无项目 → 兜底 agent）
       currentWorkdir.value = await resolveWorkspaceDir()
       await newDraftSession()
@@ -2689,7 +2689,7 @@ export const MEMORY_RULES_FILE = 'MEMORY.md'   // 仅全局级：记忆文档（
 // （./rules/WORLDSEA.md，唯一不可被 Agent/用户编辑，随版本维护）；旧 workdir/WORLDSEA.md
 // 由 ensureProjectAgentsFile 一次性改名迁移为 AGENTS.md（内容不动）。
 
-/** 全局规则文件清单（§六 2026-09-03 迁至 ~/.WorldSea/rules/ 下；用户与 Agent 均可编辑——拍板「共同维护」） */
+/** 全局规则文件清单（§六 2026-09-03 迁至用户根 rules/ 下（E1 起 = `<home>/WorldSea/rules/`）；用户与 Agent 均可编辑——拍板「共同维护」） */
 const GLOBAL_RULES_FILES = [
   WORLD_RULES_FILE,
   WRITING_RULES_FILE,
@@ -2699,15 +2699,15 @@ const GLOBAL_RULES_FILES = [
   MEMORY_RULES_FILE,
 ] as const
 
-/** 全局规则目录（§六 迁移后 ~/.WorldSea/rules；home 未就绪时回退旧 <app_data>/worldsea/rules）
+/** 全局规则目录（§六 迁移后 `<home>/WorldSea/rules`（E1 单一可见根）；home 未就绪时回退旧 <app_data>/worldsea/rules）
  *  WRITING/DESIGN/TOOLS 等全局份同放；MEMORY.md 由记忆系统承接 */
 function globalRulesDirSync(): string | undefined {
-  if (homeDirSync) return `${homeDirSync}/.WorldSea/rules`
+  if (homeDirSync) return `${homeDirSync}/WorldSea/rules`
   return appDataDirSync ? `${appDataDirSync}/worldsea/rules` : undefined
 }
 
 /**
- * 一次性迁移（§六 2026-09-03）：确保 ~/.WorldSea/{rules,skills} 存在；
+ * 一次性迁移（§六 2026-09-03）：确保 `<home>/WorldSea/{rules,skills}` 存在（E1 单一可见根）；
  * 旧 <app_data>/worldsea/rules 若有存量规则文件且目标无同名 → 逐文件复制（cmd_fs_copy 仅文件）。
  * 幂等 no-op；旧目录保留留痕不删除。
  */
@@ -2715,7 +2715,7 @@ export async function ensureGlobalHomeOnce(): Promise<void> {
   const home = await getHomeDirCached()
   const data = await getAppDataDirCached()
   if (!home) return
-  const homeRoot = `${home}/.WorldSea`
+  const homeRoot = `${home}/WorldSea`
   const rulesDir = `${homeRoot}/rules`
   try { await safeInvoke('cmd_fs_mkdir', { path: rulesDir }) } catch { /* 已存在则幂等 */ }
   try { await safeInvoke('cmd_fs_mkdir', { path: `${homeRoot}/skills` }) } catch { /* 幂等 */ }
@@ -2731,7 +2731,7 @@ export async function ensureGlobalHomeOnce(): Promise<void> {
     try {
       await safeInvoke('cmd_fs_read', { path: src })
       await safeInvoke('cmd_fs_copy', { src, dest })
-      console.info(`[useAgentRust] 已迁移全局规则 ${f} → ~/.WorldSea/rules`)
+      console.info(`[useAgentRust] 已迁移全局规则 ${f} → <home>/WorldSea/rules`)
     } catch { /* 源不存在或复制失败均静默（幂等 no-op） */ }
   }
   // T20 清理（2026-09-03 用户拍板）：迁移确认完成 → 移除旧路径痕迹（幂等；目录不存在/删除失败均静默）
@@ -2743,7 +2743,7 @@ export async function ensureGlobalHomeOnce(): Promise<void> {
 /** 全局规则目录（异步；home 就绪优先，否则回退旧 appData 路径）——RulesPanel 等共享来源 */
 export async function getGlobalRulesDir(): Promise<string | null> {
   const home = await getHomeDirCached()
-  if (home) return `${home}/.WorldSea/rules`
+  if (home) return `${home}/WorldSea/rules`
   const data = await getAppDataDirCached()
   return data ? `${data}/worldsea/rules` : null
 }
@@ -2789,7 +2789,7 @@ export async function ensureProjectAgentsFile(): Promise<void> {
  * 记忆库（置顶条目 + 调和结论）
  *      │ memory_md_render（Rust 侧派生渲染，字节稳定）
  *      ▼
- * ~/.WorldSea/rules/MEMORY.md   ← 本函数落盘
+ * <home>/WorldSea/rules/MEMORY.md   ← 本函数落盘（E1 单一可见根）
  *      │ buildSessionPromptSections 全局组最后一项
  *      ▼
  * system_prompt（常驻每轮可见）
@@ -2864,7 +2864,7 @@ async function buildSessionPromptSections(): Promise<PromptSectionDto[]> {
   const sections: PromptSectionDto[] = []
 
   // §六 全局层迁移前置：确保 home 规则目录就绪（homeDirSync 回填 + 目录创建/存量迁移），
-  // 使 ② 全局规则组读到新载体 ~/.WorldSea/rules（消除首启竞态）
+  // 使 ② 全局规则组读到新载体 <home>/WorldSea/rules（消除首启竞态）
   await getHomeDirCached()
   await ensureGlobalHomeOnce()
 
@@ -2948,8 +2948,8 @@ async function buildSessionPromptSections(): Promise<PromptSectionDto[]> {
     }
 
     // ③.5 工作区分区（实时路径认知段，workdir 存在才注入——分区约定 + 当前真实路径）
-    // 实体数据区按 entityDirOf 语义特判（2026-09-03 修复遗留小项）：默认项目 workdir=~/.WorldSea/agent，
-    // 工作台实体真实落 ~/.WorldSea/worlddata（resolveEntityDataDir），与普通项目「{workdir}/entities 即数据区」
+    // 实体数据区按 entityDirOf 语义特判（2026-09-03 修复遗留小项）：默认项目 workdir=<home>/WorldSea/agent，
+    // 工作台实体真实落 <home>/WorldSea/worlddata（resolveEntityDataDir），与普通项目「{workdir}/entities 即数据区」
     // 语义不同——文案如实区分「会话侧（Agent 实体工具落点）」与「平台侧（工作台实体目录）」，不做同源假设。
     const entityDataDir = await resolveEntityDataDir()
     // 路径归一比较（去尾分隔符 + 小写，Windows 大小写不敏感）
@@ -2969,7 +2969,7 @@ async function buildSessionPromptSections(): Promise<PromptSectionDto[]> {
         `- 临时产物（草稿/中间文件）请写入 ${workdir}/agent-tmp/（Agent 全权，可自由创建与清理，写操作免确认）\n` +
         `- 收官成果请放入 ${workdir}/agent-out/\n` +
         dataDirLine +
-        `- 未绑定项目时兜底草稿目录为 ~/.WorldSea/agent`,
+        `- 未绑定项目时兜底草稿目录为 <home>/WorldSea/agent`,
     })
   }
 

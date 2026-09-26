@@ -59,6 +59,8 @@ mod workspace_window;
 mod app_prefs;
 // A（2026-09-25）：壳侧能力桥——类型化能力注册表 + 调用 ACL + 两窗中转 + 审计（双 Cordis 的交界缝）
 mod capabilities;
+// E1（2026-09-25）：单一可见根（%USERPROFILE%\WorldSea）+ 旧 ~/.WorldSea 一次性搬迁
+mod data_root;
 // C1-a（2026-09-24）：mux WebSocket 凭据中转（改写握手首部后双向透传；C2 起仅 legacy 对照模式使用）
 mod dsh_relay;
 // C2-b（2026-09-24）：管道传输客户端（宿主管道载体的壳侧对端：帧编解码 + 请求多路复用 + 流 lane）
@@ -342,7 +344,7 @@ pub fn run() {
             office_commands::cmd_pptx_to_pdf,
             // Phase B 迁移：获取应用数据目录（自动绑定项目存储目录）
             project_commands::cmd_get_app_data_dir,
-            // §六 全局层迁移：获取用户主目录（~/.WorldSea 载体根）
+            // §六 全局层迁移：获取用户主目录（E1 起：创作数据在 `WorldSea/` 根下）
             project_commands::cmd_get_home_dir,
             // Phase B 迁移：删除项目数据目录（deleteProject Tauri 分支）
             project_commands::cmd_delete_project_db,
@@ -422,6 +424,8 @@ pub fn run() {
         .setup(|app| {
             // E2（2026-09-24）：主题真源先落地——壳自有面（错误页/安全网/横幅）与两窗注入都要读它
             app_prefs::bootstrap(app.handle());
+            // E1（2026-09-25）：单一可见根的就地搬迁（旧 ~/.WorldSea → %USERPROFILE%\WorldSea，只拷不删）
+            let _ = data_root::migrate_legacy_home_root();
 
             // C3-b（2026-09-24）：壳级导航/新窗栅栏（WebView2 事件层；主框架 NavigationStarting +
             // NewWindowRequested）——先于壳的首次导航挂上，补 JS 守卫（C1-c′）覆盖不到的程序化导航；

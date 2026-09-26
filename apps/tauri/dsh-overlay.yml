@@ -22,3 +22,11 @@
 #    若将来要它，需要一条可流式的传输（C2 的 portless 通道是候选）。
 - id: client-hmr
   disabled: true
+
+# 3) workspace-controller —— E1（2026-09-25）：把「首次使用默认工作区」的候选目录钉到单一可见根。
+#    该服务的 `documentsDirectory` 是「系统 Documents 的部署覆盖」；候选路径形状 = <documentsDirectory>/deepseek-harness/<leaf>。
+#    壳 spawn 时显式导出 WORLDSEA_WORKSPACE（= 解析后的工作区，E1 起 = %USERPROFILE%\WorldSea）→ 候选落在根内；
+#    未设该环境变量时保持 dsh 默认（Documents），不静默改变别处行为。
+- id: workspace-controller
+  config:
+    documentsDirectory: !!js process.env.WORLDSEA_WORKSPACE
