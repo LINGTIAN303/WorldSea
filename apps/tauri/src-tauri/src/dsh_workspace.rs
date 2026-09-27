@@ -4,6 +4,8 @@
 // ② 启动探测 + 日志 + 系统通知（不可供给时把横幅文案带出去）；③ 一键修复（**用户显式点击才执行**）。
 // 机制与依据（dsh 的 ACL 沙箱要目录上的 WRITE_OWNER）见 workspace_probe.rs 与
 // docs/plans/2026-09-24-C4-壳侧工作区批计划.md §二。
+// D2-a（2026-09-27）追加第四件：dsh 工作区**列表转发**（`cmd_dsh_workspace_list`）——
+// 「项目 = dsh workspace」同源模型（D2 批计划 §1.1）的产品域数据源，见文件尾段。
 
 use std::path::{Path, PathBuf};
 
@@ -90,4 +92,103 @@ pub(crate) fn fix_workspace_permissions(app: &tauri::AppHandle) -> Result<String
     let probe = crate::workspace_probe::check(&workspace);
     println!("[DSH-SHELL] 工作区修复后探测：{} —— {}", probe.label(), probe.describe(&workspace));
     Ok(probe.label().to_string())
+}
+
+// ── D2-a：dsh 工作区列表转发（2026-09-27）─────────────────────────────────────
+//
+// 数据源 = `$DSH_HOME/storages/workspace.json`（**壳直读存储文件**，C5 凭证库同款先例）。
+// 为什么不走 dsh API：workspace 命名空间只有 create/rename/delete/排序与会话归档 +
+// `follow` 订阅流（AsyncIterable）——没有一次性 list；壳转发订阅流得不偿失，直读最务实。
+// 结构（unit v2）：`global.workspaceIds`（**UI 列表顺序**）+ `tables.workspaces.<id>{path,title,...}`。
+// 防御性解析：JSON 损坏 / 缺字段 → 跳过该条或空列表（产品侧项目列表为空可容忍，不炸壳）；
+// ★ 内部格式耦合登记：`tables` 结构属 dsh 内部存储，dsh 追版（fork:check 后）须真机回归本命令。
+
+/// 工作区条目（产品域「项目」的同源视图：title = 项目名、path = 项目目录）。
+#[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct DshWorkspace {
+    pub id: String,
+    pub title: String,
+    pub path: String,
+}
+
+/// DSH_HOME 口径：`WORLDSEA_DSH_HOME` 覆盖 > `<app_data>/dsh-home`。
+/// （与 `dsh_shell` 的 spawn 段同源——该处还带 create_dir_all 副作用，故不共享函数；改动须两处同步。）
+fn dsh_storages_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    match std::env::var_os("WORLDSEA_DSH_HOME") {
+        Some(raw) => Ok(PathBuf::from(raw)),
+        None => app
+            .path()
+            .app_data_dir()
+            .map_err(|e| format!("定位应用数据目录失败：{e}"))
+            .map(|dir| dir.join("dsh-home")),
+    }
+}
+
+/// 解析 workspace.json → 工作区列表（按 `global.workspaceIds` 顺序；缺 path/title 的条目跳过）。
+fn parse_workspace_json(text: &str) -> Vec<DshWorkspace> {
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(text) else {
+        return Vec::new();
+    };
+    let order = value
+        .pointer("/global/workspaceIds")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
+    let tables = value.pointer("/tables/workspaces").cloned().unwrap_or_default();
+    let mut items = Vec::new();
+    for id in order {
+        let Some(id) = id.as_str() else { continue };
+        let Some(entry) = tables.get(id) else { continue };
+        let (Some(title), Some(path)) = (
+            entry.get("title").and_then(|v| v.as_str()),
+            entry.get("path").and_then(|v| v.as_str()),
+        ) else {
+            continue;
+        };
+        items.push(DshWorkspace { id: id.to_string(), title: title.to_string(), path: path.to_string() });
+    }
+    items
+}
+
+/// 读 dsh 工作区列表。
+pub(crate) fn list_dsh_workspaces(app: &tauri::AppHandle) -> Result<Vec<DshWorkspace>, String> {
+    let path = dsh_storages_dir(app)?.join("storages").join("workspace.json");
+    let text = std::fs::read_to_string(&path)
+        .map_err(|e| format!("读取 dsh 工作区存储失败（{path:?}）：{e}"))?;
+    Ok(parse_workspace_json(&text))
+}
+
+/// 命令：产品域「项目」列表的同源数据源（前端 `world.project.list` 能力的后端）。
+#[tauri::command]
+pub fn cmd_dsh_workspace_list(app: tauri::AppHandle) -> Result<Vec<DshWorkspace>, String> {
+    list_dsh_workspaces(&app)
+}
+
+#[cfg(test)]
+mod dsh_workspace_list_tests {
+    use super::parse_workspace_json;
+
+    #[test]
+    fn 解析_按_workspaceIds_顺序且条目完整() {
+        let text = r#"{
+            "unit": {"name": "workspace", "version": 2},
+            "global": {"defaultWorkspaceId": "b", "workspaceIds": ["b", "a"]},
+            "tables": {"workspaces": {
+                "a": {"path": "D:\\WS", "title": "WS"},
+                "b": {"path": "C:\\Users\\u\\WorldSea", "title": "WorldSea"}
+            }}
+        }"#;
+        let items = parse_workspace_json(text);
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].title, "WorldSea"); // 顺序跟 workspaceIds，不跟 tables 键序
+        assert_eq!(items[1].path, "D:\\WS");
+    }
+
+    #[test]
+    fn 解析_缺字段条目跳过_损坏JSON与空对象返回空() {
+        let partial = r#"{"global":{"workspaceIds":["a","b"]},"tables":{"workspaces":{"a":{"title":"无路径"}}}}"#;
+        assert_eq!(parse_workspace_json(partial).len(), 0);
+        assert!(parse_workspace_json("not json").is_empty());
+        assert!(parse_workspace_json("{}").is_empty());
+    }
 }

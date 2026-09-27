@@ -45,6 +45,6 @@ commands.allow = [
     "cmd_lsp_detect", "cmd_lsp_send", "cmd_lsp_start", "cmd_migrate",
     "cmd_notify", "cmd_office_available", "cmd_open_in_explorer", "cmd_pptx_to_pdf",
     "cmd_put_entity", "cmd_put_file", "cmd_put_relation", "cmd_run_diagnostics",
-    "cmd_tray_page_ready", "cmd_tray_set_recent_projects", "cmd_update_entity", "cmd_update_file",
+    "cmd_dsh_workspace_list", "cmd_tray_page_ready", "cmd_tray_set_recent_projects", "cmd_update_entity", "cmd_update_file",
     "cmd_update_relation", "cmd_validate_entities", "cmd_validate_entity", "cmd_validate_pack",
 ]
