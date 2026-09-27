@@ -2,7 +2,7 @@
 
 > status: 已完成（历史规划视角 · 2026-08-30 归档核对）
 > 创建日期：2026-07-24
-> **归档注记（2026-08-30 实况核对）**：阶段 3（pi-ai 移除）实际已完成（全 packages 无 `from 'pi-ai'`，e2e-closure 5.5 核实），正文"可选待定"过期；文内全部 `crates/agent-runtime/src/...` 路径已随 2026-08-25 crate 拆分迁移（实体在 agent-kernel / agent-patterns，旧路径经 `pub use` 转发兼容）；曾声称完成的 Loop Engineering 命令层经端分离迁移断裂后已由自迭代 23 恢复（`docs/misc/self-iteration/23-loop-control-long-task.md`）；唯一未确认尾巴：failTask 终态闭环（2026-08-02 遗留）无后续记录。后续演进见 [orchestration-matrix.md](../../details/架构/orchestration-matrix.md) 与 [VibeCoding编排模式落地执行.md](../VibeCoding编排模式落地执行.md)。
+> **归档注记（2026-08-30 实况核对）**：阶段 3（pi-ai 移除）实际已完成（全 packages 无 `from 'pi-ai'`，e2e-closure 5.5 核实），正文"可选待定"过期；文内全部 `crates/agent-runtime/src/...` 路径已随 2026-08-25 crate 拆分迁移（实体在 agent-kernel / agent-patterns，旧路径经 `pub use` 转发兼容）；曾声称完成的 Loop Engineering 命令层经端分离迁移断裂后已由自迭代 23 恢复（`docs/misc/self-iteration/23-loop-control-long-task.md`）；唯一未确认尾巴：failTask 终态闭环（2026-08-02 遗留）无后续记录。后续演进见 [orchestration-matrix.md](../../details/架构/orchestration-matrix.md) 与 [VibeCoding编排模式落地执行.md](VibeCoding编排模式落地执行.md)。
 > 状态：**阶段 1（Rust Agent loop）+ 阶段 2（编排框架）已完成**（2026-07-28，cargo test 127/127）；阶段 0（TS 编排验证）未做完整，被 Rust 直接实现替代；阶段 3（自研 pi-ai）可选待定
 > 关联：替换 WorldSea 的 TS pi-ai（详见 [project_memory.md](../../../project_memory.md)）
 > 2026-08-25：13 模式层级重划已产出权威矩阵 [orchestration-matrix.md](../../details/架构/orchestration-matrix.md)（纯文档，未动代码）；同日经两方方案裁定（[03-两方方案裁定纪要.md](./agent编排层架构重构/03-两方方案裁定纪要.md)）合并修正后，matrix 为唯一架构权威；本文档三层架构图保留为历史规划视角

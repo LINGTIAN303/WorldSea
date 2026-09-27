@@ -3,7 +3,7 @@
 > 调研日期：2026-08-30
 > 调研对象：https://github.com/bytedance/trae-agent（main 分支，289 commits，12.1k star，MIT）
 > 调研目的：为 WorldSea 的**步骤摘要 / 轨迹记录 / 工具协议 / 任务收口**四个议题找外部参照
-> 关联文档：[Harness 工程差距调研](../plans/2026-08-30-Harness工程差距调研.md)（H1 三硬伤、H7 事件字段）
+> 关联文档：[Harness 工程差距调研](../plans/已完成/2026-08-30-Harness工程差距调研.md)（H1 三硬伤、H7 事件字段）
 
 ---
 
@@ -276,7 +276,7 @@ if self.model_provider == "openai":
 
 > **对位 WorldSea**：`Tool::parameters()` 直接返回 `serde_json::Value`（`crates/agent-kernel/src/tool.rs:39`），
 > 在 `agent-kernel` 全库检索 `additionalProperties` / `strict` **零命中** → **未做 Provider 适配**。
-> 注：[Harness 调研](../plans/2026-08-30-Harness工程差距调研.md) §实证教训记有"桥工具 schema 严格模式"问题，
+> 注：[Harness 调研](../plans/已完成/2026-08-30-Harness工程差距调研.md) §实证教训记有"桥工具 schema 严格模式"问题，
 > 说明此坑已踩过，但**修复未落到 `agent-kernel` 的 schema 生成层**。→ 列为待确认项（§6 R4）
 
 ### 4.3 ToolExecutor：名称归一化容错
@@ -477,7 +477,7 @@ if tool_calls.is_empty() {
 | **R1** | 驳回消耗轮次 | 驳回后 `continue` 会再次走 `state.current_iteration += 1`，吃掉 `max_iterations=25` 的预算，可能把正常对话卡死 | **驳回必须独立计数**（`rejections`），且不递增 `current_iteration`；配 `max_rejections` 熔断 |
 | **R2** | 交互式场景误判 | WorldSea 不是 SWE 专用，用户闲聊/问问题时收口是正确行为，加校验会强行驳回 | **默认 `NoopVerifier`**，仅在长任务 / 编排模式 / 用户显式要求时启用 |
 | **R3** | 校验判据从哪来 | Trae 的 `git diff` 判据依赖"SWE 修 bug"这一特定场景，WorldSea 是通用 Agent，没有普适判据 | 判据**必须由场景/编排模式提供**（如 Plan-and-Execute 校验计划项全勾选、Reflection 校验反思轮已过），框架只提供接口不提供默认判据 |
-| **R4** | Provider schema 适配缺失 | 全库检索 `additionalProperties` / `strict` 零命中 | 需核对 [Harness 调研](../plans/2026-08-30-Harness工程差距调研.md) 所记"桥工具 schema 严格模式"问题的修复落点，确认是否真断线 |
+| **R4** | Provider schema 适配缺失 | 全库检索 `additionalProperties` / `strict` 零命中 | 需核对 [Harness 调研](../plans/已完成/2026-08-30-Harness工程差距调研.md) 所记"桥工具 schema 严格模式"问题的修复落点，确认是否真断线 |
 
 ---
 
@@ -509,6 +509,6 @@ if tool_calls.is_empty() {
 
 ## 七、待办
 
-- [ ] 拍板 A1（完成判定三重钩子）是否立项 → 若是，进 [Harness 工程差距调研](../plans/2026-08-30-Harness工程差距调研.md) 作为新议题
+- [ ] 拍板 A1（完成判定三重钩子）是否立项 → 若是，进 [Harness 工程差距调研](../plans/已完成/2026-08-30-Harness工程差距调研.md) 作为新议题
 - [ ] 核对 R4：Provider schema 适配是否真断线
 - [ ] 确认 B2 行为变更可接受（"替换全部" → "多处拒绝"）

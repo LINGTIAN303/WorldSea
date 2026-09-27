@@ -1,7 +1,7 @@
 # codeHighlight 注释（Prism 语法高亮 + 内容键 memo）
 
 > 位置：`packages/shared-ui/src/agent/bubbles/codeHighlight.ts`
-> 上游：[批次 D 走查后修复·流式帧率](../../../../../plans/2026-09-18-对话区对齐dsh/03-对照与建议清单.md)（C7 代码高亮移出流式热路径）
+> 上游：[批次 D 走查后修复·流式帧率](../../../../../plans/已完成/2026-09-18-对话区对齐dsh/03-对照与建议清单.md)（C7 代码高亮移出流式热路径）
 
 ## 一、模块职责
 

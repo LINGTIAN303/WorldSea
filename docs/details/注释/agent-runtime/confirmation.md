@@ -2,7 +2,7 @@
 
 > 来源：`crates/agent-kernel/src/interaction_broker.rs`（协调器）与 `crates/agent-kernel/src/confirmation.rs`
 > （策略与守卫面）的模块级长注释块。代码内保留简要说明 + 本文件相对路径；
-> **设计事实源**见 [12-S5施工计划 §二](../../../plans/2026-09-21-ZCode能力内化方向探究/12-S5施工计划-交互三型.md)。
+> **设计事实源**见 [12-S5施工计划 §二](../../../plans/已完成/2026-09-21-ZCode能力内化方向探究/12-S5施工计划-交互三型.md)。
 
 ---
 

@@ -365,7 +365,7 @@ state.messages.drain(0..up_to_index);
 >
 > **对方案的影响**：方向不变但性质变了——阶段 B 要解决的不是"防复活"，而是"**把可变快照改成不可变追加**"。裁剪的破坏性比原文估计的更高，因此优先级应上调。
 >
-> 关联取证：`messages` 表无 append-only 语义；tool_result 在**入库前**已按 12 000 字节保头截断（本节 §6.3），故被裁内容中连工具结果原文都从未落过盘；`record_turn` 归档时丢弃 `tool_calls` / `thinking`（`crates/agent-memory/src/lib.rs:260-283`），归档兜不住工具交互。详见 [A1 记忆系统设计 · 裁定清单](../../docs/plans/2026-09-11-A1-记忆系统设计-裁定清单.md) 己1 / 己2。
+> 关联取证：`messages` 表无 append-only 语义；tool_result 在**入库前**已按 12 000 字节保头截断（本节 §6.3），故被裁内容中连工具结果原文都从未落过盘；`record_turn` 归档时丢弃 `tool_calls` / `thinking`（`crates/agent-memory/src/lib.rs:260-283`），归档兜不住工具交互。详见 [A1 记忆系统设计 · 裁定清单](../../docs/plans/已完成/2026-09-11-A1-记忆系统设计-裁定清单.md) 己1 / 己2。
 
 **差距 2：无 tool_call / tool_result 配对保护（真实 BUG 风险）**
 

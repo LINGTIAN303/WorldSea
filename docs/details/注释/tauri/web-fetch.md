@@ -3,7 +3,7 @@
 > 对应代码：`apps/tauri/src-tauri/src/web_fetch_commands.rs`（工具与缓存）+
 > `web_fetch_extract.rs`（HTML 扫描器）+ `web_fetch_text.rs`（文本/URL 工具层）+
 > `net_egress.rs`（出网收口，见 [net-egress.md](net-egress.md)）
-> 批次：档 3（2026-09-22，W3 能力面整顿 · [计划](../../../plans/2026-09-22-W3档3-抓取能力与出网收口.md)）
+> 批次：档 3（2026-09-22，W3 能力面整顿 · [计划](../../../plans/已完成/2026-09-22-W3档3-抓取能力与出网收口.md)）
 
 ## 一、为什么抓取要自己实现，而不是接一个读页服务
 

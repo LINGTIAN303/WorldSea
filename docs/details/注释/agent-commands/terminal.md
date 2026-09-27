@@ -25,7 +25,7 @@
 ## 补充（2026-09-18）：E3 沙箱接线与文案口径
 
 > 本节为手工维护的增量说明（非注释块迁移），配套 [sandbox.md](sandbox.md) 与
-> [03-E3 真沙箱设计方案](../../../plans/2026-09-18-工作区与环境对齐dsh/03-E3真沙箱设计方案.md)。
+> [03-E3 真沙箱设计方案](../../../plans/已完成/2026-09-18-工作区与环境对齐dsh/03-E3真沙箱设计方案.md)。
 
 - **三通路**：命令族（`execute_command` / `bash` / `powershell`）与 PTY 会话族（`shell_session_*`）
   在 Agent 路径（携带 `ToolContext.sandbox` 戳记）走受限通路；终端面板路径（无 ctx）与 Unix 走普通通路。

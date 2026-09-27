@@ -1,5 +1,5 @@
 ---
-status: 执行中
+status: 已完成
 ---
 
 # E7 批计划：旧 Agent 面前端本体删除 + emoji 收拾

@@ -1,5 +1,5 @@
 ---
-status: 执行中
+status: 已完成
 ---
 
 # 双 Cordis Spike 批计划（WorldSea 插件化 · 可行性验证）
