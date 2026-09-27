@@ -197,3 +197,30 @@ describe('窗口栏：「⋯」popup 菜单', () => {
     expect(popup?.args.y).toBe(34)
   })
 })
+
+describe('窗口栏：侧栏开关键捞回（E9）', () => {
+  it('占位槽存在且紧跟切换胶囊（DOM 顺序 = 视觉「胶囊右侧」）', () => {
+    const toggle = bar().querySelector('.wstb-toggle') as Element
+    const slot = bar().querySelector('.wstb-sidebar-slot')
+    expect(slot).toBeTruthy()
+    expect(toggle.nextElementSibling).toBe(slot)
+  })
+
+  it('dsh 键晚到（React 异步渲染）→ 轮询命中：内联样式钉住并抬升 z-index 到本栏之上', async () => {
+    /* 模拟 dsh 侧栏键的稳定特征：aria-keyshortcuts + class 含 toggle + fixed 定位（jsdom 无布局，position 走内联） */
+    const fakeToggle = document.createElement('button')
+    fakeToggle.setAttribute('aria-keyshortcuts', 'Control+B')
+    fakeToggle.className = 'SidebarRoot_iconButton__a1 SidebarRoot_toggle__b2'
+    fakeToggle.style.position = 'fixed'
+    document.body.appendChild(fakeToggle)
+    try {
+      /* 首装时的轮询周期 250ms → 真实等待一拍即命中 */
+      await new Promise(resolve => setTimeout(resolve, 400))
+      expect(fakeToggle.style.zIndex).toBe('2147483001')
+      expect(fakeToggle.style.left).not.toBe('')
+      expect(fakeToggle.style.top).not.toBe('')
+    } finally {
+      fakeToggle.remove()
+    }
+  })
+})

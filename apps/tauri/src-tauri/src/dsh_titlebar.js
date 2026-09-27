@@ -7,7 +7,12 @@
    （工作台窗懒建/显示，本窗随之被隐藏），故本窗按钮文案/图标恒为「Agent 空间」，无需翻转。
    （工作台窗不吃本注入：它用旧前端自带的 TitleBar 作窗口栏。）
    反证开关（壳侧控制，本脚本不感知）：`WORLDSEA_NO_TITLEBAR=1` 不注入；`WORLDSEA_FRAMED=1` 回原生边框亦不注入。
-   边界：拖拽走 JS 方案（非系统非客户区）→ 无系统 snap；`Ctrl+Tab` 切换键位不进本批。 */
+   边界：拖拽走 JS 方案（非系统非客户区）→ 无系统 snap；`Ctrl+Tab` 切换键位不进本批。
+   E9（2026-09-27）：**侧栏开关键捞回**——dsh 在标题栏模式下把该键 fixed 定位到视口左上角
+   （`ui-sidebar/SidebarRoot.module.css`：left:12px / top:calc((H-28px)/2) / z-index:30），官方桌面
+   该区域是透明系统拖拽区故键可见；本栏是不透明实体栏且 z-index 更高 → 键被完全盖住（用户视角 =
+   「侧栏键不见了」）。处置：胶囊右侧留占位槽，把 dsh 键用内联样式钉到槽位并抬升 z-index——
+   键仍是 dsh 的（React 状态/tooltip 自洽），不碰 dsh 树。 */
 (function () {
   try {
     /* 幂等：重复注入是 no-op（家族惯例，见 dsh_shell_bridge.js） */
@@ -67,6 +72,7 @@
       '#worldsea-titlebar .wstb-controls .wstb-btn{width:44px;}',
       '#worldsea-titlebar .wstb-controls .wstb-btn:hover{background:rgba(127,127,127,.18);color:var(--dsw-alias-label-primary,#e6e9ee);}',
       '#worldsea-titlebar .wstb-close:hover{background:#d13438;color:#fff;}',
+      '#worldsea-titlebar .wstb-sidebar-slot{position:relative;width:28px;height:24px;margin:0 2px 0 8px;flex-shrink:0;}',
     ].join('');
 
     var style = document.createElement('style');
@@ -79,6 +85,7 @@
       '<button type="button" class="wstb-toggle" aria-label="切换到工作台" title="切换到工作台">' +
       '<span class="wstb-toggle-icon">' + ICON_CHAT + '</span>' +
       '<span class="wstb-toggle-label">Agent 空间</span></button>' +
+      '<span class="wstb-sidebar-slot" aria-hidden="true"></span>' +
       '<div class="wstb-drag"></div>' +
       '<div class="wstb-title"><span>WorldSea — Agent 空间</span></div>' +
       '<div class="wstb-right">' +
@@ -148,6 +155,38 @@
         .catch(function (error) { report('popup 菜单失败：' + error); });
     });
 
+    /* ── 侧栏开关键捞回（E9）：见文件头注。
+       键的稳定特征 = button[aria-keyshortcuts] 且 class 含 toggle 且 position:fixed
+       （dsh 标题栏模式专属定位；其它同名按钮不浮动，不误伤）。
+       dsh 键由 React 异步渲染（本脚本挂载时页面模块多半未就绪）→ 重试轮询；
+       窗口尺寸 / 页面缩放变化后 getBoundingClientRect 失真 → resize 时重新对齐。 */
+    var slot = bar.querySelector('.wstb-sidebar-slot');
+    var findSidebarToggle = function () {
+      var candidates = document.querySelectorAll('button[aria-keyshortcuts]');
+      for (var i = 0; i < candidates.length; i++) {
+        var button = candidates[i];
+        if (!/toggle/i.test(button.className)) continue;
+        if (getComputedStyle(button).position !== 'fixed') continue;
+        return button;
+      }
+      return null;
+    };
+    var relocateSidebarToggle = function () {
+      var toggle = findSidebarToggle();
+      if (toggle === null) return false;
+      var rect = slot.getBoundingClientRect();
+      toggle.style.left = Math.round(rect.left) + 'px';
+      toggle.style.top = Math.round((HEIGHT - toggle.offsetHeight) / 2) + 'px';
+      toggle.style.zIndex = '2147483001';
+      return true;
+    };
+    var toggleRetries = 0;
+    var tryRelocateSidebarToggle = function () {
+      if (relocateSidebarToggle()) return;
+      if (toggleRetries++ < 40) setTimeout(tryRelocateSidebarToggle, 250);
+    };
+    window.addEventListener('resize', function () { relocateSidebarToggle(); });
+
     var mount = function () {
       document.head.appendChild(style);
       document.body.appendChild(bar);
@@ -155,6 +194,7 @@
       windowAction('is-maximized').then(function (result) {
         if (result && result.maximized === true) syncMaxButton(true);
       }).catch(function () { /* 初始态查询失败保留默认图标 */ });
+      tryRelocateSidebarToggle();
     };
     /* 挂载时机：注入点在 `<head>` 后——body 可能尚未建立（流式解析）→ 等 DOMContentLoaded；
        body 已就绪则立即挂载（正常加载尾段与 jsdom 测试均命中；不依赖 readyState 的时序语义）。 */
