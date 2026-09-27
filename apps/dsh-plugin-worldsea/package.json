@@ -1,0 +1,25 @@
+{
+  "name": "dsh-plugin-worldsea",
+  "version": "0.1.0",
+  "private": true,
+  "description": "WorldSea 产品域工具集（内置级）：让 Agent 直接读写工作台创作数据（实体/项目/schema）",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "engines": {
+      "dsh": ">=0.1.5-rc.1"
+    },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md"
+  ]
+}

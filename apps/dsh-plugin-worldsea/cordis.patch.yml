@@ -1,0 +1,5 @@
+# Bundle patch for dsh-plugin-worldsea: inserts its plugin row into the profile
+# roster（world_* 工具集 + systemPrompt 指引段，见 lib/index.js）。
+- insert:
+    - id: worldsea
+      name: 'dsh-plugin-worldsea'

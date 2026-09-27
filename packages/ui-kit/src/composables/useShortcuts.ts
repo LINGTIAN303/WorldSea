@@ -244,6 +244,9 @@ function attachGlobalListener() {
   document.addEventListener('keydown', (e: KeyboardEvent) => {
     // IME 组合期（中文输入法选词/上屏）一律忽略，避免 Enter 确认候选词误触发快捷键
     if (e.isComposing || e.keyCode === 229) return
+    // 按住不放的 auto-repeat 一律忽略（2026-09-28）：快捷键为单发语义，长按连发会让
+    // 切换/撤销/删除类动作连跳多次（实测 Ctrl+↓ 连跳多个视图）——要连按由用户主动多次按下
+    if (e.repeat) return
 
     const pressed = normalizeKeys(e)
     if (pressed.length === 0) return

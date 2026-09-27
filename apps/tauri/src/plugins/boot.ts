@@ -8,6 +8,8 @@
  * - 这里只剩**产品壳自身**的两件：① 视图生命周期同步装配 ② 首屏默认视图。
  */
 import { useEntityStore, usePluginStore, useRelationStore } from '@worldsea/entity-core/stores'
+import { entitySchemaRegistry, getFileStorageBackend } from '@worldsea/entity-core/core'
+import { invoke } from '@tauri-apps/api/core'
 
 import { installViewSynchronizer } from './viewSync'
 import { useUIStore } from '../stores/uiStore'
@@ -36,6 +38,33 @@ function installCapabilityMutationListener(): void {
   })
 }
 
+/** D2-c（2026-09-28）：schema 快照导出——把运行时实体类型注册表序列化到
+ *  `<projectDir>/worlddata/.worldsea/schema-snapshot.json`（`.worldsea/` 被 FsWatcher 忽略，
+ *  写快照不抖 UI）。消费方 = dsh 内置插件 `dsh-plugin-worldsea` 的 world_schema_get 与写类轻校验。
+ *  失败只留日志（快照缺席时插件的写操作会 fail loud 提示先开一次工作台）。 */
+async function exportSchemaSnapshot(): Promise<void> {
+  try {
+    const fsb = getFileStorageBackend()
+    if (!fsb?.isReady || !fsb.projectDir) return
+    const types = Object.fromEntries(
+      entitySchemaRegistry.getAll().map(schema => [schema.typeKey, {
+        typeKey: schema.typeKey,
+        label: schema.label,
+        fields: schema.fields,
+        required: schema.fields.filter(field => field.required).map(field => field.key),
+      }]),
+    )
+    const path = `${fsb.projectDir.replace(/\\/g, '/')}/worlddata/.worldsea/schema-snapshot.json`
+    await invoke('cmd_fs_write', {
+      path,
+      content: JSON.stringify({ generatedAt: new Date().toISOString(), types }, null, 2),
+      createDirs: true,
+    })
+  } catch (err) {
+    console.warn('[boot] schema 快照导出失败（插件 world_schema_get 将不可用，直到下次成功导出）:', err)
+  }
+}
+
 export async function bootstrapShell(opts?: BootstrapOptions): Promise<void> {
   // 视图生命周期装配：真源（pluginAPI）派发 → pluginStore（侧栏）+ uiStore 顺序 自动镜像
   // （幂等；树插件与官方芽注册都走这一条路径）
@@ -50,4 +79,7 @@ export async function bootstrapShell(opts?: BootstrapOptions): Promise<void> {
     uiStore.setView(pluginStore.views[0].id)
     uiStore.viewComponent = pluginStore.views[0].component
   }
+
+  // D2-c：schema 快照导出（此刻实体类型注册已就绪；切项目重播种同样走到，快照随项目更新）
+  void exportSchemaSnapshot()
 }
