@@ -8,7 +8,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./components/*": "./src/components/*",
-    "./composables/*": "./src/composables/*.ts"
+    "./composables/*": "./src/composables/*.ts",
+    "./model-registry": "./src/model-registry/index.ts"
   },
   "scripts": {
     "build": "vite build",
@@ -19,7 +20,6 @@
     "@worldsea/entity-core": "link:../entity-core",
     "@worldsea/canvas-engine": "link:../canvas-engine",
     "@worldsea/motion-kit": "link:../motion-kit",
-    "@worldsea/font-kit": "link:../font-kit",
-    "@worldsea/agent-runtime": "link:../agent-runtime"
+    "@worldsea/font-kit": "link:../font-kit"
   }
 }

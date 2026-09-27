@@ -39,7 +39,7 @@ WorldSea 是 Agent 产品、Harness 工程。文件系统对 Harness 不是"存�
 
 - **会话级 `workdir`** 持久化于 Rust SQLite；默认根**固定 `~/.worldsea/workspace`**，设计为"不跟随项目"（对齐 OpenClaw 惯例，[workspace.ts](../../../apps/tauri/src/composables/workspace.ts)）
 - **目录实体**：`cmd_save_workdir/list_workdirs`（SQLite），作为下拉候选 + 会话树分组
-- **消费方四处**：① coding 工具链词法边界（[coding-agent-tools.ts](../../../packages/agent-runtime/src/tools/coding-agent-tools.ts) `resolveWithinWorkspace`：相对路径 join、越界拒绝、无 workdir 放行）；② shell cwd 缺省；③ 前端工具桥上下文注入（useAgentRust 的 `toolBridgeContext.workspace`）；④ 右栏 `apps/tauri/src/space/panels/WorkspacePanel.vue`
+- **消费方四处**：① coding 工具链词法边界（coding-agent-tools.ts `resolveWithinWorkspace`：相对路径 join、越界拒绝、无 workdir 放行）；② shell cwd 缺省；③ 前端工具桥上下文注入（useAgentRust 的 `toolBridgeContext.workspace`）；④ 右栏 `apps/tauri/src/space/panels/WorkspacePanel.vue`
 - **WorkspacePanel**：应用内文件资源管理器雏形（目录树/新建/重命名/删除/上传/只读预览），但**只覆盖 workdir 范围**、只支持文本、走 `cmd_fs_*`
 
 ### 2.3 已存在的单向缝合点
@@ -96,7 +96,7 @@ WorldSea 是 Agent 产品、Harness 工程。文件系统对 Harness 不是"存�
 
 - **M0 基线**：✅ 现状事实冻结于 §二（2026-08-28 完成）；走查批次已提交（0bd2201，27 文件），冲突面解除
 - **M1 根统一**：✅ 2026-08-28 落地——`resolveWorkspaceDir` 改为当前项目目录优先（新增 `resolveDefaultWorkspaceDir` 导出兜底）；WorkdirSelect last_workdir 跨启动记忆退役 + 默认项动态文案（项目目录/默认工作区）+ 绑定成功后刷新默认根解析；useAgentRust.newSession 注释同步。B1 惰性语义天然满足（旧会话 workdir 不动，仅新建会话用新默认）。验证：typecheck + vite build 全绿，待真机验证
-- **M2 边界收敛**：✅ 2026-08-28 落地——共享边界契约 [workspace-boundary.ts](../../../packages/agent-runtime/src/tools/workspace-boundary.ts)（workdir 词法边界自 coding-agent-tools 迁出 + E1 判定/写守卫新增，消费方共享）；coding 工具 write_file/edit_file 换用写守卫；**fs-tools 五个写类工具（fs_write/mkdir/copy/move/delete）由零守卫全量接入 E1**（fs_move 源目标双守卫、fs_copy 守目标）；fs_commands.rs 头注释补「兜底防线」定位。已知限制：shell/execute_command 内容级写入无法词法拦截（接受风险，记录于边界模块注释）。验证：新增单测 19 项全绿（vitest 全量 223 绿）+ typecheck EXIT=0，待真机验证
+- **M2 边界收敛**：✅ 2026-08-28 落地——共享边界契约 workspace-boundary.ts（workdir 词法边界自 coding-agent-tools 迁出 + E1 判定/写守卫新增，消费方共享）；coding 工具 write_file/edit_file 换用写守卫；**fs-tools 五个写类工具（fs_write/mkdir/copy/move/delete）由零守卫全量接入 E1**（fs_move 源目标双守卫、fs_copy 守目标）；fs_commands.rs 头注释补「兜底防线」定位。已知限制：shell/execute_command 内容级写入无法词法拦截（接受风险，记录于边界模块注释）。验证：新增单测 19 项全绿（vitest 全量 223 绿）+ typecheck EXIT=0，待真机验证
 - **M3 锚点与视图**：✅ 2026-08-28 落地——**D1 锚点**：Rust sessions 表 ALTER 幂等补 `project_id` 列（弱引用前端项目 UUID，旧会话 NULL 惰性），SessionRecord/SessionInfo 字段 + save/load 双向 + Tauri 命令与 HTTP 桥同步透传，前端 newSession 注入当前项目 id（getCurrentProjectIdSafe 静默兜底）；**C1 空间级浏览器**：WorkspacePanel 根解析升级为「会话 workdir 优先，无会话回落统一根（当前项目目录）」，不再要求先建会话；**术语统一**：面板标题「工作区」→「项目目录」，空态文案同步。project_id 的消费（按项目过滤/记忆隔离）留 M4 与记忆集成联做。验证：agent-commands 101 测试全绿 + typecheck/build EXIT=0，待真机验证
 - **M4 收尾**：✅ 2026-08-29 落地（风险点并入本里程碑一并推进）——
   - **数据源分叉收敛**（分叉 #5 主危害消除）：实体真身在文件主存储，而 Agent 的 entity_list/get 与场景实体摘要此前读 EntityDb SQLite 兜底库（两侧无同步 → 空/过时数据）。新增文件版 `FsScenarioEntityProvider` + `fs_entity_tools`（扫 `{workdir}/entities/`，摘要格式与 C2 引用校验语义对齐 SQLite 版），经 `with_session_entity_adapter` 工厂注入——有 workdir 的会话同名覆盖注册（ToolBus 覆盖语义），无 workdir 回退 SQLite 兜底。**EntityDb 收敛定位 = 前端 TauriStorageBackend fallback 专用**，不再是 Agent 实体读来源

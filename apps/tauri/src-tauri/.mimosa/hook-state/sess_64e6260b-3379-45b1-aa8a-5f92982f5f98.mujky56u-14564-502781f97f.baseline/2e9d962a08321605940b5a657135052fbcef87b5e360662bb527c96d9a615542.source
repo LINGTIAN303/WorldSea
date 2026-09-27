@@ -1,0 +1,70 @@
+[package]
+name = "worldsea-tauri-app"
+version = "0.1.0"
+description = "WorldSea Tauri App — 桌面端"
+authors = ["WorldSea"]
+edition = "2021"
+
+# Phase 2 骨架：仅最小 Tauri 依赖
+# Phase 3 将从 src-tauri/ 迁入完整命令层（agent/entity/file/git/pty 等）
+[lib]
+name = "worldsea_tauri_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["protocol-asset", "tray-icon"] }
+tauri-plugin-opener = "2"
+tauri-plugin-window-state = "2"
+tauri-plugin-dialog = "2"
+# ── 系统层集成（窗口栏/托盘/单实例/通知/快捷键/自启）──
+tauri-plugin-single-instance = "2"
+tauri-plugin-notification = "2"
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-autostart = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+
+# ── 窗口控制键（F11）依赖：关闭 WebView2 浏览器加速键需要底层控件接口（版本须与
+# tauri 运行时所用一致——webview2-com 0.38 / windows 0.61，见 Cargo.lock）──
+# LSP 子进程防孤儿（Job Object KillOnJobClose）：见 src/win_job.rs（自 agent-commands 打捞）
+[target.'cfg(windows)'.dependencies]
+webview2-com = "0.38"
+windows = "0.61"
+
+# 实体存储命令（TauriStorageBackend fallback）：sqlx 0.8 + sqlite
+sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio"] }
+notify = "8.2.0"
+
+# ── Phase 音视频转录（transcribe_media）：candle-whisper 语音转文字 ──
+# 模型推理栈（CPU）：candle-transformers 的 whisper 实现 + tokenizers 词表
+# 选 0.9.x 稳定版；whisper 模块用 Whisper::load + pcm_to_mel 需外部 mel 滤波器（whisper.rs 内 Slaney 现算）
+candle-core = "0.9.2"
+candle-nn = "0.9.2"
+candle-transformers = "0.9.2"
+# 模型下载（openai/whisper-tiny → app.data_dir()/whisper-models）
+# 用 ureq 直连（跟随重定向、支持 HF_ENDPOINT 镜像），替代 hf-hub——hf-hub 0.3.x 对
+# huggingface 的相对 Location 重定向解析失败（RelativeUrlWithoutBase），本机实测 curl 可达。
+ureq = "2"
+# whisper 多语言 tokenizer（tokenizer.json，含 <|zh|> 等特殊 token）
+tokenizers = "0.23"
+# 音频/视频解码（mp3/mp4/m4a/wav/aac/ogg 等）→ 16kHz mono PCM
+# pin 到 0.5.x 稳定 API（SampleBuffer/DecoderOptions/probe 等经典路径），0.6.0 为大规模重写版接口不兼容。
+# 按需启用所需 codec/format，不启用 all 以免拉取不需要的 caf 等导致下载失败。
+symphonia = { version = "0.5.4", features = ["aac", "mp3", "pcm", "vorbis", "isomp4", "ogg", "wav", "aiff", "mkv"] }
+# 前端传入 base64 → 解码为字节
+base64 = "0.22"
+# 内部错误包装（命令层转为 String 返回）
+anyhow = "1"
+# B3 搜索工具：spawn_blocking 隔离阻塞网络调用（ureq 同步 API）
+tokio = { version = "1", features = ["rt", "sync"] }
+
+# 图布局/图分析算法（cmd_algo_*）：mindmap Rust 布局/分析真实后端（默认 features，无 wasm 依赖）
+worldsea-core = { path = "../../../worldsea-core" }
+
+[dev-dependencies]
+# 实体/命令单测：#[tokio::test] 需要 tokio 宏与运行时
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

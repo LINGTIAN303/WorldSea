@@ -24,7 +24,6 @@
   "dependencies": {
     "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/plugin-dialog": "^2.7.1",
-    "@worldsea/agent-runtime": "link:../agent-runtime",
     "@worldsea/core-api-types": "link:../core-api-types",
     "@worldsea/perf-kit": "link:../perf-kit",
     "jszip": "^3.10.1",

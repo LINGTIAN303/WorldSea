@@ -27,9 +27,9 @@ import {
   useUIStore,
 } from '@worldsea/entity-core'
 import { buildCompanionModePrompt, type PersonaSnapshot, type CompanionModePromptInput, type CompanionModeContext } from './personaPrompt'
-import type { ProviderConfig } from '@agent/index'
-import { loadApiKey } from '@agent/index'
-import { resolveEndpoint, extractTitle, buildLLMBody } from '../agent/useTitleGen'
+import type { ProviderConfig } from '@worldsea/ui-kit/model-registry'
+import { loadApiKey } from '@worldsea/ui-kit/model-registry'
+import { resolveEndpoint, extractTitle, buildLLMBody } from './llm'
 import {
   type TriggerContext,
   type PopupPosition,

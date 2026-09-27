@@ -74,4 +74,3 @@ export {
   framesToImageDataArray,
 } from './FrameCapture'
 
-export { motionKitDescriptor } from './agent-descriptor'

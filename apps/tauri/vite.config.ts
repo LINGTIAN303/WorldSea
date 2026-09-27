@@ -13,35 +13,8 @@ import pkg from './package.json'
 // 业务代码 alias 等 Phase 3 迁入 src/ 后再补充
 const aliases: Record<string, string> = {
   '@': path.resolve(__dirname, 'src'),
-  // 共享运行时层
-  '@worldsea/agent-runtime$': path.resolve(__dirname, '../../packages/agent-runtime/src'),
-  '@worldsea/agent-runtime/execution': path.resolve(__dirname, '../../packages/agent-runtime/src/execution'),
-  '@worldsea/agent-runtime/execution/adapter': path.resolve(__dirname, '../../packages/agent-runtime/src/execution/adapter'),
-  '@worldsea/agent-runtime/bridge-types': path.resolve(__dirname, '../../packages/agent-runtime/src/bridge-types'),
-  '@worldsea/agent-runtime/toolbus': path.resolve(__dirname, '../../packages/agent-runtime/src/toolbus'),
-  '@worldsea/agent-runtime/tools': path.resolve(__dirname, '../../packages/agent-runtime/src/tools'),
-  '@worldsea/agent-core$': path.resolve(__dirname, '../../packages/agent-core/src'),
-  '@worldsea/agent-core/types': path.resolve(__dirname, '../../packages/agent-core/src/types'),
-  '@worldsea/agent-core/guard': path.resolve(__dirname, '../../packages/agent-core/src/guard'),
-  '@worldsea/agent-core/registry': path.resolve(__dirname, '../../packages/agent-core/src/registry'),
-  '@worldsea/agent-core/bus': path.resolve(__dirname, '../../packages/agent-core/src/bus'),
-  '@worldsea/agent-core/execution': path.resolve(__dirname, '../../packages/agent-core/src/execution'),
-  '@worldsea/agent-core/factory': path.resolve(__dirname, '../../packages/agent-core/src/factory'),
-  '@worldsea/governor-core$': path.resolve(__dirname, '../../packages/governor-core/src'),
-  '@worldsea/governor-core/types': path.resolve(__dirname, '../../packages/governor-core/src/types'),
-  '@worldsea/governor-core/registry': path.resolve(__dirname, '../../packages/governor-core/src/registry'),
-  '@worldsea/governor-core/environment': path.resolve(__dirname, '../../packages/governor-core/src/environment'),
-  '@worldsea/governor-core/governor': path.resolve(__dirname, '../../packages/governor-core/src/governor'),
   // 共享 composables（Phase 3 迁入）
   '@worldsea/shared-composables$': path.resolve(__dirname, '../../packages/shared-composables/src'),
-  '@worldsea/shared-composables/agent': path.resolve(__dirname, '../../packages/shared-composables/src/agent'),
-  '@worldsea/shared-composables/agent/long-task': path.resolve(__dirname, '../../packages/shared-composables/src/agent/long-task'),
-  '@worldsea/shared-composables/long-task': path.resolve(__dirname, '../../packages/shared-composables/src/agent/long-task'),
-  // @agent/* alias — 共享包内部引用 agent-runtime 的统一别名
-  // 注意：通配指向 packages/agent-runtime/src/*，避免引入 worldsea-agent/src/*（CLI 端代码）
-  // 具体子路径（orchestrator/providers/skills/context/group-chat/session/execution）由通配自动覆盖
-  '@agent/': path.resolve(__dirname, '../../packages/agent-runtime/src/'),
-  // 业务无关的共享 UI/工具包
   '@worldsea/entity-core$': path.resolve(__dirname, '../../packages/entity-core/src'),
   '@worldsea/entity-core/stores': path.resolve(__dirname, '../../packages/entity-core/src/stores'),
   '@worldsea/entity-core/core': path.resolve(__dirname, '../../packages/entity-core/src/core'),

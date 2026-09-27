@@ -1,12 +1,9 @@
 //! 系统托盘（批次97 基础版 + 系统层集成扩展）：
-//! - 菜单：显示主窗口 / 新建项目 / 最近项目(子菜单) / 打开 Agent / 打开设置 / Agent 状态(禁用) / 退出
-//! - 动态状态：最近项目列表（前端 `cmd_tray_set_recent_projects` 同步）、Agent 生成状态
-//!   （前端 `cmd_tray_set_agent_state` 同步，状态项文本随生成/空闲切换）
-//! - 菜单动作 → emit 事件（tray:open-agent / tray:open-settings / tray:new-project /
+//! - 菜单：显示主窗口 / 新建项目 / 最近项目(子菜单) / 打开设置 / 退出
+//! - 动态状态：最近项目列表（前端 `cmd_tray_set_recent_projects` 同步）
+//! - 菜单动作 → emit 事件（tray:open-settings / tray:new-project /
 //!   tray:open-project {id}），由前端监听分发到对应面板/项目切换
-//!
-//! 为什么状态由前端同步：项目列表与 Agent 流式状态都在前端（ProjectManager / useAgent），
-//! Rust 原生菜单无法直接读取 Vue 状态，故前端在状态变化时调用命令回写，Rust 重建菜单。
+//! （2026-09-27 E8：旧 Agent 面退场，移除「打开 Agent 对话」项与 Agent 生成状态链）
 
 use serde::Deserialize;
 use std::sync::Mutex;
@@ -22,8 +19,6 @@ use tauri::{
 pub struct TrayState {
     /// 最近项目（前端 ProjectManager 列表）
     pub projects: Vec<ProjectItem>,
-    /// Agent 是否流式生成中
-    pub agent_streaming: bool,
 }
 
 /// 托盘「最近项目」条目载荷（前端 JSON 直接反序列化）
@@ -66,15 +61,7 @@ fn build_menu<R: Runtime>(app: &AppHandle<R>, state: &TrayState) -> tauri::Resul
         recent_items.iter().map(|m| m as &dyn IsMenuItem<R>).collect();
     let recent = Submenu::with_items(app, "最近项目", true, &recent_refs)?;
 
-    let open_agent = MenuItem::with_id(app, "open-agent", "打开 Agent 对话", true, None::<&str>)?;
     let open_settings = MenuItem::with_id(app, "open-settings", "打开设置", true, None::<&str>)?;
-
-    let status_label = if state.agent_streaming {
-        "Agent 生成中…"
-    } else {
-        "Agent 空闲"
-    };
-    let agent_status = MenuItem::with_id(app, "agent-status", status_label, false, None::<&str>)?;
 
     let quit = MenuItem::with_id(app, "quit", "退出 WorldSea", true, None::<&str>)?;
     let sep1 = PredefinedMenuItem::separator(app)?;
@@ -87,10 +74,8 @@ fn build_menu<R: Runtime>(app: &AppHandle<R>, state: &TrayState) -> tauri::Resul
             &new_project,
             &recent,
             &sep1,
-            &open_agent,
             &open_settings,
             &sep2,
-            &agent_status,
             &quit,
         ],
     )
@@ -126,10 +111,6 @@ pub fn build_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<TrayIcon<R>> 
                 show_main_window(app);
                 let _ = app.emit("tray:new-project", ());
             }
-            "open-agent" => {
-                show_main_window(app);
-                let _ = app.emit("tray:open-agent", ());
-            }
             "open-settings" => {
                 show_main_window(app);
                 let _ = app.emit("tray:open-settings", ());
@@ -152,17 +133,6 @@ pub fn cmd_tray_set_recent_projects(app: AppHandle, projects: Vec<ProjectItem>) 
         let tray_state = app.state::<Mutex<TrayState>>();
         let mut state = tray_state.lock().unwrap();
         state.projects = projects;
-    }
-    rebuild_tray_menu(&app);
-}
-
-/// 前端同步：Agent 生成状态（流式开始/结束/中止时调用）
-#[tauri::command]
-pub fn cmd_tray_set_agent_state(app: AppHandle, streaming: bool) {
-    {
-        let tray_state = app.state::<Mutex<TrayState>>();
-        let mut state = tray_state.lock().unwrap();
-        state.agent_streaming = streaming;
     }
     rebuild_tray_menu(&app);
 }

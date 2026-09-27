@@ -20,7 +20,6 @@ export interface StorageStats {
   relationCount: number
   fileCount: number
   fileContentEstimateMB: number
-  sessionCount: number
   kvCount: number
   orphanFileCount: number | null
   lastUpdated: number
@@ -33,7 +32,6 @@ const DEFAULT_STATS: StorageStats = {
   relationCount: 0,
   fileCount: 0,
   fileContentEstimateMB: 0,
-  sessionCount: 0,
   kvCount: 0,
   orphanFileCount: null,
   lastUpdated: 0,
@@ -55,11 +53,6 @@ export function useStorageStats() {
       ])
 
       const fileCount = fileStore.files.length || (await storage.getAllFiles()).length
-      let sessionCount = 0
-      try {
-        const { countSessions } = await import('@worldsea/agent-runtime/session/manager')
-        sessionCount = await countSessions()
-      } catch {}
 
       let fileContentEstimateMB = 0
       try {
@@ -81,7 +74,6 @@ export function useStorageStats() {
         relationCount,
         fileCount,
         fileContentEstimateMB,
-        sessionCount: sessionCount as number,
         kvCount: kvAll.length,
         orphanFileCount: stats.value.orphanFileCount,
         lastUpdated: Date.now(),

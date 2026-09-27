@@ -148,10 +148,6 @@ onMounted(async () => {
               <span class="sm-stat-value">{{ stats.fileCount }}</span>
               <span class="sm-stat-label">文件</span>
             </div>
-            <div class="sm-stat-item">
-              <span class="sm-stat-value">{{ stats.sessionCount }}</span>
-              <span class="sm-stat-label">Agent 会话</span>
-            </div>
           </div>
           <div class="sm-orphan-hint" v-if="stats.orphanFileCount !== null && stats.orphanFileCount > 0">
             <WsIcon name="warning" size="xs" />

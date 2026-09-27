@@ -58,19 +58,19 @@
 
 | 模式 | 现状 | Rust 落点 |
 |------|------|------|
-| 1. Single Agent | ✅ | [agent/mod.rs](../../../crates/agent-kernel/src/agent/mod.rs) AgentLoop |
-| 2. ReAct | ✅ | [agent/mod.rs](../../../crates/agent-kernel/src/agent/mod.rs) `run_react_loop` |
+| 1. Single Agent | ✅ | agent/mod.rs AgentLoop |
+| 2. ReAct | ✅ | agent/mod.rs `run_react_loop` |
 | 3. Plan-and-Execute | ✅ 本次补齐 | `crates/agent-runtime/src/plan.rs` PlanNode + ExecuteNode |
-| 4. Reflection | ✅ 本次补齐 | [reflection.rs](../../../crates/agent-patterns/src/orchestrator/reflection.rs) ReflectionNode |
-| 5. Self-Refine | ✅ 本次补齐 | [reflection.rs](../../../crates/agent-patterns/src/orchestrator/reflection.rs) RefineNode |
-| 6. ToT | ✅ | [tree_of_thoughts](../../../crates/agent-patterns/src/tot/mod.rs) ToTNode |
-| 7. GoT | ✅ | [graph_of_thoughts.rs](../../../crates/agent-patterns/src/got/graph_of_thoughts.rs) GoTNode |
+| 4. Reflection | ✅ 本次补齐 | reflection.rs ReflectionNode |
+| 5. Self-Refine | ✅ 本次补齐 | reflection.rs RefineNode |
+| 6. ToT | ✅ | tree_of_thoughts ToTNode |
+| 7. GoT | ✅ | graph_of_thoughts.rs GoTNode |
 | 8. Multi-Agent | ✅ | `crates/agent-runtime/src/multi_agent/mod.rs` MultiAgentNode |
-| 9. Supervisor | ✅ | [supervisor.rs](../../../crates/agent-patterns/src/orchestrator/supervisor.rs) SupervisorNode |
-| 10. Router | ✅ | [router.rs](../../../crates/agent-patterns/src/router/router.rs) RouterNode |
-| 11. Tool Use | ✅ | [tool.rs](../../../crates/agent-kernel/src/tool.rs) ToolBus |
-| 12. Memory | ✅ 部分 | [memory.rs](../../../crates/agent-kernel/src/memory.rs) MemoryAccessor 横切 |
-| 13. Loop Engineering | ✅ 部分 | [loop_control.rs](../../../crates/agent-kernel/src/loop_control.rs) + [long_task.rs](../../../crates/agent-kernel/src/long_task.rs) |
+| 9. Supervisor | ✅ | supervisor.rs SupervisorNode |
+| 10. Router | ✅ | router.rs RouterNode |
+| 11. Tool Use | ✅ | tool.rs ToolBus |
+| 12. Memory | ✅ 部分 | memory.rs MemoryAccessor 横切 |
+| 13. Loop Engineering | ✅ 部分 | loop_control.rs + long_task.rs |
 
 ## 三、三条路径分析
 
@@ -130,13 +130,13 @@
 ##### 0.1 设计统一 Orchestrator 接口
 - [ ] 定义 `Orchestrator` trait/interface（TS 版）
 - [ ] 定义 `Node` / `Edge` / `State` 抽象（参考 LangGraph）
-- [ ] 设计事件流（与现有 [AgentEvent](../../../packages/agent-runtime/src/bridge-types.ts) 兼容）
+- [ ] 设计事件流（与现有 AgentEvent 兼容）
 - [ ] 输出：`packages/agent-core/src/orchestrator/` 新模块
 
 ##### 0.2 重构现有 ReAct 循环
 - [ ] 将 pi-agent-core 的 Agent 循环包装为 `ReactNode`
 - [ ] 暴露中断/恢复/重试钩子（替代直接调 `agent.prompt`）
-- [ ] 将 [bridge.ts](../../../packages/agent-runtime/src/bridge.ts) 的 prompt 调用改为经过 Orchestrator
+- [ ] 将 bridge.ts 的 prompt 调用改为经过 Orchestrator
 - [ ] 验收：现有功能不退化，新增可控中断能力
 
 ##### 0.3 实现 Plan-and-Execute 模式
@@ -310,12 +310,12 @@
      - `update_model(provider, model_id, base_url, api_key, temperature, max_tokens)` → 调用 backend.update_provider 热切换 + 同步更新 config
      - `dispose()` → 清空状态 + 标记 aborted + 重置 is_streaming
   3. **BackendEventBridge**（`crates/agent-runtime/src/agent.rs#L905`）：实现 `EventListener` trait，在 `AgentLoop::new` 时 spawn 注入到 backend.subscribe_events，转发 backend 的 StreamStart/StreamDelta/StreamEnd/ToolCallStart/ToolCallEnd 到 AgentLoop 广播器；使用 `try_read` 避免阻塞，锁竞争时丢弃事件
-  4. **GenaiBackend 扩展**（[genai_backend.rs](../../../crates/agent-kernel/src/llm/genai_backend.rs#L502)）：
+  4. **GenaiBackend 扩展**（genai_backend.rs）：
      - `subscribe_events(listener)` → 注入监听器到 event_broadcaster
      - `current_model()` → 返回 ProviderConfig.model_id
      - `update_provider(provider, model_id, api_key, base_url)` → 热切换 Cloud/Custom 配置，保留 messages/steer_buffer；Local 返回 Unsupported 错误
   5. **AgentLoop::run 改进**：使用 `backend.current_model()` 替代硬编码 "unknown"，正确广播 AgentStart/StreamStart 模型 ID；通过 `is_streaming` AtomicBool 跟踪 run 活跃状态
-  6. **ThinkingLevel 派生 Serialize/Deserialize**（[backend.rs](../../../crates/agent-kernel/src/backend.rs)）：#[serde(rename_all = "lowercase")]，支持前端 JSON 通信
+  6. **ThinkingLevel 派生 Serialize/Deserialize**（backend.rs）：#[serde(rename_all = "lowercase")]，支持前端 JSON 通信
 - **编译修复**：
   - `genai_backend.rs` 缺少 `use crate::event::EventListener` 导入
   - `Custom` 变体字段对齐：实际为 `base_url/api_key/api_type/model_id/context_window/max_tokens`（无 `provider` 字段），保留旧 api_type/context_window/max_tokens
@@ -326,13 +326,13 @@
 - **与前端接口对齐**：Rust 侧 AgentLoop 现已实现 IAgentBackend 全部方法（steer/followUp/abort/updateModel/updateThinkingLevel/clearHistory/subscribe/dispose/state/isStreaming/trimContext/getRuntimeMessages/setRuntimeMessages），可平滑接入 Tauri IPC
 
 ##### 1.4 ToolBus Rust 版（扩展 MCP / 别名 / 并行）
-- [x] ~~迁移 [packages/agent-core/src/bus/](../../../packages/agent-core/src/bus) 到 Rust~~（阶段 1.3 已完成基础 ToolBus）
+- [x] ~~迁移 packages/agent-core/src/bus/ 到 Rust~~（阶段 1.3 已完成基础 ToolBus）
 - [x] ~~用 `dyn Tool` trait object 替代 TS 的 ToolDefinition~~（阶段 1.3 已完成）
-- [x] MCP 服务器工具：`register_mcp_tools` / `unregister_mcp_server`（[mcp.rs](../../../crates/agent-kernel/src/mcp.rs)）
-- [x] 别名系统（LEGACY_TO_CODING_MAP / LEGACY_ALGO_MAP / LEGACY_PLUGIN_MAP）用 `HashMap<&'static str, &'static str>` + `OnceLock`（[alias.rs](../../../crates/agent-kernel/src/alias.rs)）
+- [x] MCP 服务器工具：`register_mcp_tools` / `unregister_mcp_server`（mcp.rs）
+- [x] 别名系统（LEGACY_TO_CODING_MAP / LEGACY_ALGO_MAP / LEGACY_PLUGIN_MAP）用 `HashMap<&'static str, &'static str>` + `OnceLock`（alias.rs）
 - [~] 技能解析（`SkillRegistry`）— **推迟到阶段 2**，阶段 1.5 Tauri 集成不需要
 - [x] 并行工具调用：`config.parallel_tool_calls = true` 时用 `tokio::task::JoinSet` 并发执行（`crates/agent-runtime/src/agent.rs`）
-- [x] 工具定义传给 LLM：在 `build_chat_request` 中填充 `ChatRequest::with_tools`（[genai_backend.rs](../../../crates/agent-kernel/src/llm/genai_backend.rs)）
+- [x] 工具定义传给 LLM：在 `build_chat_request` 中填充 `ChatRequest::with_tools`（genai_backend.rs）
 - [~] 验收：Rust 侧能注册和调用 MCP 工具，并行执行多个工具调用 — **单元测试跳过**（用户决策），仅 `cargo check --features llm-genai` 通过
 
 ###### 阶段 1.4 完成记录

@@ -31,18 +31,6 @@ pub fn user_root() -> Result<PathBuf, String> {
     Ok(home_dir()?.join(ROOT_DIR_NAME))
 }
 
-/// 根下子路径（不创建）：`worlddata` / `agent` / `rules` / `skills`。
-pub fn sub(name: &str) -> Result<PathBuf, String> {
-    Ok(user_root()?.join(name))
-}
-
-/// 根下子目录，确保存在。
-pub fn ensure_sub(name: &str) -> Result<PathBuf, String> {
-    let dir = sub(name)?;
-    std::fs::create_dir_all(&dir).map_err(|e| format!("创建 {dir:?} 失败：{e}"))?;
-    Ok(dir)
-}
-
 /// 一次性搬迁（幂等；只拷不删）。返回迁过的子目录名（供日志）。
 /// `WORLDSEA_NO_DATA_MIGRATE=1` 时直接返回空（反证/测试开关）。
 pub fn migrate_legacy_home_root() -> Vec<String> {

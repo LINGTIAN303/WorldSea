@@ -27,32 +27,21 @@ tauri-plugin-autostart = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tracing = "0.1"
-# B1 场景实体访问器：实现 agent-runtime 的 ScenarioEntityProvider trait 需要 async_trait
-async-trait = "0.1"
-# 长任务命令参数（cmd_long_task_update_heartbeat / update_status 的 RFC3339 时间戳）
-chrono = { version = "0.4", features = ["serde"] }
 
 # ── 窗口控制键（F11）依赖：关闭 WebView2 浏览器加速键需要底层控件接口（版本须与
 # tauri 运行时所用一致——webview2-com 0.38 / windows 0.61，见 Cargo.lock）──
-# LSP 子进程防孤儿（Job Object KillOnJobClose）复用 agent-commands::job::WinJob，不在此处加 features
+# LSP 子进程防孤儿（Job Object KillOnJobClose）：见 src/win_job.rs（自 agent-commands 打捞）
 [target.'cfg(windows)'.dependencies]
 webview2-com = "0.38"
 windows = "0.61"
+# win_job.rs（LSP 子进程 Job Object 整树回收；0.61 起 HANDLE 为指针，与原 agent-commands 同版本）
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_JobObjects", "Win32_System_Threading"] }
 
-# ── Phase 5.1：Agent 命令层（纯逻辑，不依赖 tauri）──
-agent-commands = { path = "../../../crates/agent-commands" }
-# 命令签名中引用 agent-runtime 类型（AgentStateSnapshot / OrchestratorMessage / HeartbeatStatus）
-# 启用 llm-genai：使 llm 模块（ProviderConfig）可被命令层引用（5.4 真实 LLM 接入）
-agent-runtime = { path = "../../../crates/agent-runtime", features = ["llm-genai"] }
-# 实体存储命令（TauriStorageBackend fallback）：sqlx 0.8 + sqlite，与 agent-commands 对齐
+# 实体存储命令（TauriStorageBackend fallback）：sqlx 0.8 + sqlite
 sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio"] }
 notify = "8.2.0"
-
-# ── Skills Store（Task 24 阶段2/4，H3 点火 2026-08-30 重建）──
-# reqwest: 下载技能包 zip archive（blocking 配合同步命令；rustls-tls 避免 OpenSSL 依赖）
-# worldsea-skills-store: 技能包校验/解压/本地导入纯逻辑（无 Tauri 依赖，可独立单元测试）
+# dsh 协议层（C1/C2）：dsh_relay 阻塞转发客户端 + dsh_proxy 异步出站（rustls 避免 OpenSSL 依赖）
 reqwest = { version = "0.12", features = ["blocking", "rustls-tls"], default-features = false }
-worldsea-skills-store = { path = "../../../crates/worldsea-skills-store" }
 
 # ── Phase 音视频转录（transcribe_media）：candle-whisper 语音转文字 ──
 # 模型推理栈（CPU）：candle-transformers 的 whisper 实现 + tokenizers 词表
@@ -63,8 +52,7 @@ candle-transformers = "0.9.2"
 # 模型下载（openai/whisper-tiny → app.data_dir()/whisper-models）
 # 用 ureq 直连（跟随重定向、支持 HF_ENDPOINT 镜像），替代 hf-hub——hf-hub 0.3.x 对
 # huggingface 的相对 Location 重定向解析失败（RelativeUrlWithoutBase），本机实测 curl 可达。
-# json feature：B3 搜索 Provider（Tavily/Bing/SerpAPI）need send_json/into_json
-ureq = { version = "2", features = ["json"] }
+ureq = "2"
 # whisper 多语言 tokenizer（tokenizer.json，含 <|zh|> 等特殊 token）
 tokenizers = "0.23"
 # 音频/视频解码（mp3/mp4/m4a/wav/aac/ogg 等）→ 16kHz mono PCM
@@ -78,17 +66,11 @@ anyhow = "1"
 # B3 搜索工具：spawn_blocking 隔离阻塞网络调用（ureq 同步 API）
 tokio = { version = "1", features = ["rt", "sync"] }
 
-# ── [HTTP-BRIDGE] 临时：浏览器直连真实后端的 HTTP 服务（axum RPC + SSE）；移除时删除本段 ──
-axum = "0.7"
-tower = { version = "0.5", features = ["util"] }
-tower-http = { version = "0.5", features = ["cors"] }
-tokio-stream = { version = "0.1", features = ["sync"] }
-# [HTTP-BRIDGE] 图布局/图分析算法（cmd_algo_*）：mindmap Rust 布局/分析真实后端（默认 features，无 wasm 依赖）
+# 图布局/图分析算法（cmd_algo_*）：mindmap Rust 布局/分析真实后端（默认 features，无 wasm 依赖）
 worldsea-core = { path = "../../../worldsea-core" }
-rmcp = { version = "3.1.4", features = ["client", "transport-child-process", "transport-streamable-http-client-reqwest", "reqwest-native-tls"] }
-# T09③ headers 鉴权注入：rmcp Config.custom_headers 用 http::HeaderName/HeaderValue 类型
+# worldsea:// 协议层（dsh_bridge/workspace_dist）的 http::Request/Response 类型
 http = "1"
 
 [dev-dependencies]
-# 实体只读工具单测：#[tokio::test] 需要 tokio 宏与运行时（sqlx 也依赖 tokio 做异步）
+# 实体/命令单测：#[tokio::test] 需要 tokio 宏与运行时
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

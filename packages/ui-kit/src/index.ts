@@ -237,7 +237,6 @@ export {
   useTextLayout,
   type TextLayoutResult,
   type UseTextLayoutReturn,
-  motionKitDescriptor,
 } from '@worldsea/motion-kit'
 
 // ----------------------------------------------------------------------------
@@ -326,7 +325,6 @@ export {
   useSystemFonts,
   type SystemFontInfo,
   type UseSystemFontsReturn,
-  fontKitDescriptor,
 } from '@worldsea/font-kit'
 
 // ----------------------------------------------------------------------------
@@ -349,11 +347,6 @@ export {
   type MotionCaptureResult,
   type UseAnimationCaptureReturn,
 } from '@worldsea/motion-kit'
-
-// ----------------------------------------------------------------------------
-// Agent Descriptor — A2UI capabilities for the internal chain registry
-// ----------------------------------------------------------------------------
-export { uiKitDescriptor } from './agent-descriptor'
 
 // ----------------------------------------------------------------------------
 // Global Tooltip — 浏览器原生 title 提示统一接管（全局浮层）

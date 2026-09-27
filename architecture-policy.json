@@ -5,46 +5,232 @@
   "global": {
     "maxFileLines": 400,
     "overrides": [
-      { "match": "tests", "maxFileLines": 1200 },
-      { "match": ".spec.", "maxFileLines": 1200 },
-      { "match": ".test.", "maxFileLines": 1200 }
+      {
+        "match": "tests",
+        "maxFileLines": 1200
+      },
+      {
+        "match": ".spec.",
+        "maxFileLines": 1200
+      },
+      {
+        "match": ".test.",
+        "maxFileLines": 1200
+      }
     ],
-    "scanExtensions": [".rs", ".ts", ".tsx", ".vue", ".mjs"],
-    "excludeDirs": ["node_modules", "target", "dist", "pkg", ".git", "gen", "generated", "mock-cdn"],
-    "discoveryRoots": ["crates", "crates/vendor", "packages", "apps", "worldsea-core", "tactical-engine"]
+    "scanExtensions": [
+      ".rs",
+      ".ts",
+      ".tsx",
+      ".vue",
+      ".mjs"
+    ],
+    "excludeDirs": [
+      "node_modules",
+      "target",
+      "dist",
+      "pkg",
+      ".git",
+      "gen",
+      "generated",
+      "mock-cdn"
+    ],
+    "discoveryRoots": [
+      "crates",
+      "crates/vendor",
+      "packages",
+      "apps",
+      "worldsea-core",
+      "tactical-engine"
+    ]
   },
   "modules": [
-    { "id": "agent-kernel", "kind": "rust", "roots": ["crates/agent-kernel/src"], "manifest": "crates/agent-kernel/Cargo.toml", "requires": ["agent-engine"] },
-    { "id": "agent-engine", "kind": "rust", "roots": ["crates/agent-engine/src"], "manifest": "crates/agent-engine/Cargo.toml", "requires": [] },
-    { "id": "agent-patterns", "kind": "rust", "roots": ["crates/agent-patterns/src"], "manifest": "crates/agent-patterns/Cargo.toml", "requires": ["agent-kernel"] },
-    { "id": "agent-runtime", "kind": "rust", "roots": ["crates/agent-runtime/src"], "manifest": "crates/agent-runtime/Cargo.toml", "requires": ["agent-kernel", "agent-patterns"] },
-    { "id": "agent-memory", "kind": "rust", "roots": ["crates/agent-memory/src"], "manifest": "crates/agent-memory/Cargo.toml", "requires": ["agent-runtime", "vendor-memory-center-core", "vendor-memory-center-llm", "vendor-memory-center-models"] },
-    { "id": "agent-index", "kind": "rust", "roots": ["crates/agent-index/src"], "manifest": "crates/agent-index/Cargo.toml", "requires": ["agent-memory", "vendor-memory-center-core"] },
-    { "id": "agent-commands", "kind": "rust", "roots": ["crates/agent-commands/src", "crates/agent-commands/tests"], "manifest": "crates/agent-commands/Cargo.toml", "requires": ["agent-engine", "agent-index", "agent-memory", "agent-patterns", "agent-runtime", "vendor-memory-center-core"] },
-    { "id": "worldsea-skills-store", "kind": "rust", "roots": ["crates/worldsea-skills-store/src"], "manifest": "crates/worldsea-skills-store/Cargo.toml", "requires": [] },
-    { "id": "vendor-memory-center-core-logic", "kind": "rust", "roots": ["crates/vendor/memory-center-core-logic/src"], "manifest": "crates/vendor/memory-center-core-logic/Cargo.toml", "requires": [] },
-    { "id": "vendor-memory-center-core", "kind": "rust", "roots": ["crates/vendor/memory-center-core/src"], "manifest": "crates/vendor/memory-center-core/Cargo.toml", "requires": ["vendor-memory-center-core-logic"] },
-    { "id": "vendor-memory-center-llm", "kind": "rust", "roots": ["crates/vendor/memory-center-llm/src"], "manifest": "crates/vendor/memory-center-llm/Cargo.toml", "requires": ["vendor-memory-center-core"] },
-    { "id": "vendor-memory-center-models", "kind": "rust", "roots": ["crates/vendor/memory-center-models/src"], "manifest": "crates/vendor/memory-center-models/Cargo.toml", "requires": ["vendor-memory-center-core"] },
-    { "id": "worldsea-core", "kind": "rust", "roots": ["worldsea-core/src"], "manifest": "worldsea-core/Cargo.toml", "requires": [] },
-    { "id": "tactical-engine", "kind": "rust", "roots": ["tactical-engine/src"], "manifest": "tactical-engine/Cargo.toml", "requires": [] },
-    { "id": "tauri-backend", "kind": "rust", "roots": ["apps/tauri/src-tauri/src"], "manifest": "apps/tauri/src-tauri/Cargo.toml", "requires": ["agent-commands", "agent-runtime", "worldsea-skills-store", "worldsea-core"] },
-
-    { "id": "tauri-app", "kind": "ts", "roots": ["apps/tauri/src"], "manifest": "apps/tauri/package.json", "requires": ["agent-runtime-ts", "canvas-engine", "core-api-types", "entity-core", "font-kit", "motion-kit", "perf-kit", "plugin-sdk", "shared-composables", "shared-ui", "ui-kit"] },
-    { "id": "agent-core", "kind": "ts", "roots": ["packages/agent-core/src"], "manifest": "packages/agent-core/package.json", "requires": [] },
-    { "id": "agent-runtime-ts", "kind": "ts", "roots": ["packages/agent-runtime/src"], "manifest": "packages/agent-runtime/package.json", "requires": ["agent-core", "canvas-engine", "entity-core", "governor-core", "plugin-sdk", "ui-kit"] },
-    { "id": "canvas-engine", "kind": "ts", "roots": ["packages/canvas-engine/src"], "manifest": "packages/canvas-engine/package.json", "requires": ["agent-runtime-ts", "entity-core"] },
-    { "id": "core-api-types", "kind": "ts", "roots": ["packages/core-api-types/src"], "manifest": "packages/core-api-types/package.json", "requires": [] },
-    { "id": "entity-core", "kind": "ts", "roots": ["packages/entity-core/src"], "manifest": "packages/entity-core/package.json", "requires": ["agent-runtime-ts", "core-api-types", "perf-kit"] },
-    { "id": "font-kit", "kind": "ts", "roots": ["packages/font-kit/src"], "manifest": "packages/font-kit/package.json", "requires": ["entity-core"] },
-    { "id": "governor-core", "kind": "ts", "roots": ["packages/governor-core/src"], "manifest": "packages/governor-core/package.json", "requires": [] },
-    { "id": "memory-archive", "kind": "ts", "roots": ["packages/memory-archive/src"], "manifest": "packages/memory-archive/package.json", "requires": [] },
-    { "id": "motion-kit", "kind": "ts", "roots": ["packages/motion-kit/src"], "manifest": "packages/motion-kit/package.json", "requires": [] },
-    { "id": "perf-kit", "kind": "ts", "roots": ["packages/perf-kit/src"], "manifest": "packages/perf-kit/package.json", "requires": [] },
-    { "id": "plugin-sdk", "kind": "ts", "roots": ["packages/plugin-sdk/src"], "manifest": "packages/plugin-sdk/package.json", "requires": ["core-api-types", "entity-core", "ui-kit"] },
-    { "id": "shared-composables", "kind": "ts", "roots": ["packages/shared-composables/src"], "manifest": "packages/shared-composables/package.json", "requires": ["agent-runtime-ts", "entity-core", "motion-kit", "perf-kit", "ui-kit"] },
-    { "id": "shared-ui", "kind": "ts", "roots": ["packages/shared-ui/src"], "manifest": "packages/shared-ui/package.json", "requires": ["agent-runtime-ts", "entity-core", "font-kit", "motion-kit", "perf-kit", "shared-composables", "ui-kit"] },
-    { "id": "theme-kit", "kind": "ts", "roots": ["packages/theme-kit/src"], "manifest": "packages/theme-kit/package.json", "requires": [] },
-    { "id": "ui-kit", "kind": "ts", "roots": ["packages/ui-kit/src"], "manifest": "packages/ui-kit/package.json", "requires": ["agent-core", "agent-runtime-ts", "canvas-engine", "entity-core", "font-kit", "motion-kit", "perf-kit", "plugin-sdk"] }
+    {
+      "id": "worldsea-core",
+      "kind": "rust",
+      "roots": [
+        "worldsea-core/src"
+      ],
+      "manifest": "worldsea-core/Cargo.toml",
+      "requires": []
+    },
+    {
+      "id": "tactical-engine",
+      "kind": "rust",
+      "roots": [
+        "tactical-engine/src"
+      ],
+      "manifest": "tactical-engine/Cargo.toml",
+      "requires": []
+    },
+    {
+      "id": "tauri-backend",
+      "kind": "rust",
+      "roots": [
+        "apps/tauri/src-tauri/src"
+      ],
+      "manifest": "apps/tauri/src-tauri/Cargo.toml",
+      "requires": [
+        "worldsea-core"
+      ]
+    },
+    {
+      "id": "tauri-app",
+      "kind": "ts",
+      "roots": [
+        "apps/tauri/src"
+      ],
+      "manifest": "apps/tauri/package.json",
+      "requires": [
+        "canvas-engine",
+        "core-api-types",
+        "entity-core",
+        "font-kit",
+        "motion-kit",
+        "perf-kit",
+        "plugin-sdk",
+        "shared-composables",
+        "shared-ui",
+        "ui-kit"
+      ]
+    },
+    {
+      "id": "canvas-engine",
+      "kind": "ts",
+      "roots": [
+        "packages/canvas-engine/src"
+      ],
+      "manifest": "packages/canvas-engine/package.json",
+      "requires": [
+        "entity-core"
+      ]
+    },
+    {
+      "id": "core-api-types",
+      "kind": "ts",
+      "roots": [
+        "packages/core-api-types/src"
+      ],
+      "manifest": "packages/core-api-types/package.json",
+      "requires": []
+    },
+    {
+      "id": "entity-core",
+      "kind": "ts",
+      "roots": [
+        "packages/entity-core/src"
+      ],
+      "manifest": "packages/entity-core/package.json",
+      "requires": [
+        "core-api-types",
+        "perf-kit"
+      ]
+    },
+    {
+      "id": "font-kit",
+      "kind": "ts",
+      "roots": [
+        "packages/font-kit/src"
+      ],
+      "manifest": "packages/font-kit/package.json",
+      "requires": [
+        "entity-core"
+      ]
+    },
+    {
+      "id": "memory-archive",
+      "kind": "ts",
+      "roots": [
+        "packages/memory-archive/src"
+      ],
+      "manifest": "packages/memory-archive/package.json",
+      "requires": []
+    },
+    {
+      "id": "motion-kit",
+      "kind": "ts",
+      "roots": [
+        "packages/motion-kit/src"
+      ],
+      "manifest": "packages/motion-kit/package.json",
+      "requires": []
+    },
+    {
+      "id": "perf-kit",
+      "kind": "ts",
+      "roots": [
+        "packages/perf-kit/src"
+      ],
+      "manifest": "packages/perf-kit/package.json",
+      "requires": []
+    },
+    {
+      "id": "plugin-sdk",
+      "kind": "ts",
+      "roots": [
+        "packages/plugin-sdk/src"
+      ],
+      "manifest": "packages/plugin-sdk/package.json",
+      "requires": [
+        "core-api-types",
+        "entity-core",
+        "ui-kit"
+      ]
+    },
+    {
+      "id": "shared-composables",
+      "kind": "ts",
+      "roots": [
+        "packages/shared-composables/src"
+      ],
+      "manifest": "packages/shared-composables/package.json",
+      "requires": [
+        "entity-core",
+        "motion-kit",
+        "perf-kit",
+        "ui-kit"
+      ]
+    },
+    {
+      "id": "shared-ui",
+      "kind": "ts",
+      "roots": [
+        "packages/shared-ui/src"
+      ],
+      "manifest": "packages/shared-ui/package.json",
+      "requires": [
+        "entity-core",
+        "font-kit",
+        "motion-kit",
+        "perf-kit",
+        "shared-composables",
+        "ui-kit"
+      ]
+    },
+    {
+      "id": "theme-kit",
+      "kind": "ts",
+      "roots": [
+        "packages/theme-kit/src"
+      ],
+      "manifest": "packages/theme-kit/package.json",
+      "requires": []
+    },
+    {
+      "id": "ui-kit",
+      "kind": "ts",
+      "roots": [
+        "packages/ui-kit/src"
+      ],
+      "manifest": "packages/ui-kit/package.json",
+      "requires": [
+        "canvas-engine",
+        "entity-core",
+        "font-kit",
+        "motion-kit",
+        "perf-kit",
+        "plugin-sdk"
+      ]
+    }
   ]
 }

@@ -13,7 +13,7 @@
 1. **输入栏模型选择器**（`ModelSwitcher.vue`）：下拉高度、分组标题、入口胶囊、供应商 Logo、思考档位悬停浮窗、AutoModel 入口图标。
 2. **右栏**（`AgentSpace.vue` + `ExecPanel.vue`）：执行 tab 11 区改宫格、配置 tab 档案占位、创作 tab 图标 + 视图切换改浮窗菜单。
 
-数据修正涉及 [model-registry.ts](../../../packages/agent-runtime/src/providers/model-registry.ts) 的 `thinkingModes` 三处（用户已确认）。
+数据修正涉及 model-registry.ts 的 `thinkingModes` 三处（用户已确认）。
 
 ---
 
@@ -115,7 +115,7 @@
 
 ## 五、风险点（需用户知晓，不自动处理）
 
-1. **思考档位粒度未传导到模型请求（既有缺口，非本次引入）**：Rust [genai_backend.rs](../../../crates/agent-kernel/src/llm/genai_backend.rs) L277-279 目前仅 `thinking_mode == true` → 固定 `ReasoningEffort::Medium`；`thinking_level` 只存 config/state 未映射到 reasoning_effort。**本次实现的是选择器 UI + 存储链路**，档位暂不真正影响模型请求强度。若要让档位生效（如 low→Low、max→XMax），需另开后端任务（genai_backend 按 level 映射 + 各供应商 reasoning_effort 语义核对）。
+1. **思考档位粒度未传导到模型请求（既有缺口，非本次引入）**：Rust genai_backend.rs L277-279 目前仅 `thinking_mode == true` → 固定 `ReasoningEffort::Medium`；`thinking_level` 只存 config/state 未映射到 reasoning_effort。**本次实现的是选择器 UI + 存储链路**，档位暂不真正影响模型请求强度。若要让档位生效（如 low→Low、max→XMax），需另开后端任务（genai_backend 按 level 映射 + 各供应商 reasoning_effort 语义核对）。
 2. **多面板堆叠的宽度/高度适配**：终端/子Agent/工作区面板原本「撑满面板」，改卡片堆叠后需给卡片设合理高度（如每卡片 `max-height: 45%` 内部滚动），避免 11 区全开时过度挤压。此为落地质量细节，执行时按实测量调。
 3. **'max' 档位下游兼容**：若个别供应商请求层遇到未知 reasoning_effort 值，可能被忽略或报错——需验证 DeepSeek/GLM 对 `max` 的接受度（矩阵文档已列 max 为其档位，风险低）。
 

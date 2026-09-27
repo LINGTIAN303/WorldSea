@@ -1,6 +1,12 @@
 # Agent 面冻结清单
 
-> **status: 收口中（**2026-09-27 E7：前端本体已物理删除**）** ｜ 口径更新：dsh 接管完成（B0–B3、C 批、D1、E1/E2/E4/E5/E6 全过）后，用户 2026-09-27 裁定「旧 Agent 面本体可删」——**前端本体 `apps/tauri/src/{agent,space,subagent,terminal}` 已 `git rm`**（含规则模板；仍在用的组件已先搬出，见 [E7 批计划](../../plans/2026-09-27-E7-旧Agent面前端本体删除与emoji收拾批计划.md) §二）；**包面与 Rust 面**（agent-runtime / agent-core / shared-*-agent / ui-kit agent 件 / Rust agent 命令族与 crates）待下一批，删除前置与范围见 E7 计划 §四。本文档余下部分为 2026-09-23 的冻结登记（历史留档），「可留候选」（§四）逐条处置仍待做。
+> **status: 已收口（2026-09-27 E8：冻结面物理删除完成）** ｜ E7 删前端本体后，E8 按用户四项裁定（**记忆底座 / 产品能力四件 / 设计参考类 / 芽语义表——全部物理删除，git 历史兜底**）完成包面与 Rust 面收口：
+> - **crates/ 九目录整体删除**（agent-{kernel,patterns,runtime,commands,memory,index,engine} + vendor 四子 + worldsea-skills-store），`crates/` 目录清空；
+> - **src-tauri agent 命令族删除**（commands.rs 106 命令 + mcp/search/web_fetch/net_egress/skills_store/semantic/plan/tool_catalog/frontend_tool_bridge/http_bridge），lib.rs 装配段收口（`AgentCommandService`/MCP Hub/HTTP 桥/LoopControl/长任务库全摘），产品面保留（entity/fs/algo/whisper/lsp/secure_store/dsh 系/托盘系）；
+> - **packages 删除**：agent-runtime（模型注册表五件打捞至 ui-kit `src/model-registry/`）、agent-core、governor-core、shared-ui/src/agent、shared-composables/src/agent；七包 agent-descriptor.ts 退役；Companion（陪伴模式）LLM 调用辅助打捞至 `shared-composables/src/companion/llm.ts`；
+> - 打捞件：ui-kit model-registry（providers 五件 + smart-fetch，产品设置「视频」页消费）、`win_job.rs`（LSP Job Object，自 agent-commands::job）、companion/llm.ts；
+> - 门禁：vue-tsc 0 · vitest 59 文件/761 全绿 · cargo check 干净 · lib 测试 99/0 · 断链 0。
+> 历史留档（2026-09-23 冻结登记与 §四候选评估）见下文与 git。
 > 背景（2026-09-23 拍板）：dsh（deepseek-harness）以**迁文件**方式整体接管 Agent 面；壳仍用 Tauri；dsh 界面 100% 保留。准备方案见 [2026-09-23-dsh接管Agent面-大重构准备.md](../../plans/2026-09-23-dsh接管Agent面-大重构准备.md)；仓内 dsh 树的装构起口径见 [dsh 运行手册](dsh-运行手册.md)。
 > 用途：① 施工时判定「哪些文件不再动、不再修」；② 替换完成后逐项回收可复用资产；③ 说明冻结后需要解开的接线。
 

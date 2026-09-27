@@ -107,13 +107,13 @@
 | 组件/文件 | 职责 | 形态与尺寸 | 设计 token | 图标 | 交互与 a11y | 已知问题 |
 |---|---|---|---|---|---|---|
 | `AgentMessageList.vue` | 消息列表容器：窗口化/归档/深度/A2UI 分发 | `.messages-scroll` `padding:12px 16px 8px` `gap:8px`；scrollbar 隐藏 | `--agent-*` | — | 滚动锚定 + 可见性观察；watchDebounced 自动滚底 | — |
-| [ArchivedSection.vue](../../packages/shared-ui/src/agent/message-list/ArchivedSection.vue) | 已归档消息折叠区 | 折叠条 | `--agent-*` | — | 展开按钮 | **文本字形 `▸` chevron（L9）** |
+| ArchivedSection.vue | 已归档消息折叠区 | 折叠条 | `--agent-*` | — | 展开按钮 | **文本字形 `▸` chevron（L9）** |
 | `packages/shared-ui/src/agent/message-list/DeepProcessPanel.vue` | 深度模式过程段折叠区 | 折叠容器 | `--agent-*` | — | 折叠交互 | **文本字形 `▸` chevron（L10）** |
-| [StreamingPlaceholder.vue](../../packages/shared-ui/src/agent/message-list/StreamingPlaceholder.vue) | 流式输出占位 + 思考中 | 点动画 | `--agent-*` | — | — | **文本字形 `●` streaming-cursor（L6）** |
-| [DeepUserBar.vue](../../packages/shared-ui/src/agent/message-list/DeepUserBar.vue) | 深度模式右下用户消息导航 | 侧栏 | `--agent-*` | — | 滚动定位 | — |
-| [DotNav.vue](../../packages/shared-ui/src/agent/message-list/DotNav.vue) | 非深度用户消息点状导航 | 点导航 | `--agent-*` | — | 滚动定位 | — |
-| [ScrollToBottomButton.vue](../../packages/shared-ui/src/agent/message-list/ScrollToBottomButton.vue) | 回到底部 + 新消息计数 | 胶囊 | `--agent-*` | — | — | — |
-| [MessageListEmpty.vue](../../packages/shared-ui/src/agent/message-list/MessageListEmpty.vue) | 空对话欢迎语 | 空态 | `--agent-*` | — | — | — |
+| StreamingPlaceholder.vue | 流式输出占位 + 思考中 | 点动画 | `--agent-*` | — | — | **文本字形 `●` streaming-cursor（L6）** |
+| DeepUserBar.vue | 深度模式右下用户消息导航 | 侧栏 | `--agent-*` | — | 滚动定位 | — |
+| DotNav.vue | 非深度用户消息点状导航 | 点导航 | `--agent-*` | — | 滚动定位 | — |
+| ScrollToBottomButton.vue | 回到底部 + 新消息计数 | 胶囊 | `--agent-*` | — | — | — |
+| MessageListEmpty.vue | 空对话欢迎语 | 空态 | `--agent-*` | — | — | — |
 | AgentMessageBubble 分隔线 | 时间分隔线 + 深度回合分隔线 | 双线夹字 / 渐变线 | `--agent-primary`、`--agent-border` | — | — | (已于2026-08-21引擎重构删除：时间分隔线由 divider 事件行 + >30min 补 divider 合成；深度回合分隔线随 deep 形态移除) |
 
 ### B.5 消息气泡（路由分发）
@@ -123,16 +123,16 @@
 | `apps/tauri/src/agent/AgentMessageBubble.vue` | 气泡路由：divider / DeepMessageArea / NormalMessageBubble | 分隔线样式 + 可见内容判定 | `--agent-*` | — | hasVisibleContent 过滤 | (已于2026-08-21引擎重构删除：气泡路由随事件行流引擎废弃，由 AgentStreamList 逐行分发取代，见 [G 节](#g-输出事件流引擎2026-08-21-重构)) |
 | `packages/shared-ui/src/agent/bubbles/NormalMessageBubble.vue` | 普通模式气泡 | `.chat-msg` `max-width:85%`；`ws-msg-in 0.25s` 入场；头像 24px | `--agent-*`、`--font-size-*`、`--font-weight-*` | manuscript/check/x/wrench/file/outline/delete/image/video WsIcon | 思维链 details/summary；长文本折叠 role=button；操作栏 hover 浮现；mention 事件委托 + 代码复制 | 入场动画 `ws-msg-in` 由 reduced-motion `.chat-msg` 停用（OK）；用户气泡 `backdrop-filter:blur(8px)` |
 | `packages/shared-ui/src/agent/bubbles/DeepMessageArea.vue` | 深度模式区域气泡 | `.deep-area` `padding:16px 20px` 左缘 3px 段色；`deep-area-in 0.35s` | `--agent-segment-thinking/tooling/output`、`--agent-primary` | manuscript/wrench/file/clipboard-list WsIcon | 段标签；推理折叠；阶段头 + InlineToolCall；内联活动日志；导出操作栏 | 段标签 11px 字号偏小；活动日志 2 分钟窗口 |
-| [MessageBlocks.vue](../../packages/shared-ui/src/agent/bubbles/MessageBlocks.vue) | Block 分发容器（13 类） | 按 type 过滤渲染 | — | — | block-action 冒泡 | manuscript 由父级单独渲染 |
+| MessageBlocks.vue | Block 分发容器（13 类） | 按 type 过滤渲染 | — | — | block-action 冒泡 | manuscript 由父级单独渲染 |
 
 ### B.6 渲染链路（useMarkdownRender / codeHighlight）
 
 | 组件/文件 | 职责 | 关键能力 | 已知问题 |
 |---|---|---|---|
-| [useMarkdownRender.ts](../../packages/shared-ui/src/agent/bubbles/useMarkdownRender.ts) | Markdown 渲染 composable | marked(gfm+breaks) → 自定义 code renderer（ws-code-block 外壳：语言标签+复制按钮）→ DOMPurify（data-ws-* 保留）→ 实体 mention 注入 → rAF 流式节流；`stripJsonBlocks` 剥 JSON；`renderMarkdownHtml` 纯函数（群聊复用）；`handleCodeCopyClick` 复制事件委托 | 流式未闭合围栏降级纯文本（已实现）；mention 注入用 DOMParser 开销可控 |
+| useMarkdownRender.ts | Markdown 渲染 composable | marked(gfm+breaks) → 自定义 code renderer（ws-code-block 外壳：语言标签+复制按钮）→ DOMPurify（data-ws-* 保留）→ 实体 mention 注入 → rAF 流式节流；`stripJsonBlocks` 剥 JSON；`renderMarkdownHtml` 纯函数（群聊复用）；`handleCodeCopyClick` 复制事件委托 | 流式未闭合围栏降级纯文本（已实现）；mention 注入用 DOMParser 开销可控 |
 | `codeHighlight.ts` | Prism 语法高亮 | 按需引入 12 语言（js/ts/py/rust/json/bash/markup/css/markdown/sql/go/java）；`LANG_ALIAS` 别名归一；`setCodeHighlighter` 注入 | 仅 12 高频语言，其余降级纯文本；无行号 |
 | MessageBlocks 分发 | 13 类 Block 路由 | table/choice/code/entity-card/alert/stat/list/progress/comparison/timeline/image/video/accordion | manuscript 除外 |
-| [toolLabels.ts](../../packages/shared-ui/src/agent/bubbles/toolLabels.ts) | 工具名→中文标签 | 全量工具映射 | 缺失回退下划线→空格 |
+| toolLabels.ts | 工具名→中文标签 | 全量工具映射 | 缺失回退下划线→空格 |
 
 ### B.7 Block 组件矩阵（shared-ui blocks 全系列）
 
@@ -140,41 +140,41 @@
 
 | 组件/文件 | 职责 | 图标 | 形态 | 已知问题 |
 |---|---|---|---|---|
-| [BlockAlert.vue](../../packages/shared-ui/src/agent/blocks/BlockAlert.vue) | 提示条（info/success/warning/error） | WsIcon（等级→图标，L23） | 折叠卡 | 无 emoji（已转 WsIcon） |
-| [BlockCode.vue](../../packages/shared-ui/src/agent/blocks/BlockCode.vue) | 代码块折叠卡 | — | block-arrow | 文本字形 ▸▾（L7） |
-| [BlockTable.vue](../../packages/shared-ui/src/agent/blocks/BlockTable.vue) | 表格 | — | block-arrow | 文本字形 ▸▾（L7） |
-| [BlockStat.vue](../../packages/shared-ui/src/agent/blocks/BlockStat.vue) | 统计指标 + trend 箭头 | WsIcon trending-*（L31） | block-arrow | 文本字形 ▸▾（L7） |
-| [BlockList.vue](../../packages/shared-ui/src/agent/blocks/BlockList.vue) | 列表 | — | block-arrow | 文本字形 ▸▾（L7） |
-| [BlockImage.vue](../../packages/shared-ui/src/agent/blocks/BlockImage.vue) | 图片（5 级来源解析） | — | block-arrow | 文本字形 ▸▾（L16）；图源解析复杂（网络/data/file/IDB/本地） |
-| [BlockVideo.vue](../../packages/shared-ui/src/agent/blocks/BlockVideo.vue) | 视频（折叠/全屏/导出/右键） | video/maximize/download WsIcon；close WsIcon（全屏，已修复 P0-③） | block-arrow | **文本字形 ▸▾（L15）、`▶` play 覆盖层（L31）**；右键菜单原生实现 |
-| [BlockAccordion.vue](../../packages/shared-ui/src/agent/blocks/BlockAccordion.vue) | 手风琴 | — | 折叠 | 文本字形 ▸▾（L7）+ `::before` `▸/▾`（L54-55） |
-| [BlockComparison.vue](../../packages/shared-ui/src/agent/blocks/BlockComparison.vue) | 对比表 | — | block-arrow | 文本字形 ▸▾（L6） |
-| [BlockTimeline.vue](../../packages/shared-ui/src/agent/blocks/BlockTimeline.vue) | 时间线 | — | block-arrow | 文本字形 ▸▾（L7） |
-| [BlockChoice.vue](../../packages/shared-ui/src/agent/blocks/BlockChoice.vue) | 选择型工具块 | — | 选项 | — |
-| [BlockEntityCard.vue](../../packages/shared-ui/src/agent/blocks/BlockEntityCard.vue) | 实体卡 | — | block-arrow | 文本字形 ▸▾（L7） |
-| [BlockProgress.vue](../../packages/shared-ui/src/agent/blocks/BlockProgress.vue) | 进度条 | — | — | — |
-| [BlockManuscript.vue](../../packages/shared-ui/src/agent/blocks/BlockManuscript.vue) | 创作画布（贴顶渲染） | — | 画布 | `:has(.manuscript-canvas)` 放宽气泡宽度 |
-| [StepChain.vue](../../packages/shared-ui/src/agent/blocks/StepChain.vue) | 步骤链（问题拆解→结论） | — | 步骤条 | **文本字形 `✓`（L54）、`●`（L55）** |
+| BlockAlert.vue | 提示条（info/success/warning/error） | WsIcon（等级→图标，L23） | 折叠卡 | 无 emoji（已转 WsIcon） |
+| BlockCode.vue | 代码块折叠卡 | — | block-arrow | 文本字形 ▸▾（L7） |
+| BlockTable.vue | 表格 | — | block-arrow | 文本字形 ▸▾（L7） |
+| BlockStat.vue | 统计指标 + trend 箭头 | WsIcon trending-*（L31） | block-arrow | 文本字形 ▸▾（L7） |
+| BlockList.vue | 列表 | — | block-arrow | 文本字形 ▸▾（L7） |
+| BlockImage.vue | 图片（5 级来源解析） | — | block-arrow | 文本字形 ▸▾（L16）；图源解析复杂（网络/data/file/IDB/本地） |
+| BlockVideo.vue | 视频（折叠/全屏/导出/右键） | video/maximize/download WsIcon；close WsIcon（全屏，已修复 P0-③） | block-arrow | **文本字形 ▸▾（L15）、`▶` play 覆盖层（L31）**；右键菜单原生实现 |
+| BlockAccordion.vue | 手风琴 | — | 折叠 | 文本字形 ▸▾（L7）+ `::before` `▸/▾`（L54-55） |
+| BlockComparison.vue | 对比表 | — | block-arrow | 文本字形 ▸▾（L6） |
+| BlockTimeline.vue | 时间线 | — | block-arrow | 文本字形 ▸▾（L7） |
+| BlockChoice.vue | 选择型工具块 | — | 选项 | — |
+| BlockEntityCard.vue | 实体卡 | — | block-arrow | 文本字形 ▸▾（L7） |
+| BlockProgress.vue | 进度条 | — | — | — |
+| BlockManuscript.vue | 创作画布（贴顶渲染） | — | 画布 | `:has(.manuscript-canvas)` 放宽气泡宽度 |
+| StepChain.vue | 步骤链（问题拆解→结论） | — | 步骤条 | **文本字形 `✓`（L54）、`●`（L55）** |
 | `packages/shared-ui/src/agent/blocks/SearchPath.vue` | 知识探索搜索路径 | — | 分组折叠 | 文本字形 `▾/▸`（L14）(已于2026-08-21引擎重构删除：explore 形态移除) |
 | `packages/shared-ui/src/agent/blocks/PhaseHeader.vue` | 阶段头 | — | 折叠 | 文本字形 `▸`（L19）(已于2026-08-21引擎重构删除：deep 形态移除) |
 | `packages/shared-ui/src/agent/blocks/DeepSegmentCard.vue` | 深度段卡 | — | 折叠 | 文本字形 `▸`（L9/L31）(已于2026-08-21引擎重构删除：deep 形态移除，轨迹迁右侧面板) |
-| [InlineToolCall.vue](../../packages/shared-ui/src/agent/blocks/InlineToolCall.vue) | 内联工具调用卡 | — | 折叠 | 文本字形 `▸`（L11） |
-| [InteractiveToolCall.vue](../../packages/shared-ui/src/agent/blocks/InteractiveToolCall.vue) | 交互工具调用（分派） | — | 分派 | — |
+| InlineToolCall.vue | 内联工具调用卡 | — | 折叠 | 文本字形 `▸`（L11） |
+| InteractiveToolCall.vue | 交互工具调用（分派） | — | 分派 | — |
 
 ### B.8 interactive-tool / export-corrector 子组件
 
 | 组件/文件 | 职责 | 已知问题 |
 |---|---|---|
-| [InteractiveNormal.vue](../../packages/shared-ui/src/agent/blocks/interactive-tool/InteractiveNormal.vue) | 普通工具调用卡 | 文本字形 `▸`（L10） |
-| [InteractiveConfirm.vue](../../packages/shared-ui/src/agent/blocks/interactive-tool/InteractiveConfirm.vue) | 确认型工具（权限分级 dangerous/moderate/safe） | 文本字形 `▸`（L11） |
-| [InteractiveDisplay.vue](../../packages/shared-ui/src/agent/blocks/interactive-tool/InteractiveDisplay.vue) | 展示型工具 | 文本字形 `▸`（L11） |
-| [InteractiveWaiting.vue](../../packages/shared-ui/src/agent/blocks/interactive-tool/InteractiveWaiting.vue) | 等待型工具 | — |
-| [InteractiveChoice.vue](../../packages/shared-ui/src/agent/blocks/interactive-tool/InteractiveChoice.vue) | 选择型工具 | — |
-| [utils.ts](../../packages/shared-ui/src/agent/blocks/interactive-tool/utils.ts) | 工具中文标签映射 | — |
-| [ExportCorrectorDialog.vue](../../packages/shared-ui/src/agent/blocks/ExportCorrectorDialog.vue) | 导出修正弹窗 | — |
-| [ExportActionBar.vue](../../packages/shared-ui/src/agent/blocks/export-corrector/ExportActionBar.vue) | 导出操作条 | — |
-| [ExportControlPanel.vue](../../packages/shared-ui/src/agent/blocks/export-corrector/ExportControlPanel.vue) | 导出控制面板 | — |
-| [useExportCorrector.ts](../../packages/shared-ui/src/agent/blocks/export-corrector/useExportCorrector.ts) | 导出修正逻辑 | — |
+| InteractiveNormal.vue | 普通工具调用卡 | 文本字形 `▸`（L10） |
+| InteractiveConfirm.vue | 确认型工具（权限分级 dangerous/moderate/safe） | 文本字形 `▸`（L11） |
+| InteractiveDisplay.vue | 展示型工具 | 文本字形 `▸`（L11） |
+| InteractiveWaiting.vue | 等待型工具 | — |
+| InteractiveChoice.vue | 选择型工具 | — |
+| utils.ts | 工具中文标签映射 | — |
+| ExportCorrectorDialog.vue | 导出修正弹窗 | — |
+| ExportActionBar.vue | 导出操作条 | — |
+| ExportControlPanel.vue | 导出控制面板 | — |
+| useExportCorrector.ts | 导出修正逻辑 | — |
 
 ---
 
@@ -411,12 +411,12 @@ WsSpinner | 加载指示 |
 
 | 组件/文件 | 职责 | 形态 | 设计 token | reduced-motion 覆盖 | 已知问题 |
 |---|---|---|---|---|---|
-| [AgentStreamList.vue](../../packages/shared-ui/src/agent/stream/AgentStreamList.vue) | 事件行流渲染容器：按 `agentStream` 逐行分派到 rows/ 子行 | 统一扁平形态分发；增量/一次性渲染 | `--agent-*`、`--color-text-*` | `ws-stream-*` 命中 `[class*='ws-']` | — |
-| [rows/UserRow.vue](../../packages/shared-ui/src/agent/stream/rows/UserRow.vue) | `user{msg}` 用户消息行 | 扁平左对齐 | `--agent-user-bubble` 等 | `ws-stream-user-*` | — |
-| [rows/AssistantRow.vue](../../packages/shared-ui/src/agent/stream/rows/AssistantRow.vue) | `assistant{msg}` 助手消息行（复用 useMarkdownRender 渲染 / caption / 折叠） | 扁平 Markdown | `--agent-*`、`--md-*` | `ws-stream-assistant-*` | — |
-| [rows/ThinkRow.vue](../../packages/shared-ui/src/agent/stream/rows/ThinkRow.vue) | `think{text,status}` 思考行：动态折叠（运行中展开跟随末行 / 完成折叠） | 动态折叠条 | `--agent-segment-*` | `ws-stream-think-*` | — |
-| [rows/ToolRow.vue](../../packages/shared-ui/src/agent/stream/rows/ToolRow.vue) | `tool{tc}` 工具行：工具调用扁平化 | 扁平行（非阶段卡） | `--agent-primary(-muted)`、`--color-border` | `ws-stream-tool-*` | — |
-| [rows/DividerRow.vue](../../packages/shared-ui/src/agent/stream/rows/DividerRow.vue) | `divider{dividerText}` 分隔行（时间分隔等） | 双线夹字 / 时间线 | `--agent-border`、`--agent-primary` | `ws-stream-divider-*` | — |
+| AgentStreamList.vue | 事件行流渲染容器：按 `agentStream` 逐行分派到 rows/ 子行 | 统一扁平形态分发；增量/一次性渲染 | `--agent-*`、`--color-text-*` | `ws-stream-*` 命中 `[class*='ws-']` | — |
+| rows/UserRow.vue | `user{msg}` 用户消息行 | 扁平左对齐 | `--agent-user-bubble` 等 | `ws-stream-user-*` | — |
+| rows/AssistantRow.vue | `assistant{msg}` 助手消息行（复用 useMarkdownRender 渲染 / caption / 折叠） | 扁平 Markdown | `--agent-*`、`--md-*` | `ws-stream-assistant-*` | — |
+| rows/ThinkRow.vue | `think{text,status}` 思考行：动态折叠（运行中展开跟随末行 / 完成折叠） | 动态折叠条 | `--agent-segment-*` | `ws-stream-think-*` | — |
+| rows/ToolRow.vue | `tool{tc}` 工具行：工具调用扁平化 | 扁平行（非阶段卡） | `--agent-primary(-muted)`、`--color-border` | `ws-stream-tool-*` | — |
+| rows/DividerRow.vue | `divider{dividerText}` 分隔行（时间分隔等） | 双线夹字 / 时间线 | `--agent-border`、`--agent-primary` | `ws-stream-divider-*` | — |
 
 ### G.2 重构变更清单
 
@@ -438,9 +438,9 @@ WsSpinner | 加载指示 |
 |---|---|
 | `AgentMessageList.vue` | 改用 `agentStream` + `AgentStreamList`；删 `isDeepMode` / `deepSegments` 平铺 / `turn-separator` / `DeepSegmentCard` |
 | `useAgentRust.ts` | 组装层产出 `agentStream`：think 双写（thinking 字段 + think 行）、tool 双写（tool 事件行 + deepSegments 供右侧轨迹面板）；回源 `rebuildStreamFromMessages` 重建；>30min 补 divider；`finalOutput`/`FinalOutput` 删除 |
-| [useMessageWindowing.ts](../../packages/shared-ui/src/agent/message-list/useMessageWindowing.ts) | 泛化，去 isDeepMode 锚定 |
-| [bubbles/index.ts](../../packages/shared-ui/src/agent/bubbles/index.ts) | 清理模式专属导出（保留 MessageBlocks / useMarkdownRender / useThinkingFold / useTextFold / useMessageActions / format / toolLabels，group-chat 仍用） |
-| [bubbles/types.ts](../../packages/shared-ui/src/agent/bubbles/types.ts) | 清理模式专属类型 |
+| useMessageWindowing.ts | 泛化，去 isDeepMode 锚定 |
+| bubbles/index.ts | 清理模式专属导出（保留 MessageBlocks / useMarkdownRender / useThinkingFold / useTextFold / useMessageActions / format / toolLabels，group-chat 仍用） |
+| bubbles/types.ts | 清理模式专属类型 |
 
 **保留共识**：`deepSegments` **保留**（右侧轨迹面板 TracePanel / PhaseSection / ExecPanel 消费）；`finalOutput` **删除**（权威输出统一由事件行流 + assistant{msg} 行表达）。
 

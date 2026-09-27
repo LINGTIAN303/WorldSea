@@ -5,7 +5,7 @@ import { getProjectManager, setStorageProjectDir } from '@worldsea/entity-core/c
 import type { ProjectInfo } from '@worldsea/entity-core/core'
 import { entitySchemaRegistry, relationSchemaRegistry, entitySchemaRegistryV2 } from '@worldsea/entity-core/core'
 import { usePluginStore, useEntityStore, useRelationStore, useFileStore } from '@worldsea/entity-core/stores'
-import { setAgentCurrentProjectId } from '@agent/session/manager'
+
 import { pluginAPI } from '@worldsea/entity-core'
 import { bootstrapShell } from '@/plugins/boot'
 import { isTauri, hasTauriInvoke } from '@worldsea/entity-core/core'
@@ -163,13 +163,10 @@ export function useProjectSwitcher() {
       await startWatching()
     }
 
-    // 3. 同步 Agent 会话数据库
-    setAgentCurrentProjectId(projectId)
-
-    // 4. 加载当前项目信息
+    // 3. 加载当前项目信息
     currentProject.value = (await pm.getCurrentProject()) ?? null
 
-    // 5. 加载项目列表
+    // 4. 加载项目列表
     await refreshProjectList()
 
     return projectId
@@ -213,16 +210,13 @@ export function useProjectSwitcher() {
         await startWatching()
       }
 
-      // 3. 同步 Agent 会话数据库
-      setAgentCurrentProjectId(targetProjectId)
-
-      // 4. 重新加载所有 Store
+      // 3. 重新加载所有 Store
       await reloadStores()
 
-      // 5. 重新初始化模块系统
+      // 4. 重新初始化模块系统
       await reinitializeModules()
 
-      // 6. 恢复文件系统关联（P3-W4 续恢复）
+      // 5. 恢复文件系统关联（P3-W4 续恢复）
       const { useFileSystemProject } = await import('@/composables/useFileSystemProject')
       const fsProject = useFileSystemProject()
       await fsProject.onProjectSwitched()

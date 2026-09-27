@@ -25,7 +25,7 @@ struct LspProc {
     root: String,
     gen: u64,
     #[cfg(windows)]
-    _job: Option<agent_commands::job::WinJob>,
+    _job: Option<crate::win_job::WinJob>,
 }
 
 static PROCS: OnceLock<Mutex<HashMap<String, LspProc>>> = OnceLock::new();
@@ -194,10 +194,10 @@ pub fn cmd_lsp_start(
     let exe_or_prog = if exe.is_empty() { prog.to_string() } else { exe };
     let mut child = spawn_server(&exe_or_prog, args, &root)
         .map_err(|e| format!("启动 {exe_or_prog} 失败: {e}"))?;
-    // 挂 Job Object（KillOnJobClose，复用 agent-commands P1 基础设施 job::WinJob）：
+    // 挂 Job Object（KillOnJobClose，win_job::WinJob——原 agent-commands P1 基础设施打捞版）：
     // 句柄随 LspProc 生命周期关闭 → 系统整树终止（含孙进程），兜底强杀/异常退出防孤儿目标（走查遗留）
     #[cfg(windows)]
-    let job_guard = match agent_commands::job::WinJob::new()
+    let job_guard = match crate::win_job::WinJob::new()
         .and_then(|job| job.assign(child.id()).map(|()| job))
     {
         Ok(job) => Some(job),

@@ -117,7 +117,6 @@ export {
   isWsFontFile,
 } from './WsFontPack'
 
-export { fontKitDescriptor } from './agent-descriptor'
 
 // Phase 8b: 字体安装器（从根 src/composables/fontInstaller.ts 下沉）
 export {

@@ -5,23 +5,11 @@
     "types": ["vite/client"],
     "paths": {
       "@/*": ["./src/*"],
-      // @agent/* alias — 共享包内部引用 agent-runtime 的统一别名
-      // 通配指向 packages/agent-runtime/src/*，避免引入 worldsea-agent/src/*（CLI 端代码）
-      "@agent/*": ["../../packages/agent-runtime/src/*"],
-      "@agent/types": ["../../packages/agent-runtime/src/types.ts"],
       // 共享运行时层
-      "@worldsea/agent-runtime": ["../../packages/agent-runtime/src/index.ts"],
-      "@worldsea/agent-runtime/*": ["../../packages/agent-runtime/src/*"],
       "@worldsea/core-api-types": ["../../packages/core-api-types/src/index.ts"],
-      "@worldsea/agent-core": ["../../packages/agent-core/src/index.ts"],
-      "@worldsea/agent-core/*": ["../../packages/agent-core/src/*"],
-      "@worldsea/governor-core": ["../../packages/governor-core/src/index.ts"],
-      "@worldsea/governor-core/*": ["../../packages/governor-core/src/*"],
       // 共享 composables（Phase 3 迁入）
       "@worldsea/shared-composables": ["../../packages/shared-composables/src/index.ts"],
       "@worldsea/shared-composables/*": ["../../packages/shared-composables/src/*"],
-      "@worldsea/shared-composables/agent/*": ["../../packages/shared-composables/src/agent/*"],
-      "@worldsea/shared-composables/long-task/*": ["../../packages/shared-composables/src/agent/long-task/*"],
       // 业务无关的共享 UI/工具包
       "@worldsea/entity-core": ["../../packages/entity-core/src/index.ts"],
       "@worldsea/entity-core/*": ["../../packages/entity-core/src/*"],

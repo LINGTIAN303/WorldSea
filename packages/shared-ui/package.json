@@ -7,7 +7,6 @@
   "types": "src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./agent/*": "./src/agent/*",
     "./markdown": "./src/markdown/index.ts",
     "./markdown/*": "./src/markdown/*"
   },
@@ -16,21 +15,9 @@
     "build": "vite build"
   },
   "dependencies": {
-    "@tabler/icons-vue": "^3.46.0",
-    "@worldsea/agent-runtime": "link:../agent-runtime",
-    "@worldsea/entity-core": "link:../entity-core",
-    "@worldsea/font-kit": "link:../font-kit",
-    "@worldsea/motion-kit": "link:../motion-kit",
-    "@worldsea/perf-kit": "link:../perf-kit",
-    "@worldsea/shared-composables": "link:../shared-composables",
-    "@worldsea/ui-kit": "link:../ui-kit",
     "dompurify": "^3.4.3",
     "marked": "^18.0.3",
     "prismjs": "^1.29.0"
-  },
-  "peerDependencies": {
-    "pinia": "^3.0.0",
-    "vue": "^3.5.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

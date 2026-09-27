@@ -167,4 +167,3 @@ export type {
 } from './core/AutoLinkEngine'
 export * from './stores'
 export * from './composables'
-export { entityCoreDescriptor } from './agent-descriptor'

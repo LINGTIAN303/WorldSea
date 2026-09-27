@@ -87,7 +87,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useSettingsStore } from '@worldsea/entity-core'
-import { getModelsByProvider, getDefaultModelId, MODEL_REGISTRY, getProviderLabelMap } from '@worldsea/agent-runtime'
+import { getModelsByProvider, getDefaultModelId, MODEL_REGISTRY, getProviderLabelMap } from '../../../model-registry'
 import { CardDeck } from '@worldsea/ui-kit'
 import WsIcon from '../../WsIcon.vue'
 import { matchKeywords, SCENE_PROB_ITEMS, type CompanionProviderEntry } from '../utils'

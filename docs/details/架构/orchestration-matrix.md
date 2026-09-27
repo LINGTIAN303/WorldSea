@@ -25,7 +25,7 @@
 
 现状三个"不够硬"的症状：
 
-1. **单 crate 大杂烩**：[crates/agent-runtime](../../../crates/agent-runtime/src/lib.rs) 一个 crate 平铺三类东西——底座资源、宿主引擎、13 种模式。无物理分层，无法独立编译/测试/搬移，"可迁"无处下手。
+1. **单 crate 大杂烩**：crates/agent-runtime 一个 crate 平铺三类东西——底座资源、宿主引擎、13 种模式。无物理分层，无法独立编译/测试/搬移，"可迁"无处下手。
 2. **模式形态不一致**：ToT `/tree_of_thoughts/`、Multi-Agent `/multi_agent/` 已是独立目录；GoT `graph_of_thoughts.rs`、Supervisor、Router、Plan、Reflection 还是单文件；ReAct / Single Agent / Tool Use / Memory 直接长在底座里。同样号称"模式"，物理形态各异，边界无从谈起。
 3. **横切与模式混居**：Memory（服务）、Loop（工程设施）与策略模式（ToT/Supervisor…）并列编号 12/13，职责语义未显性化，导致"归谁、往哪迁"无法回答。
 
@@ -59,11 +59,11 @@
 
 | 项 | 内容 | 现状代码落点 |
 |----|------|-------------|
-| ① 执行契约 | `OrchestratorNode` trait + `NodeContext`（后端/工具/记忆/事件/中止检查注入） | [node.rs](../../../crates/agent-kernel/src/node.rs) |
-| ② 宿主引擎 | `DefaultOrchestrator` 图执行器（节点调度/条件边/循环检测/中止恢复） | [orchestrator.rs](../../../crates/agent-kernel/src/orchestrator.rs) |
-| ③ 最小闭环 | `AgentLoop`（prompt→思考→工具→结果，离了模式层也能跑） | [agent/mod.rs](../../../crates/agent-kernel/src/agent/mod.rs) |
-| ④ 资源服务 | Backend / ToolBus / Memory / Confirmation / 事件 / State 类型 | [backend.rs](../../../crates/agent-kernel/src/backend.rs) · [tool.rs](../../../crates/agent-kernel/src/tool.rs) · [memory.rs](../../../crates/agent-kernel/src/memory.rs) · [event.rs](../../../crates/agent-kernel/src/event.rs) · [types.rs](../../../crates/agent-kernel/src/types.rs) · [confirmation.rs](../../../crates/agent-kernel/src/confirmation.rs) · `llm/` |
-| ⑤ 工程横切 | LoopControl（重试/超时/限流）+ LongTask（检查点/心跳/看门狗） | [loop_control.rs](../../../crates/agent-kernel/src/loop_control.rs) · [long_task.rs](../../../crates/agent-kernel/src/long_task.rs) |
+| ① 执行契约 | `OrchestratorNode` trait + `NodeContext`（后端/工具/记忆/事件/中止检查注入） | node.rs |
+| ② 宿主引擎 | `DefaultOrchestrator` 图执行器（节点调度/条件边/循环检测/中止恢复） | orchestrator.rs |
+| ③ 最小闭环 | `AgentLoop`（prompt→思考→工具→结果，离了模式层也能跑） | agent/mod.rs |
+| ④ 资源服务 | Backend / ToolBus / Memory / Confirmation / 事件 / State 类型 | backend.rs · tool.rs · memory.rs · event.rs · types.rs · confirmation.rs · `llm/` |
+| ⑤ 工程横切 | LoopControl（重试/超时/限流）+ LongTask（检查点/心跳/看门狗） | loop_control.rs · long_task.rs |
 
 ### 2.3 判定线（硬性约束）
 
@@ -99,19 +99,19 @@
 
 | # | 模式 | 现状代码（Rust） | 现状形态 | 命令入口 | 前端入口 | 测试 | 目标独立目录 |
 |---|------|-----------------|---------|---------|---------|------|-------------|
-| 1 | Single Agent | [agent/mod.rs](../../../crates/agent-kernel/src/agent/mod.rs) `AgentLoop` | 嵌底座 | `send_message`（agent-commands） | 主对话 | [agent/tests.rs](../../../crates/agent-kernel/src/agent/tests.rs) | 留 `agent/`（底座） |
-| 2 | ReAct | [agent/mod.rs](../../../crates/agent-kernel/src/agent/mod.rs) `run_react_loop` | 嵌底座 | 同上（主链路） | 主对话 | 同上 | 留 `agent/`（底座） |
+| 1 | Single Agent | agent/mod.rs `AgentLoop` | 嵌底座 | `send_message`（agent-commands） | 主对话 | agent/tests.rs | 留 `agent/`（底座） |
+| 2 | ReAct | agent/mod.rs `run_react_loop` | 嵌底座 | 同上（主链路） | 主对话 | 同上 | 留 `agent/`（底座） |
 | 3 | Plan-and-Execute | `crates/agent-runtime/src/plan.rs` `PlanNode`+`ExecuteNode` | 单文件 | `orchestrator_run_plan`（Tauri）→ `run_plan_execute`（agent-commands） | `apps/tauri/src/agent/panels/PlanPanel.vue` · `apps/tauri/src/agent/composables/usePlanRust.ts` | plan 相关测试 | `patterns/plan_execute/` |
-| 4 | Reflection | [reflection.rs](../../../crates/agent-patterns/src/orchestrator/reflection.rs) `ReflectionNode` | 单文件 | 同上（refine 开关） | PlanPanel 评审区 | reflection 相关测试 | `patterns/reflective/` |
-| 5 | Self-Refine | [reflection.rs](../../../crates/agent-patterns/src/orchestrator/reflection.rs) `RefineNode` | 与 4 同文件 | 同上（refine 开关） | PlanPanel | 同上 | `patterns/reflective/`（与 4 同目录） |
-| 6 | ToT | [tree_of_thoughts/](../../../crates/agent-patterns/src/tot/mod.rs)（mod/config/node/strategies/error/tests） | 独立目录 ✓ | `run_tot`（agent-commands） | `OrchestratorPanel.vue` mode=tot · `apps/tauri/src/agent/composables/useToTRust.ts` | [tests.rs](../../../crates/agent-patterns/src/tot/tests.rs) | `patterns/tot/`（搬移） |
-| 7 | GoT | [graph_of_thoughts.rs](../../../crates/agent-patterns/src/got/graph_of_thoughts.rs) + [graph_of_thoughts_tests.rs](../../../crates/agent-patterns/src/got/graph_of_thoughts_tests.rs) | 单文件 | `run_got` | OrchestratorPanel mode=got · `apps/tauri/src/agent/composables/useGoTRust.ts` | graph_of_thoughts_tests | `patterns/got/`（升目录） |
+| 4 | Reflection | reflection.rs `ReflectionNode` | 单文件 | 同上（refine 开关） | PlanPanel 评审区 | reflection 相关测试 | `patterns/reflective/` |
+| 5 | Self-Refine | reflection.rs `RefineNode` | 与 4 同文件 | 同上（refine 开关） | PlanPanel | 同上 | `patterns/reflective/`（与 4 同目录） |
+| 6 | ToT | tree_of_thoughts/（mod/config/node/strategies/error/tests） | 独立目录 ✓ | `run_tot`（agent-commands） | `OrchestratorPanel.vue` mode=tot · `apps/tauri/src/agent/composables/useToTRust.ts` | tests.rs | `patterns/tot/`（搬移） |
+| 7 | GoT | graph_of_thoughts.rs + graph_of_thoughts_tests.rs | 单文件 | `run_got` | OrchestratorPanel mode=got · `apps/tauri/src/agent/composables/useGoTRust.ts` | graph_of_thoughts_tests | `patterns/got/`（升目录） |
 | 8 | Multi-Agent | `crates/agent-runtime/src/multi_agent/mod.rs`（mod/types/config/strategies/blackboard/error/tests） | 独立目录 ✓ | `run_multi` | `apps/tauri/src/agent/panels/MultiAgentPanel.vue` · `apps/tauri/src/agent/composables/useMultiAgentRust.ts` | `crates/agent-runtime/src/multi_agent/tests.rs` | `patterns/multi_agent/`（搬移） |
-| 9 | Supervisor | [supervisor.rs](../../../crates/agent-patterns/src/orchestrator/supervisor.rs) + `crates/agent-runtime/src/supervisor_tests.rs` | 单文件 | `run_supervisor` | OrchestratorPanel mode=supervisor · `apps/tauri/src/agent/composables/useSupervisorRust.ts` | supervisor_tests | `patterns/supervisor/`（升目录） |
-| 10 | Router | [router.rs](../../../crates/agent-patterns/src/router/router.rs) + [router_tests.rs](../../../crates/agent-patterns/src/router/router_tests.rs) | 单文件 | `router_*`（`apps/tauri/src-tauri/src/router_commands.rs`，含 `router_route`） | `apps/tauri/src/agent/panels/RouterPanel.vue` · `apps/tauri/src/agent/composables/useRouterRust.ts` | router_tests（16/16） | `patterns/router/`（升目录） |
-| 11 | Tool Use | [tool.rs](../../../crates/agent-kernel/src/tool.rs) `ToolBus` | 底座服务 | 工具调用走主链路 | 工具区 | tool 相关测试 | 留 `tool.rs`（底座） |
-| 12 | Memory | [memory.rs](../../../crates/agent-kernel/src/memory.rs) `MemoryAccessor` | 底座服务 | `memory_*`（agent-commands） | 记忆面板 | memory 相关测试 | 留 `memory.rs`（底座） |
-| 13 | Loop Engineering | [loop_control.rs](../../../crates/agent-kernel/src/loop_control.rs) + [long_task.rs](../../../crates/agent-kernel/src/long_task.rs) | 底座横切 | loop / long_task 命令 | composable 内嵌（useLoopControlRust / useLongTaskRust） | loop_control_tests / long_task_tests | 留 `loop_control.rs` `long_task.rs`（底座） |
+| 9 | Supervisor | supervisor.rs + `crates/agent-runtime/src/supervisor_tests.rs` | 单文件 | `run_supervisor` | OrchestratorPanel mode=supervisor · `apps/tauri/src/agent/composables/useSupervisorRust.ts` | supervisor_tests | `patterns/supervisor/`（升目录） |
+| 10 | Router | router.rs + router_tests.rs | 单文件 | `router_*`（`apps/tauri/src-tauri/src/router_commands.rs`，含 `router_route`） | `apps/tauri/src/agent/panels/RouterPanel.vue` · `apps/tauri/src/agent/composables/useRouterRust.ts` | router_tests（16/16） | `patterns/router/`（升目录） |
+| 11 | Tool Use | tool.rs `ToolBus` | 底座服务 | 工具调用走主链路 | 工具区 | tool 相关测试 | 留 `tool.rs`（底座） |
+| 12 | Memory | memory.rs `MemoryAccessor` | 底座服务 | `memory_*`（agent-commands） | 记忆面板 | memory 相关测试 | 留 `memory.rs`（底座） |
+| 13 | Loop Engineering | loop_control.rs + long_task.rs | 底座横切 | loop / long_task 命令 | composable 内嵌（useLoopControlRust / useLongTaskRust） | loop_control_tests / long_task_tests | 留 `loop_control.rs` `long_task.rs`（底座） |
 
 > 说明：命令入口标注到 Tauri 命令名（`router_*`/`orchestrator_run_plan`）或 agent-commands 服务函数名（`run_tot`/`run_got`/`run_supervisor`/`run_multi`）；Router 模式的运行入口为 `router_route`（会话级开关 `set_session_router_enabled` 仅为启用标记）。
 
@@ -213,9 +213,9 @@
 | 类层 | 说明 | 现状锚点 |
 |------|------|---------|
 | **深度任务层** | 五阶段任务拆解流程，当前嵌在 `agent/mod.rs` 被调用 | `crates/agent-runtime/src/deep_phases.rs` —— **现成示例**：可升为独立"层"（非 13 模式之列）挂到底座 |
-| 治理层 | 权限/确认策略，已在底座 | [confirmation.rs](../../../crates/agent-kernel/src/confirmation.rs) + 安全分级 selector |
-| 知识层 | KB 检索/实体访问（tools 层） | [mcp.rs](../../../crates/agent-kernel/src/mcp.rs) / 工具集 |
-| UI 交互层 | A2UI 页面渲染节点 | [a2ui.rs](../../../crates/agent-kernel/src/a2ui.rs) |
+| 治理层 | 权限/确认策略，已在底座 | confirmation.rs + 安全分级 selector |
+| 知识层 | KB 检索/实体访问（tools 层） | mcp.rs / 工具集 |
+| UI 交互层 | A2UI 页面渲染节点 | a2ui.rs |
 | 技能/插件层 | Skills 解析与注入 | crates/skills-store / plugins |
 
 > 启示：base 只要守住"契约+宿主+资源"，任何一层（编排/深度/治理/知识/UI）都是可插拔扩展——这正是"可扩、可深、可迁"的落点。
@@ -243,4 +243,4 @@
 2. **crate 拆分** —— **已完成（2026-08-25）**：`crates/` 拆为 `agent-kernel`（底座）+ `agent-patterns`（扩展模式）+ `agent-runtime`（聚合壳，转发两子 crate 保持对外 `agent_runtime::xxx` 零改动）；前置抽象 `RouterDecider` trait（agent-kernel/router_decider.rs）消除 kernel→patterns 反向依赖；feature（llm-genai/sqlite）经壳传导。验证：agent-kernel 140 + agent-patterns 100 + agent-commands 86+1 全绿 + tauri check。
 3. **前端收敛** —— **统一适配器已收口（2026-08-25）**：`createOrchestratorRunner` 升级为配置式工厂（新增 `OrchestratorRunHooks.onPrepare` 运行前钩子），覆盖 **ToT/GoT/Supervisor/Plan** 4 模式（usePlanRust 经 onPrepare 挂载评审监听并收敛骨架；busy/error/result/会话校验/error 回显单份）；`useMultiAgentRust`（多会话自治 sessions Map + 实时事件订阅）、`useRouterRust`（router_* 配置/决策语义）、工程类（useLoopControlRust/useLongTaskRust）保留独立——各自语义不同于「run 编排图」骨架，为收敛而收敛属过度工程。OrchestratorPanel 已 mode= 表驱动（ToT/GoT/Supervisor）。「模式→底座/扩展」产品语义层表达与编号口径 UI 展示：延后至有真实 UI 需求时再做。
 4. **验证基准**：以本文档 §3 矩阵为验收，迁移后 `cargo test` 全绿 + 每模式前端实测链路闭合。
-5. **织入点协议化**（2026-08-25 裁定列入）——**已完成（2026-08-25）**：`agent-kernel/src/agent/hooks.rs` 定义 `RunPhase` 位点（BeforeReact/AfterUserMessage/OnToolCall/AfterReact/AfterRun）+ `AgentLoopHook` trait + `AgentLoopHooks` 注册表 + `HookContext` 只读上下文；内置织入（记忆/路由/DeepPhase）组织化为内部方法（`run_recall_memory`/`run_router_decision`/`run_memory_archive`）；`with_hook`/`register_hook` 扩展通道；行为零变化（无钩子时 dispatch 短路），单测 `run_dispatches_hooks_in_order_and_keeps_behavior` 验证。位点清单与契约详见 [agent.md 织入点 Hook 协议](../注释/agent-runtime/agent.md)。此为被否决 Harness 方案（SessionRuntime/ReactNode 抽离）的合理内核降级保留。
+5. **织入点协议化**（2026-08-25 裁定列入）——**已完成（2026-08-25）**：`agent-kernel/src/agent/hooks.rs` 定义 `RunPhase` 位点（BeforeReact/AfterUserMessage/OnToolCall/AfterReact/AfterRun）+ `AgentLoopHook` trait + `AgentLoopHooks` 注册表 + `HookContext` 只读上下文；内置织入（记忆/路由/DeepPhase）组织化为内部方法（`run_recall_memory`/`run_router_decision`/`run_memory_archive`）；`with_hook`/`register_hook` 扩展通道；行为零变化（无钩子时 dispatch 短路），单测 `run_dispatches_hooks_in_order_and_keeps_behavior` 验证。位点清单与契约详见 agent.md 织入点 Hook 协议。此为被否决 Harness 方案（SessionRuntime/ReactNode 抽离）的合理内核降级保留。

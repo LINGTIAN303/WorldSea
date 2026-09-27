@@ -20,7 +20,7 @@
 | 文件 | 内容 |
 |------|------|
 | `crates/agent-runtime/src/plan.rs` | PlanNode（计划生成）+ ExecuteNode（逐步执行） |
-| [crates/agent-runtime/src/reflection.rs](../../crates/agent-patterns/src/orchestrator/reflection.rs) | ReflectionNode（评审）+ RefineNode（自我优化） |
+| crates/agent-runtime/src/reflection.rs | ReflectionNode（评审）+ RefineNode（自我优化） |
 | `apps/tauri/src/agent/composables/usePlanRust.ts` | 前端编排图适配器（invoke + 评审事件监听） |
 | [docs/misc/orchestration-patterns-delivery.md](orchestration-patterns-delivery.md) | 本交付清单 |
 

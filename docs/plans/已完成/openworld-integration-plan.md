@@ -261,7 +261,7 @@ Nginx 部署、Marketplace 仓库同步、工作区多租户）不适用，不�
 **排障 1：API Key 缺失（UpdateModelParams 缺 camelCase）**
 - **现象**：`send_message` 报 `LLM 后端错误: 认证失败: API Key 缺失: provider=deepseek`，即便前端确定已配置 key。
 - **根因**：`crates/agent-commands/src/lib.rs` 的 `UpdateModelParams` **漏了 `#[serde(rename_all = "camelCase")]`**。其字段是 `session_id/model_id/api_key`，而前端 `updateModel` 传 `sessionId/modelId/apiKey`（camelCase）→ Tauri 反序列化失败 `invalid args ... missing field 'session_id'`（此错误被 `ensureModelKey` 捕获静默）。**key 从未注入进 Rust 的 `GenaiBackend`**，发送时后端空 key →「API Key 缺失」。对照：`SendMessageParams` 一直有 camelCase 标注（故 `send_message` 只报 key 缺失而非参错）。
-- **修复**：给 `UpdateModelParams` 补 `#[serde(rename_all = "camelCase")]`（[lib.rs](../../../crates/agent-commands/src/lib.rs)，与 `SendMessageParams` 对齐）。
+- **修复**：给 `UpdateModelParams` 补 `#[serde(rename_all = "camelCase")]`（lib.rs，与 `SendMessageParams` 对齐）。
 - **辅助**：前端 `useAgentRust.ts` 新增 `ensureModelKey()` 幂等兜底——发送（`prompt`）前从 `settingsStore`（`@worldsea/entity-core`）读权威 provider/model（cloud/local/custom 三模式），经 `loadApiKey(provider)` 读 key，`update_model` 注入该会话；`modelKeyInjectedSessions` Set 记忆避免每轮重复。同时在发送失败时把诊断（session/mode/provider/model/key 注入态）拼进错误信息，便于 UI 直接定位。
 - **经验**：Tauri v2 命令嵌套结构体参数必须显式 `serde(rename_all = "camelCase")`，否则前后端契约静默断裂。排查 API 注入类问题，先核对命令参数结构的 serde 声明。
 

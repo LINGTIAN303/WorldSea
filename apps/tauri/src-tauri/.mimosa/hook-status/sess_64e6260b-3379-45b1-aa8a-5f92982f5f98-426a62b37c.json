@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "mimosa-hook-status/v1",
+  "recordedAt": "2026-09-27T08:52:03.457Z",
+  "sessionId": "sess_64e6260b-3379-45b1-aa8a-5f92982f5f98",
+  "event": "PostToolUse",
+  "toolName": "Edit",
+  "file": "Cargo.toml",
+  "outcome": "inconclusive",
+  "coverage": "partial",
+  "findingCount": 0,
+  "durationMs": 24,
+  "hostState": "hook_complete",
+  "reportHint": ".mimosa/reports/"
+}

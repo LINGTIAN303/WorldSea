@@ -1,4 +1,0 @@
-id: creation-orchestrator
-name: 创作编排
-version: 1.0.0
-description: 创作编排面板 — 管理创作 Pipeline，将复杂创作目标拆解为有序步骤并逐步执行。

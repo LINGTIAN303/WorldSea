@@ -98,7 +98,7 @@ else:
 | `AgentState` | `idle / running / completed / error` |
 
 **注意：扁平 step 列表，无轮次概念。** 一次 step = 一次 LLM 调用 + 其引发的工具调用。
-对比 WorldSea 的 `Turn → segments` 三层（见 [turnModel.ts](../../packages/shared-composables/src/agent/turnModel.ts)），粒度粗一档。
+对比 WorldSea 的 `Turn → segments` 三层（见 turnModel.ts），粒度粗一档。
 
 LLM 层模型（`utils/llm_clients/llm_basics.py`）：
 

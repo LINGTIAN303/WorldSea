@@ -1,15 +1,8 @@
 import { defineConfig } from 'vite'
 import { resolve } from 'path'
 
+// 2026-09-27 E8：Agent UI 组件层退场后，shared-ui 仅承载产品级 markdown 模块
 export default defineConfig({
-  resolve: {
-    alias: {
-      '@worldsea/agent-runtime': resolve(__dirname, '../agent-runtime/src/index.ts'),
-      '@worldsea/entity-core': resolve(__dirname, '../entity-core/src/index.ts'),
-      '@worldsea/shared-composables': resolve(__dirname, '../shared-composables/src/index.ts'),
-      '@worldsea/ui-kit': resolve(__dirname, '../ui-kit/src/index.ts'),
-    },
-  },
   build: {
     lib: {
       entry: resolve(__dirname, 'src/index.ts'),
