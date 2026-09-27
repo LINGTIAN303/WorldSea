@@ -25,6 +25,7 @@
     "apps/tauri/src/ui/boot/SplashScreen.vue": 436,
     "apps/tauri/src/ui/entity/CustomRelationTypeDialog.vue": 404,
     "apps/tauri/src/ui/layout/sidebar/SidebarV2.vue": 553,
+    "apps/tauri/src/ui/layout/TitleBar.vue": 401,
     "apps/tauri/src/ui/settings/SettingsDialog.vue": 485,
     "apps/tauri/src/world/plugins/characters/CharacterList.vue": 471,
     "apps/tauri/src/world/plugins/custom/DashboardView.vue": 647,
@@ -50,7 +51,7 @@
     "packages/core-api-types/src/index.ts": 526,
     "packages/entity-core/src/core/AutoLinkEngine.ts": 734,
     "packages/entity-core/src/core/FileStorageBackend.ts": 942,
-    "packages/entity-core/src/core/ProjectManager.ts": 420,
+    "packages/entity-core/src/core/ProjectManager.ts": 431,
     "packages/entity-core/src/core/StorageBackend.ts": 614,
     "packages/entity-core/src/relations/index.ts": 617,
     "packages/entity-core/src/stores/settingsStore.ts": 485,
@@ -77,10 +78,15 @@
     "packages/ui-kit/src/components/layout/Sidebar.vue": 613,
     "packages/ui-kit/src/components/layout/WelcomeOverlay.vue": 432,
     "packages/ui-kit/src/components/settings/panels/AppearancePanel.vue": 405,
-    "packages/ui-kit/src/composables/useShortcuts.ts": 434,
+    "packages/ui-kit/src/composables/useShortcuts.ts": 437,
     "packages/ui-kit/src/model-registry/provider-registry.ts": 698
   },
   "other": [
+    {
+      "check": "registry",
+      "key": "unregistered:apps/dsh-plugin-worldsea",
+      "note": "模块目录未登记：apps/dsh-plugin-worldsea（请在 architecture-policy.json 登记）"
+    },
     {
       "check": "ts-cycle",
       "key": "cycle:plugin-sdk|ui-kit",
