@@ -85,7 +85,6 @@ describe('真实清单（轻校验：不拉起重图）', () => {
   it('装载器能扫到树内每个插件的 index.ts（glob 键发现）', () => {
     const has = (id: string) => indexFiles.some(file => file.includes(`/${id}/index.ts`))
     expect(has('mindmap')).toBe(true)
-    expect(has('spike-panel')).toBe(true)
     // C2 Stage①：10 个轻芽已迁入
     for (const id of ['timeline', 'organizations', 'culture', 'conflict', 'inspiration', 'apparel', 'outline', 'manuscript', 'drawing', 'notebook']) {
       expect(has(id), `${id} 应在树内`).toBe(true)
@@ -108,15 +107,11 @@ describe('真实清单（轻校验：不拉起重图）', () => {
     expect(accepted.map(p => p.manifest.id)).toEqual(['official.alpha', 'official.beta'])
   })
 
-  it('真清单全部通过校验与依赖预检（含 mindmap 与示例插件）', async () => {
+  it('真清单全部通过校验与依赖预检', async () => {
     const { MINDMAP_MANIFEST } = await import('../plugins/mindmap/manifest')
-    const { SPIKE_PANEL_MANIFEST } = await import('../plugins/spike-panel/manifest')
-    const candidates = [
-      { file: 'plugins/mindmap/manifest.ts', plugin: { manifest: MINDMAP_MANIFEST, apply: () => {} } },
-      { file: 'plugins/spike-panel/manifest.ts', plugin: { manifest: SPIKE_PANEL_MANIFEST, apply: () => {} } },
-    ]
+    const candidates = [{ file: 'plugins/mindmap/manifest.ts', plugin: { manifest: MINDMAP_MANIFEST, apply: () => {} } }]
     const { accepted, report } = assemblePlugins(candidates, services)
     expect(report.rejected).toEqual([])
-    expect(accepted.map(p => p.manifest.id).sort()).toEqual(['official.mindmap', 'ws.spike.panel'])
+    expect(accepted.map(p => p.manifest.id)).toEqual(['official.mindmap'])
   })
 })
