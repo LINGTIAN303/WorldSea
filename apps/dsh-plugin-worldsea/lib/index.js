@@ -88,7 +88,14 @@ function readJsonDir(dir) {
 
 /** 按 id 在实体/关系目录中定位文件（读内容比对 id——文件名不作寻址依据）。 */
 function findFileById(dir, id) {
-  return readJsonDir(dir).find((entry) => entry.value?.id === id) ?? null;
+  for (const entry of readJsonDir(dir)) {
+    if (entry.value?.id === id) return entry;
+  }
+  for (const sub of readdirSafe(dir)) {
+    const hit = findFileById(sub, id);
+    if (hit) return hit;
+  }
+  return null;
 }
 
 //#endregion
@@ -159,6 +166,21 @@ const looseOutput = {
   render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
 };
 
+/** 清单类输出 schema：**output 校验强制 value 为 object**（数组 root 违规——
+ *  2026-09-28 会话实测 `returned invalid output: "value" must be an object`），
+ *  故清单统一包 `{ items: [...] }` 返回。 */
+const listOutput = {
+  schema: {
+    type: 'object',
+    properties: { items: { type: 'array' } },
+    required: ['items'],
+  },
+  render: (_args, value) => [{ type: 'text', text: JSON.stringify(value.items ?? value, null, 2) }],
+};
+
+/** 清单包对象（对应 listOutput）。 */
+const asItems = (items) => ({ items });
+
 /** 必填非空字符串参数自查。 */
 function requireString(value, field) {
   if (typeof value !== 'string' || !value.trim()) throw new Error(`WORLDSEA_BAD_ARGS: ${field} 必填（非空字符串）`);
@@ -170,9 +192,9 @@ const tools = [
     name: 'world_project_list',
     description: '列出 WorldSea 的项目（项目 = dsh 工作区目录，同源模型）：id / 名称 / 目录 path。当前项目的数据宇宙 = 会话 cwd。',
     parameters: { type: 'object', properties: {}, required: [] },
-    output: looseOutput,
+    output: listOutput,
     async execute(_args, exec) {
-      return readDshWorkspaces(exec?.pluginConfig ?? {});
+      return asItems(readDshWorkspaces(exec?.pluginConfig ?? {}));
     },
   },
   {
@@ -193,13 +215,13 @@ const tools = [
   },
   {
     name: 'world_entity_list',
-    description: '列出 WorldSea 创作数据里的实体（瘦身：id/type/name）。字段详情用 world_entity_get。',
+    description: '列出 WorldSea 创作数据里的实体（瘦身：id/type/name，返回 {items:[...]}）。字段详情用 world_entity_get。',
     parameters: {
       type: 'object',
       properties: { type: { type: 'string', description: '按实体类型过滤（typeKey）；省略 = 全部' } },
       required: [],
     },
-    output: looseOutput,
+    output: listOutput,
     async execute(args, exec) {
       const wd = worlddataDir(exec, exec?.pluginConfig ?? {});
       const type = args?.type ? requireString(args.type, 'type') : null;
@@ -210,7 +232,7 @@ const tools = [
           if (entry.value?.id && entry.value?.type) out.push({ id: entry.value.id, type: entry.value.type, name: entry.value.name });
         }
       }
-      return out;
+      return asItems(out);
     },
   },
   {
@@ -351,9 +373,10 @@ export function apply(ctx, config = {}) {
       name: 'tool:worldsea',
       order: 900, // 工具段之后的追加位（数字直接给——自定义段名不在预声明排序表内）
       text: () =>
-        'WorldSea 创作数据可直接读写：world_entity_list / world_entity_get 看现有实体；' +
+        'WorldSea 创作数据可直接读写：world_entity_list（返回 {items:[...]}) / world_entity_get 看现有实体；' +
         '组装新实体前先 world_schema_get 拿该类型的字段与必填；写类操作（put/update/delete）完成后工作台界面会自动刷新。' +
-        '项目清单用 world_project_list（项目 = dsh 工作区目录）；你的会话工作区（cwd）就是当前项目的宇宙根，创作数据在其 worlddata/ 子目录。',
+        '项目清单用 world_project_list（项目 = dsh 工作区目录）；你的会话工作区（cwd）就是当前项目的宇宙根，创作数据在其 worlddata/ 子目录。' +
+        '★ schema 快照由工作台启动时导出——若 world_schema_get 报 WORLDSEA_NO_SCHEMA_SNAPSHOT，请用户先打开一次工作台（切到工作台窗即可）再重试。',
     });
   } catch (error) {
     console.warn('[worldsea-plugin] systemPrompt 段注册失败（工具不受影响）：', error);

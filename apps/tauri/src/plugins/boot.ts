@@ -54,7 +54,9 @@ async function exportSchemaSnapshot(): Promise<void> {
         required: schema.fields.filter(field => field.required).map(field => field.key),
       }]),
     )
-    const path = `${fsb.projectDir.replace(/\\/g, '/')}/worlddata/.worldsea/schema-snapshot.json`
+    // ★ projectDir 已是实体根（<工作区>/worlddata，entityDirOf 口径）——快照直接落其
+    //   `.worldsea/` 子目录（watcher 忽略）；此前误再拼一层 worlddata 造成双重嵌套。
+    const path = `${fsb.projectDir.replace(/\\/g, '/')}/.worldsea/schema-snapshot.json`
     await invoke('cmd_fs_write', {
       path,
       content: JSON.stringify({ generatedAt: new Date().toISOString(), types }, null, 2),
