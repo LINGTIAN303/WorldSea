@@ -82,6 +82,14 @@ export function useSystemBridge() {
       void syncRecentProjects()
     })
     void syncRecentProjects()
+
+    // E9（2026-09-27）：页面就绪信号 → 壳补投积压的托盘动作（工作台窗懒创建期间点托盘
+    // 不再丢事件；此时上方三条 listen 已挂好，补投必达）。旧壳无此命令时降级忽略。
+    try {
+      await invoke('cmd_tray_page_ready')
+    } catch {
+      /* 非壳环境或旧壳：积压补投是壳侧能力，非本桥硬依赖 */
+    }
   }
 
   return {

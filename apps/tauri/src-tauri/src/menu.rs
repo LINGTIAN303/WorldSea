@@ -5,8 +5,10 @@
 // - 视图族走壳侧窗口/缩放原语（`set_zoom` 无 getter，故壳自持档位）；
 // - 「打开设置」没有 URL 路由可用（dsh 客户端无路由），经壳桥在页面里点开侧栏设置入口；
 //   桥缺席时**显式降级**：页面右下角出示红条提示（不静默），见 SETTINGS_FALLBACK_JS。
-
-use std::sync::atomic::{AtomicI32, Ordering};
+// E9（2026-09-27）：#6 动作目标改**焦点窗优先**（产品窗聚焦时 Ctrl+R 刷的是工作台窗，不再恒打 main；
+//   「打开设置」例外——设置唯一承接方在 dsh 侧，恒 main）· #7 缩放档位按窗口持久化到 prefs.json
+//   （app_prefs::load_zoom/save_zoom；主窗启动与工作台窗创建时经 restore_zoom 恢复）·
+//   #9 通知自检项（系统通知端到端验证；生产者语义留 D2）。
 
 use tauri::menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder};
 use tauri::{AppHandle, Manager};
@@ -19,12 +21,13 @@ const ID_FULLSCREEN: &str = "worldsea.fullscreen";
 const ID_SETTINGS: &str = "worldsea.settings";
 /// C4-b：一键修复工作区权限（与页面横幅同一命令；点击即执行，结果走系统通知）。
 const ID_FIX_WORKSPACE: &str = "worldsea.fix-workspace";
+/// E9 #9：通知自检——系统通知端到端验证（两窗 ACL 均放行 cmd_notify 但长期零生产者；
+/// 菜单给一个随时可触发的验证口，生产者语义〔Agent 长任务提醒〕留 D2 事件通道）。
+const ID_NOTIFY_TEST: &str = "worldsea.notify-test";
 
 const ZOOM_MIN_INDEX: i32 = 5; // 0.5
 const ZOOM_MAX_INDEX: i32 = 20; // 2.0
 const ZOOM_STEP: f64 = 0.1;
-/// 缩放档位（×10）。壳侧自持：Tauri 只有 `set_zoom`，没有读取当前缩放的通道。
-static ZOOM_INDEX: AtomicI32 = AtomicI32::new(10);
 
 /// 组装菜单并登记为 **popup 资源**。
 /// C6（2026-09-24）：无边框形态下 Win32 菜单栏**视觉消失**（实测，见 C6 批计划 §〇）——
@@ -87,13 +90,21 @@ fn build(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
     let settings = SubmenuBuilder::new(app, "设置")
         .item(&MenuItemBuilder::with_id(ID_SETTINGS, "打开设置").accelerator("CmdOrCtrl+,").build(app)?)
         .separator()
+        .item(&MenuItemBuilder::with_id(ID_NOTIFY_TEST, "通知自检（测试系统通知）").build(app)?)
         .item(&MenuItemBuilder::with_id(ID_FIX_WORKSPACE, "修复工作区权限（授当前用户完全控制）").build(app)?)
         .build()?;
     MenuBuilder::new(app).items(&[&file, &edit, &view, &settings]).build()
 }
 
 fn handle(app: &AppHandle, id: &str) {
-    let Some(window) = app.get_webview_window("main") else { return };
+    // E9 #6：「打开设置」恒打 main（设置唯一承接方在 dsh 侧）；其余动作**焦点窗优先**——
+    // 产品窗聚焦时 Ctrl+R/Ctrl+= 作用于工作台窗，不再恒打 dsh 窗。无焦点窗回落 main。
+    let window = if id == ID_SETTINGS {
+        app.get_webview_window("main")
+    } else {
+        target_window(app)
+    };
+    let Some(window) = window else { return };
     match id {
         ID_RELOAD => {
             if let Err(e) = window.reload() {
@@ -101,14 +112,19 @@ fn handle(app: &AppHandle, id: &str) {
             }
         }
         ID_ZOOM_IN | ID_ZOOM_OUT | ID_ZOOM_RESET => {
+            let label = window.label().to_string();
+            let current = crate::app_prefs::load_zoom(app, &label).unwrap_or(10);
             let next = match id {
-                ID_ZOOM_IN => (ZOOM_INDEX.load(Ordering::Relaxed) + 1).min(ZOOM_MAX_INDEX),
-                ID_ZOOM_OUT => (ZOOM_INDEX.load(Ordering::Relaxed) - 1).max(ZOOM_MIN_INDEX),
+                ID_ZOOM_IN => (current + 1).min(ZOOM_MAX_INDEX),
+                ID_ZOOM_OUT => (current - 1).max(ZOOM_MIN_INDEX),
                 _ => 10,
             };
-            ZOOM_INDEX.store(next, Ordering::Relaxed);
             if let Err(e) = window.set_zoom(f64::from(next) * ZOOM_STEP) {
                 eprintln!("[DSH-SHELL] 菜单：缩放失败：{e}");
+            } else if let Err(e) = crate::app_prefs::save_zoom(app, &label, next) {
+                eprintln!("[DSH-SHELL] 菜单：缩放档位保存失败（{label}={next}）：{e}");
+            } else {
+                println!("[DSH-SHELL] 菜单：缩放 {label} → {}%", next * 10);
             }
         }
         ID_FULLSCREEN => {
@@ -120,6 +136,19 @@ fn handle(app: &AppHandle, id: &str) {
         ID_SETTINGS => {
             if let Err(e) = window.eval(OPEN_SETTINGS_JS) {
                 eprintln!("[DSH-SHELL] 菜单：打开设置失败：{e}");
+            }
+        }
+        ID_NOTIFY_TEST => {
+            use tauri_plugin_notification::NotificationExt;
+            let result = app
+                .notification()
+                .builder()
+                .title("WorldSea 通知自检")
+                .body("系统通知链路正常——Agent 长任务完成提醒将经由本通道（生产者接续见 D2）。")
+                .show();
+            match result {
+                Ok(()) => println!("[DSH-SHELL] 菜单：通知自检已发送（E9 #9 链路验证）"),
+                Err(e) => eprintln!("[DSH-SHELL] 菜单：通知自检失败：{e}"),
             }
         }
         ID_FIX_WORKSPACE => {
@@ -137,6 +166,29 @@ fn handle(app: &AppHandle, id: &str) {
             }
         }
         _ => {}
+    }
+}
+
+/// 动作目标窗（E9 #6）：**焦点窗优先**，无焦点窗回落 main。
+fn target_window(app: &AppHandle) -> Option<tauri::WebviewWindow> {
+    app.webview_windows()
+        .into_iter()
+        .find(|(_, window)| window.is_focused().unwrap_or(false))
+        .map(|(_, window)| window)
+        .or_else(|| app.get_webview_window("main"))
+}
+
+/// 恢复窗口的缩放档位（prefs.json `zoom.<label>`；缺省/100% 不动）。
+/// 主窗启动（lib.rs setup）与工作台窗创建（workspace_window::create）各调一次。
+pub fn restore_zoom(window: &tauri::WebviewWindow) {
+    let Some(index) = crate::app_prefs::load_zoom(&window.app_handle(), window.label()) else { return };
+    if index == 10 {
+        return;
+    }
+    if let Err(e) = window.set_zoom(f64::from(index) * ZOOM_STEP) {
+        eprintln!("[DSH-SHELL] 菜单：缩放档位恢复失败（{}={index}）：{e}", window.label());
+    } else {
+        println!("[DSH-SHELL] 菜单：缩放档位恢复 {} → {}%（窗口 {}）", index, index * 10, window.label());
     }
 }
 

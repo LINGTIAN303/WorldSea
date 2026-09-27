@@ -202,6 +202,8 @@ fn create(app: &tauri::AppHandle) -> Result<WebviewWindow, String> {
         .map_err(|e| format!("创建工作台窗口失败：{e}"))?;
     #[cfg(windows)]
     crate::nav_fence::install(&workspace);
+    // E9 #7：恢复该窗的缩放档位（prefs.json `zoom.workspace`；缺省 100% 不动）
+    crate::menu::restore_zoom(&workspace);
     println!("[DSH-SHELL] workspace: 窗口已创建（label={LABEL}，页面={}）", page_url());
     Ok(workspace)
 }

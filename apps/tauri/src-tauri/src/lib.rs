@@ -214,6 +214,7 @@ pub fn run() {
             entity_commands::cmd_delete_file,
             entity_commands::cmd_get_file_content,
             // 系统层集成：托盘状态同步 / 系统通知 / 开机自启
+            tray::cmd_tray_page_ready,
             tray::cmd_tray_set_recent_projects,
             system::cmd_notify,
             system::cmd_autostart_is_enabled,
@@ -255,6 +256,16 @@ pub fn run() {
             // 使应用「打开即不可见」；主窗就位后校验一次，不可用则复位默认并居中。
             if let Some(window) = app.get_webview_window("main") {
                 workspace_window::sanitize_restored_geometry(&window);
+                // E9 #7：恢复主窗缩放档位（prefs.json `zoom.main`；缺省 100% 不动）
+                menu::restore_zoom(&window);
+                // E9 #11（P3 拍板 2026-09-27）：主窗配置 `visible:false`，启动可见性在此裁决——
+                // 正常启动显示 + 聚焦；开机自启（`--autostart`）→ 托盘常驻不弹窗（点托盘/快捷键唤起）。
+                if std::env::args().any(|arg| arg == "--autostart") {
+                    println!("[DSH-SHELL] 启动形态：开机自启 → 托盘常驻（不自动显示窗口）");
+                } else {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
             }
 
             // ── B2 壳接入（2026-09-23）＋ C1-a 协议桥（2026-09-24）──────────────

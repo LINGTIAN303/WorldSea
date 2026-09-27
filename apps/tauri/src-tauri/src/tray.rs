@@ -1,24 +1,41 @@
 //! 系统托盘（批次97 基础版 + 系统层集成扩展）：
-//! - 菜单：显示主窗口 / 新建项目 / 最近项目(子菜单) / 打开设置 / 退出
+//! - 菜单：显示主窗口 / 打开项目文件夹 / 最近项目(子菜单) / 打开设置 / 退出
 //! - 动态状态：最近项目列表（前端 `cmd_tray_set_recent_projects` 同步）
 //! - 菜单动作 → emit 事件（tray:open-settings / tray:new-project /
 //!   tray:open-project {id}），由前端监听分发到对应面板/项目切换
 //! （2026-09-27 E8：旧 Agent 面退场，移除「打开 Agent 对话」项与 Agent 生成状态链）
+//! （2026-09-27 E9 #1/#2/#5：功能菜单项收口——先**切到工作台窗**（懒创建 + 显示 + 聚焦）再派发，
+//!   修复「没开过工作台时点托盘无反应」（监听方只在懒建的工作台窗）与「打开设置」错窗；
+//!   页面未就绪（窗刚懒建、React 还在加载）时动作入积压队列，`cmd_tray_page_ready` 时补投，
+//!   事件不再静默丢弃。「新建项目」按 P1 拍板改标签「打开项目文件夹」（动作实为打开文件夹选择器））
 
 use serde::Deserialize;
 use std::sync::Mutex;
 
+// 口径与 workspace_window/menu 一致：**Wry 固定（非泛型）**——托盘动作要调 workspace_window 的
+// 懒创建链（非泛型签名），泛型 Runtime 参数在此无实际多态价值（build_tray 仅被 Wry 调用）。
 use tauri::{
     menu::{IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu},
     tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Emitter, Manager, Runtime,
+    AppHandle, Emitter, Manager, Wry,
 };
+
+/// 托盘动作积压条目（工作台页面未就绪时 emit 会丢——页面 setup 经 [`cmd_tray_page_ready`] 触发补投）。
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct PendingAction {
+    pub event: String,
+    pub payload: Option<String>,
+}
 
 /// 托盘动态状态（由前端命令回写）
 #[derive(Debug, Clone, Default)]
 pub struct TrayState {
     /// 最近项目（前端 ProjectManager 列表）
     pub projects: Vec<ProjectItem>,
+    /// 页面就绪前积压的工作台动作（上限 32，防御洪泛）
+    pub pending: Vec<PendingAction>,
+    /// 工作台页面已就绪（`useSystemBridge.setup` → `cmd_tray_page_ready`；监听器常驻，窗隐显不重置）
+    pub page_ready: bool,
 }
 
 /// 托盘「最近项目」条目载荷（前端 JSON 直接反序列化）
@@ -29,12 +46,13 @@ pub struct ProjectItem {
 }
 
 /// 重建完整托盘菜单（菜单是原子的：任何状态变化都整份重建）
-fn build_menu<R: Runtime>(app: &AppHandle<R>, state: &TrayState) -> tauri::Result<Menu<R>> {
+fn build_menu(app: &AppHandle, state: &TrayState) -> tauri::Result<Menu<Wry>> {
     let show = MenuItem::with_id(app, "show", "显示主窗口", true, None::<&str>)?;
-    let new_project = MenuItem::with_id(app, "new-project", "新建项目", true, None::<&str>)?;
+    // E9 P1（2026-09-27 拍板）：动作实为「打开项目文件夹选择器」——标签改为语义诚实（id 不变，前端监听不动）
+    let new_project = MenuItem::with_id(app, "new-project", "打开项目文件夹", true, None::<&str>)?;
 
     // 最近项目子菜单：空列表时展示禁用占位项
-    let recent_items: Vec<MenuItem<R>> = if state.projects.is_empty() {
+    let recent_items: Vec<MenuItem<Wry>> = if state.projects.is_empty() {
         vec![MenuItem::with_id(
             app,
             "recent-none",
@@ -57,8 +75,8 @@ fn build_menu<R: Runtime>(app: &AppHandle<R>, state: &TrayState) -> tauri::Resul
             })
             .collect::<tauri::Result<Vec<_>>>()?
     };
-    let recent_refs: Vec<&dyn IsMenuItem<R>> =
-        recent_items.iter().map(|m| m as &dyn IsMenuItem<R>).collect();
+    let recent_refs: Vec<&dyn IsMenuItem<Wry>> =
+        recent_items.iter().map(|m| m as &dyn IsMenuItem<Wry>).collect();
     let recent = Submenu::with_items(app, "最近项目", true, &recent_refs)?;
 
     let open_settings = MenuItem::with_id(app, "open-settings", "打开设置", true, None::<&str>)?;
@@ -82,13 +100,13 @@ fn build_menu<R: Runtime>(app: &AppHandle<R>, state: &TrayState) -> tauri::Resul
 }
 
 /// 构建托盘图标与初始菜单（失败不阻塞启动，由调用方降级）
-pub fn build_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<TrayIcon<R>> {
+pub fn build_tray(app: &AppHandle) -> tauri::Result<TrayIcon> {
     let menu = build_menu(app, &app.state::<Mutex<TrayState>>().lock().unwrap())?;
     let icon = app
         .default_window_icon()
         .cloned()
         .expect("窗口默认图标缺失");
-    TrayIconBuilder::<R>::with_id("main")
+    TrayIconBuilder::with_id("main")
         .icon(icon)
         .tooltip("WorldSea — 世界观构建工具")
         .menu(&menu)
@@ -106,24 +124,68 @@ pub fn build_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<TrayIcon<R>> 
         })
         .on_menu_event(|app, event| match event.id.as_ref() {
             "show" => show_main_window(app),
-            // 功能菜单项：先显示主窗口再 emit（窗口在托盘隐藏时也能看到动作结果）
-            "new-project" => {
-                show_main_window(app);
-                let _ = app.emit("tray:new-project", ());
-            }
-            "open-settings" => {
-                show_main_window(app);
-                let _ = app.emit("tray:open-settings", ());
-            }
+            // E9：功能菜单项的监听方在工作台窗 → 先切到工作台（懒创建 + 显示 + 聚焦）再派发
+            "new-project" => dispatch_workbench(app, "tray:new-project", None),
+            "open-settings" => dispatch_workbench(app, "tray:open-settings", None),
             "quit" => app.exit(0),
             id if id.starts_with("recent-project:") => {
-                show_main_window(app);
                 let project_id = id.trim_start_matches("recent-project:").to_string();
-                let _ = app.emit("tray:open-project", project_id);
+                dispatch_workbench(app, "tray:open-project", Some(project_id));
             }
             _ => {}
         })
         .build(app)
+}
+
+/// 托盘动作 → 工作台窗（E9 #1/#2 收口）：
+/// ① 先切到工作台窗（懒创建 + 显示 + 聚焦——用户点了托盘就要看到结果，且监听方在此窗）；
+/// ② 页面已就绪 → 直接 emit；未就绪（窗刚懒建，页面还在加载）→ 入积压队列，
+///    页面 setup 调 [`cmd_tray_page_ready`] 时补投。
+/// 切窗失败（主窗不存在等）只记日志——托盘动作不做放大性重试。
+fn dispatch_workbench(app: &AppHandle, event: &str, payload: Option<String>) {
+    if let Err(e) = crate::workspace_window::switch_to_workbench(app) {
+        eprintln!("[WORLDSEA-TRAY] 切到工作台失败（{event}）：{e}");
+        return;
+    }
+    let tray_state = app.state::<Mutex<TrayState>>();
+    let mut state = tray_state.lock().unwrap();
+    if state.page_ready {
+        drop(state);
+        if let Err(e) = app.emit(event, payload) {
+            eprintln!("[WORLDSEA-TRAY] 事件派发失败（{event}）：{e}");
+        }
+        println!("[WORLDSEA-TRAY] 动作派发：{event}（页面就绪，直发）");
+        return;
+    }
+    if state.pending.len() < 32 {
+        println!("[WORLDSEA-TRAY] 动作积压：{event}（页面未就绪，待补投）");
+        state.pending.push(PendingAction { event: event.to_string(), payload });
+    } else {
+        eprintln!("[WORLDSEA-TRAY] 动作积压超限，丢弃（{event}）");
+    }
+}
+
+/// 工作台页面就绪信号（`useSystemBridge.setup` 调用；其时三条 `listen` 已挂好）：
+/// 置就绪态 + 补投积压动作。就绪态持久（监听器常驻，窗口隐/显不重置）。
+#[tauri::command]
+pub fn cmd_tray_page_ready(app: AppHandle) {
+    let backlog: Vec<PendingAction>;
+    {
+        let tray_state = app.state::<Mutex<TrayState>>();
+        let mut state = tray_state.lock().unwrap();
+        state.page_ready = true;
+        backlog = std::mem::take(&mut state.pending);
+    }
+    if backlog.is_empty() {
+        return;
+    }
+    println!("[WORLDSEA-TRAY] 页面就绪，补投积压动作 {} 条", backlog.len());
+    for action in backlog {
+        let payload = action.payload;
+        if let Err(e) = app.emit(&action.event, payload) {
+            eprintln!("[WORLDSEA-TRAY] 补投失败（{}）：{e}", action.event);
+        }
+    }
 }
 
 /// 前端同步：最近项目列表（项目初始化/切换/删除后调用）
@@ -155,7 +217,7 @@ fn rebuild_tray_menu(app: &AppHandle) {
 }
 
 /// 显示并聚焦主窗口（托盘/快捷键/单实例共用）
-pub fn show_main_window<R: Runtime>(app: &AppHandle<R>) {
+pub fn show_main_window(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         w.show().ok();
         w.unminimize().ok();
@@ -164,7 +226,7 @@ pub fn show_main_window<R: Runtime>(app: &AppHandle<R>) {
 }
 
 /// 唤起/隐藏主窗口（全局快捷键切换）
-pub fn toggle_main_window<R: Runtime>(app: &AppHandle<R>) {
+pub fn toggle_main_window(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         if w.is_visible().unwrap_or(false) {
             let _ = w.hide();

@@ -101,10 +101,7 @@ fn prefs_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
 
 /// 读真源（缺失/损坏/越界 → `None`，由调用方决定种子）。
 pub fn load(app: &tauri::AppHandle) -> Option<String> {
-    let path = prefs_path(app).ok()?;
-    let text = std::fs::read_to_string(path).ok()?;
-    let value: serde_json::Value = serde_json::from_str(&text).ok()?;
-    let theme = value.get("theme")?.as_str()?.to_string();
+    let theme = read_prefs(app).get("theme")?.as_str()?.to_string();
     if valid(&theme) {
         Some(theme)
     } else {
@@ -112,21 +109,58 @@ pub fn load(app: &tauri::AppHandle) -> Option<String> {
     }
 }
 
-/// 写真源（目录不存在则创建）。
+/// 写真源（保留文件内其它字段——E9 起prefs.json 不再只有 theme；目录不存在则创建）。
 pub fn save(app: &tauri::AppHandle, value: &str) -> Result<(), String> {
     if !valid(value) {
         return Err(format!("未知主题值 {value}（可用：light / dark / system）"));
     }
+    let mut body = read_prefs(app);
+    body["theme"] = serde_json::json!(value);
+    write_prefs(app, &body)?;
+    set_preference_now(value);
+    Ok(())
+}
+
+/// 读整个 prefs.json（缺失/损坏 → 空 JSON，由调用方决定兜底）。
+fn read_prefs(app: &tauri::AppHandle) -> serde_json::Value {
+    let Some(path) = prefs_path(app).ok() else { return serde_json::json!({}) };
+    std::fs::read_to_string(path)
+        .ok()
+        .and_then(|text| serde_json::from_str(&text).ok())
+        .unwrap_or_else(|| serde_json::json!({}))
+}
+
+/// 写整个 prefs.json（目录不存在则创建）。
+fn write_prefs(app: &tauri::AppHandle, value: &serde_json::Value) -> Result<(), String> {
     let path = prefs_path(app)?;
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir).map_err(|e| format!("创建配置目录失败：{e}"))?;
     }
-    let body = serde_json::json!({ "theme": value });
-    std::fs::write(&path, serde_json::to_string_pretty(&body).unwrap_or_default())
-        .map_err(|e| format!("写入 {path:?} 失败：{e}"))?;
-    set_preference_now(value);
-    Ok(())
+    std::fs::write(&path, serde_json::to_string_pretty(value).unwrap_or_default())
+        .map_err(|e| format!("写入 {path:?} 失败：{e}"))
 }
+
+/// 缩放档位按窗口持久化（E9 #7，2026-09-27）：`prefs.json` 的 `zoom.<窗口label>`。
+/// 口径与 menu.rs 一致：值 = ×10 档位（5..=20，步进 0.1）；Tauri 只有 `set_zoom` 无 getter，
+/// 故「菜单改档位写档位、窗口创建/启动读档位恢复」。
+pub fn load_zoom(app: &tauri::AppHandle, label: &str) -> Option<i32> {
+    let index = read_prefs(app).get("zoom")?.get(label)?.as_i64()?;
+    (ZOOM_MIN..=ZOOM_MAX).contains(&index).then(|| index as i32)
+}
+
+pub fn save_zoom(app: &tauri::AppHandle, label: &str, index: i32) -> Result<(), String> {
+    let index = i64::from(index);
+    if !(ZOOM_MIN..=ZOOM_MAX).contains(&index) {
+        return Err(format!("缩放档位越界：{index}（可用 {ZOOM_MIN}..={ZOOM_MAX}）"));
+    }
+    let mut body = read_prefs(app);
+    body["zoom"][label] = serde_json::json!(index);
+    write_prefs(app, &body)
+}
+
+/// 缩放档位边界（与 menu.rs 的 ZOOM_MIN_INDEX/ZOOM_MAX_INDEX 同值；常量跨模块共享用函数化避免 pub 漂移）。
+const ZOOM_MIN: i64 = 5;
+const ZOOM_MAX: i64 = 20;
 
 /// 启动期：读真源 + 解析系统深浅 → 刷新 [`dark_now`]（早于任何错误页渲染）。
 pub fn bootstrap(app: &tauri::AppHandle) {
