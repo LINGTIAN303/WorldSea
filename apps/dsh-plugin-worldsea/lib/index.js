@@ -145,6 +145,23 @@ const entitiesDir = (wd) => `${wd}/entities`;
 /** 单类型实体目录。 */
 const entitiesTypeDir = (wd, type) => `${entitiesDir(wd)}/${type}`;
 
+/** 关系真相源 = `relations/_index.json`（全量清单，FileStorageBackend.loadRelations 同源）。 */
+const relationsIndexPath = (wd) => `${wd}/relations/_index.json`;
+/** 读全量关系（缺失 → 空数组）。 */
+function readRelations(wd) {
+  const list = readJson(relationsIndexPath(wd));
+  return Array.isArray(list) ? list : [];
+}
+/** 写全量关系（工作台 watcher 对 _index.json 判 relationsChanged → 缓存失效重载）。 */
+function writeRelations(wd, list) {
+  writeJson(relationsIndexPath(wd), list);
+}
+
+/** 路径归一化（workspace 匹配用）：统一分隔符/去尾/小写（Windows 不敏感）。 */
+function normalizePath(p) {
+  return String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+}
+
 /** 写实体（工作台同规则：entities/<type>/<名>_<id>.json；id 由调用方提供或此处生成）。 */
 function putEntityFile(wd, entity) {
   const dir = entitiesTypeDir(wd, entity.type);
@@ -198,6 +215,19 @@ const tools = [
     },
   },
   {
+    name: 'world_project_current',
+    description: '当前项目：会话工作区（cwd）对齐到的 dsh 工作区（id/title/path）；cwd 不在任何工作区时 id 为 null。',
+    parameters: { type: 'object', properties: {}, required: [] },
+    output: looseOutput,
+    async execute(_args, exec) {
+      const cwd = sessionCwd(exec);
+      if (!cwd) throw new Error('WORLDSEA_NO_SESSION: 本工具需要会话工作区上下文（cwd）');
+      const norm = normalizePath(cwd);
+      const hit = readDshWorkspaces(exec?.pluginConfig ?? {}).find((w) => normalizePath(w.path) === norm);
+      return hit ? { id: hit.id, title: hit.title, path: hit.path } : { id: null, title: null, path: cwd };
+    },
+  },
+  {
     name: 'world_schema_get',
     description: '读 WorldSea 实体类型的字段 schema（typeKey/label/必填字段）。组装实体数据前先取它；type 省略 = 全部类型。',
     parameters: {
@@ -230,6 +260,35 @@ const tools = [
       for (const dir of dirs) {
         for (const entry of readJsonDir(dir)) {
           if (entry.value?.id && entry.value?.type) out.push({ id: entry.value.id, type: entry.value.type, name: entry.value.name });
+        }
+      }
+      return asItems(out);
+    },
+  },
+  {
+    name: 'world_entity_search',
+    description: '按关键词搜 WorldSea 实体（匹配 name 与 description，大小写不敏感；返回 {items:[...]} 瘦身）。不确定类型/名称时先用它定位。',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: '关键词（名称/描述模糊匹配）' },
+        type: { type: 'string', description: '限定实体类型（typeKey）；省略 = 全部' },
+      },
+      required: ['query'],
+    },
+    output: listOutput,
+    async execute(args, exec) {
+      const wd = worlddataDir(exec, exec?.pluginConfig ?? {});
+      const query = requireString(args?.query, 'query').toLowerCase();
+      const type = args?.type ? requireString(args.type, 'type') : null;
+      const dirs = type ? [entitiesTypeDir(wd, type)] : readdirSafe(entitiesDir(wd));
+      const out = [];
+      for (const dir of dirs) {
+        for (const entry of readJsonDir(dir)) {
+          const v = entry.value;
+          if (!v?.id || !v?.type) continue;
+          const haystack = `${v.name ?? ''}\n${v.description ?? ''}`.toLowerCase();
+          if (haystack.includes(query)) out.push({ id: v.id, type: v.type, name: v.name });
         }
       }
       return asItems(out);
@@ -319,7 +378,7 @@ const tools = [
   },
   {
     name: 'world_entity_delete',
-    description: '按 id 删除 WorldSea 实体（不可恢复，谨慎）。',
+    description: '按 id 删除 WorldSea 实体（不可恢复，谨慎）。同时清理指向/来自该实体的关系（对齐工作台原子删除语义）。',
     parameters: {
       type: 'object',
       properties: { id: { type: 'string', description: '实体 id' } },
@@ -331,7 +390,92 @@ const tools = [
       const id = requireString(args?.id, 'id');
       const hit = findFileById(entitiesDir(wd), id);
       if (!hit) throw new Error(`WORLDSEA_ENTITY_UNKNOWN: 实体不存在（${id}）`);
+      // 关联清理（对齐 FileStorageBackend.deleteEntityAtomic）：先摘关系再删实体
+      const relations = readRelations(wd);
+      const kept = relations.filter((r) => r?.sourceId !== id && r?.targetId !== id);
+      const relationsRemoved = relations.length - kept.length;
+      if (relationsRemoved > 0) writeRelations(wd, kept);
       unlinkSync(hit.file);
+      return { id, relationsRemoved };
+    },
+  },
+  {
+    name: 'world_relation_list',
+    description: '列出 WorldSea 实体间的关系；entityId 给定 = 与该实体相关的关系，省略 = 全部。',
+    parameters: {
+      type: 'object',
+      properties: { entityId: { type: 'string', description: '按实体过滤（source 或 target）' } },
+    },
+    output: listOutput,
+    async execute(args, exec) {
+      const wd = worlddataDir(exec, exec?.pluginConfig ?? {});
+      const all = readRelations(wd);
+      const entityId = args?.entityId ? requireString(args.entityId, 'entityId') : null;
+      const items = entityId
+        ? all.filter((r) => r?.sourceId === entityId || r?.targetId === entityId)
+        : all;
+      return asItems(items);
+    },
+  },
+  {
+    name: 'world_relation_put',
+    description: '在 WorldSea 新建实体间关系（sourceId/targetId = 实体 id，两端必须已存在）。写后工作台界面自动刷新。',
+    parameters: {
+      type: 'object',
+      properties: {
+        relation: { type: 'object', description: '{type, sourceId, targetId, label?, properties?}；id 与时间戳自动生成' },
+      },
+      required: ['relation'],
+    },
+    output: looseOutput,
+    async execute(args, exec) {
+      const wd = worlddataDir(exec, exec?.pluginConfig ?? {});
+      const raw = args?.relation;
+      if (!raw || typeof raw !== 'object') throw new Error('WORLDSEA_BAD_ARGS: relation 必须是对象');
+      const type = requireString(raw.type, 'relation.type');
+      const sourceId = requireString(raw.sourceId, 'relation.sourceId');
+      const targetId = requireString(raw.targetId, 'relation.targetId');
+      // 两端实体必须存在（防悬挂关系）
+      for (const [field, entityId] of [['sourceId', sourceId], ['targetId', targetId]]) {
+        if (!findFileById(entitiesDir(wd), entityId)) {
+          throw new Error(`WORLDSEA_ENTITY_UNKNOWN: relation.${field} 指向的实体不存在（${entityId}）`);
+        }
+      }
+      const now = new Date().toISOString();
+      const relation = {
+        id: typeof raw.id === 'string' && raw.id.trim() ? raw.id : crypto.randomUUID(),
+        type,
+        sourceId,
+        targetId,
+        label: typeof raw.label === 'string' ? raw.label : undefined,
+        properties: raw.properties && typeof raw.properties === 'object' ? raw.properties : {},
+        createdAt: now,
+        updatedAt: now,
+      };
+      const list = readRelations(wd);
+      const idx = list.findIndex((r) => r?.id === relation.id);
+      if (idx >= 0) list[idx] = relation;
+      else list.push(relation);
+      writeRelations(wd, list);
+      return { id: relation.id, type: relation.type };
+    },
+  },
+  {
+    name: 'world_relation_delete',
+    description: '按 id 删除 WorldSea 关系。',
+    parameters: {
+      type: 'object',
+      properties: { id: { type: 'string', description: '关系 id' } },
+      required: ['id'],
+    },
+    output: looseOutput,
+    async execute(args, exec) {
+      const wd = worlddataDir(exec, exec?.pluginConfig ?? {});
+      const id = requireString(args?.id, 'id');
+      const list = readRelations(wd);
+      const next = list.filter((r) => r?.id !== id);
+      if (next.length === list.length) throw new Error(`WORLDSEA_RELATION_UNKNOWN: 关系不存在（${id}）`);
+      writeRelations(wd, next);
       return { id };
     },
   },
@@ -373,9 +517,11 @@ export function apply(ctx, config = {}) {
       name: 'tool:worldsea',
       order: 900, // 工具段之后的追加位（数字直接给——自定义段名不在预声明排序表内）
       text: () =>
-        'WorldSea 创作数据可直接读写：world_entity_list（返回 {items:[...]}) / world_entity_get 看现有实体；' +
+        'WorldSea 创作数据可直接读写：world_entity_search（按关键词定位）/ world_entity_list / world_entity_get 看现有实体；' +
         '组装新实体前先 world_schema_get 拿该类型的字段与必填；写类操作（put/update/delete）完成后工作台界面会自动刷新。' +
-        '项目清单用 world_project_list（项目 = dsh 工作区目录）；你的会话工作区（cwd）就是当前项目的宇宙根，创作数据在其 worlddata/ 子目录。' +
+        '实体间关系用 world_relation_list / put / delete（put 前两端实体必须已存在）。' +
+        '项目清单与当前项目用 world_project_list / world_project_current（项目 = dsh 工作区目录）；' +
+        '你的会话工作区（cwd）就是当前项目的宇宙根，创作数据在其 worlddata/ 子目录。' +
         '★ schema 快照由工作台启动时导出——若 world_schema_get 报 WORLDSEA_NO_SCHEMA_SNAPSHOT，请用户先打开一次工作台（切到工作台窗即可）再重试。',
     });
   } catch (error) {
