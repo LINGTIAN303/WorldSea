@@ -188,22 +188,22 @@ onMounted(() => {
   const { saveToFolder } = useFileSystemProject()
   register({ id: 'project.save', keys: ['ctrl', 's'], description: '导出到文件夹', scope: 'global', handler: () => { saveToFolder() }, preventDefault: true })
 
-  for (let i = 0; i < Math.min(pluginStore.views.length, 9); i++) {
-    const idx = i
-    register({
-      id: `view.switch.${idx}`,
-      keys: [String(idx + 1)],
-      description: `切换到 ${pluginStore.views[idx]?.label || '视图' + (idx+1)}`,
-      scope: 'global',
-      handler: () => {
-        // 壳感知（2026-09-06）：Agent 空间下数字键交给 space 层（右栏 Tab 切换），
-        // 不隐形切换被 v-show 隐藏的 workbench 视图
-        if (uiStore.currentShell === 'space') return
-        const v = pluginStore.views[idx]
-        if (v) { uiStore.setView(v.id); uiStore.viewComponent = v.component }
-      },
-    })
+  // 视图顺序切换（2026-09-28 用户拍板，替代失效的数字键）：Ctrl+↑/↓ 循环切换。
+  // 数字键失效根因 = for 循环在 setup 时展开，树异步装载前 views 为空 → 循环 0 次从未注册；
+  // 新实现 handler 内动态读 store（引用同一实例），注册时机不再敏感。
+  const switchViewBy = (delta: number) => {
+    // 壳感知（2026-09-06）：Agent 空间下数字键交给 space 层（右栏 Tab 切换），
+    // 不隐形切换被 v-show 隐藏的 workbench 视图
+    if (uiStore.currentShell === 'space') return
+    const views = pluginStore.views
+    if (views.length === 0) return
+    const idx = views.findIndex(v => v.id === uiStore.currentView)
+    const next = ((idx === -1 ? 0 : idx + delta) + views.length) % views.length
+    const v = views[next]
+    if (v) { uiStore.setView(v.id); uiStore.viewComponent = v.component }
   }
+  register({ id: 'view.switch.next', keys: ['ctrl', 'down'], description: '切换到下一个视图', scope: 'global', handler: () => switchViewBy(1), preventDefault: true })
+  register({ id: 'view.switch.prev', keys: ['ctrl', 'up'], description: '切换到上一个视图', scope: 'global', handler: () => switchViewBy(-1), preventDefault: true })
 })
 
 watch(() => uiStore.currentView, (newView, oldView) => {
