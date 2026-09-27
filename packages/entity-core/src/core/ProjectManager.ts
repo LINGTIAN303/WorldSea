@@ -148,6 +148,21 @@ class ProjectManager {
   }
 
   /**
+   * **全量替换**项目记录表（D2-b2「项目 = dsh workspace」同源模型，2026-09-28）：
+   * 项目元数据的真相源 = dsh 工作区清单（壳 `cmd_dsh_workspace_list` 转发），本方法由
+   * useProjectSwitcher 的同步逻辑调用做**镜像**——清表后按清单重写（**id 即 workspace id**）。
+   * 全量替换（而非逐条增删）绕开 removeProjectRecord 的活跃/默认守卫——旧记录的退役
+   * 由指针校验处理（useProjectSwitcher.initialize：当前指针不在清单 → 回落默认工作区）。
+   */
+  async replaceAllProjects(projects: ProjectInfo[]): Promise<void> {
+    const db = getMetaDb()
+    await db.projects.clear()
+    for (const project of projects) {
+      await db.projects.put(project)
+    }
+  }
+
+  /**
    * 将既有项目标记为系统默认项目（一次性迁移用：旧「默认项目」补 isDefault 标记）。
    */
   async markAsDefaultProject(id: string): Promise<void> {

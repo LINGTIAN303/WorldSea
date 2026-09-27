@@ -1,4 +1,8 @@
-/** useProjectSwitcher：项目切换编排器（Web 端迁移版，完整流程见文档），详细见 docs/details/注释/web/composables/useProjectSwitcher.md */
+/** useProjectSwitcher：项目切换编排器（D2-b2 同源版，2026-09-28）。
+ *  **项目 = dsh 工作区**（真同源，id 即 workspace id）——项目元数据的真相源 = 壳转发的
+ *  dsh 工作区清单（`cmd_dsh_workspace_list`），IndexedDB（ProjectManager）只承载
+ *  「当前指针 + 记录镜像」。新建/删除/重命名项目归 dsh 侧管理，本层不再提供。
+ *  详细设计见 docs/plans/2026-09-27-D2-Agent操作产品域-重设计批计划.md §1.1。 */
 
 import { ref } from 'vue'
 import { getProjectManager, setStorageProjectDir } from '@worldsea/entity-core/core'
@@ -15,39 +19,74 @@ const switching = ref(false)
 const currentProject = ref<ProjectInfo | null>(null)
 const projectList = ref<ProjectInfo[]>([])
 
+/** dsh 工作区清单条目（`cmd_dsh_workspace_list` 的返回形状）。 */
+interface DshWorkspaceInfo {
+  id: string
+  title: string
+  path: string
+  isDefault: boolean
+}
+
 export function useProjectSwitcher() {
   const pm = getProjectManager()
   const { startWatching, stopWatching } = useFsWatcher()
 
+  /** 拉取 dsh 工作区清单（壳转发）。非 Tauri（浏览器预览）或失败 → null（调用方回落 IndexedDB 既有记录）。 */
+  async function fetchWorkspaces(): Promise<DshWorkspaceInfo[] | null> {
+    if (!(isTauri() && hasTauriInvoke())) return null
+    try {
+      const { invoke } = await import('@tauri-apps/api/core')
+      return await invoke('cmd_dsh_workspace_list')
+    } catch (err) {
+      console.warn('[ProjectSwitcher] 拉取 dsh 工作区清单失败（回落 IndexedDB 既有记录）:', err)
+      return null
+    }
+  }
+
   /**
-   * 刷新项目列表缓存。
+   * 工作区同步（D2-b2 同源核心）：workspace 清单 → **全量镜像**到 pm 记录表
+   * （`replaceAllProjects`，**id 即 workspace id**；title/path/isDefault 跟随工作区，
+   * createdAt/lastOpenedAt 保留既有）。旧记录（历史 uuid 项目 / 已删工作区）随全量替换退役——
+   * 当前指针的回落由 initialize 的指针校验处理。
+   * @returns 同步后的项目列表（按 dsh 工作区清单顺序）；拉取失败返回 null。
+   */
+  async function syncWorkspaces(): Promise<ProjectInfo[] | null> {
+    const workspaces = await fetchWorkspaces()
+    if (workspaces === null) return null
+    const now = new Date().toISOString()
+    const synced: ProjectInfo[] = []
+    for (const workspace of workspaces) {
+      const existing = await pm.getProject(workspace.id)
+      synced.push({
+        id: workspace.id,
+        name: workspace.title,
+        description: existing?.description ?? '',
+        createdAt: existing?.createdAt ?? now,
+        lastOpenedAt: existing?.lastOpenedAt ?? now,
+        dirPath: workspace.path,
+        isDefault: workspace.isDefault,
+      })
+    }
+    await pm.replaceAllProjects(synced)
+    return synced
+  }
+
+  /**
+   * 刷新项目列表缓存（D2-b2：真相源 = dsh 工作区清单；拉取失败回落 IndexedDB 既有记录）。
    */
   async function refreshProjectList(): Promise<ProjectInfo[]> {
-    projectList.value = await pm.listProjects()
+    const synced = await syncWorkspaces()
+    projectList.value = synced ?? (await pm.listProjects())
     return projectList.value
   }
 
-  /** 路径归一化：去掉尾部分隔符；Windows 大小写不敏感 */
-  function normalizeDir(p: string): string {
-    const norm = (p || '').replace(/[\\/]+$/g, '')
-    return /^win/i.test(navigator.platform) ? norm.toLowerCase() : norm
-  }
-
-  /** 目录基名（兼容 / 与 \） */
-  function baseNameOf(p: string): string {
-    const segs = p.split(/[\\/]/).filter(Boolean)
-    return segs[segs.length - 1] ?? p
-  }
-
   /**
-   * 工作台实体存储根解析（2026-09-03 拍板，默认项目三层分离）：
-   * - 默认项目 dirPath = `<home>/WorldSea` 根（E1 单一可见根）→ 实体落 `根/worlddata`
-   * - 普通项目 = dirPath 本身（打开目录即两边同源）
-   * 防御性剥离历史残留的 worldentity/worlddata 段，避免双重嵌套路径（worldentity/worldentity）。
+   * 工作台实体存储根（D2-b2 统一口径）：`<dirPath>/worlddata`——**所有项目同构**
+   * （此前默认项目特判 worlddata、普通项目直落 dirPath；workspace 同源后统一）。
+   * 防御性剥离历史残留的 worldentity/worlddata 段，避免双重嵌套路径。
    */
-  function entityDirOf(p: ProjectInfo | null | undefined, dirPath: string | null): string | null {
+  function entityDirOf(dirPath: string | null): string | null {
     if (!dirPath) return null
-    if (!p?.isDefault) return dirPath
     let root = dirPath
     while (/(worldentity|worlddata)$/i.test(root)) {
       root = root.replace(/[\\/]+(worldentity|worlddata)$/i, '')
@@ -56,124 +95,46 @@ export function useProjectSwitcher() {
   }
 
   /**
-   * 打开目录即打开项目（项目=目录语义，2026-09-03）：
-   * 目录 → 若已有 dirPath 匹配的项目则切换，否则按目录基名新建项目并切换。
-   * 切换经 switchProject 触发 `project:switched` → Agent 空间联动新建会话。
-   */
-  async function openProjectDir(dir: string): Promise<ProjectInfo | null> {
-    const norm = normalizeDir(dir)
-    const all = await pm.listProjects()
-    const existing = all.find(p => p.dirPath && normalizeDir(p.dirPath) === norm)
-    if (existing) {
-      const switched = await switchProject(existing.id)
-      return switched ? existing : null
-    }
-    const project = await pm.createProject(baseNameOf(dir), undefined, dir)
-    const switched = await switchProject(project.id)
-    return switched ? project : null
-  }
-
-  /**
-   * 唯一目录选择入口：Tauri 系统目录选择器 → openProjectDir。
-   * 非 Tauri（浏览器 preview）降级提示并返回 false。
-   */
-  async function openProjectFromDialog(): Promise<boolean> {
-    if (!(isTauri() && hasTauriInvoke())) {
-      console.warn('[ProjectSwitcher] 目录选择需要 Tauri 桌面端环境')
-      return false
-    }
-    try {
-      const { open } = await import('@tauri-apps/plugin-dialog')
-      // 打开文件夹定位基准 = 全局根 <home>/WorldSea（2026-09-03 拍板）
-      let defaultPath: string | undefined
-      try {
-        const { homeDir } = await import('@tauri-apps/api/path')
-        const home = await homeDir()
-        if (home) defaultPath = `${home.replace(/[\\/]+$/, '')}/WorldSea`
-      } catch { /* 定位失败仅回到系统默认位置 */ }
-      const selected = await open({ directory: true, title: '打开项目目录', multiple: false, defaultPath })
-      if (!selected) return false
-      return !!(await openProjectDir(selected as string))
-    } catch (err) {
-      console.error('[ProjectSwitcher] 打开项目目录失败:', err)
-      return false
-    }
-  }
-
-  /**
-   * 移除最近项目记录（仅删 IndexedDB 记录，不删目录/项目 DB/SQLite——会话按 workdir 可回）。
-   */
-  async function removeRecentProject(id: string): Promise<boolean> {
-    try {
-      await pm.removeProjectRecord(id)
-      await refreshProjectList()
-      return true
-    } catch (err) {
-      console.warn('[ProjectSwitcher] 移除最近项目失败:', err)
-      return false
-    }
-  }
-
-  /**
-   * 初始化项目系统。
-   * 应用启动时调用一次。
+   * 初始化项目系统（应用启动时调用一次）。
    */
   async function initialize(): Promise<string> {
     // 1. 执行数据迁移（如果需要）
     const { migrateIfNeeded } = await import('@worldsea/entity-core/core')
     await migrateIfNeeded()
 
-    // 2. 初始化 ProjectManager
-    const projectId = await pm.initialize()
+    // 2. 初始化 ProjectManager（无记录时会自动建旧式「默认工作区」——随后的同步会清理）
+    await pm.initialize()
 
-    // 2.5（W6，2026-09-18）原 cmd_switch_project 空壳调用已删：会话库为全局单库，
-    // 会话归属走 project_id 列 + 前端按项目过滤（SessionSidebar），无后端切换动作。
+    // 3. D2-b2：工作区同步（真相源对齐 + 旧记录清理）
+    const synced = await syncWorkspaces()
 
-    // 3. 默认项目兜底归位（无项目/未选目录 = 全局根，2026-09-03 拍板）
-    //    · 系统默认项目（isDefault，或旧「默认项目」名——一次性补标记）不可移除；
-    //    · 其 dirPath 恒为单一可见根 `<home>/WorldSea`（E1；选择器显示 / 打开文件夹定位基准；
-    //      修历史残留 dirPath 如 worldentity / tream_test）；
-    //    · 默认项目数据分落子目录：工作台实体 → dirPath/worlddata（entityDirOf），
-    //      Agent 工作路径 → dirPath/agent（workspace.ts resolveWorkspaceDir 特判）；
-    //    · 非默认无目录项目不自动绑定（遗留 SQLite 降级，保持现状）
-    let dirPath = await pm.getProjectDir(projectId)
-    const currentProj = await pm.getCurrentProject()
-    const isDefaultProj = !!(currentProj?.isDefault || currentProj?.name === '默认项目')
-    if (isDefaultProj && !currentProj?.isDefault) {
-      try { await pm.markAsDefaultProject(projectId) } catch { /* 标记失败不阻塞 */ }
+    // 4. 当前指针校验：指向已清理的旧记录 → 回落默认工作区（isDefault 优先，否则清单首项）
+    let current = (await pm.getCurrentProject()) ?? null
+    if (current && synced && !synced.some(p => p.id === current!.id)) {
+      const fallback = synced.find(p => p.isDefault) ?? synced[0] ?? null
+      if (fallback) {
+        await pm.switchProject(fallback.id)
+        current = fallback
+        console.log(`[ProjectSwitcher] 当前指针指向已清理记录 → 回落默认工作区「${fallback.name}」`)
+      }
     }
-    if (isDefaultProj && isTauri() && hasTauriInvoke()) {
-      try {
-        const { homeDir } = await import('@tauri-apps/api/path')
-        const home = await homeDir()
-        if (home) {
-          const rootDir = `${home.replace(/[\\/]+$/, '')}/WorldSea`
-          if (normalizeDir(dirPath ?? '') !== normalizeDir(rootDir)) {
-            await pm.setProjectDir(projectId, rootDir)
-            dirPath = rootDir
-          }
-        }
-      } catch { /* home 不可得：保持现状（SQLite 兜底，仅浏览器/边缘态） */ }
-    }
-    // 工作台实体采集根：默认项目特判到根下 worlddata 子目录
-    await setStorageProjectDir(entityDirOf(currentProj, dirPath))
 
-    // 2.6 启动文件监听（有目录绑定时）
+    // 5. 实体存储根绑定 + 启动文件监听
+    const dirPath = current?.dirPath ?? null
+    await setStorageProjectDir(entityDirOf(dirPath))
     if (dirPath) {
       await startWatching()
     }
 
-    // 3. 加载当前项目信息
-    currentProject.value = (await pm.getCurrentProject()) ?? null
+    // 6. 加载当前项目信息与列表
+    currentProject.value = current
+    projectList.value = synced ?? (await pm.listProjects())
 
-    // 4. 加载项目列表
-    await refreshProjectList()
-
-    return projectId
+    return current?.id ?? ''
   }
 
   /**
-   * 切换到指定项目。
+   * 切换到指定项目（id = workspace id）。
    * @returns true 表示切换成功
    */
   async function switchProject(targetProjectId: string): Promise<boolean> {
@@ -191,18 +152,16 @@ export function useProjectSwitcher() {
     try {
       console.log(`[ProjectSwitcher] 开始切换项目: ${targetProjectId}`)
 
-      // 1. 切换 ProjectManager 的当前项目
+      // 1. 切换 ProjectManager 的当前项目（记录由 syncWorkspaces 保证存在）
       const switched = await pm.switchProject(targetProjectId)
       if (!switched) {
         console.warn('[ProjectSwitcher] ProjectManager 拒绝切换')
         return false
       }
 
-      // 2. 设置 FileStorageBackend 目录绑定（默认项目特判到根/worlddata；
-      //    no-dir 项目保持 null/既有 dirPath）
-      let dirPath = await pm.getProjectDir(targetProjectId)
-      const targetProj = await pm.getProject(targetProjectId)
-      await setStorageProjectDir(entityDirOf(targetProj, dirPath))
+      // 2. 实体存储根绑定（统一 <dirPath>/worlddata）
+      const dirPath = await pm.getProjectDir(targetProjectId)
+      await setStorageProjectDir(entityDirOf(dirPath))
 
       // 2.5 停止旧监听 + 启动新监听
       await stopWatching()
@@ -210,7 +169,7 @@ export function useProjectSwitcher() {
         await startWatching()
       }
 
-      // 3. 重新加载所有 Store
+      // 3. 重新加载所有 Store 数据
       await reloadStores()
 
       // 4. 重新初始化模块系统
@@ -221,13 +180,11 @@ export function useProjectSwitcher() {
       const fsProject = useFileSystemProject()
       await fsProject.onProjectSwitched()
 
-      // 6. 更新当前项目信息
+      // 6. 更新当前项目信息 + 刷新列表（workspace 同源）
       currentProject.value = (await pm.getCurrentProject()) ?? null
-
-      // 7. 刷新项目列表
       await refreshProjectList()
 
-      // 8. 发射全局事件
+      // 7. 发射全局事件
       window.dispatchEvent(new CustomEvent('project:switched', {
         detail: { projectId: targetProjectId },
       }))
@@ -300,36 +257,7 @@ export function useProjectSwitcher() {
   }
 
   /**
-   * 删除指定项目（不能删除当前项目）。
-   */
-  async function deleteProject(id: string): Promise<void> {
-    await pm.deleteProject(id)
-    // Tauri 环境：删除后端 SQLite 文件（P3-W4 续恢复）
-    if (isTauri() && hasTauriInvoke()) {
-      try {
-        const { invoke } = await import('@tauri-apps/api/core')
-        await invoke('cmd_delete_project_db', { projectId: id })
-      } catch (err) {
-        console.error('[ProjectSwitcher] Tauri cmd_delete_project_db 失败:', err)
-      }
-    }
-    await refreshProjectList()
-  }
-
-  /**
-   * 重命名指定项目。
-   */
-  async function renameProject(id: string, name: string): Promise<void> {
-    await pm.renameProject(id, name)
-    await refreshProjectList()
-    // 如果重命名的是当前项目，更新 currentProject
-    if (id === pm.getCurrentProjectId()) {
-      currentProject.value = (await pm.getCurrentProject()) ?? null
-    }
-  }
-
-  /**
-   * 获取项目列表。
+   * 获取项目列表（workspace 同源顺序）。
    */
   async function listProjects(): Promise<ProjectInfo[]> {
     return refreshProjectList()
@@ -341,11 +269,6 @@ export function useProjectSwitcher() {
     projectList,
     initialize,
     switchProject,
-    openProjectDir,
-    openProjectFromDialog,
-    removeRecentProject,
-    deleteProject,
-    renameProject,
     listProjects,
     refreshProjectList,
   }

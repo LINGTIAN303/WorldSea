@@ -53,7 +53,7 @@ const InfoPanel = defineAsyncComponent(() => import('@worldsea/ui-kit').then(m =
 import { useShortcuts, useUndoRedo, useGlobalEvents } from '@worldsea/ui-kit'
 import { usePluginStore, useDirtyTracker, useEntityStore, useRelationStore, entitySchemaRegistry, relationshipRegistry, useUIStore, useSettingsStore } from '@worldsea/entity-core'
 import { useFileSystemProject } from '@worldsea/entity-core/composables'
-import { useProjectSwitcher } from '@/composables/useProjectSwitcher'
+// D2-b2：useProjectSwitcher 引用已随「打开目录建项目」入口退役移除（项目切换在 ProjectSwitcher 下拉）
 import { toggleShell } from '@/composables/shellSwitch'
 import CompanionNotification from '../companion/CompanionNotification.vue'
 import { useCompanionMode } from '@worldsea/shared-composables/companion/useCompanionMode'
@@ -100,11 +100,8 @@ function onOpenSettings() { settingsOpen.value = true }
 function onOpenThemeEditor() { themeEditorOpen.value = true }
 function onOpenCustomRelType() { customRelTypeOpen.value = true }
 function onOpenEntityTemplate() { entityTemplateOpen.value = true }
-/** 项目=目录（2026-09-03）：打开文件夹即打开项目（替代原项目管理弹窗 / ws-open-project-manager 事件 / Ctrl+Shift+P） */
-function openProjectFolderDialog() {
-  const { openProjectFromDialog } = useProjectSwitcher()
-  return openProjectFromDialog()
-}
+// D2-b2（2026-09-28）：项目 = dsh 工作区（同源）——「打开目录建项目」入口与 ws-open-project-manager
+// 事件随 useProjectSwitcher 的入口删除一并退役；项目新建/管理在 Agent 空间 dsh 界面进行。
 
 const pluginStore = usePluginStore()
 const uiStore = useUIStore()
@@ -158,7 +155,6 @@ onGlobalEvent('ws-open-shortcut-help', () => { if (uiStore.currentShell !== 'spa
 onGlobalEvent('ws-open-theme-editor', onOpenThemeEditor)
 onGlobalEvent('ws-open-custom-rel-type', onOpenCustomRelType)
 onGlobalEvent('ws-open-entity-template', onOpenEntityTemplate)
-onGlobalEvent('ws-open-project-manager', () => { void openProjectFolderDialog() })
 onGlobalEvent('ws-navigate', onWsNavigate)
 
 onMounted(() => {
@@ -179,7 +175,7 @@ onMounted(() => {
   // 空间切换交统一入口（shellSwitch）：新壳里 = 壳级窗口互斥切换（dsh 窗 ⇄ 工作台窗），
   // 无壳桥时回退页内壳切换。此前直落页内 setShell('space') → 工作台渲染被桩空的旧 Agent 面（空页）。
   register({ id: 'shell.toggle', keys: ['ctrl', 'tab'], description: '切换 Agent 空间 ⇄ 工作台', scope: 'global', preventDefault: true, handler: () => { toggleShell() } })
-  register({ id: 'project.manager', keys: ['ctrl', 'shift', 'p'], description: '打开项目（选择目录）', scope: 'global', handler: () => { void openProjectFolderDialog() } })
+  // D2-b2：project.manager（Ctrl+Shift+P 打开目录建项目）随同源模型退役——项目在 dsh 侧管理
   register({ id: 'global.undo', keys: ['ctrl', 'z'], description: '撤销', scope: 'global', handler: () => undo(entityStore, relationStore), preventDefault: true })
   register({ id: 'global.redo', keys: ['ctrl', 'y'], description: '重做', scope: 'global', handler: () => redo(entityStore, relationStore), preventDefault: true })
   register({ id: 'global.redo-alt', keys: ['ctrl', 'shift', 'z'], description: '重做(备选)', scope: 'global', handler: () => redo(entityStore, relationStore), preventDefault: true })

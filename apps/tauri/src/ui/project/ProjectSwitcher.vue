@@ -13,21 +13,16 @@
       <span class="ps-chevron"><WsIcon name="chevron-down" size="xs" /></span>
     </button>
 
-    <!-- 下拉：打开文件夹 + 最近项目（仅切换，2026-09-03 项目=目录） -->
+    <!-- 下拉：项目清单（D2-b2 同源：项目 = dsh 工作区，仅切换——新建/删除/重命名在 dsh 侧管理） -->
     <Teleport to="body">
       <div v-if="open" class="ps-backdrop" @click="close"></div>
       <Transition name="dropdown">
         <div v-if="open" class="ps-menu" :style="menuStyle">
           <div class="ps-menu-header">项目</div>
-          <button class="ps-open-folder" @click="onOpenFolder">
-            <WsIcon name="folder-open" size="sm" /><span>打开文件夹…</span>
-          </button>
-          <div class="ps-divider"></div>
-          <div class="ps-recents-label">最近项目</div>
-          <div v-if="recents.length === 0" class="ps-empty">暂无最近项目，点击「打开文件夹…」打开一个项目目录</div>
+          <div v-if="projectList.length === 0" class="ps-empty">暂无项目——在 Agent 空间的 dsh 界面里添加工作区即可创建项目</div>
           <div v-else class="ps-list">
             <div
-              v-for="p in recents"
+              v-for="p in projectList"
               :key="p.id"
               class="ps-item"
               :class="{ active: p.id === currentProject?.id }"
@@ -37,12 +32,6 @@
                 <span class="ps-item-name">{{ displayName(p) }}</span>
                 <span class="ps-item-path" :title="p.dirPath ?? ''">{{ truncatePath(p.dirPath ?? '') }}</span>
               </div>
-              <button
-                v-if="p.id !== currentProject?.id && !p.isDefault"
-                class="ps-item-remove"
-                title="移除最近项目（不删除目录）"
-                @click.stop="onRemove(p)"
-              ><WsIcon name="trash" size="xs" /></button>
             </div>
           </div>
         </div>
@@ -53,7 +42,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onBeforeUnmount, nextTick } from 'vue'
-import { WsIcon, useConfirm, useModalShortcuts } from '@worldsea/ui-kit'
+import { WsIcon, useModalShortcuts } from '@worldsea/ui-kit'
 import { useProjectSwitcher } from '@/composables/useProjectSwitcher'
 import WorldSeaLogo from '@/components/brand/WorldSeaLogo.vue'
 import type { ProjectInfo } from '@worldsea/entity-core/core'
@@ -63,27 +52,23 @@ const props = withDefaults(defineProps<{
   variant?: 'titlebar' | 'pill'
 }>(), { variant: 'pill' })
 
-const { currentProject, projectList, switchProject, openProjectFromDialog, removeRecentProject, refreshProjectList } = useProjectSwitcher()
-const { confirm } = useConfirm()
+const { currentProject, projectList, switchProject, refreshProjectList } = useProjectSwitcher()
 
 const open = ref(false)
 const wrapRef = ref<HTMLElement>()
 const menuStyle = ref<Record<string, string>>({})
 
-/** 当前项目名：默认项目（无项目/未选目录的兜底）显示「默认工作区」 */
+/** 当前项目名：默认工作区（isDefault）显示「默认工作区」 */
 const currentLabel = computed(() => {
   const p = currentProject.value
   if (p?.isDefault) return '默认工作区'
   return p?.dirPath ? p.name : '默认工作区'
 })
 
-/** 列表项显示名：默认项目统一为「默认工作区」 */
+/** 列表项显示名：默认工作区统一为「默认工作区」 */
 function displayName(p: ProjectInfo): string {
   return p.isDefault ? '默认工作区' : p.name
 }
-
-/** 最近项目 = 有目录的项目（项目=目录语义；无目录即未打开，不展示） */
-const recents = computed<ProjectInfo[]>(() => projectList.value.filter((p) => !!p.dirPath))
 
 /** 路径截断（中间省略，保留头尾） */
 function truncatePath(p: string, max = 30): string {
@@ -118,26 +103,10 @@ async function position(): Promise<void> {
   menuStyle.value = { top: `${top}px`, left: `${left}px`, width: `${W}px`, maxHeight: `${H}px` }
 }
 
-async function onOpenFolder(): Promise<void> {
-  const ok = await openProjectFromDialog()
-  if (ok) close()
-}
-
 async function onPick(p: ProjectInfo): Promise<void> {
   close()
   if (p.id === currentProject.value?.id) return
   await switchProject(p.id)
-}
-
-async function onRemove(p: ProjectInfo): Promise<void> {
-  const ok = await confirm({
-    type: 'warning',
-    title: '移除最近项目',
-    description: `仅将「${p.name}」从最近项目列表移除记录，目录与其中的数据不会被删除。确定移除？`,
-  })
-  if (!ok) return
-  const done = await removeRecentProject(p.id)
-  if (done) void refreshProjectList()
 }
 
 // Esc 关闭收编 useModalShortcuts（modal 层，替代 document 常驻监听）

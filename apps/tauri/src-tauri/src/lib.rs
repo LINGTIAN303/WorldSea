@@ -67,7 +67,6 @@ mod dsh_workspace;
 mod dsh_credentials;
 // D2-c（2026-09-27）：产品域说明书（Agent 认知面——工作区根 WORLDSEA.md，幂等生成不覆盖）
 mod worldsea_manual;
-
 // 安全存储命令（cmd_secure_store/load/delete）：API Key 落应用数据目录 SQLite（模型注册表 key-store 消费）
 mod secure_store;
 // 图布局/图分析算法命令（cmd_algo_*）：薄封装 worldsea-core 算法（mindmap 等产品 IPC 消费）
@@ -141,8 +140,7 @@ pub fn run() {
             shell_bridge::cmd_shell_bridge_report,
             // C4-b：一键修复工作区权限（用户点击才执行）
             shell_bridge::cmd_fix_workspace_acl,
-            // D2-a（2026-09-27）：dsh 工作区列表转发——「项目 = dsh workspace」同源模型的产品域数据源
-            dsh_workspace::cmd_dsh_workspace_list,
+            dsh_workspace::cmd_dsh_workspace_list, // D2-a：dsh 工作区列表转发（同源模型数据源）
             // C6：窗口栏（最小化/最大化⇄还原/关闭/起拖/查询）+ 「⋯」popup 菜单
             shell_bridge::cmd_shell_window_action,
             menu::cmd_shell_popup_menu,
@@ -260,21 +258,9 @@ pub fn run() {
             // 使应用「打开即不可见」；主窗就位后校验一次，不可用则复位默认并居中。
             if let Some(window) = app.get_webview_window("main") {
                 workspace_window::sanitize_restored_geometry(&window);
-                // E9 #7：恢复主窗缩放档位（prefs.json `zoom.main`；缺省 100% 不动）
-                menu::restore_zoom(&window);
-                // D2-c：产品域说明书（工作区根 WORLDSEA.md，幂等生成不覆盖；Agent 认知面）
-                match dsh_workspace::resolve_workspace(app.handle()) {
-                    Ok(workspace) => worldsea_manual::ensure_manual(&workspace),
-                    Err(e) => eprintln!("[DSH-SHELL] 说明书跳过（工作区不可得）：{e}"),
-                }
-                // E9 #11（P3 拍板 2026-09-27）：主窗配置 `visible:false`，启动可见性在此裁决——
-                // 正常启动显示 + 聚焦；开机自启（`--autostart`）→ 托盘常驻不弹窗（点托盘/快捷键唤起）。
-                if std::env::args().any(|arg| arg == "--autostart") {
-                    println!("[DSH-SHELL] 启动形态：开机自启 → 托盘常驻（不自动显示窗口）");
-                } else {
-                    let _ = window.show();
-                    let _ = window.set_focus();
-                }
+                menu::restore_zoom(&window); // E9 #7：缩放档位恢复
+                worldsea_manual::ensure_for_app(app.handle()); // D2-c：说明书幂等生成
+                workspace_window::startup_visibility(&window); // E9 #11：自启到托盘 / 正常显示
             }
 
             // ── B2 壳接入（2026-09-23）＋ C1-a 协议桥（2026-09-24）──────────────

@@ -1,13 +1,15 @@
 //! 系统托盘（批次97 基础版 + 系统层集成扩展）：
-//! - 菜单：显示主窗口 / 打开项目文件夹 / 最近项目(子菜单) / 打开设置 / 退出
-//! - 动态状态：最近项目列表（前端 `cmd_tray_set_recent_projects` 同步）
-//! - 菜单动作 → emit 事件（tray:open-settings / tray:new-project /
-//!   tray:open-project {id}），由前端监听分发到对应面板/项目切换
+//! - 菜单：显示主窗口 / 打开工作台 / 最近项目(子菜单) / 打开设置 / 退出
+//! - 动态状态：最近项目列表（前端 `cmd_tray_set_recent_projects` 同步；D2-b2 起项目 = dsh 工作区）
+//! - 菜单动作 → emit 事件（tray:open-settings / tray:open-project），
+//!   由前端监听分发到对应面板/项目切换；「打开工作台」壳内直切不派事件（D2-b2）
 //! （2026-09-27 E8：旧 Agent 面退场，移除「打开 Agent 对话」项与 Agent 生成状态链）
 //! （2026-09-27 E9 #1/#2/#5：功能菜单项收口——先**切到工作台窗**（懒创建 + 显示 + 聚焦）再派发，
 //!   修复「没开过工作台时点托盘无反应」（监听方只在懒建的工作台窗）与「打开设置」错窗；
 //!   页面未就绪（窗刚懒建、React 还在加载）时动作入积压队列，`cmd_tray_page_ready` 时补投，
-//!   事件不再静默丢弃。「新建项目」按 P1 拍板改标签「打开项目文件夹」（动作实为打开文件夹选择器））
+//!   事件不再静默丢弃）
+//! （2026-09-28 D2-b2：「新建项目」→ P1「打开项目文件夹」→ **「打开工作台」**——项目 = dsh 工作区
+//!   同源模型落地后，新建/选择项目归 dsh 界面与工作台项目下拉，托盘只负责唤出窗口）
 
 use serde::Deserialize;
 use std::sync::Mutex;
@@ -48,8 +50,9 @@ pub struct ProjectItem {
 /// 重建完整托盘菜单（菜单是原子的：任何状态变化都整份重建）
 fn build_menu(app: &AppHandle, state: &TrayState) -> tauri::Result<Menu<Wry>> {
     let show = MenuItem::with_id(app, "show", "显示主窗口", true, None::<&str>)?;
-    // E9 P1（2026-09-27 拍板）：动作实为「打开项目文件夹选择器」——标签改为语义诚实（id 不变，前端监听不动）
-    let new_project = MenuItem::with_id(app, "new-project", "打开项目文件夹", true, None::<&str>)?;
+    // D2-b2（2026-09-28）：项目 = dsh 工作区（同源）——「打开项目文件夹选择器」随产品域建项目入口退役；
+    // 托盘该项演进为「打开工作台」（壳内直切工作台窗，不派事件——项目选择在 dsh 界面/工作台下拉开）
+    let new_project = MenuItem::with_id(app, "open-workbench", "打开工作台", true, None::<&str>)?;
 
     // 最近项目子菜单：空列表时展示禁用占位项
     let recent_items: Vec<MenuItem<Wry>> = if state.projects.is_empty() {
@@ -125,7 +128,12 @@ pub fn build_tray(app: &AppHandle) -> tauri::Result<TrayIcon> {
         .on_menu_event(|app, event| match event.id.as_ref() {
             "show" => show_main_window(app),
             // E9：功能菜单项的监听方在工作台窗 → 先切到工作台（懒创建 + 显示 + 聚焦）再派发
-            "new-project" => dispatch_workbench(app, "tray:new-project", None),
+            // D2-b2：「打开工作台」= 壳内直切（不派事件——项目选择在 dsh 界面/工作台下拉开）
+            "open-workbench" => {
+                if let Err(e) = crate::workspace_window::switch_to_workbench(app) {
+                    eprintln!("[WORLDSEA-TRAY] 切到工作台失败：{e}");
+                }
+            }
             "open-settings" => dispatch_workbench(app, "tray:open-settings", None),
             "quit" => app.exit(0),
             id if id.starts_with("recent-project:") => {

@@ -184,6 +184,18 @@ pub(crate) fn hide_and_back_to_space(app: &tauri::AppHandle) {
     }
 }
 
+/// 主窗启动可见性裁决（E9 #11，P3 拍板 2026-09-27）：主窗配置 `visible:false`——
+/// 正常启动显示 + 聚焦；开机自启（`--autostart`）→ 托盘常驻不弹窗（点托盘/快捷键唤起）。
+/// 调用时机 = sanitize（E6 几何自检）之后（show 时几何已就绪）。
+pub(crate) fn startup_visibility(window: &WebviewWindow) {
+    if std::env::args().any(|arg| arg == "--autostart") {
+        println!("[DSH-SHELL] 启动形态：开机自启 → 托盘常驻（不自动显示窗口）");
+        return;
+    }
+    let _ = window.show();
+    let _ = window.set_focus();
+}
+
 /// 建工作台窗（懒创建；尺寸/位置由调用方随后按来源窗几何对齐）：
 /// 无边框 + 隐藏构建（先定位再显示，避免闪位）；挂 C3-b 导航/新窗栅栏。
 fn create(app: &tauri::AppHandle) -> Result<WebviewWindow, String> {

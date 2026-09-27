@@ -63,6 +63,14 @@ pub(crate) fn ensure_manual(workspace: &Path) {
     }
 }
 
+/// lib.rs setup 的单行接线：内部定位工作区（不可得则记日志跳过）。
+pub(crate) fn ensure_for_app(app: &tauri::AppHandle) {
+    match crate::dsh_workspace::resolve_workspace(app) {
+        Ok(workspace) => ensure_manual(&workspace),
+        Err(e) => eprintln!("[DSH-SHELL] 说明书跳过（工作区不可得）：{e}"),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

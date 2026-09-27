@@ -41,8 +41,7 @@
     </template>
     <div class="titlebar-right">
       <div class="titlebar-controls">
-      <!-- E9 P2（2026-09-27 拍板）：产品窗补「⋯」popup 菜单——文件/编辑/视图/设置，与 dsh 窗注入窗口栏同源（壳侧同一份菜单资源） -->
-      <button class="titlebar-btn titlebar-btn--more" aria-label="更多操作" title="更多操作" @click="openPopupMenu">
+      <button class="titlebar-btn" aria-label="更多操作" title="更多操作" @click="openPopupMenu">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="19" cy="12" r="1.9"/></svg>
       </button>
       <button class="titlebar-btn" aria-label="最小化" title="最小化" data-ws-tip-keys="Ctrl+M" @click="minimize">
@@ -114,14 +113,12 @@ function minimize() {
   appWindow?.minimize().catch(e => console.error('[TitleBar] minimize 失败:', e))
 }
 
-/* E9 P2：「⋯」→ 壳侧 popup 菜单（cmd_shell_popup_menu 在 allow-shell-bridge 组，两窗同权）；
-   坐标 = 按钮左下角页面 CSS 像素（壳经 LogicalPosition 换算弹出；弹出是模态循环，fire-and-forget）。 */
+/* E9 P2：「⋯」→ 壳侧 popup 菜单（cmd_shell_popup_menu 两窗同权；坐标 = 按钮左下角，模态循环 fire-and-forget）。 */
 function openPopupMenu(event: MouseEvent) {
   const target = event.currentTarget as HTMLElement | null
   if (!target || !isTauri()) return
-  const rect = target.getBoundingClientRect()
-  invoke('cmd_shell_popup_menu', { x: Math.round(rect.left), y: Math.round(rect.bottom + 2) })
-    .catch(e => console.error('[TitleBar] popup 菜单失败:', e))
+  const { left, bottom } = target.getBoundingClientRect()
+  invoke('cmd_shell_popup_menu', { x: Math.round(left), y: Math.round(bottom + 2) }).catch(e => console.error('[TitleBar] popup 菜单失败:', e))
 }
 function toggleMaximize() {
   // 切换后通过 onResized 事件同步 maximized 状态（异步，不在此处假设结果）
@@ -395,10 +392,6 @@ function close() {
 .titlebar-btn:hover {
   background: var(--bg-hover, var(--color-bg-hover));
   color: var(--text-color, var(--color-text-primary));
-}
-/* E9 P2：「⋯」更多操作（壳栏 wstb-more 同款宽度 36px；控制键 44px） */
-.titlebar-btn--more {
-  width: 36px;
 }
 .titlebar-btn--close:hover {
   background: var(--danger);

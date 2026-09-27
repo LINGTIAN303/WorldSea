@@ -1,11 +1,12 @@
 // 系统层桥：托盘事件监听 + 状态同步 + 系统通知 + 开机自启
 //
 // 架构约定（前后端契约）：前端只通过 invoke 命令与 Rust 通信，不直接触碰系统 API。
-// - Rust → 前端：tray:open-settings / tray:new-project / tray:open-project
-//   （由托盘菜单触发，本桥监听后分发到全局事件或直接调用）
+// - Rust → 前端：tray:open-settings / tray:open-project
+//   （由托盘菜单触发，本桥监听后分发到全局事件或直接调用；「打开工作台」壳内直切不派事件）
 // - 前端 → Rust：cmd_tray_set_recent_projects / cmd_notify / cmd_autostart_*
 //   （状态回写与系统能力调用）
 // （2026-09-27 E8：旧 Agent 面退场，移除 Agent 生成状态回写与「打开 Agent 对话」分发）
+// （2026-09-28 D2-b2：tray:new-project 随同源模型退役——项目 = dsh 工作区，在 dsh 侧管理）
 
 import { invoke, listen, type UnlistenFn } from './transport'
 import { isTauri, hasTauriInvoke } from '@worldsea/entity-core/core'
@@ -68,9 +69,7 @@ export function useSystemBridge() {
       await listen('tray:open-settings', () => {
         window.dispatchEvent(new CustomEvent('ws-open-settings'))
       }),
-      await listen('tray:new-project', () => {
-        window.dispatchEvent(new CustomEvent('ws-open-project-manager'))
-      }),
+      // D2-b2：tray:new-project 已随同源模型退役（托盘改「打开工作台」，壳内直切不派事件）
       await listen<string>('tray:open-project', e => {
         const projectId = e.payload
         void useProjectSwitcher().switchProject(projectId)

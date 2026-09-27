@@ -109,6 +109,9 @@ pub struct DshWorkspace {
     pub id: String,
     pub title: String,
     pub path: String,
+    /// dsh 的 `global.defaultWorkspaceId` 指向（D2-b2：产品域「默认项目」标记同源化）。
+    #[serde(default)]
+    pub is_default: bool,
 }
 
 /// DSH_HOME 口径：`WORLDSEA_DSH_HOME` 覆盖 > `<app_data>/dsh-home`。
@@ -124,7 +127,8 @@ fn dsh_storages_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     }
 }
 
-/// 解析 workspace.json → 工作区列表（按 `global.workspaceIds` 顺序；缺 path/title 的条目跳过）。
+/// 解析 workspace.json → 工作区列表（按 `global.workspaceIds` 顺序；缺 path/title 的条目跳过；
+/// `is_default` = id 命中 `global.defaultWorkspaceId`）。
 fn parse_workspace_json(text: &str) -> Vec<DshWorkspace> {
     let Ok(value) = serde_json::from_str::<serde_json::Value>(text) else {
         return Vec::new();
@@ -134,6 +138,7 @@ fn parse_workspace_json(text: &str) -> Vec<DshWorkspace> {
         .and_then(|v| v.as_array())
         .cloned()
         .unwrap_or_default();
+    let default_id = value.pointer("/global/defaultWorkspaceId").and_then(|v| v.as_str());
     let tables = value.pointer("/tables/workspaces").cloned().unwrap_or_default();
     let mut items = Vec::new();
     for id in order {
@@ -145,7 +150,12 @@ fn parse_workspace_json(text: &str) -> Vec<DshWorkspace> {
         ) else {
             continue;
         };
-        items.push(DshWorkspace { id: id.to_string(), title: title.to_string(), path: path.to_string() });
+        items.push(DshWorkspace {
+            id: id.to_string(),
+            title: title.to_string(),
+            path: path.to_string(),
+            is_default: default_id == Some(id),
+        });
     }
     items
 }
@@ -182,6 +192,8 @@ mod dsh_workspace_list_tests {
         assert_eq!(items.len(), 2);
         assert_eq!(items[0].title, "WorldSea"); // 顺序跟 workspaceIds，不跟 tables 键序
         assert_eq!(items[1].path, "D:\\WS");
+        assert!(items[0].is_default); // defaultWorkspaceId = "b"（WorldSea）
+        assert!(!items[1].is_default);
     }
 
     #[test]
