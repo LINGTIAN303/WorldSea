@@ -31,6 +31,12 @@ WorldSea 产品域工具集（内置级 dsh 插件，零依赖）——让 Agent
 - **已知边界**：工作台（webview）侧写不走此锁——跨端同时写的窄窗口未做跨进程协同（低频：需用户恰在界面编辑关系时 Agent 也在写关系）
 - 大项目保护：`world_entity_list` 缺省 200 条上限，`total` 超过 `items` 长度即有更多，用 `offset` 翻页
 
+## 环境自适应与写前守卫（D2 第三轮，2026-09-28）
+
+- **空结果环境化**：`world_entity_list` / `world_entity_search` / `world_relation_list` 空结果附 `state` 字段——`uninitialized` = worlddata 不存在（工作台从未打开过，提示用户先开一次工作台）· `empty` = 已初始化但暂无数据；有数据时不附该字段
+- **写前工作区守卫（严格拒）**：五个写工具（entity put/update/delete · relation put/delete）要求会话 cwd 正好是某个已登记 dsh 工作区的根目录，否则拒 `WORLDSEA_NOT_A_WORKSPACE`（cwd 在某工作区内部非根同样拒——创作数据以工作区根的 worlddata/ 为准）；读操作不拦；`config.dataRoot` 兜底属显式配置不受限
+- **fail loud 三段式错误码**（码 + 人话 + 补救）：`WORLDSEA_NO_SESSION` / `NO_DSH_HOME` / `NO_SCHEMA_SNAPSHOT` / `TYPE_UNKNOWN` / `REQUIRED_MISSING` / `ENTITY_UNKNOWN` / `RELATION_UNKNOWN` / `RELATION_BUSY` / `NOT_A_WORKSPACE` / `BAD_ARGS`
+
 ## 配置（cordis.patch.yml 的插件 config，均可省略）
 
 - `dshHome`：DSH_HOME 覆盖（缺省读 `process.env.DSH_HOME`——壳 spawn 宿主时已设置）

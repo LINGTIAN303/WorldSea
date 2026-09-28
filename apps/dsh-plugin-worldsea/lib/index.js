@@ -309,6 +309,28 @@ function normalizePath(p) {
   return String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
 }
 
+/** 空结果环境化：区分「数据目录未初始化」（worlddata 不存在 = 工作台从未打开过）与「已初始化但无数据」。 */
+const emptyState = (wd) => (existsSync(wd) ? 'empty' : 'uninitialized');
+
+/**
+ * 写前工作区守卫（严格拒）：会话 cwd 必须正好是某个已登记 dsh 工作区的根目录——
+ * 防止 cwd 配错时把 worlddata 误写进非项目目录（如代码仓库）；cwd 在某工作区内部但非根
+ * 同样拒（创作数据以工作区根的 worlddata/ 为准）。config.dataRoot 兜底属显式配置不受此限
+ * （无会话 cwd 时本就 fail loud，走不到这里）。只拦写操作，读操作不拦。
+ */
+function requireWorkspaceRoot(exec, config) {
+  const cwd = sessionCwd(exec);
+  if (!cwd) return;
+  const norm = normalizePath(cwd);
+  const workspaces = readDshWorkspaces(config);
+  if (workspaces.some((w) => normalizePath(w.path) === norm)) return;
+  const inside = workspaces.find((w) => norm.startsWith(`${normalizePath(w.path)}/`));
+  if (inside) {
+    throw new Error(`WORLDSEA_NOT_A_WORKSPACE: 会话 cwd 位于工作区「${inside.title}」内部但不是其根目录——创作数据以工作区根的 worlddata/ 为准，请从工作台打开的会话调用`);
+  }
+  throw new Error('WORLDSEA_NOT_A_WORKSPACE: 会话 cwd 不在任何已登记的 dsh 工作区内（写前守卫，防误写非项目目录）——请从工作台会话调用，或在插件 config.dataRoot 显式指定数据根');
+}
+
 /** 写实体（工作台同规则：entities/<type>/<名>_<id>.json；id 由调用方提供或此处生成）。 */
 function putEntityFile(wd, entity) {
   const dir = entitiesTypeDir(wd, entity.type);
@@ -332,24 +354,33 @@ const looseOutput = {
 
 /** 清单类输出 schema：**output 校验强制 value 为 object**（数组 root 违规——
  *  2026-09-28 会话实测 `returned invalid output: "value" must be an object`），
- *  故清单统一包 `{ items: [...] }` 返回。 */
+ *  故清单统一包 `{ items: [...] }` 返回；空结果附 state（环境化，见 emptyState）。 */
 const listOutput = {
   schema: {
     type: 'object',
-    properties: { items: { type: 'array' } },
+    properties: { items: { type: 'array' }, state: { type: 'string', enum: ['uninitialized', 'empty'] } },
     required: ['items'],
   },
-  render: (_args, value) => [{ type: 'text', text: JSON.stringify(value.items ?? value, null, 2) }],
+  render: (_args, value) => [
+    { type: 'text', text: JSON.stringify(value.state ? { items: value.items, state: value.state } : (value.items ?? value), null, 2) },
+  ],
 };
 
 /** 清单包对象（对应 listOutput）。 */
 const asItems = (items) => ({ items });
 
-/** 分页清单输出：items + total/offset/limit 回显（render 全量展示——Agent 需读 total 判断是否继续翻页）。 */
+/** 分页清单输出：items + total/offset/limit 回显（render 全量展示——Agent 需读 total 判断是否继续翻页）；
+ *  空结果附 state（环境化，见 emptyState）。 */
 const pagedListOutput = {
   schema: {
     type: 'object',
-    properties: { items: { type: 'array' }, total: { type: 'number' }, offset: { type: 'number' }, limit: { type: 'number' } },
+    properties: {
+      items: { type: 'array' },
+      total: { type: 'number' },
+      offset: { type: 'number' },
+      limit: { type: 'number' },
+      state: { type: 'string', enum: ['uninitialized', 'empty'] },
+    },
     required: ['items', 'total'],
   },
   render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
@@ -364,7 +395,7 @@ function requireString(value, field) {
 const tools = [
   {
     name: 'world_project_list',
-    description: '列出 WorldSea 的项目（项目 = dsh 工作区目录，同源模型）：id / 名称 / 目录 path。当前项目的数据宇宙 = 会话 cwd。',
+    description: '列出 WorldSea 的项目（项目 = dsh 工作区目录，同源模型）：id / 名称 / 目录 path。当前项目的创作数据 = 会话 cwd 下的 worlddata/。',
     parameters: { type: 'object', properties: {}, required: [] },
     output: listOutput,
     async execute(_args, exec) {
@@ -405,7 +436,7 @@ const tools = [
   },
   {
     name: 'world_entity_list',
-    description: '列出 WorldSea 创作数据里的实体（瘦身：id/type/name）。返回 {items,total,offset,limit}——total 超过 items 长度说明有更多，用 offset 翻页；字段详情用 world_entity_get。',
+    description: '列出 WorldSea 创作数据里的实体（瘦身：id/type/name）。返回 {items,total,offset,limit}——total 超过 items 长度说明有更多，用 offset 翻页；空结果附 state（uninitialized=数据目录未初始化，empty=暂无数据）；字段详情用 world_entity_get。',
     parameters: {
       type: 'object',
       properties: {
@@ -427,12 +458,15 @@ const tools = [
         }
       }
       const { limit, offset } = pageArgs(args);
-      return { items: out.slice(offset, offset + limit), total: out.length, offset, limit };
+      const items = out.slice(offset, offset + limit);
+      const result = { items, total: out.length, offset, limit };
+      if (!items.length) result.state = emptyState(wd);
+      return result;
     },
   },
   {
     name: 'world_entity_search',
-    description: '按关键词搜 WorldSea 实体（匹配 name 与 description，大小写不敏感；返回 {items:[...]} 瘦身）。不确定类型/名称时先用它定位。',
+    description: '按关键词搜 WorldSea 实体（匹配 name 与 description，大小写不敏感；返回 {items:[...]} 瘦身）。不确定类型/名称时先用它定位；空结果附 state（uninitialized=数据目录未初始化，empty=暂无数据）。',
     parameters: {
       type: 'object',
       properties: {
@@ -456,7 +490,9 @@ const tools = [
           if (haystack.includes(query)) out.push({ id: v.id, type: v.type, name: v.name });
         }
       }
-      return asItems(out);
+      const result = asItems(out);
+      if (!out.length) result.state = emptyState(wd);
+      return result;
     },
   },
   {
@@ -497,6 +533,7 @@ const tools = [
     async execute(args, exec) {
       const config = exec?.pluginConfig ?? {};
       const wd = worlddataDir(exec, config);
+      requireWorkspaceRoot(exec, config);
       const raw = args?.entity;
       if (!raw || typeof raw !== 'object') throw new Error('WORLDSEA_BAD_ARGS: entity 必须是对象');
       const type = requireString(raw.type, 'entity.type');
@@ -538,7 +575,9 @@ const tools = [
     },
     output: looseOutput,
     async execute(args, exec) {
-      const wd = worlddataDir(exec, exec?.pluginConfig ?? {});
+      const config = exec?.pluginConfig ?? {};
+      const wd = worlddataDir(exec, config);
+      requireWorkspaceRoot(exec, config);
       const id = requireString(args?.id, 'id');
       if (!args?.changes || typeof args.changes !== 'object') throw new Error('WORLDSEA_BAD_ARGS: changes 必须是对象');
       const hit = findFileById(entitiesDir(wd), id);
@@ -558,7 +597,9 @@ const tools = [
     },
     output: looseOutput,
     async execute(args, exec) {
-      const wd = worlddataDir(exec, exec?.pluginConfig ?? {});
+      const config = exec?.pluginConfig ?? {};
+      const wd = worlddataDir(exec, config);
+      requireWorkspaceRoot(exec, config);
       const id = requireString(args?.id, 'id');
       const hit = findFileById(entitiesDir(wd), id);
       if (!hit) throw new Error(`WORLDSEA_ENTITY_UNKNOWN: 实体不存在（${id}）`);
@@ -574,7 +615,7 @@ const tools = [
   },
   {
     name: 'world_relation_list',
-    description: '列出 WorldSea 实体间的关系；entityId 给定 = 与该实体相关的关系，省略 = 全部。',
+    description: '列出 WorldSea 实体间的关系；entityId 给定 = 与该实体相关的关系，省略 = 全部。空结果附 state（uninitialized=数据目录未初始化，empty=暂无数据）。',
     parameters: {
       type: 'object',
       properties: { entityId: { type: 'string', description: '按实体过滤（source 或 target）' } },
@@ -587,7 +628,9 @@ const tools = [
       const items = entityId
         ? all.filter((r) => r?.sourceId === entityId || r?.targetId === entityId)
         : all;
-      return asItems(items);
+      const result = asItems(items);
+      if (!items.length) result.state = emptyState(wd);
+      return result;
     },
   },
   {
@@ -602,7 +645,9 @@ const tools = [
     },
     output: looseOutput,
     async execute(args, exec) {
-      const wd = worlddataDir(exec, exec?.pluginConfig ?? {});
+      const config = exec?.pluginConfig ?? {};
+      const wd = worlddataDir(exec, config);
+      requireWorkspaceRoot(exec, config);
       const raw = args?.relation;
       if (!raw || typeof raw !== 'object') throw new Error('WORLDSEA_BAD_ARGS: relation 必须是对象');
       const type = requireString(raw.type, 'relation.type');
@@ -644,7 +689,9 @@ const tools = [
     },
     output: looseOutput,
     async execute(args, exec) {
-      const wd = worlddataDir(exec, exec?.pluginConfig ?? {});
+      const config = exec?.pluginConfig ?? {};
+      const wd = worlddataDir(exec, config);
+      requireWorkspaceRoot(exec, config);
       const id = requireString(args?.id, 'id');
       if (!readRelations(wd).some((r) => r?.id === id)) {
         throw new Error(`WORLDSEA_RELATION_UNKNOWN: 关系不存在（${id}）`);
@@ -693,9 +740,10 @@ export function apply(ctx, config = {}) {
       text: () =>
         'WorldSea 创作数据可直接读写：world_entity_search（按关键词定位）/ world_entity_list（返回 total——超过 items 数即有更多，用 offset/limit 翻页）/ world_entity_get（可带 fields 点路径按需取字段）看现有实体；' +
         '组装新实体前先 world_schema_get 拿该类型的字段与必填；写类操作（put/update/delete）完成后工作台界面会自动刷新。' +
+        '★ 写前守卫：写操作的会话 cwd 必须正好是某个已登记工作区的根目录，否则报 WORLDSEA_NOT_A_WORKSPACE（防误写非项目目录）。' +
         '实体间关系用 world_relation_list / put / delete（put 前两端实体必须已存在）。' +
         '项目清单与当前项目用 world_project_list / world_project_current（项目 = dsh 工作区目录）；' +
-        '你的会话工作区（cwd）就是当前项目的宇宙根，创作数据在其 worlddata/ 子目录。' +
+        '你的会话工作区（cwd）就是当前项目（dsh 工作区）的根目录，创作数据在其 worlddata/ 子目录。' +
         '★ schema 快照由工作台启动时导出——若 world_schema_get 报 WORLDSEA_NO_SCHEMA_SNAPSHOT，请用户先打开一次工作台（切到工作台窗即可）再重试。',
     });
   } catch (error) {

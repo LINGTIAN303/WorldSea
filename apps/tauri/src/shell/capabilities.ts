@@ -127,7 +127,7 @@ function requireString(value: unknown, field: string): string {
 /**
  * 首批内建能力（真语义，非占位）：
  * - `world.views.list`：Agent 发现创作面的入口（读 `pluginAPI` **真源**，与视图生命周期同源）；
- * - `world.project.current`：Agent 判断「在给谁干活」的上下文（D2 §1.1：项目 = dsh 工作区，dirPath 即项目宇宙）；
+ * - `world.project.current`：Agent 判断「在给谁干活」的上下文（D2 §1.1：项目 = dsh 工作区，dirPath 即项目数据根）；
  * - D2-b（2026-09-27）：**schema 驱动的产品域数据面**（批计划 §2.1）——`world.schema.get` 从运行时
  *   `entitySchemaRegistry` 动态出 schema（零手写零漂移），实体/关系 CRUD 走 `storage` 真数据层
  *   （与工作台各 store 同链路，带产品域校验）；mutates 能力执行成功后伺服派 `ws-capability-mutated`
@@ -148,7 +148,7 @@ export const WORLD_BUILTIN_CAPABILITIES: WorldCapability[] = [
   },
   {
     id: 'world.project.current',
-    summary: '当前项目（id / 名称 / 目录；项目 = dsh 工作区，dirPath 即该项目数据宇宙的根）',
+    summary: '当前项目（id / 名称 / 目录；项目 = dsh 工作区，dirPath 即该项目数据根）',
     acl: ['main'],
     handler: async () => {
       const manager = getProjectManager()
