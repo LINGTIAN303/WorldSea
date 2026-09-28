@@ -18,6 +18,16 @@
  *
  * schema 快照：`<worlddata>/.worldsea/schema-snapshot.json`（工作台启动/重播种时导出），
  * put/update 用它做「类型存在 + 必填字段」轻校验。快照缺失时写操作拒（提示先开一次工作台）。
+ *
+ * 已知边界（D2 工具集第二轮登记，2026-09-28）：
+ * - relation 并发：插件侧写经 `.worldsea/relations.lock` 互斥（mkdir 原子性 + holder.pid
+ *   进程探活区分活锁/死锁：活持有→等满 8s fail loud，死残留→立即接管；60s 硬过期兜底）
+ *   + 临时文件原子替换（防并行工具调用互覆与半截读）。工作台（webview）侧写不走此锁
+ *   ——跨端同时写的窄窗口为已知边界（低频：需用户恰在界面编辑关系时 Agent 也在写关系），
+ *   不做跨进程协同。
+ * - schema 快照时效：bootstrapShell 启动/重播种时导出的静态副本；会话中途 schema 变更
+ *   （schema = 代码内置注册表，低频）不推送——world_schema_get 返回附
+ *   snapshotGeneratedAt 供 Agent 感知时效；schema 可编辑化时再升级为版本号方案。
  */
 
 /** 稳定 cordis 插件名（内置插件页显示的包标识）。 */
@@ -42,13 +52,26 @@ function readJson(path) {
 }
 
 /** node:fs 惰性静态绑定（ESM 顶层 import 也无妨——零依赖指无第三方包）。 */
-import { readFileSync as fsRead, writeFileSync, existsSync, mkdirSync, readdirSync, unlinkSync, rmSync } from 'node:fs';
+import { readFileSync as fsRead, writeFileSync, existsSync, mkdirSync, readdirSync, unlinkSync, rmSync, renameSync, statSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 /** 写 JSON（自动建父目录）。 */
 function writeJson(path, value) {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, JSON.stringify(value, null, 2));
+}
+
+/** 原子写 JSON：临时文件 + 同卷 rename 覆盖（临时文件与目标同目录保证同卷），读者不会读到半截文件。 */
+function writeJsonAtomic(path, value) {
+  mkdirSync(dirname(path), { recursive: true });
+  const tmp = `${path}.${process.pid}.${Date.now()}.tmp`;
+  try {
+    writeFileSync(tmp, JSON.stringify(value, null, 2));
+    renameSync(tmp, path);
+  } catch (error) {
+    try { unlinkSync(tmp); } catch { /* 清理失败不掩盖主错误 */ }
+    throw error;
+  }
 }
 
 /** 会话工作区 cwd（与 tool-fs 的 session-cwd 同源口径）。 */
@@ -96,6 +119,52 @@ function findFileById(dir, id) {
     if (hit) return hit;
   }
   return null;
+}
+
+/** 按点路径挑字段（world_entity_get 的 fields 参数）：id/type 恒返回；路径不存在 → 该键省略（省载荷）。 */
+function pickFields(entity, fields) {
+  // 入参两态：字符串按逗号拆（LLM 调用方常见笔误，容忍空段）；数组逐项必须为非空字符串
+  let paths;
+  if (typeof fields === 'string') {
+    paths = fields.split(',').map((f) => f.trim()).filter(Boolean);
+  } else if (Array.isArray(fields)) {
+    if (!fields.length || fields.some((f) => typeof f !== 'string' || !f.trim())) {
+      throw new Error('WORLDSEA_BAD_ARGS: fields 必须是非空字符串数组（点路径，如 ["properties.age"]）');
+    }
+    paths = fields.map((f) => f.trim());
+  } else {
+    throw new Error('WORLDSEA_BAD_ARGS: fields 必须是非空字符串数组（点路径，如 ["properties.age"]）');
+  }
+  if (!paths.length) throw new Error('WORLDSEA_BAD_ARGS: fields 不能为空（点路径，如 ["properties.age"]）');
+  const out = { id: entity.id, type: entity.type };
+  for (const path of paths) {
+    const keys = path.split('.');
+    let node = entity;
+    for (const key of keys) {
+      if (node == null || typeof node !== 'object' || !(key in node)) { node = undefined; break; }
+      node = node[key];
+    }
+    if (node === undefined) continue;
+    let cursor = out;
+    for (let i = 0; i < keys.length - 1; i++) {
+      if (cursor[keys[i]] == null || typeof cursor[keys[i]] !== 'object') cursor[keys[i]] = {};
+      cursor = cursor[keys[i]];
+    }
+    cursor[keys[keys.length - 1]] = node;
+  }
+  return out;
+}
+
+/** 清单分页缺省上限（大项目保护：千级实体时避免一次性下载荷）。 */
+const DEFAULT_PAGE_LIMIT = 200;
+
+/** 分页参数整型化：limit 非法/缺省 → DEFAULT_PAGE_LIMIT（最小 1）；offset 非法 → 0（宽容字符串数字）。 */
+function pageArgs(args) {
+  const rawLimit = Number(args?.limit);
+  const rawOffset = Number(args?.offset);
+  const limit = Number.isFinite(rawLimit) && rawLimit >= 1 ? Math.floor(rawLimit) : DEFAULT_PAGE_LIMIT;
+  const offset = Number.isFinite(rawOffset) && rawOffset > 0 ? Math.floor(rawOffset) : 0;
+  return { limit, offset };
 }
 
 //#endregion
@@ -152,9 +221,87 @@ function readRelations(wd) {
   const list = readJson(relationsIndexPath(wd));
   return Array.isArray(list) ? list : [];
 }
-/** 写全量关系（工作台 watcher 对 _index.json 判 relationsChanged → 缓存失效重载）。 */
+/** 写全量关系（原子替换；工作台 watcher 对 _index.json 判 relationsChanged → 缓存失效重载）。 */
 function writeRelations(wd, list) {
-  writeJson(relationsIndexPath(wd), list);
+  writeJsonAtomic(relationsIndexPath(wd), list);
+}
+
+/** 关系互斥锁目录（mkdirSync 的原子性充当互斥；位于 watcher 忽略的 .worldsea/ 内，不抖 UI）。 */
+const relationsLockPath = (wd) => `${wd}/.worldsea/relations.lock`;
+/** 锁等待上限（持有方活着就等它，超时 fail loud——绝不按「等满即抢」猜测）。 */
+const RELATION_LOCK_TIMEOUT_MS = 8000;
+/** 锁重试间隔。 */
+const RELATION_LOCK_RETRY_MS = 25;
+/** 锁硬过期线（兜 PID 复用等极端情形，保证残留锁最终必然可自愈）。 */
+const RELATION_LOCK_MAX_AGE_MS = 60000;
+/** 持有方 mkdir 后写 pid 文件的宽限（此窗口内空锁视为活的，防止抢走正在初始化的锁）。 */
+const RELATION_LOCK_WRITE_GRACE_MS = 2000;
+/** 锁目录内的持有方进程号文件名。 */
+const LOCK_PID_FILE = 'holder.pid';
+
+/**
+ * 锁是否为崩溃残留（可安全接管）：持有方进程已死 / 锁超硬过期线 / 空锁超写入宽限。
+ * 全部合法持有方（插件工具执行）与等待方同处宿主进程——「跨进程残留」只出现在宿主重启后，
+ * 此时旧持有方 pid 必然已死，探活判定即可精确区分「活锁」与「死锁」。
+ */
+function isStaleRelationLock(lock) {
+  let mtimeMs;
+  try {
+    mtimeMs = statSync(lock).mtimeMs;
+  } catch {
+    return true; // 锁目录已消失（刚被释放）→ 按残留走 rmSync(no-op) + 重试，等效「锁已可得」
+  }
+  if (Date.now() - mtimeMs > RELATION_LOCK_MAX_AGE_MS) return true;
+  let pidRaw = null;
+  try {
+    pidRaw = fsRead(`${lock}/${LOCK_PID_FILE}`, 'utf8');
+  } catch { /* pid 文件暂缺 → 走宽限分支（持有方可能刚 mkdir 尚未写入） */ }
+  const holderPid = Number(pidRaw);
+  if (Number.isInteger(holderPid) && holderPid > 0) {
+    if (holderPid === process.pid) return false; // 本进程并行工具调用持有 → 活的，等
+    try {
+      process.kill(holderPid, 0); // 信号 0 = 仅探活，不投递
+      return false;
+    } catch (e) {
+      return e.code === 'ESRCH'; // 确认不存在 → 残留；EPERM 等异常按活的处理（宁可多等）
+    }
+  }
+  // 无 pid 文件：持有方可能刚 mkdir 尚未写入（宽限内当活的），或写前即崩（超宽限 = 残留）
+  return Date.now() - mtimeMs > RELATION_LOCK_WRITE_GRACE_MS;
+}
+
+/**
+ * 关系读-改-写的互斥执行（插件侧串行化，防并行工具调用互覆）。
+ * 锁自愈：持有方进程已死的残留锁立即接管；持有方活着则等待，超时 fail loud。
+ * @param mutate - 收当前全量关系，返回新全量（纯函数；落盘由本函数在锁内原子完成）。
+ */
+async function mutateRelations(wd, mutate) {
+  const lock = relationsLockPath(wd);
+  mkdirSync(dirname(lock), { recursive: true });
+  const deadline = Date.now() + RELATION_LOCK_TIMEOUT_MS;
+  for (;;) {
+    try {
+      mkdirSync(lock);
+      break;
+    } catch {
+      if (isStaleRelationLock(lock)) {
+        rmSync(lock, { recursive: true, force: true });
+        continue;
+      }
+      if (Date.now() > deadline) {
+        throw new Error('WORLDSEA_RELATION_BUSY: 关系写互斥等待超时——另一个写入方正在持有锁，请稍后重试');
+      }
+      await new Promise((resolve) => setTimeout(resolve, RELATION_LOCK_RETRY_MS));
+    }
+  }
+  try {
+    writeFileSync(`${lock}/${LOCK_PID_FILE}`, String(process.pid), 'utf8');
+    const next = mutate(readRelations(wd));
+    writeRelations(wd, next);
+    return next;
+  } finally {
+    rmSync(lock, { recursive: true, force: true });
+  }
 }
 
 /** 路径归一化（workspace 匹配用）：统一分隔符/去尾/小写（Windows 不敏感）。 */
@@ -198,6 +345,16 @@ const listOutput = {
 /** 清单包对象（对应 listOutput）。 */
 const asItems = (items) => ({ items });
 
+/** 分页清单输出：items + total/offset/limit 回显（render 全量展示——Agent 需读 total 判断是否继续翻页）。 */
+const pagedListOutput = {
+  schema: {
+    type: 'object',
+    properties: { items: { type: 'array' }, total: { type: 'number' }, offset: { type: 'number' }, limit: { type: 'number' } },
+    required: ['items', 'total'],
+  },
+  render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
+};
+
 /** 必填非空字符串参数自查。 */
 function requireString(value, field) {
   if (typeof value !== 'string' || !value.trim()) throw new Error(`WORLDSEA_BAD_ARGS: ${field} 必填（非空字符串）`);
@@ -229,7 +386,7 @@ const tools = [
   },
   {
     name: 'world_schema_get',
-    description: '读 WorldSea 实体类型的字段 schema（typeKey/label/必填字段）。组装实体数据前先取它；type 省略 = 全部类型。',
+    description: '读 WorldSea 实体类型的字段 schema（typeKey/label/必填字段）。组装实体数据前先取它；type 省略 = 全部类型。单类型返回附 snapshotGeneratedAt（快照为工作台启动时导出，可据此感知时效）。',
     parameters: {
       type: 'object',
       properties: { type: { type: 'string', description: '实体类型 typeKey（如 character）；省略 = 全部' } },
@@ -239,19 +396,26 @@ const tools = [
     async execute(args, exec) {
       const wd = worlddataDir(exec, exec?.pluginConfig ?? {});
       const snapshot = readSchemaSnapshot(wd);
-      if (args?.type) return schemaOf(snapshot, requireString(args.type, 'type'));
+      if (args?.type) {
+        const schema = schemaOf(snapshot, requireString(args.type, 'type'));
+        return { ...schema, snapshotGeneratedAt: snapshot.generatedAt ?? null };
+      }
       return snapshot;
     },
   },
   {
     name: 'world_entity_list',
-    description: '列出 WorldSea 创作数据里的实体（瘦身：id/type/name，返回 {items:[...]}）。字段详情用 world_entity_get。',
+    description: '列出 WorldSea 创作数据里的实体（瘦身：id/type/name）。返回 {items,total,offset,limit}——total 超过 items 长度说明有更多，用 offset 翻页；字段详情用 world_entity_get。',
     parameters: {
       type: 'object',
-      properties: { type: { type: 'string', description: '按实体类型过滤（typeKey）；省略 = 全部' } },
+      properties: {
+        type: { type: 'string', description: '按实体类型过滤（typeKey）；省略 = 全部' },
+        limit: { type: 'number', description: '单页条数上限（缺省 200）' },
+        offset: { type: 'number', description: '起始偏移（配合 limit 翻页；缺省 0）' },
+      },
       required: [],
     },
-    output: listOutput,
+    output: pagedListOutput,
     async execute(args, exec) {
       const wd = worlddataDir(exec, exec?.pluginConfig ?? {});
       const type = args?.type ? requireString(args.type, 'type') : null;
@@ -262,7 +426,8 @@ const tools = [
           if (entry.value?.id && entry.value?.type) out.push({ id: entry.value.id, type: entry.value.type, name: entry.value.name });
         }
       }
-      return asItems(out);
+      const { limit, offset } = pageArgs(args);
+      return { items: out.slice(offset, offset + limit), total: out.length, offset, limit };
     },
   },
   {
@@ -296,10 +461,17 @@ const tools = [
   },
   {
     name: 'world_entity_get',
-    description: '读取 WorldSea 实体的完整数据（含 properties 字段）。',
+    description: '读取 WorldSea 实体数据（省略 fields = 完整数据含 properties）。fields 可选：点路径数组（如 ["name","properties.age"]）按需取字段减载荷；id/type 恒返回，不存在的路径省略。',
     parameters: {
       type: 'object',
-      properties: { id: { type: 'string', description: '实体 id' } },
+      properties: {
+        id: { type: 'string', description: '实体 id' },
+        fields: {
+          type: 'array',
+          items: { type: 'string' },
+          description: '要取的字段（点路径，支持 properties.xxx）；省略 = 完整实体',
+        },
+      },
       required: ['id'],
     },
     output: looseOutput,
@@ -308,7 +480,7 @@ const tools = [
       const id = requireString(args?.id, 'id');
       const hit = findFileById(entitiesDir(wd), id);
       if (!hit) throw new Error(`WORLDSEA_ENTITY_UNKNOWN: 实体不存在（${id}）`);
-      return hit.value;
+      return args?.fields !== undefined ? pickFields(hit.value, args.fields) : hit.value;
     },
   },
   {
@@ -390,11 +562,12 @@ const tools = [
       const id = requireString(args?.id, 'id');
       const hit = findFileById(entitiesDir(wd), id);
       if (!hit) throw new Error(`WORLDSEA_ENTITY_UNKNOWN: 实体不存在（${id}）`);
-      // 关联清理（对齐 FileStorageBackend.deleteEntityAtomic）：先摘关系再删实体
+      // 关联清理（对齐 FileStorageBackend.deleteEntityAtomic）：先摘关系再删实体（互斥 + 原子替换）
       const relations = readRelations(wd);
-      const kept = relations.filter((r) => r?.sourceId !== id && r?.targetId !== id);
-      const relationsRemoved = relations.length - kept.length;
-      if (relationsRemoved > 0) writeRelations(wd, kept);
+      const relationsRemoved = relations.filter((r) => r?.sourceId === id || r?.targetId === id).length;
+      if (relationsRemoved > 0) {
+        await mutateRelations(wd, (list) => list.filter((r) => r?.sourceId !== id && r?.targetId !== id));
+      }
       unlinkSync(hit.file);
       return { id, relationsRemoved };
     },
@@ -452,11 +625,12 @@ const tools = [
         createdAt: now,
         updatedAt: now,
       };
-      const list = readRelations(wd);
-      const idx = list.findIndex((r) => r?.id === relation.id);
-      if (idx >= 0) list[idx] = relation;
-      else list.push(relation);
-      writeRelations(wd, list);
+      await mutateRelations(wd, (list) => {
+        const idx = list.findIndex((r) => r?.id === relation.id);
+        if (idx >= 0) list[idx] = relation;
+        else list.push(relation);
+        return list;
+      });
       return { id: relation.id, type: relation.type };
     },
   },
@@ -472,10 +646,10 @@ const tools = [
     async execute(args, exec) {
       const wd = worlddataDir(exec, exec?.pluginConfig ?? {});
       const id = requireString(args?.id, 'id');
-      const list = readRelations(wd);
-      const next = list.filter((r) => r?.id !== id);
-      if (next.length === list.length) throw new Error(`WORLDSEA_RELATION_UNKNOWN: 关系不存在（${id}）`);
-      writeRelations(wd, next);
+      if (!readRelations(wd).some((r) => r?.id === id)) {
+        throw new Error(`WORLDSEA_RELATION_UNKNOWN: 关系不存在（${id}）`);
+      }
+      await mutateRelations(wd, (list) => list.filter((r) => r?.id !== id));
       return { id };
     },
   },
@@ -517,7 +691,7 @@ export function apply(ctx, config = {}) {
       name: 'tool:worldsea',
       order: 900, // 工具段之后的追加位（数字直接给——自定义段名不在预声明排序表内）
       text: () =>
-        'WorldSea 创作数据可直接读写：world_entity_search（按关键词定位）/ world_entity_list / world_entity_get 看现有实体；' +
+        'WorldSea 创作数据可直接读写：world_entity_search（按关键词定位）/ world_entity_list（返回 total——超过 items 数即有更多，用 offset/limit 翻页）/ world_entity_get（可带 fields 点路径按需取字段）看现有实体；' +
         '组装新实体前先 world_schema_get 拿该类型的字段与必填；写类操作（put/update/delete）完成后工作台界面会自动刷新。' +
         '实体间关系用 world_relation_list / put / delete（put 前两端实体必须已存在）。' +
         '项目清单与当前项目用 world_project_list / world_project_current（项目 = dsh 工作区目录）；' +
