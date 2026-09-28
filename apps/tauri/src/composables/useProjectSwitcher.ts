@@ -249,6 +249,20 @@ export function useProjectSwitcher() {
     pluginAPI.clearViews()
     usePluginStore().clearPlugins()
 
+    // 1.5 树插件重装载（2026-09-28 走查修复）：clearViews 只清视图真源，树插件 fiber 仍在——
+    //     setPluginEnabled(true) 对已装载插件是 no-op（tree.ts 的 fibers.has 幂等位），
+    //     视图/实体类型/能力永远不会重新注册 → 侧栏全空、实体类型清空、快照导出空表，
+    //     且需逐芽手动「关-开」才恢复单个芽。此处按已装载清单 unload→load（等效逐芽关-开），
+    //     可见性沿用芽清单口径（isViewVisible），apply 重跑 = 视图 + schema 类型 + 能力全部重注册。
+    const [{ worldTreeState, unloadPlugin, setPluginEnabled }, { isViewVisible }] = await Promise.all([
+      import('@/world'),
+      import('@worldsea/entity-core'),
+    ])
+    for (const pluginId of [...worldTreeState().plugins]) {
+      unloadPlugin(pluginId)
+      setPluginEnabled(pluginId, isViewVisible(pluginId))
+    }
+
     // 2. 产品壳重装配（C2 起：官方芽全部在第二棵树内——树随页面常驻，项目切换只需重装视图同步 + 保视图选择）
     await bootstrapShell({ skipDefaultView: true })
 

@@ -24,7 +24,6 @@
     <template v-if="variant === 'workbench'">
       <div class="titlebar-left" data-tauri-drag-region>
         <ProjectSwitcher variant="titlebar" />
-        <span v-if="dirName" class="titlebar-dir" :title="dirName">{{ dirName }}</span>
       </div>
       <div class="titlebar-spacer" data-tauri-drag-region></div>
       <div class="titlebar-center" data-tauri-drag-region>
@@ -69,7 +68,6 @@ import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { getCurrentWindow, type Window } from '@tauri-apps/api/window'
 import { invoke } from '@tauri-apps/api/core'
 import { isTauri } from '@worldsea/entity-core/core'
-import { useFileSystemProject } from '@/composables/useFileSystemProject'
 import { useUIStore } from '@/stores/uiStore'
 import { usePluginStore } from '@worldsea/entity-core'
 import { WsIcon } from '@worldsea/ui-kit'
@@ -93,7 +91,6 @@ try {
 } catch {
   appWindow = null
 }
-const { dirName } = useFileSystemProject()
 const uiStore = useUIStore()
 const pluginStore = usePluginStore()
 
@@ -328,20 +325,6 @@ function close() {
   font-size: var(--fs-2xs);
   color: var(--text-tertiary, var(--color-text-tertiary));
   margin-top: 1px;
-  flex-shrink: 0;
-}
-/* 已绑定目录路径标签 */
-.titlebar-dir {
-  font-size: var(--font-size-sm, 12px);
-  color: var(--text-secondary, var(--color-text-secondary));
-  background: var(--bg-hover, var(--color-bg-hover));
-  padding: 1px 8px;
-  border-radius: var(--radius-sm, 6px);
-  max-width: 160px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  margin-left: 2px;
   flex-shrink: 0;
 }
 .titlebar-spacer {
