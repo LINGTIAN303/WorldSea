@@ -1,8 +1,8 @@
 // D2-c（2026-09-27）：产品域说明书——Agent 认知面（D2 批计划 §2.2）。
 //
 // 启动时确保工作区根有一份 `WORLDSEA.md`（不存在则写模板；**已存在绝不覆盖**——用户可编辑）。
-// dsh 会话的 cwd = 工作区 → Agent 首轮经 read_file 拉取（能力 description 里有指向）。
-// `WORLDSEA_NO_MANUAL=1` 关闭（反证模式）。内容与 `shell/capabilities.ts` 的 world.* 能力同步维护。
+// dsh 会话的 cwd = 工作区 → Agent 按需经文件工具拉取；入口指向 = 内置插件 systemPrompt 指引段
+// （点名本文件）。`WORLDSEA_NO_MANUAL=1` 关闭（反证模式）。能力桥清单与 `shell/capabilities.ts` 同步维护。
 
 use std::path::Path;
 
@@ -12,7 +12,26 @@ const MANUAL_TEMPLATE: &str = r#"# WorldSea 产品域说明书（给 Agent 的�
 > 本文件由壳在工作区根生成（已存在则不覆盖，可自由编辑）。你的 cwd = 当前工作区目录，
 > 即一个「项目」的根目录：`worlddata/` 是创作数据（实体/关系/文件），`agent/` 是你的工作路径。
 
-## 你可以操作产品域（工作台窗）——经能力桥
+## 操作创作数据的三条通道
+
+| 通道 | 用途 | 特点 |
+|---|---|---|
+| **原生工具集**（下节 world_*，会话工具面直接调用） | 日常读写创作数据——**默认走这条** | schema 轻校验 + 写前工作区守卫 + 关系簿记互斥；写后工作台界面自动刷新 |
+| **能力调用**（下节 world.*，经壳能力桥） | 需要工作台运行时参与的操作 | 带校验、带审计；单实体粒度；改完工作台即见 |
+| **FS 直写**（write_file 等通用工具） | 批量/原始文件操作（`worlddata/` 下的 JSON、`agent/` 下任意文件） | 绕过数据层校验，格式自负；worlddata 内的外部写入同样经 FsWatcher 刷新界面 |
+
+## 原生工具集（12 条 world_*，会话工具面直接可用）
+
+项目：`world_project_list`（项目 = dsh 工作区）· `world_project_current`（cwd 对齐的项目）
+Schema：`world_schema_get`（type 省略 = 全部；**组装实体前先取**；单类型返回附 snapshotGeneratedAt）
+实体：`world_entity_list` · `world_entity_search`（关键词 + tag 标签过滤）· `world_entity_get` · `world_entity_put` · `world_entity_update` · `world_entity_delete`（原子清理关联关系）
+关系：`world_relation_list` · `world_relation_put`（两端实体必须已存在）· `world_relation_delete`
+
+**清单类共性**：返回 `{items, total, offset, limit}`——total 超过 items 数即有更多，用 offset 翻页（缺省 200 条上限）；统一按 updatedAt 降序 → id 升序稳定排序；空结果附 `state`（`uninitialized` = 数据目录未初始化，请用户先打开一次工作台 / `empty` = 暂无数据）。
+**按需取字段**：`world_entity_get` 与 `world_relation_list` 支持 `fields` 点路径数组（如 `["properties.age"]`），id/type 恒返回，减载荷。
+**写操作两条**：① 写前守卫——会话 cwd 必须正好是已登记工作区根，否则报 `WORLDSEA_NOT_A_WORKSPACE`（防误写非项目目录）；② `world_entity_update` 的 `changes.properties` 缺省整包替换，`mergeProperties: true` 按字段合并（只改动点名字段）。
+
+## 能力桥清单（world.*，经壳受控调用）
 
 项目与项目数据（只读发现 → 按 schema 组装 → 写入）：
 
@@ -30,13 +49,6 @@ const MANUAL_TEMPLATE: &str = r#"# WorldSea 产品域说明书（给 Agent 的�
 - `world.relation.delete` —— 按 id 删除关系
 
 **典型两步**：`world.schema.get {type:"character"}` 拿字段 → `world.entity.put {entity:{type:"character", name:"...", properties:{...}}}`。
-
-## 两条写入通道的判定线
-
-| 通道 | 用途 | 边界 |
-|---|---|---|
-| **能力调用**（上表） | 带校验、带感知（改完工作台**即见**）、带审计——**默认走这条** | 单实体粒度 |
-| **FS 直写**（你的 write_file 等工具） | 批量/原始文件操作（`worlddata/` 下的 JSON、`agent/` 下任意文件） | 绕过数据层校验；改完**不会**自动刷新工作台界面（重进视图才见） |
 
 ## 边界
 

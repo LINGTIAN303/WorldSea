@@ -791,7 +791,8 @@ export function apply(ctx, config = {}) {
         '实体间关系用 world_relation_list / put / delete（put 前两端实体必须已存在）。' +
         '项目清单与当前项目用 world_project_list / world_project_current（项目 = dsh 工作区目录）；' +
         '你的会话工作区（cwd）就是当前项目（dsh 工作区）的根目录，创作数据在其 worlddata/ 子目录。' +
-        '★ schema 快照由工作台启动时导出——若 world_schema_get 报 WORLDSEA_NO_SCHEMA_SNAPSHOT，请用户先打开一次工作台（切到工作台窗即可）再重试。',
+        '★ schema 快照由工作台启动时导出——若 world_schema_get 报 WORLDSEA_NO_SCHEMA_SNAPSHOT，请用户先打开一次工作台（切到工作台窗即可）再重试。' +
+        '★ 详细地图见工作区根的 WORLDSEA.md（壳生成的产品域说明书：三通道判定线 + 能力桥清单，用户可编辑）。',
     });
   } catch (error) {
     console.warn('[worldsea-plugin] systemPrompt 段注册失败（工具不受影响）：', error);
