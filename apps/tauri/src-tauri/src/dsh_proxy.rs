@@ -101,6 +101,54 @@ const PASSABLE_REQUEST_HEADERS: [&str; 5] = [
 pub(crate) const CSP_INDEX: &str = "object-src 'none'; base-uri 'self'; form-action 'none'";
 
 /// 路径是否在白名单内（`open` = 逃生口放行全部）。
+/// 接管结果：Handled = 壳已应答（不再转发宿主）；Passthrough = 非 explorer 等形态，照旧转发。
+enum OpenExplorerOutcome {
+    Handled(http::Response<Vec<u8>>),
+    Passthrough,
+}
+
+fn open_explorer_json(status: u16, body: &str) -> http::Response<Vec<u8>> {
+    http::Response::builder()
+        .status(status)
+        .header("content-type", "application/json")
+        .header("cache-control", "no-store")
+        .body(body.as_bytes().to_vec())
+        .expect("json response")
+}
+
+/// 解析 `/open-in-app/open` 的 body 并在 `app=explorer` 时由**壳进程**打开目录。
+/// 路径校验对齐宿主路由的 wire 语义：绝对路径且目录存在，否则 400（页面走失败 toast）。
+/// 注：与 `cmd_open_in_explorer` 同口径传原生路径（explorer 自身 argv 解析对逗号/等号敏感，
+/// 与工作台既有实现同暴露面；罕见目录名字符不做 file URI 转义）。
+fn try_open_explorer_from_shell(
+    body: &[u8],
+    spawn: &dyn Fn(&str) -> std::io::Result<()>,
+) -> OpenExplorerOutcome {
+    let Ok(value) = serde_json::from_slice::<serde_json::Value>(body) else {
+        return OpenExplorerOutcome::Passthrough;
+    };
+    if value.get("app").and_then(|v| v.as_str()) != Some("explorer") {
+        return OpenExplorerOutcome::Passthrough;
+    }
+    let Some(path) = value.get("path").and_then(|v| v.as_str()) else {
+        return OpenExplorerOutcome::Passthrough;
+    };
+    let native = path.replace('/', "\\");
+    if !std::path::Path::new(&native).is_absolute() || !std::path::Path::new(&native).is_dir() {
+        return OpenExplorerOutcome::Handled(open_explorer_json(
+            400,
+            r#"{"code":"bad-request","message":"path must be an absolute directory path"}"#,
+        ));
+    }
+    match spawn(&native) {
+        Ok(()) => OpenExplorerOutcome::Handled(open_explorer_json(200, r#"{"ok":true}"#)),
+        Err(e) => OpenExplorerOutcome::Handled(open_explorer_json(
+            500,
+            &format!(r#"{{"code":"launch-failed","message":"{e}"}}"#),
+        )),
+    }
+}
+
 pub(crate) fn path_allowed(path_only: &str, open: bool) -> bool {
     if open {
         return true;
@@ -176,6 +224,19 @@ pub(crate) fn proxy(cfg: &ProxyCfg, request: &http::Request<Vec<u8>>) -> http::R
     if !path_allowed(&path_only, cfg.open_paths) {
         eprintln!("[DSH-SHELL] bridge: {method} {path_and_query} → 404（路径白名单外；WORLDSEA_BRIDGE_OPEN=1 可放行）");
         return failure_response(404, is_index, "路径不在壳白名单内", &path_only);
+    }
+
+    // D3 走查修复（2026-09-28）：接管 explorer 的目录打开。宿主 detached spawn 来自后台进程，
+    // 无前台权——资源管理器窗口开了也压在应用后面（用户感知「点击无效」；COM 枚举实锤窗口在堆叠）。
+    // 壳是用户点击时的前台应用，其子进程可继承前台权 → explorer 由壳进程拉起；其余 app
+    // （vscode 等按 argv 解析的宿主目录）仍转发宿主原链路。
+    if method == "POST" && path_only == "/open-in-app/open" {
+        match try_open_explorer_from_shell(request.body(), &|native| {
+            std::process::Command::new("explorer").arg(native).spawn().map(|_| ())
+        }) {
+            OpenExplorerOutcome::Handled(response) => return response,
+            OpenExplorerOutcome::Passthrough => {}
+        }
     }
 
     // ── 转发（透传白名单制的请求头；页面的 origin/凭据语义一律不带）────────────

@@ -594,3 +594,46 @@ fn pipe_sse_response_degrades_explicitly() {
     assert_eq!(response.status().as_u16(), 502);
     assert!(body_text(&response).contains("text/event-stream"));
 }
+
+#[test]
+fn open_in_app_explorer_intercepted_and_spawned_from_shell() {
+    // D3 走查修复：app=explorer + 绝对存在的目录 → 壳进程 spawn + 200 ok:true（不转发宿主）。
+    let dir = std::env::temp_dir().join(format!("ws-oia-test-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let spawned: Mutex<Vec<String>> = Mutex::new(Vec::new());
+    let body = format!(
+        r#"{{"app":"explorer","path":"{}"}}"#,
+        dir.to_string_lossy().replace('\\', "\\\\")
+    );
+    let outcome = try_open_explorer_from_shell(body.as_bytes(), &|native| {
+        spawned.lock().unwrap().push(native.to_string());
+        Ok(())
+    });
+    let handled = match outcome {
+        OpenExplorerOutcome::Handled(response) => response,
+        OpenExplorerOutcome::Passthrough => panic!("explorer 应被接管而非转发"),
+    };
+    assert_eq!(handled.status().as_u16(), 200);
+    assert!(body_text(&handled).contains(r#""ok":true"#));
+    let guard = spawned.lock().unwrap();
+    assert_eq!(guard.len(), 1, "spawn 恰一次");
+    assert!(guard[0].contains("ws-oia-test"), "spawn 的应是测试目录：{}", guard[0]);
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn open_in_app_non_explorer_passthrough_and_bad_path_rejected() {
+    // 非 explorer 应用 → Passthrough（照旧转发宿主的 argv 解析链）
+    let outcome = try_open_explorer_from_shell(br#"{"app":"vscode","path":"C:\\x"}"#, &|_| Ok(()));
+    assert!(matches!(outcome, OpenExplorerOutcome::Passthrough));
+    // explorer + 相对不存在路径 → 400 bad-request（页面走失败 toast），绝不 spawn
+    let outcome = try_open_explorer_from_shell(br#"{"app":"explorer","path":"relative/nope"}"#, &|_| {
+        panic!("坏路径不得 spawn")
+    });
+    let handled = match outcome {
+        OpenExplorerOutcome::Handled(response) => response,
+        OpenExplorerOutcome::Passthrough => panic!("explorer 坏路径应由壳 400"),
+    };
+    assert_eq!(handled.status().as_u16(), 400);
+    assert!(body_text(&handled).contains("bad-request"));
+}
