@@ -224,3 +224,166 @@ describe('窗口栏：侧栏开关键捞回（E9）', () => {
     }
   })
 })
+
+/* ── 全屏桥（G1，2026-09-29）──
+   语义取自上游：`data-fullscreen` = 「原生窗口控件已隐藏」（dsh/apps/desktop/src/preload-platform.ts
+   注 + main.ts 的 enter/leave-full-screen 真源），**与最大化无关**；上游 Windows 全屏只重置
+   --dsh-frame-overlay-top(→20px) 与 --dsh-frame-chrome-top(→0)，不重置 --dsh-windows-titlebar-height，
+   故 dsh 自己那条 32px 带仍在。我方栏 z-index 高于 dsh 浮层 → 只能「隐藏栏 + 置属性」，
+   保留栏而置属性会让浮层顶部被栏盖住（无中间态）。 */
+describe('窗口栏：全屏桥（G1）', () => {
+  /** 造一个 dsh 侧栏键替身并用 resize 触发钉住（首装轮询在 E9 组已命中并停止，故走 resize 重对齐路径） */
+  function fakeSidebarToggle(): HTMLElement {
+    const fake = document.createElement('button')
+    fake.setAttribute('aria-keyshortcuts', 'Control+B')
+    fake.className = 'SidebarRoot_iconButton__a1 SidebarRoot_toggle__b2'
+    fake.style.position = 'fixed'
+    document.body.appendChild(fake)
+    window.dispatchEvent(new Event('resize'))
+    return fake
+  }
+
+  function fireKey(key: string, init: KeyboardEventInit = {}): KeyboardEvent {
+    const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init })
+    window.dispatchEvent(event)
+    return event
+  }
+
+  function fullscreenEvent(on: boolean): void {
+    window.dispatchEvent(new CustomEvent('worldsea:fullscreen', { detail: on }))
+  }
+
+  it('F11（无修饰键）→ cmd_shell_window_action(toggle-fullscreen) 且阻止默认', async () => {
+    calls = []
+    nextOutcome = () => ({ maximized: false, fullscreen: false })
+    const event = fireKey('F11')
+    expect(event.defaultPrevented).toBe(true)
+    expect(windowActions()).toEqual(['toggle-fullscreen'])
+    await flush()
+  })
+
+  it('F11 带任一修饰键 / IME 组词期 → 不触发（照 TitleBar.vue 的窗口控制键口径）', () => {
+    calls = []
+    fireKey('F11', { ctrlKey: true })
+    fireKey('F11', { shiftKey: true })
+    fireKey('F11', { altKey: true })
+    fireKey('F11', { metaKey: true })
+    fireKey('F11', { isComposing: true })
+    /* keyCode 229 = IME 处理中（jsdom 的 KeyboardEvent init 不收 keyCode，故覆写属性） */
+    const ime = new KeyboardEvent('keydown', { key: 'F11', bubbles: true, cancelable: true })
+    Object.defineProperty(ime, 'keyCode', { value: 229 })
+    window.dispatchEvent(ime)
+    expect(windowActions()).toEqual([])
+  })
+
+  it('最大化 ≠ 全屏：maximized:true 不得置 data-fullscreen（52px 内缩必须保住）', async () => {
+    calls = []
+    nextOutcome = () => ({ maximized: true, fullscreen: false })
+    click(bar().querySelector('.wstb-max') as HTMLElement)
+    await flush()
+    expect(document.documentElement.hasAttribute('data-fullscreen')).toBe(false)
+    expect(bar().style.display).toBe('')
+    nextOutcome = () => ({ maximized: false, fullscreen: false })
+    click(bar().querySelector('.wstb-max') as HTMLElement)
+    await flush()
+  })
+
+  it('进全屏 → 置 html[data-fullscreen] + 隐藏窗口栏 + 解除侧栏键内联钉住（回 dsh 原生定位）', async () => {
+    const fake = fakeSidebarToggle()
+    expect(fake.style.zIndex).toBe('2147483001')
+    try {
+      nextOutcome = () => ({ maximized: false, fullscreen: true })
+      fireKey('F11')
+      await flush()
+      expect(document.documentElement.getAttribute('data-fullscreen')).toBe('true')
+      /* 必须走内联 display:none——`hidden` 属性会被本栏的 author 级 display:flex 压掉 */
+      expect(bar().style.display).toBe('none')
+      expect(fake.style.left).toBe('')
+      expect(fake.style.top).toBe('')
+      expect(fake.style.zIndex).toBe('')
+    } finally {
+      nextOutcome = () => ({ maximized: false, fullscreen: false })
+      fullscreenEvent(false)
+      await flush()
+      fake.remove()
+    }
+  })
+
+  it('退全屏 → 三项全还原（属性删除 / 栏可见 / 侧栏键重新钉回槽位）', async () => {
+    const fake = fakeSidebarToggle()
+    try {
+      nextOutcome = () => ({ maximized: false, fullscreen: true })
+      fireKey('F11')
+      await flush()
+      /* 先钉住「确实进过全屏」，否则本用例会因全程无变化而空转通过 */
+      expect(document.documentElement.getAttribute('data-fullscreen')).toBe('true')
+      expect(bar().style.display).toBe('none')
+      expect(fake.style.zIndex).toBe('')
+
+      nextOutcome = () => ({ maximized: false, fullscreen: false })
+      fireKey('F11')
+      await flush()
+      expect(document.documentElement.hasAttribute('data-fullscreen')).toBe(false)
+      expect(bar().style.display).toBe('')
+      expect(fake.style.zIndex).toBe('2147483001')
+      expect(fake.style.left).not.toBe('')
+    } finally {
+      fake.remove()
+    }
+  })
+
+  it('菜单路径（Rust 发起）：worldsea:fullscreen CustomEvent 与返回值路径等效', async () => {
+    fullscreenEvent(true)
+    await flush()
+    expect(document.documentElement.getAttribute('data-fullscreen')).toBe('true')
+    expect(bar().style.display).toBe('none')
+    fullscreenEvent(false)
+    await flush()
+    expect(document.documentElement.hasAttribute('data-fullscreen')).toBe(false)
+    expect(bar().style.display).toBe('')
+  })
+
+  it('全屏下 resize → 侧栏键不得被重新钉回（钉住守卫；否则键会落到已隐藏槽位的 0,0）', async () => {
+    nextOutcome = () => ({ maximized: false, fullscreen: true })
+    fullscreenEvent(true)
+    await flush()
+    const fake = document.createElement('button')
+    fake.setAttribute('aria-keyshortcuts', 'Control+B')
+    fake.className = 'SidebarRoot_iconButton__a1 SidebarRoot_toggle__b2'
+    fake.style.position = 'fixed'
+    document.body.appendChild(fake)
+    try {
+      window.dispatchEvent(new Event('resize'))
+      expect(fake.style.left).toBe('')
+      expect(fake.style.zIndex).toBe('')
+    } finally {
+      fake.remove()
+      nextOutcome = () => ({ maximized: false, fullscreen: false })
+      fullscreenEvent(false)
+      await flush()
+    }
+  })
+
+  it('跨文件契约：菜单回传的事件名与脚本监听一致（防两侧字面量漂移）', () => {
+    const menu = readFileSync(join(process.cwd(), 'apps/tauri/src-tauri/src/menu.rs'), 'utf8')
+    expect(menu).toContain('worldsea:fullscreen')
+    expect(SOURCE).toContain('worldsea:fullscreen')
+  })
+})
+
+/* 须置于文件末尾：本组做二次真实安装（清幂等标记 + 摘旧 DOM），会再挂一份监听器 */
+describe('窗口栏：全屏桥挂载恢复（G1）', () => {
+  it('挂载时壳回 fullscreen:true → 直接落全屏形态（全屏中重载不退回窗口态 CSS，对齐上游 main.ts:244）', async () => {
+    delete (globalThis as { __WORLDSEA_TITLEBAR__?: unknown }).__WORLDSEA_TITLEBAR__
+    document.getElementById('worldsea-titlebar')?.remove()
+    document.getElementById('worldsea-titlebar-style')?.remove()
+    document.documentElement.removeAttribute('data-fullscreen')
+    calls = []
+    nextOutcome = () => ({ maximized: false, fullscreen: true })
+    evalScript()
+    await flush()
+    expect(windowActions()).toContain('is-maximized')
+    expect(document.documentElement.getAttribute('data-fullscreen')).toBe('true')
+    expect(bar().style.display).toBe('none')
+  })
+})

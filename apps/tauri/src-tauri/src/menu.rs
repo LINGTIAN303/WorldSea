@@ -128,9 +128,12 @@ fn handle(app: &AppHandle, id: &str) {
             }
         }
         ID_FULLSCREEN => {
-            let now = window.is_fullscreen().unwrap_or(false);
-            if let Err(e) = window.set_fullscreen(!now) {
+            let next = !window.is_fullscreen().unwrap_or(false);
+            if let Err(e) = window.set_fullscreen(next) {
                 eprintln!("[DSH-SHELL] 菜单：全屏切换失败：{e}");
+            } else if let Err(e) = window.eval(&sync_fullscreen_js(next)) {
+                // 切换已成功、只是回传失败：窗口确实进了全屏，页面侧靠 resize 查询自愈
+                eprintln!("[DSH-SHELL] 菜单：全屏态回传页面失败：{e}");
             }
         }
         ID_SETTINGS => {
@@ -206,3 +209,15 @@ const OPEN_SETTINGS_JS: &str = r#"(function () {
   box.textContent = '壳桥未注入：设置入口不可用（设 WORLDSEA_SHELL_DIAG=1 可看页面 console 与壳日志）';
   (document.body || document.documentElement).appendChild(box);
 })()"#;
+
+/// G1（2026-09-29）：全屏态回传页面。
+///
+/// 菜单是壳侧发起的 `set_fullscreen`，页面无从得知；派发 CustomEvent 交注入的窗口栏脚本
+/// （`dsh_titlebar.js`）独占 DOM 效果——置 `html[data-fullscreen]`（dsh 据此把浮层内缩
+/// 52px→20px）+ 隐藏窗口栏 + 解除侧栏键的内联钉住。事件名是壳两侧的共享字面量，
+/// `src/__tests__/titlebar.spec.ts` 有跨文件契约用例守着，改名两侧一起红。
+/// 页面侧另有 F11 通路（走 `cmd_shell_window_action` 的返回值），两条路径汇聚到同一函数。
+/// 无监听者时（`WORLDSEA_NO_TITLEBAR` / `WORLDSEA_FRAMED` 反证开关，或工作台窗的旧前端）派发无害。
+fn sync_fullscreen_js(on: bool) -> String {
+    format!("window.dispatchEvent(new CustomEvent('worldsea:fullscreen', {{ detail: {on} }}))")
+}

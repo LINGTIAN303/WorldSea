@@ -8,6 +8,9 @@
    （工作台窗不吃本注入：它用旧前端自带的 TitleBar 作窗口栏。）
    反证开关（壳侧控制，本脚本不感知）：`WORLDSEA_NO_TITLEBAR=1` 不注入；`WORLDSEA_FRAMED=1` 回原生边框亦不注入。
    边界：拖拽走 JS 方案（非系统非客户区）→ 无系统 snap；`Ctrl+Tab` 切换键位不进本批。
+   G1（2026-09-29）：**全屏桥**——F11（捕获相位）→ 壳命令 `toggle-fullscreen`；全屏时隐藏本栏并置
+   `html[data-fullscreen]`（dsh 据此把浮层内缩 52px→20px、遮罩 32px→0），退出后全部还原。
+   语义与三条触发路径见下方 `applyFullscreen` 处注。
    E9（2026-09-27）：**侧栏开关键捞回**——dsh 在标题栏模式下把该键 fixed 定位到视口左上角
    （`ui-sidebar/SidebarRoot.module.css`：left:12px / top:calc((H-28px)/2) / z-index:30），官方桌面
    该区域是透明系统拖拽区故键可见；本栏是不透明实体栏且 z-index 更高 → 键被完全盖住（用户视角 =
@@ -27,6 +30,8 @@
     /* dsh 内置的 Windows 形态适配（官方 preload-windows.ts 同款机制；官方桌面为 40px，本栏取旧 TitleBar 的 32px） */
     root.setAttribute('data-windows-titlebar', '');
     root.style.setProperty('--dsh-windows-titlebar-height', HEIGHT + 'px');
+    /* 全屏态（G1）：提前声明——`relocateSidebarToggle` 要在本栏隐藏时早退，而它定义在前 */
+    var fullscreenOn = false;
 
     var invoke = function (command, args) { return ipc.invoke(command, args); };
     var windowAction = function (action) { return invoke('cmd_shell_window_action', { action: action }); };
@@ -128,6 +133,8 @@
       return promise.then(function (result) {
         var maximized = result && result.maximized === true;
         syncMaxButton(maximized);
+        /* 每次窗口动作都一并带回全屏态（G1）→ F11 / 双击最大化 / 挂载查询共用这一条回传口径 */
+        applyFullscreen(!!(result && result.fullscreen === true));
         return result;
       }).catch(function (error) { report('窗口动作失败：' + error); });
     };
@@ -136,7 +143,7 @@
     maxBtn.addEventListener('click', function () { void syncAfter(windowAction('toggle-maximize')); });
     bar.querySelector('.wstb-close').addEventListener('click', function () { void windowAction('close').catch(function () {}); });
 
-    /* 最大化状态同步：系统手势（Win+↑ / 拖动吸附）改变最大化时 resize 事件兜底 */
+    /* 最大化 / 全屏状态同步：系统手势（Win+↑ / 拖动吸附）改变最大化时 resize 事件兜底 */
     var resizeTimer = null;
     window.addEventListener('resize', function () {
       if (resizeTimer !== null) clearTimeout(resizeTimer);
@@ -144,7 +151,8 @@
         resizeTimer = null;
         windowAction('is-maximized').then(function (result) {
           if (result && typeof result.maximized === 'boolean') syncMaxButton(result.maximized);
-        }).catch(function () { /* 查询失败保留当前图标 */ });
+          if (result && typeof result.fullscreen === 'boolean') applyFullscreen(result.fullscreen);
+        }).catch(function () { /* 查询失败保留当前状态 */ });
       }, 120);
     });
 
@@ -172,6 +180,8 @@
       return null;
     };
     var relocateSidebarToggle = function () {
+      /* 全屏时本栏隐藏 → 槽位 rect 全零，钉住会把键扔到 (0,0)：直接早退，让 dsh 自己的定位接管 */
+      if (fullscreenOn) return false;
       var toggle = findSidebarToggle();
       if (toggle === null) return false;
       var rect = slot.getBoundingClientRect();
@@ -187,13 +197,62 @@
     };
     window.addEventListener('resize', function () { relocateSidebarToggle(); });
 
+    /* ── 全屏桥（G1，2026-09-29）──
+       语义取自上游：`html[data-fullscreen]` = 「原生窗口控件已隐藏」（`dsh/apps/desktop/src/
+       preload-platform.ts` 注 + `main.ts` 的 enter/leave-full-screen 真源），**与最大化无关**——
+       上游最大化时同样保留 32px 内缩，故本栏在最大化下必须留在原位。
+       上游 Windows 全屏只重置 `--dsh-frame-overlay-top`(→20px) 与 `--dsh-frame-chrome-top`(→0)，
+       **不**重置 `--dsh-windows-titlebar-height` → dsh 自己那条 32px 带仍在（侧栏键回它的原生定位）。
+       本栏 z-index 高于 dsh 浮层，所以全屏只能「隐藏本栏 + 置属性」：留着栏又置属性会让浮层
+       顶部 12px 被栏盖住（无中间态）。三条触发路径汇聚到 applyFullscreen：
+       ① 页面 F11 → 壳命令返回值 ② 菜单（Rust 发起）→ CustomEvent ③ 挂载/resize 查询 → 返回值。 */
+    var unpinSidebarToggle = function () {
+      var toggle = findSidebarToggle();
+      if (toggle === null) return;
+      toggle.style.left = '';
+      toggle.style.top = '';
+      toggle.style.zIndex = '';
+    };
+    var applyFullscreen = function (on) {
+      var next = on === true;
+      if (next === fullscreenOn) return;
+      fullscreenOn = next;
+      /* 上游 preload-platform.ts 同款：置 'true' / 整个属性删掉（不是置 'false'） */
+      if (next) root.setAttribute('data-fullscreen', 'true');
+      else root.removeAttribute('data-fullscreen');
+      /* 必须走内联 display:none——`hidden` 属性会被本栏 author 级的 display:flex 压掉 */
+      bar.style.display = next ? 'none' : '';
+      if (next) unpinSidebarToggle();
+      /* 退全屏要重新钉回槽位；键可能已被 React 重渲染掉 → 重置重试预算走轮询 */
+      else { toggleRetries = 0; tryRelocateSidebarToggle(); }
+      report(next ? '全屏：窗口栏已隐藏（data-fullscreen 置位）' : '全屏：窗口栏已恢复');
+    };
+
+    /* F11 = 全屏切换（浏览器惯例；同仓 `apps/tauri/src/ui/layout/TitleBar.vue` 的窗口控制键先例）。
+       能派发到页面是因为 lib.rs 已关 WebView2 浏览器加速键（SetAreBrowserAcceleratorKeysEnabled(false)），
+       否则 F11 被 WebView2 壳层吞掉。刻意用**捕获相位**：全屏时本栏已隐藏，F11 是唯一退出通路，
+       不能被 dsh 内部某个 stopPropagation 掐断；F11 非文本键，捕获相位不干扰输入。 */
+    window.addEventListener('keydown', function (event) {
+      if (event.isComposing || event.keyCode === 229) return;
+      if (event.key.toLowerCase() !== 'f11') return;
+      if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+      event.preventDefault();
+      void syncAfter(windowAction('toggle-fullscreen'));
+    }, true);
+
+    /* 菜单路径回传：`menu.rs` 的 ID_FULLSCREEN 在 set_fullscreen 成功后派发本事件。
+       事件名是壳两侧的共享字面量，`__tests__/titlebar.spec.ts` 有跨文件契约用例守着。
+       无监听者（WORLDSEA_NO_TITLEBAR / WORLDSEA_FRAMED 反证开关下本脚本不注入）时派发无害。 */
+    window.addEventListener('worldsea:fullscreen', function (event) {
+      applyFullscreen(event.detail === true);
+    });
+
     var mount = function () {
       document.head.appendChild(style);
       document.body.appendChild(bar);
       report('窗口栏已挂载（height=' + HEIGHT + ', shell=space）');
-      windowAction('is-maximized').then(function (result) {
-        if (result && result.maximized === true) syncMaxButton(true);
-      }).catch(function () { /* 初始态查询失败保留默认图标 */ });
+      /* 挂载即查两态：全屏中重载页面要直接落全屏形态（对齐上游 main.ts 加载后补发当前态） */
+      void syncAfter(windowAction('is-maximized'));
       tryRelocateSidebarToggle();
     };
     /* 挂载时机：注入点在 `<head>` 后——body 可能尚未建立（流式解析）→ 等 DOMContentLoaded；

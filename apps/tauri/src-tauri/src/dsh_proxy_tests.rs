@@ -387,6 +387,10 @@ fn titlebar_script_wires_expected_commands_and_contract() {
     }
     assert!(text.contains("data-windows-titlebar"), "窗口栏必须置 dsh 的 Windows 形态标记（留白/圆角/连色）");
     assert!(text.contains("--dsh-windows-titlebar-height"), "窗口栏高度须经 dsh 变量驱动");
+    // G1：全屏桥——F11 走的壳命令臂与 dsh 的全屏形态标记缺一不可（缺则全屏时浮层仍内缩 52px）。
+    // 断言打到**调用形状**而非裸字面量：脚本头注也提到这两个词，裸 contains 会被注释满足而恒绿。
+    assert!(text.contains("windowAction('toggle-fullscreen')"), "窗口栏缺少全屏切换动作接线（G1）");
+    assert!(text.contains("setAttribute('data-fullscreen'"), "窗口栏必须桥接 dsh 的全屏形态标记（G1）");
     assert!(text.contains("Agent 空间"), "窗口栏切换控件文案缺位");
     // D1-b：切换不再走页内占位页（工作台是独立窗口）——旧占位页字符串必须消失
     assert!(!text.contains("worldsea-workbench"), "页内占位页应已退役（D1-b 双窗）");

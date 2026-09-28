@@ -30,11 +30,14 @@ pub fn cmd_fix_workspace_acl(app: tauri::AppHandle) -> Result<String, String> {
 }
 
 /// C6（2026-09-24）：窗口栏的窗口动作（最小化 / 最大化⇄还原 / 关闭 / 起拖 / 查询最大化）。
+/// G1（2026-09-29）：加「全屏切换」——走应用命令而非 Tauri 窗口插件，ACL 面不增长（守 C3 纪律）。
 /// 「关闭」与系统关闭按钮同语义（托盘激活时隐藏到托盘，见 `lib.rs` 的 CloseRequested 处理）。
-/// 返回值统一携带当前最大化状态——窗口栏按钮图标据此切换（还原 ⇄ 最大化）。
+/// 返回值统一携带最大化**与全屏**两态——窗口栏据此切换按钮图标，并置 `html[data-fullscreen]`
+/// 交 dsh 把浮层内缩从 52px 回落到 20px（挂载时查询即恢复，故全屏中重载不退回窗口态 CSS）。
 #[derive(serde::Serialize)]
 pub struct WindowActionOutcome {
     maximized: bool,
+    fullscreen: bool,
 }
 
 #[tauri::command]
@@ -52,10 +55,18 @@ pub fn cmd_shell_window_action(
                 window.maximize().map_err(failure)?;
             }
         }
+        // 绝对全屏（无边框真全屏，区别于最大化）：F11 浏览器惯例，与菜单「视图 → 全屏」同一原语
+        "toggle-fullscreen" => {
+            let now = window.is_fullscreen().map_err(failure)?;
+            window.set_fullscreen(!now).map_err(failure)?;
+        }
         "close" => {
             window.close().map_err(failure)?;
             // 关闭后不再查询（托盘激活时窗口隐藏；未激活时进程退出，查询必然失败）
-            return Ok(WindowActionOutcome { maximized: false });
+            return Ok(WindowActionOutcome {
+                maximized: false,
+                fullscreen: false,
+            });
         }
         // 阻塞至拖动结束（Win32 模态循环；页面侧不 await）
         "start-drag" => window.start_dragging().map_err(failure)?,
@@ -63,5 +74,9 @@ pub fn cmd_shell_window_action(
         other => return Err(format!("worldsea shell: 未知窗口动作 {other}")),
     }
     let maximized = window.is_maximized().map_err(failure)?;
-    Ok(WindowActionOutcome { maximized })
+    let fullscreen = window.is_fullscreen().map_err(failure)?;
+    Ok(WindowActionOutcome {
+        maximized,
+        fullscreen,
+    })
 }
