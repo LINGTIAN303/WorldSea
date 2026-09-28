@@ -132,7 +132,8 @@ DSH_HOME="D:/WorldSea/.独立项/b0-home" node apps/cli/lib/bin.js web --no-open
 - **dsh 适配**：注入脚本置 `html[data-windows-titlebar]` + `--dsh-windows-titlebar-height: 32px`（**dsh 内置机制**，官方 Electron 桌面端同款，只是官方用 40px）→ dsh 界面自动留白 + `centerCol` 圆角 + 侧栏连色；**dsh 树零改动**。
 - **拖拽 / 双击**：JS 方案（窗口栏空白区 `mousedown` → `cmd_shell_window_action start-drag`；`detail===2` → 最大化/还原）。**无系统边缘吸附（snap）**——已知差异；将来可评估 WebView2 non-client（`-webkit-app-region` + `IsNonClientRegionSupportEnabled`）。
 - **工作台占位页**：点切换控件 → 「WorldSea · 产品域即将落位」占位页（DOM 覆盖层，dsh 页面保持运行、会话不丢）；产品域（26 芽，原 27——`official.module-builder` 已于 2026-09-25 随「自定义模块」剪除）真正落位时接真页。——**D1 已接真页、占位页退役**（见下节）。
-- **菜单改 popup**：`menu.rs` 不再 `set_menu`（无边框下 Win32 菜单栏不可见，见下坑），改为窗口栏「⋯」按钮经 `cmd_shell_popup_menu`（`popup_menu_at` + 页面逻辑坐标）弹出；菜单内容与快捷键零删减（文件/编辑/视图/设置四子菜单）。
+- **菜单改 popup**：`menu.rs` 不再 `set_menu`（无边框下 Win32 菜单栏不可见，见下坑），改为窗口栏「⋯」按钮经 `cmd_shell_popup_menu`（`popup_menu_at` + 页面逻辑坐标）弹出；菜单内容与快捷键零删减（文件/编辑/视图/设置四子菜单）。**注意**：菜单是 popup 资源而非窗口菜单，故各项上标的 accelerator（`F11` / `Ctrl+R` / `Ctrl+,` 等）**是否真生效从未实测**（登记为 G1-d）；dsh 窗的 `F11` 由注入脚本页面侧监听承接，不依赖它。
+- **全屏桥（G1，2026-09-29，详见 [G1 批计划](../../plans/2026-09-29-G1-C6全屏桥批计划.md)）**：`F11`（页面侧**捕获相位**监听）→ `cmd_shell_window_action toggle-fullscreen`；全屏时**隐藏注入的窗口栏**并置 `html[data-fullscreen]` → dsh 把浮层内缩从 `calc(32px + 20px)` 回落到 `20px`、遮罩 `inset` 从 32px 回落到 0；退出后全部还原。**语义要点**：`data-fullscreen` 对齐上游＝「原生窗口控件已隐藏」，**与最大化无关**（上游真源是 Electron 的 `enter/leave-full-screen`；最大化时我方窗口栏照旧在位，52px 内缩必须保住）。上游全屏分支只重置 `--dsh-frame-overlay-top` 与 `--dsh-frame-chrome-top`，**不**重置 `--dsh-windows-titlebar-height` → dsh 自己那条 32px 带仍在，E9 捞回的侧栏开关键在全屏时解除内联钉住、回它的原生定位（落在那条带内）。**三条触发路径**汇聚到 `applyFullscreen`：F11 的壳命令返回值 · 菜单（Rust 发起 `set_fullscreen` 后派发 `worldsea:fullscreen` CustomEvent）· 挂载与 resize 查询的返回值（故**全屏中重载页面能直接落全屏形态**）。事件名是壳两侧共享字面量，`titlebar.spec.ts` 有跨文件契约用例守着。
 
 **工作台窗（D1，2026-09-24，详见 [D1 批计划](../../plans/2026-09-24-D1-产品域落位批计划.md)）**：
 
