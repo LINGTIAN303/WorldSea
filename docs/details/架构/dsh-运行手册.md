@@ -2,7 +2,7 @@
 
 > **status: 现行**（2026-09-23 建立，B1 迁入批次产物；2026-09-24 追版 rc.1 + fork 改判 + 补 §五 载体侧事实）｜ 口径：只讲「怎么在仓内 `dsh/` 上**装、构、起**」；**`dsh/` 已是我方 fork**（D10，2026-09-24 改判）——可以对它动刀，但每一处改动都必须逐文件登记进 [dsh fork 台账](dsh-fork台账.md)（门禁 `pnpm fork:check`），并尽量收敛在接缝文件。
 > 来源与许可：上游 **deepseek-harness tag `dsh-v0.1.7-rc.2`**（提交 `477b4f420553e8a52c2fbccc464d7561b239c443`），**MIT**；树内自带 `LICENSE` 与 `THIRD_PARTY_NOTICES.md`。迁入口径：排除 `node_modules` 与 `.git`，其余原样。
-> 追版记录：初版迁入为 `dsh-v0.1.7-alpha.2`（`00102833`，2026-09-22）→ 2026-09-24 换树至 `dsh-v0.1.7-rc.1`（差异 933 文件 / +13,851 −3,101；会话格式无变动；就绪行格式与 web app 参数零变化，壳无需改动）→ **2026-09-24/25 换树至 `dsh-v0.1.7-rc.2`**（差异 3429 文件 / +136,313 −24,518；我方 11 处 fork 改动用 `git apply --3way` **全部干净重放**；接缝源码零改动、`preload-windows`/`credentials-local`/`attachment-local` 零改动；换树法 = `git rm` 入库文件 + 复制 tag 干净树 + 清 `lib/` 旧产物 + `pnpm install` + `pnpm run build`）。详见 [F1 批计划](../../plans/2026-09-24-F1-追版rc2批计划.md)。
+> 追版记录：初版迁入为 `dsh-v0.1.7-alpha.2`（`00102833`，2026-09-22）→ 2026-09-24 换树至 `dsh-v0.1.7-rc.1`（差异 933 文件 / +13,851 −3,101；会话格式无变动；就绪行格式与 web app 参数零变化，壳无需改动）→ **2026-09-24/25 换树至 `dsh-v0.1.7-rc.2`**（差异 3429 文件 / +136,313 −24,518；我方 11 处 fork 改动用 `git apply --3way` **全部干净重放**；接缝源码零改动、`preload-windows`/`credentials-local`/`attachment-local` 零改动；换树法 = `git rm` 入库文件 + 复制 tag 干净树 + 清 `lib/` 旧产物 + `pnpm install` + `pnpm run build`）。详见 [F1 批计划](../../plans/2026-09-24-F1-追版rc2批计划.md)。→ **2026-09-29 换树至 `dsh-v0.2.0-rc.1`**（上游 `4878cdab`；差异 1109 文件 / +20,374 −77,795，树 13,850 → 14,004；我方 11 处改动仍只 3 处与上游重叠、`--3way` 全干净；**命脉接缝零改动**：`client/web/src/boot.ts` · `client/connection/src` · `api/gateway/src` · `host/webserver/src` · `bundle/web-app/src` · `apps/cli/src` · `preload-windows.ts` → 就绪行/旗标族/管道契约不变）。本轮新增两条硬纪律：**锁文件一律「还原上游原版 + 手插我方 3 行 link 条目 + `--frozen-lockfile`」**（否则 pnpm 全量重解析造成版本漂移、tsc 双版本冲突）；**漂移一旦发生必须移走 `node_modules` 全新安装**（pnpm 的 up-to-date 短路不重链）。详见 [F2 批计划](../../plans/2026-09-29-F2-追版0.2.0-rc.1批计划.md)。
 
 ---
 
@@ -41,8 +41,18 @@ DSH_HOME="D:/WorldSea/.独立项/b0-home" node apps/cli/lib/bin.js web --no-open
 
 ## 四、上游更新（步骤留档）
 
-`dsh/` 内无 `.git`，**不走 `git pull`**。更新口径：取新 tag 的干净树 → 按同样排除口径覆盖 `dsh/` → 先 `diff -rq`（排除 `node_modules`/`lib`）逐条核对差异并解释 → 再提交。版本与提交号同步登记到本手册与 [准备方案](../../plans/2026-09-23-dsh接管Agent面-大重构准备.md)。
-> 注（D10 改判后）：本仓**不追随上游**（追随上游的是 DSHWS）；本节仅用于「上游有值得 cherry-pick 的修复」时的手工流程，且按台账纪律登记。
+`dsh/` 内无 `.git`，**不走 `git pull`**。现行换树法（F1 建立、F2 复核）：
+
+1. **取证**：`.workbuddy/_dsh-upstream`（上游公开仓的浅克隆 + `blob:none`）`git fetch --depth=1 origin tag <新tag>` → 核对发布说明与我方 [fork 台账](dsh-fork台账.md) 的冲突面（`git diff <旧tag> <新tag> --name-status` 逐条比我方 11 处改动与命脉接缝）。
+2. **导出补丁**：`git diff <基线提交> -- dsh` 落 `.workbuddy/`（另出一份排除 `pnpm-lock.yaml` 的供重放）。
+3. **换树**：`git checkout <新tag>` 物化干净树 → `git rm -r --quiet dsh`（只删入库文件，`node_modules` 留盘）→ 清 `lib/` 产物目录 + `*.tsbuildinfo` + `.dsh-build/` + `apps/web/dist/`（均被 `dsh/.gitignore` 忽略）→ `robocopy <干净树> dsh /E /XD .git` → 单独提交。
+4. **重放**：`git apply --3way <补丁（不含锁）>` → 逐条核对 → 单独提交 → 台账基线改为换树提交 → `pnpm fork:check` 必须 11 = 11。
+5. **锁文件（硬纪律，F2 实测）**：`git checkout <换树提交> -- dsh/pnpm-lock.yaml` 还原上游原版 → **手插我方 3 行**（web-app importer 内 `'@deepseek-ai/dsh-api-gateway': specifier: workspace:* / version: link:../../api/gateway`）→ `pnpm install --frozen-lockfile`。**绝不让 pnpm 全量重解析**：我方那条依赖边会使上游原版锁「与 package.json 不同步」，触发默认 `resolution-mode=highest` 把 caret 范围升到最新（F2 实测 micromark 家族双版本 → `tsc` TS2769）。**若已重解析过**：pnpm 的 `Already up to date` 短路（含 `--force`、含删 `.modules.yaml`/`.pnpm/lock.yaml`）不会重链，**必须把 `dsh/node_modules` 移走后全新安装**。
+6. **重建与门禁**：`pnpm run build` → dsh 自带 `typecheck`/`lint`/`test --maxWorkers=4`（邻域子集优先）→ 我方四道（cargo `--offline` / 仓库根 vitest / `apps/tauri` vue-tsc / `arch:check`）→ 真机接面回归（C1 注入 · C2 管道与就绪行 · C4 工作区 · C5 凭据 · **C6 窗口栏与浮层避让** · D1 工作台窗 · D2/D3 产品域面）→ 5 次 reload 看协议违规/真 502。
+7. **收口**：台账基线与上游对照列、本节追版记录、索引、批计划、记忆同步。
+
+> 注（D10 改判后）：本仓**不追随上游**（追随上游的是 DSHWS）；追版只在「冲突面小、整版追比零摘干净」时做（F1/F2 先例），其余上游修复按台账「上游对照」列单独立批摘取。
+> 注（F2 实测）：profile 目录（`%APPDATA%/com.worldsea.app/dsh-home/profiles/web/`）**不受换树影响**——`initProfile` 对已存在的文件一律不碰；其 `node_modules` 只有指向我方 `apps/` 插件的 link，无指向 dsh 树的链接。
 
 ## 五、载体侧事实（C1-a 实测 + C2-b 零端口，2026-09-24）
 
