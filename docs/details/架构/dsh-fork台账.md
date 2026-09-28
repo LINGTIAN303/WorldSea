@@ -5,10 +5,15 @@
 
 ## 一、基线
 
-基线提交：`cde62e7`
+基线提交：`0c6f8b2`
 
-对应上游：tag `dsh-v0.1.7-rc.2`（上游提交 `477b4f420553e8a52c2fbccc464d7561b239c443` 的干净树；换树记录见该提交信息）。
-**前次基线**：`25a4fc8`（tag `dsh-v0.1.7-rc.1`，上游 `46a7f68b…`）——追版记录见 [运行手册](dsh-运行手册.md) 与 [F1 批计划](../../plans/2026-09-24-F1-追版rc2批计划.md)。
+对应上游：tag `dsh-v0.2.0-rc.1`（上游提交 `4878cdabd87d4041bdaff61d04c966883b9fd07a` 的干净树；换树记录见该提交信息）。
+**前次基线**：`cde62e7`（tag `dsh-v0.1.7-rc.2`，上游 `477b4f42…`）——追版记录见 [运行手册](dsh-运行手册.md) 与 [F2 批计划](../../plans/2026-09-29-F2-追版0.2.0-rc.1批计划.md)。
+**更早基线**：`25a4fc8`（tag `dsh-v0.1.7-rc.1`，上游 `46a7f68b…`）——追版记录见 [F1 批计划](../../plans/2026-09-24-F1-追版rc2批计划.md)。
+
+**追版重放（2026-09-29，0.1.7-rc.2 → 0.2.0-rc.1）**：上游 delta **1,109 文件 / +20,374 −77,795**（树 13,850 → 14,004 文件）。我方 11 处改动的冲突面仍只有 **3 处**（`bundle/web-app/cordis.patch.yml` · `bundle/web-app/package.json` · `pnpm-lock.yaml`）——与 rc.1→rc.2 完全同样；`git apply --3way` 重放 **10 处全部干净应用**（3 处重叠由三方合并自动吸收，零手工重贴、无冲突标记），`pnpm-lock.yaml` 由 `pnpm install` 重新生成。**命脉接缝零改动**：`client/web/src/boot.ts` · `client/connection/src` · `api/gateway/src` · `host/webserver/src` · `bundle/web-app/src` · `apps/cli/src` · `apps/desktop/src/preload-windows.ts` → 就绪行格式、`--no-open/--port/--patch/--ipc-pipe` 旗标族、管道传输契约不受影响。换树同时清掉 327 个 `lib/` 产物目录 + 2 个 `*.tsbuildinfo` + `.dsh-build/` + `apps/web/dist/`（均被 `dsh/.gitignore` 忽略），避免 rc.2 陈旧产物与已删包残留。
+
+**本轮上游对照新增（不改我方条目，仅登记事实）**：① `util/native-command` 给 `runNativeCommand` 加第四参 `window: 'hidden' | 'visible'`，`explorer.exe` 走 `'visible'` —— 原生修掉了「SW_HIDE 连带隐藏 Explorer 文件夹窗口」，与我方壳侧 `try_open_explorer_from_shell` 拦截同一症状（去留见 F2 §四步骤 10）；② `sandbox/sandbox-windows-acl` 新增 Agent 向技能 `diagnose-windows-sandbox-acl`（PS1 + SkillProvider，限定目录内、带备份可回滚、失败即停），与我方 C4 的壳 UI 面（探针/横幅/一键 `icacls`）不同面、不冲突；③ `client/ui-layout/AppFrame.module.css` 为 `html[data-windows-titlebar]` 正式声明 `--dsh-frame-top-clearance: var(--dsh-windows-titlebar-height)` 并新增 `--dsh-frame-overlay-top`（clearance+20px）/`--dsh-frame-chrome-top` 与 fullscreen 分支，`ui-primitives/overlay-top-margin.ts` 随之改为 clearance+20 → 我方 C6 的 32px 壳级窗口栏被上游当一等公民，浮层顶部内缩变 **52px**；④ `time-context`/`schedule`/`ui-schedule` 三行移出 web-app bundle，改由新包 `experimental/schedule-bundle` 提供并进 `OPTIONAL_BUNDLES`（默认关；rc.2 时它们本就 `disabled: true`，我方从未开启）。
 
 **追版重放（2026-09-24，rc.1 → rc.2）**：我方 11 处改动的冲突面只有 3 处（`bundle/web-app/cordis.patch.yml` · `bundle/web-app/package.json` · `pnpm-lock.yaml`）；实际重放用 `git apply --3way`，**11 处全部干净应用**（无需手工重贴）。`pnpm-lock.yaml` 由 `pnpm install` 重新生成。同次干净换树还移除了 B1 从本地 WIP 副本带入、且 rc.2 中不存在的 37 个文件（含 34 个 `.claude/skills/*`——上游以 symlink 跟踪该目录，技能本体在 `.agents/skills/`）。
 

@@ -1,8 +1,9 @@
 /**
  * The web app's command-line provider: it parses the `dsh --profile web` flag
- * family (`--host`, `--port`, `--trusted-host`, `--no-open`) and its `--help`
- * text, then provides the immutable values as {@link WEB_STARTUP_SERVICE}.
- * Ordinary rows inject that service before reading it from lazy config.
+ * family (`--host`, `--port`, `--trusted-host`, `--no-open`, `--ipc-pipe`) and
+ * its `--help` text, then provides the immutable values as
+ * {@link WEB_STARTUP_SERVICE}. Ordinary rows inject that service before
+ * reading it from lazy config.
  * @module @deepseek-ai/dsh-web-app/startup
  */
 
@@ -27,6 +28,12 @@ export interface WebStartupValues {
   host?: string
   /** `--port`, absent when the invocation did not name one. */
   port?: number
+  /**
+   * `--ipc-pipe <path>`: serve the whole tree over this pipe instead of TCP
+   * (`\\.\pipe\<name>` on Windows, a socket path elsewhere). `--port` then only
+   * declares the authority URL display and trust fences are written against.
+   */
+  ipcPipe?: string
   /** Explicit `--trusted-host` authorities, in argument order. */
   trustedHosts: string[]
 }
@@ -34,6 +41,7 @@ export interface WebStartupValues {
 /** The web flag family, as commander parsed it. */
 interface WebOptions {
   host?: string
+  ipcPipe?: string
   open: boolean
   port?: string
   trustedHost?: string[]
@@ -49,14 +57,16 @@ function webCommand(): Command {
     .description('Serve the DeepSeek Harness browser UI.')
     .helpOption('-h, --help', 'show this help')
     .option('--host <host>', 'bind host')
+    .option('--ipc-pipe <path>', 'serve over this IPC pipe instead of TCP (named pipe path or socket file); --port then only declares the authority')
     .option('--no-open', 'do not open the Web UI in the default browser')
-    .option('--port <port>', 'listen port; pass 0 to let the OS pick a free one')
+    .option('--port <port>', 'listen port (0 = OS-assigned); with --ipc-pipe, the declared authority port')
     .option('--trusted-host <authority...>', 'extra authority the /api browser-trust fence accepts (host or host:port; repeatable)')
     .addHelpText('after', `
 Examples:
   dsh --profile web                          serve on the composed host and port
   dsh --profile web --no-open                serve without opening a browser
   dsh --profile web --port 8080              serve on another port
+  dsh --profile web --ipc-pipe <path>        serve a pipe-only carrier (no TCP listener)
 `)
 }
 
@@ -77,10 +87,14 @@ export function apply(ctx: Context): void {
     if (options.port !== undefined && !/^\d+$/.test(options.port)) {
       program.error(`error: --port must be a number, got ${JSON.stringify(options.port)}`)
     }
+    if (options.ipcPipe !== undefined && options.ipcPipe.trim() === '') {
+      program.error('error: --ipc-pipe must be a non-empty path')
+    }
     ctx.provide(WEB_STARTUP_SERVICE, {
       openBrowser: options.open,
       ...options.host !== undefined && { host: options.host },
       ...options.port !== undefined && { port: Number(options.port) },
+      ...options.ipcPipe !== undefined && { ipcPipe: options.ipcPipe },
       trustedHosts: options.trustedHost ?? [],
     } satisfies WebStartupValues)
   })
