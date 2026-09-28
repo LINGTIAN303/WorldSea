@@ -167,6 +167,10 @@ function pageArgs(args) {
   return { limit, offset };
 }
 
+/** 清单排序契约：updatedAt 降序（新者在前）→ id 升序兜底——分页跨页不重不漏的确定性基准。 */
+const byRecency = (a, b) =>
+  String(b.updatedAt ?? '').localeCompare(String(a.updatedAt ?? '')) || String(a.id).localeCompare(String(b.id));
+
 //#endregion
 
 //#region ── 数据访问：项目 / schema 快照 / 实体 ─────────────────────────
@@ -454,11 +458,14 @@ const tools = [
       const out = [];
       for (const dir of dirs) {
         for (const entry of readJsonDir(dir)) {
-          if (entry.value?.id && entry.value?.type) out.push({ id: entry.value.id, type: entry.value.type, name: entry.value.name });
+          if (entry.value?.id && entry.value?.type) {
+            out.push({ id: entry.value.id, type: entry.value.type, name: entry.value.name, updatedAt: entry.value.updatedAt });
+          }
         }
       }
+      out.sort(byRecency);
       const { limit, offset } = pageArgs(args);
-      const items = out.slice(offset, offset + limit);
+      const items = out.slice(offset, offset + limit).map(({ id, type: entityType, name }) => ({ id, type: entityType, name }));
       const result = { items, total: out.length, offset, limit };
       if (!items.length) result.state = emptyState(wd);
       return result;
@@ -466,32 +473,40 @@ const tools = [
   },
   {
     name: 'world_entity_search',
-    description: '按关键词搜 WorldSea 实体（匹配 name 与 description，大小写不敏感；返回 {items:[...]} 瘦身）。不确定类型/名称时先用它定位；空结果附 state（uninitialized=数据目录未初始化，empty=暂无数据）。',
+    description: '按关键词搜 WorldSea 实体（匹配 name 与 description，大小写不敏感；可选 tag 标签过滤）。返回 {items,total,offset,limit} 分页（排序 = updatedAt 降序→id 升序）；空结果附 state（uninitialized=数据目录未初始化，empty=暂无数据）。不确定类型/名称时先用它定位。',
     parameters: {
       type: 'object',
       properties: {
         query: { type: 'string', description: '关键词（名称/描述模糊匹配）' },
         type: { type: 'string', description: '限定实体类型（typeKey）；省略 = 全部' },
+        tag: { type: 'string', description: '按标签过滤（实体 tags 含该值）；省略 = 不过滤' },
+        limit: { type: 'number', description: '单页条数上限（缺省 200）' },
+        offset: { type: 'number', description: '起始偏移（配合 limit 翻页；缺省 0）' },
       },
       required: ['query'],
     },
-    output: listOutput,
+    output: pagedListOutput,
     async execute(args, exec) {
       const wd = worlddataDir(exec, exec?.pluginConfig ?? {});
       const query = requireString(args?.query, 'query').toLowerCase();
       const type = args?.type ? requireString(args.type, 'type') : null;
+      const tag = args?.tag ? requireString(args.tag, 'tag') : null;
       const dirs = type ? [entitiesTypeDir(wd, type)] : readdirSafe(entitiesDir(wd));
       const out = [];
       for (const dir of dirs) {
         for (const entry of readJsonDir(dir)) {
           const v = entry.value;
           if (!v?.id || !v?.type) continue;
+          if (tag && !(Array.isArray(v.tags) && v.tags.includes(tag))) continue;
           const haystack = `${v.name ?? ''}\n${v.description ?? ''}`.toLowerCase();
-          if (haystack.includes(query)) out.push({ id: v.id, type: v.type, name: v.name });
+          if (haystack.includes(query)) out.push({ id: v.id, type: v.type, name: v.name, updatedAt: v.updatedAt });
         }
       }
-      const result = asItems(out);
-      if (!out.length) result.state = emptyState(wd);
+      out.sort(byRecency);
+      const { limit, offset } = pageArgs(args);
+      const items = out.slice(offset, offset + limit).map(({ id, type: entityType, name }) => ({ id, type: entityType, name }));
+      const result = { items, total: out.length, offset, limit };
+      if (!items.length) result.state = emptyState(wd);
       return result;
     },
   },
@@ -564,12 +579,13 @@ const tools = [
   },
   {
     name: 'world_entity_update',
-    description: '按 id 局部更新 WorldSea 实体（changes 只传要改的字段）。写后工作台界面自动刷新。',
+    description: '按 id 局部更新 WorldSea 实体（changes 只传要改的字段）。changes.properties 缺省整包替换；mergeProperties=true 时与既有 properties 按字段合并（只改动点名的字段，其余保留）。写后工作台界面自动刷新。',
     parameters: {
       type: 'object',
       properties: {
         id: { type: 'string', description: '实体 id' },
         changes: { type: 'object', description: '要改的字段（name/description/properties/tags…）' },
+        mergeProperties: { type: 'boolean', description: 'true = properties 按字段合并（缺省 false = 整包替换）' },
       },
       required: ['id', 'changes'],
     },
@@ -582,7 +598,22 @@ const tools = [
       if (!args?.changes || typeof args.changes !== 'object') throw new Error('WORLDSEA_BAD_ARGS: changes 必须是对象');
       const hit = findFileById(entitiesDir(wd), id);
       if (!hit) throw new Error(`WORLDSEA_ENTITY_UNKNOWN: 实体不存在（${id}）`);
-      const updated = { ...hit.value, ...args.changes, id: hit.value.id, type: hit.value.type, updatedAt: new Date().toISOString() };
+      // mergeProperties=true：properties 与既有值按字段合并（只改动点名字段）；缺省整包替换
+      let properties = args.changes.properties;
+      if (args.mergeProperties === true && properties && typeof properties === 'object') {
+        properties = {
+          ...(hit.value.properties && typeof hit.value.properties === 'object' ? hit.value.properties : {}),
+          ...properties,
+        };
+      }
+      const updated = {
+        ...hit.value,
+        ...args.changes,
+        ...(properties !== undefined ? { properties } : {}),
+        id: hit.value.id,
+        type: hit.value.type,
+        updatedAt: new Date().toISOString(),
+      };
       writeJson(hit.file, updated);
       return { id, name: updated.name };
     },
@@ -615,20 +646,36 @@ const tools = [
   },
   {
     name: 'world_relation_list',
-    description: '列出 WorldSea 实体间的关系；entityId 给定 = 与该实体相关的关系，省略 = 全部。空结果附 state（uninitialized=数据目录未初始化，empty=暂无数据）。',
+    description: '列出 WorldSea 实体间的关系（瘦身默认形状：id/type/sourceId/targetId/label；properties 等按需用 fields 点路径取）。entityId = 与该实体相关；type = 关系类型过滤；返回 {items,total,offset,limit} 分页（排序 = updatedAt 降序→id 升序）；空结果附 state。',
     parameters: {
       type: 'object',
-      properties: { entityId: { type: 'string', description: '按实体过滤（source 或 target）' } },
+      properties: {
+        entityId: { type: 'string', description: '按实体过滤（source 或 target）' },
+        type: { type: 'string', description: '按关系类型过滤（typeKey）' },
+        fields: { type: 'array', items: { type: 'string' }, description: '按条取字段（点路径，如 ["properties.weight"]）；省略 = 瘦身默认形状' },
+        limit: { type: 'number', description: '单页条数上限（缺省 200）' },
+        offset: { type: 'number', description: '起始偏移（配合 limit 翻页；缺省 0）' },
+      },
     },
-    output: listOutput,
+    output: pagedListOutput,
     async execute(args, exec) {
       const wd = worlddataDir(exec, exec?.pluginConfig ?? {});
       const all = readRelations(wd);
       const entityId = args?.entityId ? requireString(args.entityId, 'entityId') : null;
-      const items = entityId
-        ? all.filter((r) => r?.sourceId === entityId || r?.targetId === entityId)
-        : all;
-      const result = asItems(items);
+      const relationType = args?.type ? requireString(args.type, 'type') : null;
+      const filtered = all.filter((r) => {
+        if (!r?.id) return false;
+        if (entityId && r.sourceId !== entityId && r.targetId !== entityId) return false;
+        if (relationType && r.type !== relationType) return false;
+        return true;
+      });
+      filtered.sort(byRecency);
+      const { limit, offset } = pageArgs(args);
+      const sliced = filtered.slice(offset, offset + limit);
+      const items = args?.fields !== undefined
+        ? sliced.map((r) => pickFields(r, args.fields))
+        : sliced.map((r) => ({ id: r.id, type: r.type, sourceId: r.sourceId, targetId: r.targetId, label: r.label }));
+      const result = { items, total: filtered.length, offset, limit };
       if (!items.length) result.state = emptyState(wd);
       return result;
     },
@@ -738,7 +785,7 @@ export function apply(ctx, config = {}) {
       name: 'tool:worldsea',
       order: 900, // 工具段之后的追加位（数字直接给——自定义段名不在预声明排序表内）
       text: () =>
-        'WorldSea 创作数据可直接读写：world_entity_search（按关键词定位）/ world_entity_list（返回 total——超过 items 数即有更多，用 offset/limit 翻页）/ world_entity_get（可带 fields 点路径按需取字段）看现有实体；' +
+        'WorldSea 创作数据可直接读写：world_entity_search（按关键词/标签定位）/ world_entity_list（返回 total——超过 items 数即有更多，用 offset/limit 翻页；清单按更新时间降序稳定排序）/ world_entity_get（可带 fields 点路径按需取字段）看现有实体；' +
         '组装新实体前先 world_schema_get 拿该类型的字段与必填；写类操作（put/update/delete）完成后工作台界面会自动刷新。' +
         '★ 写前守卫：写操作的会话 cwd 必须正好是某个已登记工作区的根目录，否则报 WORLDSEA_NOT_A_WORKSPACE（防误写非项目目录）。' +
         '实体间关系用 world_relation_list / put / delete（put 前两端实体必须已存在）。' +

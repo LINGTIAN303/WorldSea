@@ -9,13 +9,13 @@ WorldSea 产品域工具集（内置级 dsh 插件，零依赖）——让 Agent
 | `world_project_list` | 项目清单（项目 = dsh 工作区，同源模型） |
 | `world_project_current` | 当前项目（会话 cwd 对齐到的 dsh 工作区） |
 | `world_schema_get` | 实体类型的字段 schema（type 省略 = 全部；组装实体前先取；单类型返回附 snapshotGeneratedAt） |
-| `world_entity_list` | 实体清单（瘦身 id/type/name；type 过滤；limit/offset 分页 + total 回显） |
-| `world_entity_search` | 按关键词搜实体（匹配 name/description，大小写不敏感） |
+| `world_entity_list` | 实体清单（瘦身 id/type/name；type 过滤；limit/offset 分页 + total 回显；排序契约 = updatedAt 降序→id 升序） |
+| `world_entity_search` | 按关键词搜实体（匹配 name/description + tag 标签过滤；分页 + 排序契约，与 list 对齐） |
 | `world_entity_get` | 实体数据（可选 fields 点路径数组按需取字段减载荷；id/type 恒返回） |
 | `world_entity_put` | 新建实体（schema 快照轻校验：类型存在 + 必填字段） |
-| `world_entity_update` | 按 id 局部更新 |
+| `world_entity_update` | 按 id 局部更新（changes.properties 缺省整包替换，mergeProperties=true 按字段合并） |
 | `world_entity_delete` | 按 id 删除（对齐工作台原子删除语义：同时清理关联关系） |
-| `world_relation_list` | 关系清单（entityId 过滤 = 与该实体相关） |
+| `world_relation_list` | 关系清单（entityId/type 过滤；瘦身默认形状 id/type/sourceId/targetId/label，properties 等按需 fields 点路径取；分页 + 排序契约） |
 | `world_relation_put` | 新建/覆盖关系（两端实体必须已存在） |
 | `world_relation_delete` | 按 id 删除关系 |
 
@@ -30,6 +30,7 @@ WorldSea 产品域工具集（内置级 dsh 插件，零依赖）——让 Agent
 - 插件侧关系写（put/delete/实体删除的关联清理）统一走 `mutateRelations`：`.worldsea/relations.lock` 目录锁互斥（mkdir 原子性；锁内 `holder.pid` 记持有方进程——活持有等满 8s fail loud，死残留立即接管自愈，60s 硬过期兜底）+ 临时文件同卷 rename 原子替换
 - **已知边界**：工作台（webview）侧写不走此锁——跨端同时写的窄窗口未做跨进程协同（低频：需用户恰在界面编辑关系时 Agent 也在写关系）
 - 大项目保护：`world_entity_list` 缺省 200 条上限，`total` 超过 `items` 长度即有更多，用 `offset` 翻页
+- **清单排序契约（第四轮，2026-09-28）**：entity list/search 与 relation list 统一按 `updatedAt` 降序 → `id` 升序稳定排序——分页跨页不重不漏的确定性基准；瘦身输出不携带排序键
 
 ## 环境自适应与写前守卫（D2 第三轮，2026-09-28）
 
