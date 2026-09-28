@@ -1,0 +1,5 @@
+# Bundle patch for dsh-plugin-worldsea-console: inserts its plugin row into the
+# profile roster（「WorldSea 产品域」设置标签页 + 交界配置桥，见 lib/client.js）。
+- insert:
+    - id: worldsea-console
+      name: 'dsh-plugin-worldsea-console'

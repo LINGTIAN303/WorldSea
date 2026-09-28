@@ -11,6 +11,7 @@
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use serde::{Deserialize, Serialize};
 use tauri::Manager;
 
 /// 真源值域（与产品侧 `worldsea:theme` 三态一致）。
@@ -298,8 +299,7 @@ pub fn cmd_theme_set(
 }
 
 /// 切换空间前对齐（dsh 里改过主题 → 切到工作台时跟随）：读数不同则以 dsh 为新真源。
-pub fn adopt_from_dsh(app: &tauri::AppHandle) {
-    let Some(dsh) = read_dsh_theme(app) else { return };
+pub fn adopt_from_dsh(app: &tauri::AppHandle) {    let Some(dsh) = read_dsh_theme(app) else { return };
     if load(app).as_deref() == Some(dsh.as_str()) {
         return;
     }
@@ -317,6 +317,92 @@ pub fn adopt_from_dsh(app: &tauri::AppHandle) {
     }
 }
 
+/// D3-a（2026-09-28）：产品域设置节（dsh 侧设置页「WorldSea 产品域」经 `cmd_product_prefs_*`
+/// 读写；壳启动按它决定说明书/薄指针生成，工作台 boot 按它决定快照导出）。
+/// 真源 = `prefs.json` 的 `product_domain` 节，camelCase 与 JS 侧直通。
+/// 缺省口径：说明书生成开（D2-c 行为不变）、薄指针关（首版保守，用户在页面打开）、快照 auto。
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProductDomainPrefs {
+    /// 启动时确保工作区根有 WORLDSEA.md（D2-c 说明书）。
+    pub manual_generation: bool,
+    /// 启动时确保工作区根有薄指针 AGENTS.md（dsh agent-instructions 自动注入 → 注入链闭环）。
+    pub agents_pointer: bool,
+    /// schema 快照导出策略：`auto`（启动/重播种导出）| `off`（不导出；插件写校验将 fail loud）。
+    pub snapshot_export: String,
+}
+
+impl Default for ProductDomainPrefs {
+    fn default() -> Self {
+        Self { manual_generation: true, agents_pointer: false, snapshot_export: "auto".to_string() }
+    }
+}
+
+/// 快照策略值域。
+fn valid_snapshot_export(value: &str) -> bool {
+    matches!(value, "auto" | "off")
+}
+
+/// 从 prefs.json 的 `product_domain` 节归一化（缺失/损坏/越界逐字段回落缺省——纯函数可测）。
+pub(crate) fn normalize_product_domain(node: Option<&serde_json::Value>) -> ProductDomainPrefs {
+    let defaults = ProductDomainPrefs::default();
+    let get = |key: &str| node.and_then(|n| n.get(key));
+    ProductDomainPrefs {
+        manual_generation: get("manualGeneration").and_then(|v| v.as_bool()).unwrap_or(defaults.manual_generation),
+        agents_pointer: get("agentsPointer").and_then(|v| v.as_bool()).unwrap_or(defaults.agents_pointer),
+        snapshot_export: get("snapshotExport")
+            .and_then(|v| v.as_str())
+            .filter(|s| valid_snapshot_export(s))
+            .unwrap_or(&defaults.snapshot_export)
+            .to_string(),
+    }
+}
+
+/// 读产品域设置节（缺字段回落缺省）。
+pub fn load_product_domain(app: &tauri::AppHandle) -> ProductDomainPrefs {
+    normalize_product_domain(read_prefs(app).get("product_domain"))
+}
+
+/// 写产品域设置节（保留文件内其它字段）。
+pub fn save_product_domain(app: &tauri::AppHandle, prefs: &ProductDomainPrefs) -> Result<(), String> {
+    if !valid_snapshot_export(&prefs.snapshot_export) {
+        return Err(format!("未知快照策略 {}（可用：auto / off）", prefs.snapshot_export));
+    }
+    let mut body = read_prefs(app);
+    body["product_domain"] = serde_json::json!({
+        "manualGeneration": prefs.manual_generation,
+        "agentsPointer": prefs.agents_pointer,
+        "snapshotExport": prefs.snapshot_export,
+    });
+    write_prefs(app, &body)
+}
+
+/// 命令：读产品域设置节（console 设置页初始化用）。
+#[tauri::command]
+pub fn cmd_product_prefs_get(app: tauri::AppHandle) -> Result<ProductDomainPrefs, String> {
+    Ok(load_product_domain(&app))
+}
+
+/// 命令：写产品域设置节（console 设置页改项时调用）。
+/// 生成类开关**即时生效**：保存后立即按新值补生成说明书/薄指针（幂等；工作区不可得则等下次启动）。
+#[tauri::command]
+pub fn cmd_product_prefs_set(app: tauri::AppHandle, prefs: ProductDomainPrefs) -> Result<ProductDomainPrefs, String> {
+    save_product_domain(&app, &prefs)?;
+    if let Ok(workspace) = crate::dsh_workspace::resolve_workspace(&app) {
+        if prefs.manual_generation {
+            crate::worldsea_manual::ensure_manual(&workspace);
+        }
+        if prefs.agents_pointer {
+            crate::worldsea_manual::ensure_agents_pointer(&workspace);
+        }
+    }
+    println!(
+        "[DSH-SHELL] product prefs: manualGeneration={} agentsPointer={} snapshotExport={}",
+        prefs.manual_generation, prefs.agents_pointer, prefs.snapshot_export
+    );
+    Ok(load_product_domain(&app))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -327,6 +413,25 @@ mod tests {
         assert!(!valid("auto"));
         assert!(!valid("Dark"));
         assert!(!valid(""));
+    }
+
+    #[test]
+    fn product_domain_prefs_normalize_fieldwise() {
+        // 全缺省：节缺失 → 说明书开 / 薄指针关 / 快照 auto
+        let defaults = normalize_product_domain(None);
+        assert!(defaults.manual_generation);
+        assert!(!defaults.agents_pointer);
+        assert_eq!(defaults.snapshot_export, "auto");
+        // 逐字段归一：好值保留，坏值回落缺省
+        let node = serde_json::json!({
+            "manualGeneration": false,
+            "agentsPointer": true,
+            "snapshotExport": "bogus",
+        });
+        let mixed = normalize_product_domain(Some(&node));
+        assert!(!mixed.manual_generation);
+        assert!(mixed.agents_pointer);
+        assert_eq!(mixed.snapshot_export, "auto");
     }
 
     /// 全局标志与色板同测（同一用例内串行）：避免并行用例互相翻转 `DARK_NOW` 造成偶发红。

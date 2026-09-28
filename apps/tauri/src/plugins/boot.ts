@@ -44,6 +44,10 @@ function installCapabilityMutationListener(): void {
  *  失败只留日志（快照缺席时插件的写操作会 fail loud 提示先开一次工作台）。 */
 async function exportSchemaSnapshot(): Promise<void> {
   try {
+    // D3-a：快照策略门（产品域设置 `snapshotExport`；`off` = 不导出——插件写校验将 fail loud）。
+    // 读取失败（浏览器预览等）→ null → 按缺省 auto 继续。
+    const prefs = await invoke<{ snapshotExport?: string } | null>('cmd_product_prefs_get').catch(() => null)
+    if (prefs?.snapshotExport === 'off') return
     const fsb = getFileStorageBackend()
     if (!fsb?.isReady || !fsb.projectDir) return
     const types = Object.fromEntries(

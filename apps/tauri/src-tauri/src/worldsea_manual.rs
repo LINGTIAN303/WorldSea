@@ -58,6 +58,20 @@ Schema：`world_schema_get`（type 省略 = 全部；**组装实体前先取**�
 - 你在 dsh 侧换会话不影响产品域当前项目；产品域切项目也不影响你的会话（两边解耦）。
 "#;
 
+/// 薄指针模板（D3-a，2026-09-28）：写进工作区根 `AGENTS.md`——dsh agent-instructions 会把
+/// 项目根的 AGENTS.md 自动注入会话基线（预算 64KB），本文件只做指针不做地图（地图 = WORLDSEA.md）。
+const AGENTS_POINTER_TEMPLATE: &str = r#"# WorldSea 产品域工作区（壳生成的指针）
+
+> 本文件由 WorldSea 壳生成（已存在则不覆盖，可自由编辑；不需要可删除，可在
+> dsh 设置「内置插件 → WorldSea 产品域」里关闭生成）。
+
+本项目是 **WorldSea 产品域工作区**（项目 = dsh 工作区，单一真相源在 dsh 侧）：
+
+- 你的 cwd = 项目根目录；创作数据在 `worlddata/`（实体/关系/文件），`agent/` 是你的工作路径。
+- **先读 `WORLDSEA.md`**——产品域能力地图：三条写入通道判定线 + `world.*` 能力桥清单 + 12 条 `world_*` 原生工具。
+- 会话工具面里的 `world_*` 工具可直接读写创作数据；清单类返回带分页与稳定排序，写操作要求 cwd 为本项目根。
+"#;
+
 /// 启动时确保工作区根有说明书（幂等：已存在不覆盖）。
 /// 工作区根来自 C4 的 `resolve_workspace`（与 dsh cwd 同源）。
 pub(crate) fn ensure_manual(workspace: &Path) {
@@ -75,10 +89,33 @@ pub(crate) fn ensure_manual(workspace: &Path) {
     }
 }
 
+/// 启动时确保工作区根有薄指针 AGENTS.md（幂等：已存在不覆盖；开关 = 产品域设置 `agentsPointer`）。
+pub(crate) fn ensure_agents_pointer(workspace: &Path) {
+    let path = workspace.join("AGENTS.md");
+    if path.exists() {
+        return;
+    }
+    match std::fs::write(&path, AGENTS_POINTER_TEMPLATE) {
+        Ok(()) => println!("[DSH-SHELL] 薄指针已生成：{}（dsh agent-instructions 注入链入口，用户可编辑）", path.display()),
+        Err(e) => eprintln!("[DSH-SHELL] 薄指针生成失败（{path:?}）：{e}"),
+    }
+}
+
 /// lib.rs setup 的单行接线：内部定位工作区（不可得则记日志跳过）。
+/// 生成开关读产品域设置节（D3-a）：`manualGeneration` / `agentsPointer`。
 pub(crate) fn ensure_for_app(app: &tauri::AppHandle) {
+    let prefs = crate::app_prefs::load_product_domain(app);
     match crate::dsh_workspace::resolve_workspace(app) {
-        Ok(workspace) => ensure_manual(&workspace),
+        Ok(workspace) => {
+            if prefs.manual_generation {
+                ensure_manual(&workspace);
+            } else {
+                println!("[DSH-SHELL] 说明书生成已在产品域设置中关闭（不新生成 WORLDSEA.md）");
+            }
+            if prefs.agents_pointer {
+                ensure_agents_pointer(&workspace);
+            }
+        }
         Err(e) => eprintln!("[DSH-SHELL] 说明书跳过（工作区不可得）：{e}"),
     }
 }
@@ -120,6 +157,33 @@ mod tests {
             "world.relation.delete",
         ] {
             assert!(MANUAL_TEMPLATE.contains(id), "模板缺少能力 {id}");
+        }
+    }
+
+    #[test]
+    fn 薄指针_不存在则生成_已存在不覆盖() {
+        let dir = std::env::temp_dir().join(format!("ws-pointer-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("AGENTS.md");
+
+        ensure_agents_pointer(&dir);
+        assert!(path.exists());
+        let first = std::fs::read_to_string(&path).unwrap();
+        assert!(first.contains("WORLDSEA.md"), "薄指针必须指向说明书");
+        assert!(first.contains("worlddata"), "薄指针必须交代数据目录口径");
+
+        std::fs::write(&path, "用户自定义 AGENTS.md").unwrap();
+        ensure_agents_pointer(&dir);
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "用户自定义 AGENTS.md");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn 说明书_模板含工具集通道() {
+        for id in ["world_project_list", "world_entity_search", "world_relation_put", "mergeProperties", "WORLDSEA_NOT_A_WORKSPACE"] {
+            assert!(MANUAL_TEMPLATE.contains(id), "模板缺少工具集要点 {id}");
         }
     }
 }

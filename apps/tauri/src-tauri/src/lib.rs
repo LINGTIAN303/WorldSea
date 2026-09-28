@@ -149,6 +149,9 @@ pub fn run() {
             // E2：应用级偏好（主题真源：读写 + 同步 dsh + 广播两窗）
             app_prefs::cmd_theme_get,
             app_prefs::cmd_theme_set,
+            // D3-a：产品域设置节（console 设置页读写；壳启动与工作台快照门消费）
+            app_prefs::cmd_product_prefs_get,
+            app_prefs::cmd_product_prefs_set,
             // A：壳侧能力桥（登记 / 内省 / 调用 / 回执 / 撤登记；两窗共用，ACL 在 Rust 侧按窗口 label 判）
             capabilities::cmd_capability_register,
             capabilities::cmd_capability_list,

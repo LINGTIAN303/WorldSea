@@ -23,6 +23,9 @@ commands.allow = [
     # E2（2026-09-24）：应用级偏好（主题）——产品页设置面板读写真源；dsh 页不调（其主题由设置通道驱动）
     "cmd_theme_get",
     "cmd_theme_set",
+    # D3-a（2026-09-28）：产品域设置节——console 设置页（dsh 窗）读写，工作台页（快照门）读
+    "cmd_product_prefs_get",
+    "cmd_product_prefs_set",
 ]
 
 [[permission]]
