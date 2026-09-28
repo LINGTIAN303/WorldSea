@@ -1,0 +1,190 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+**/dist/
+*.local
+
+*.map
+*.tmp
+*.bak
+*.orig
+Thumbs.db
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ── Secrets & credentials (added at git init) ──────────────────────────
+# 注意：secrets/ api-keys/ apiKeys/ 故意**不锚定**（2026-09-14 审计结论）——
+# 它们是全树安全网，凭据可能出现在任意层级；锚定到仓库根会破坏防护。
+# 代价：若未来在源码树新建同名目录，其中新增文件会被静默忽略（同 data/ 事故机制），
+# 新建目录前可用 `git check-ignore -v --no-index <路径>` 先自查。
+# logs / coverage/ / test-results/ 等工具产物规则同理：产物可能落在任意包目录，
+# 锚定反而会破坏忽略（审计时全仓无同名源码目录，风险为潜在而非现存）。
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+*.jks
+id_rsa
+id_dsa
+id_ecdsa
+id_ed25519
+secrets/
+api-keys/
+apiKeys/
+*.credentials.json
+
+# ── User / runtime data (never commit) ─────────────────────────────────
+My-Data-Project/
+worldsea-data/
+.worldsea-data/
+.public/
+.独立项/
+# 本机 MSVC 环境注入脚本（沙箱 PATH 适配，含机器特定路径，不入库）
+scripts/msvc_env.sh
+# 会话归档（daily/index，运行期自动生成）
+# MemoryCenter 落盘数据（sessions 归档 + projects 索引，均本机维护，不入库）
+# 注意：必须带前导斜杠锚定到**仓库根**。未锚定的 `data/` 会匹配任意深度的同名目录，
+# 曾静默吞掉三处源码目录里的新增文件（2026-09-14 实测 `git check-ignore --no-index`）：
+#   packages/ui-kit/src/components/data/ · packages/agent-runtime/src/skills/data/ · apps/tauri/src/ui/data
+/data/
+*.sqlite
+*.sqlite3
+*.db
+*.ldb
+coverage/
+.nyc_output/
+storybook-static/
+.vite/
+.turbo/
+.cache/
+test-results/
+playwright-report/
+# 构建产物/分析报告
+dist-stats.html
+
+# ── Tauri auto-generated ────────────────────────────────────────────────
+# 端分离后 src-tauri 移至 apps/tauri/src-tauri，用 ** 前缀匹配任意层级
+**/src-tauri/gen/
+
+# ── pnpm project: npm lock files not needed ─────────────────────────────
+package-lock.json
+
+# ── Rust / cargo / wasm (added at git init) ─────────────────────────────
+**/target/
+**/Cargo.lock.bak
+# wasm-pack 输出已入库 (含 .wasm 二进制), 改动 WASM 后需重新 pnpm build:wasm-all
+
+# ── Third-party AI tool directories ────────────────────────────────────
+.codebuddy/
+.qoder/
+.workbuddy/
+.trae/
+.superpowers/
+.opencode/
+.omo/
+.zcode/
+
+# ── Test/debug artifacts ────────────────────────────────────────────────
+test-deep-mode-fix.png
+.test-screenshots/
+splash-preview/
+# dsh 环境诊断报告（本机生成，不入库）
+dsh_report_*.txt
+
+# ── Python cache ────────────────────────────────────────────────────────
+**/__pycache__/
+*.pyc
+
+# ── pnpm store (local cache) ────────────────────────────────────────────
+.pnpm-store/
+
+# ── 旧 node_modules 备份/清理临时目录（清理脚本或手动重命名遗留）────────
+# 这些目录不应入库，体积巨大且会触发 EPERM/长路径问题
+node_modules_old/
+node_modules_old.disabled/
+node_modules_trash_*
+node_modules_bak_*
+# 清理脚本遗留的空目录占位符
+*.empty_dir_tmp
+
+# ── Editor temp dirs ────────────────────────────────────────────────────
+.qoder-tmp/
+# Qoder IDE 配置文件（无代码引用，仅 IDE 自身使用）
+.qoderignore
+# 清理脚本遗留的空占位目录
+_empty_for_clean/
+
+# ── Brainstorming skill runtime state ──────────────────────────────────
+# (kept for compatibility if .superpowers is ever re-created)
+.superpowers/brainstorm/*/state/
+.superpowers/brainstorm/*/*.pid
+.superpowers/brainstorm/*/server-*
+
+# ── CatPaw rules (contains sensitive credentials, never commit) ────────
+.catpaw/
+
+# ── Midscene 桌面自动化运行产物（截图/报告，仅本地调试用）──────────────
+midscene_run/
+
+# ── 本地调试临时产物（截图 / CDP 脚本 / 冒烟验证文件，不入库）────────────
+.devtmp/
+
+# ── IDE 运行期配置（.arts 为编辑器本地设置，不应入库）──────────────────
+.arts/
+
+# ── 临时/待办文件（本机未归类，不入库）─────────────────────────────────
+docs/test.md
+write_guide.js
+
+# ── MemoryCenter 项目记忆（本机维护，不入库）────────────────────────────
+project_memory.md
+apps/tauri/workspace-dist/
+
+# ===== ↑ 以上同步自 .gitignore（「从 .gitignore 同步」只重写以上部分）=====
+.git/
+.hg/
+.svn/
+bower_components/
+jspm_packages/
+__pycache__/
+site-packages/
+venv/
+htmlcov/
+lcov-report/
+cmakefiles/
+cmake-build-*/
+bazel-*/
+pods/
+deriveddata/
+allure-results/
+allure-report/
+cdk.out/
+*.egg-info/
+*.dist-info/
+eggs/
+pip-wheel-metadata/
+wheels/
+# ----- ↑ 以上为 ZCode 默认排除规则（自定义规则请写在本行下方，不会被同步/恢复改动）-----
+# 自定义规则写在下方（本行提示可删除）
