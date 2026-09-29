@@ -2378,6 +2378,9 @@ importers:
       '@deepseek-ai/dsh-api-account-controller':
         specifier: workspace:*
         version: link:../../api/account-controller
+      '@deepseek-ai/dsh-api-gateway':
+        specifier: workspace:*
+        version: link:../../api/gateway
       '@deepseek-ai/dsh-api-job-controller':
         specifier: workspace:*
         version: link:../../api/job-controller
