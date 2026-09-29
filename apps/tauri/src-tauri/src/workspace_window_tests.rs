@@ -157,7 +157,20 @@ fn geometry_snapshot_carries_minimized_and_apply_skips_it() {
     // 目标窗——否则目标窗「打开即不可见」并被窗口状态插件持久化。锁源码约定（删掉守卫即报红）。
     let source = read_text("src/workspace_window.rs");
     assert!(source.contains("minimized: window.is_minimized()"), "快照须记录最小化态");
-    assert!(source.contains("if geometry.minimized {"), "apply_geometry 须在最小化来源时跳过几何转移");
+    assert!(source.contains("geometry_transfer_skipped("), "apply_geometry 须经几何转移跳过判据");
+}
+
+#[test]
+fn geometry_transfer_is_skipped_for_fullscreen_windows() {
+    // G1 收尾（2026-09-30）：全屏窗不参与几何转移——来源全屏（几何=屏尺寸，写过去只是摊成假全屏）；
+    // 目标全屏（对全屏窗 set_position/set_size 会把全屏顶掉/成怪态）。与最小化共用一个纯判据。
+    assert!(geometry_transfer_skipped(true, false, false), "最小化来源不转移（E6）");
+    assert!(geometry_transfer_skipped(false, true, false), "来源全屏不转移");
+    assert!(geometry_transfer_skipped(false, false, true), "目标全屏不写几何");
+    assert!(geometry_transfer_skipped(false, true, true));
+    assert!(!geometry_transfer_skipped(false, false, false));
+    let source = read_text("src/workspace_window.rs");
+    assert!(source.contains("fullscreen: window.is_fullscreen()"), "快照须记录全屏态");
 }
 
 #[test]

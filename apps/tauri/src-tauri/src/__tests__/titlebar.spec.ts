@@ -371,6 +371,115 @@ describe('窗口栏：全屏桥（G1）', () => {
   })
 })
 
+/* ── 窗口控制键与空间切换键（G1 收尾，2026-09-30）──
+   对齐工作台窗 `TitleBar.vue:139-148` 的四键口径（Ctrl+M 最小化 / F10 最大化还原 / F11 全屏 /
+   Ctrl+W 关闭；F11 已在上组），并接 Ctrl+Tab 切空间（全屏下唯一通路）。
+   相位 = **冒泡**：dsh runtime=web（`client/dom.ts`：data-platform 缺席 → web）——`page.close`
+   在 web 档是 Ctrl+Alt+W，裸 Ctrl+W/F10/Ctrl+M/Ctrl+Tab 均无上游默认绑定；冒泡让「上游已处理
+   （defaultPrevented）」与「终端区局部语义」先走：终端里 Ctrl+M＝回车、Ctrl+W＝删词、F10 是
+   TUI 功能键，一律不抢（`.xterm` 容器内让行）；Ctrl+Tab 无终端语义，终端聚焦时也可切。 */
+describe('窗口栏：窗口控制键与空间切换键（G1 收尾）', () => {
+  /** 从指定目标派发（冒泡到 window；capture 让行用例需要非 window 目标，见该用例注） */
+  function fireKeyOn(target: EventTarget, key: string, init: KeyboardEventInit = {}): KeyboardEvent {
+    const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init })
+    target.dispatchEvent(event)
+    return event
+  }
+
+  it('Ctrl+M → minimize / Ctrl+W → close / F10（无修饰）→ toggle-maximize，且都阻止默认', () => {
+    calls = []
+    expect(fireKeyOn(window, 'm', { ctrlKey: true }).defaultPrevented).toBe(true)
+    expect(fireKeyOn(window, 'w', { ctrlKey: true }).defaultPrevented).toBe(true)
+    expect(fireKeyOn(window, 'F10').defaultPrevented).toBe(true)
+    expect(windowActions()).toEqual(['minimize', 'close', 'toggle-maximize'])
+  })
+
+  it('修饰键门槛照 TitleBar.vue：Ctrl+M/Ctrl+W 需 mod 且无 alt/shift；F10 不得带任何修饰', () => {
+    calls = []
+    fireKeyOn(window, 'm') // 无 mod
+    fireKeyOn(window, 'm', { ctrlKey: true, altKey: true })
+    fireKeyOn(window, 'w', { ctrlKey: true, shiftKey: true })
+    fireKeyOn(window, 'w', { ctrlKey: true, altKey: true })
+    fireKeyOn(window, 'F10', { ctrlKey: true })
+    fireKeyOn(window, 'F10', { shiftKey: true })
+    expect(windowActions()).toEqual([])
+  })
+
+  it('Ctrl+Tab → cmd_shell_space_switch(workbench)；Shift/Alt 组合不触发', async () => {
+    calls = []
+    const event = fireKeyOn(window, 'Tab', { ctrlKey: true })
+    expect(event.defaultPrevented).toBe(true)
+    await flush()
+    const switchCall = calls.find(call => call.command === 'cmd_shell_space_switch')
+    expect(switchCall?.args.target).toBe('workbench')
+    fireKeyOn(window, 'Tab', { ctrlKey: true, shiftKey: true })
+    fireKeyOn(window, 'Tab', { ctrlKey: true, altKey: true })
+    await flush()
+    expect(calls.filter(call => call.command === 'cmd_shell_space_switch').length).toBe(1)
+  })
+
+  it('IME 组词期（isComposing / keyCode 229）→ 全部键让行', () => {
+    calls = []
+    fireKeyOn(window, 'w', { ctrlKey: true, isComposing: true })
+    fireKeyOn(window, 'm', { ctrlKey: true, isComposing: true })
+    const ime = new KeyboardEvent('keydown', { key: 'F10', bubbles: true, cancelable: true })
+    Object.defineProperty(ime, 'keyCode', { value: 229 })
+    window.dispatchEvent(ime)
+    expect(windowActions()).toEqual([])
+    expect(calls.filter(call => call.command === 'cmd_shell_space_switch')).toEqual([])
+  })
+
+  it('上游已处理（defaultPrevented）→ 让行，不双重触发', () => {
+    calls = []
+    const blocker = (event: KeyboardEvent): void => { event.preventDefault() }
+    window.addEventListener('keydown', blocker, true)
+    try {
+      /* 目标取 body 而非 window：对 window 直派时该节点同时是 target，捕获/冒泡监听按注册顺序混排，
+         拦不住先注册的脚本处理器；从子节点冒泡才能让「window 捕获相位 = 真·先手」成立。 */
+      fireKeyOn(document.body, 'w', { ctrlKey: true })
+      fireKeyOn(document.body, 'F10')
+      fireKeyOn(document.body, 'Tab', { ctrlKey: true })
+      expect(windowActions()).toEqual([])
+      expect(calls.filter(call => call.command === 'cmd_shell_space_switch')).toEqual([])
+    } finally {
+      window.removeEventListener('keydown', blocker, true)
+    }
+  })
+
+  it('终端区（.xterm 内）Ctrl+M / Ctrl+W / F10 让行且不阻止默认；Ctrl+Tab 仍可切', async () => {
+    calls = []
+    const term = document.createElement('div')
+    term.className = 'xterm'
+    const inner = document.createElement('textarea')
+    term.appendChild(inner)
+    document.body.appendChild(term)
+    try {
+      const m = fireKeyOn(inner, 'm', { ctrlKey: true })
+      const w = fireKeyOn(inner, 'w', { ctrlKey: true })
+      const f = fireKeyOn(inner, 'F10')
+      expect([m.defaultPrevented, w.defaultPrevented, f.defaultPrevented]).toEqual([false, false, false])
+      expect(windowActions()).toEqual([])
+
+      fireKeyOn(inner, 'Tab', { ctrlKey: true })
+      await flush()
+      expect(calls.some(call => call.command === 'cmd_shell_space_switch')).toBe(true)
+    } finally {
+      term.remove()
+    }
+  })
+})
+
+/* G1-c（2026-09-30）：工作台窗全屏隐栏的**接线锁**——隐栏的真实行为在真机走查看，这里只钉接线
+   不漂移（类名绑定 / 隐栏 CSS / 全屏态读取三个锚点；任一处被摘掉即报红）。 */
+describe('工作台窗全屏隐栏接线（G1-c，跨文件契约）', () => {
+  it('TitleBar.vue：全屏态绑定 is-fullscreen 类 + 隐栏 CSS + 从窗口读全屏态', () => {
+    const vue = readFileSync(join(process.cwd(), 'apps/tauri/src/ui/layout/TitleBar.vue'), 'utf8')
+    expect(vue).toContain("'is-fullscreen': fullscreen")
+    expect(vue).toContain('.titlebar.is-fullscreen')
+    expect(vue).toContain('isFullscreen()')
+  })
+})
+
 /* 须置于文件末尾：本组做二次真实安装（清幂等标记 + 摘旧 DOM），会再挂一份监听器 */
 describe('窗口栏：全屏桥挂载恢复（G1）', () => {
   it('挂载时壳回 fullscreen:true → 直接落全屏形态（全屏中重载不退回窗口态 CSS，对齐上游 main.ts:244）', async () => {

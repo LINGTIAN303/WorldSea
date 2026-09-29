@@ -4,7 +4,7 @@
        基础合并（2026-08-08）：MenuBar 左侧功能区（☰ 侧边栏切换 + 项目切换器 + 目录）上移并入窗口栏
        variant="space"（2026-08-09）：Agent 空间精简窗口栏——仅拖拽区 + 居中标题 + 窗口控制，
        隐藏工作台专属区（☰ 侧边栏 / 项目切换器 / 目录 / AppMenu / 视图名） -->
-  <div class="titlebar" :class="{ 'is-space': variant === 'space' }" data-tauri-drag-region>
+  <div class="titlebar" :class="{ 'is-space': variant === 'space', 'is-fullscreen': fullscreen }" data-tauri-drag-region>
     <!-- 左侧：Agent 空间/工作台 切换按钮（两种壳共用；取代原 ⋯ 更多操作菜单位） + space 变体注入面板控件
          2026-09-06：space 变体下 左栏开关移到最左，壳切换（Agent 空间）随其后 -->
     <div class="titlebar-shell-left">
@@ -126,6 +126,7 @@ async function toggleFullscreen() {
   if (!appWindow) return
   try {
     await appWindow.setFullscreen(!(await appWindow.isFullscreen()))
+    await syncFullscreen() // G1 收尾：隐栏形态在切换后立即落定（不依赖 onResized 是否触发）
   } catch (e) {
     console.error('[TitleBar] toggleFullscreen 失败:', e)
   }
@@ -163,11 +164,22 @@ async function syncMaximized() {
   }
 }
 
+const fullscreen = ref(false) // G1 收尾：全屏态驱动隐栏（与 Agent 侧同观感）；全屏中控件不可达属选定口径，F11 退出即恢复
+async function syncFullscreen() {
+  if (!appWindow) return
+  try {
+    fullscreen.value = await appWindow.isFullscreen()
+  } catch {
+    fullscreen.value = false
+  }
+}
+
 onMounted(async () => {
   if (!appWindow) return
   await syncMaximized()
+  await syncFullscreen()
   try {
-    unlistenResized = await appWindow.onResized(() => { void syncMaximized() })
+    unlistenResized = await appWindow.onResized(() => { void syncMaximized(); void syncFullscreen() })
   } catch {
     // 浏览器预览等非 Tauri 环境无窗口事件，忽略
   }
@@ -203,6 +215,10 @@ function close() {
    去掉下沿分割线，与缝隙同色融为一体 */
 .titlebar.is-space {
   border-bottom: none;
+}
+/* G1 收尾：全屏＝沉浸——隐栏（.shell 为 flex 纵向、shell-body flex:1，隐后内容区自然接管全高） */
+.titlebar.is-fullscreen {
+  display: none;
 }
 .titlebar-left {
   display: flex;

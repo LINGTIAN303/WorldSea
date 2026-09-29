@@ -7,7 +7,10 @@
    （工作台窗懒建/显示，本窗随之被隐藏），故本窗按钮文案/图标恒为「Agent 空间」，无需翻转。
    （工作台窗不吃本注入：它用旧前端自带的 TitleBar 作窗口栏。）
    反证开关（壳侧控制，本脚本不感知）：`WORLDSEA_NO_TITLEBAR=1` 不注入；`WORLDSEA_FRAMED=1` 回原生边框亦不注入。
-   边界：拖拽走 JS 方案（非系统非客户区）→ 无系统 snap；`Ctrl+Tab` 切换键位不进本批。
+   边界：拖拽走 JS 方案（非系统非客户区）→ 无系统 snap。
+   G1 收尾（2026-09-30）：**窗口控制键与空间切换键**——Ctrl+M 最小化 / F10 最大化还原 / Ctrl+W 关闭
+   （对齐工作台窗 TitleBar.vue 的四键口径）+ Ctrl+Tab 切到工作台（全屏下唯一通路；Ctrl+Tab 自本批接入）。
+   相位与让行见下方「窗口控制键」注；F11 维持上方捕获相位专块。
    G1（2026-09-29）：**全屏桥**——F11（捕获相位）→ 壳命令 `toggle-fullscreen`；全屏时隐藏本栏并置
    `html[data-fullscreen]`（dsh 据此把浮层内缩 52px→20px、遮罩 32px→0），退出后全部还原。
    语义与三条触发路径见下方 `applyFullscreen` 处注。
@@ -239,6 +242,53 @@
       event.preventDefault();
       void syncAfter(windowAction('toggle-fullscreen'));
     }, true);
+
+    /* ── 窗口控制键与空间切换键（G1 收尾，2026-09-30；对齐工作台窗 `TitleBar.vue:139-148` 四键）──
+       Ctrl+M 最小化 / F10 最大化还原 / Ctrl+W 关闭 / Ctrl+Tab 切到工作台（F11 在上方捕获相位专块）。
+       相位 = **冒泡**（非 F11 那种「唯一退出通路」场景，不抢跑）：dsh 的快捷键 runtime = web
+       （`client/dom.ts`：data-platform 缺席 → web），其「关闭页」在 web 档是 **Ctrl+Alt+W**——
+       裸 Ctrl+W / F10 / Ctrl+M / Ctrl+Tab 均无上游默认绑定（grep 全树核过）。
+       两道让行：① 已被上游处理（defaultPrevented，含 dsh 快捷键系统与 xterm 可能的中止）；
+       ② 终端区（`.xterm` 容器内）Ctrl+M＝回车、Ctrl+W＝删词、F10 是 TUI 功能键——一律不抢；
+       Ctrl+Tab 无终端语义，终端聚焦时也可切。修饰键门槛照抄 TitleBar.vue：
+       Ctrl+M / Ctrl+W＝mod 且无 alt/shift；F10＝不得带任何修饰。IME 组词期全让行。 */
+    window.addEventListener('keydown', function (event) {
+      if (event.isComposing || event.keyCode === 229) return;
+      if (event.defaultPrevented) return;
+      var mod = event.ctrlKey || event.metaKey;
+      var key = event.key.toLowerCase();
+      var target = event.target;
+      var inTerminal = !!(target && target.closest && target.closest('.xterm'));
+      if (inTerminal && (key === 'm' || key === 'w' || key === 'f10')) return;
+      switch (key) {
+        case 'm':
+          if (mod && !event.altKey && !event.shiftKey) {
+            event.preventDefault();
+            void windowAction('minimize').catch(function () {});
+          }
+          break;
+        case 'f10':
+          if (!mod && !event.altKey && !event.shiftKey) {
+            event.preventDefault();
+            void syncAfter(windowAction('toggle-maximize'));
+          }
+          break;
+        case 'w':
+          if (mod && !event.altKey && !event.shiftKey) {
+            event.preventDefault();
+            void windowAction('close').catch(function () {});
+          }
+          break;
+        case 'tab':
+          if (mod && !event.altKey && !event.shiftKey) {
+            event.preventDefault();
+            spaceSwitch('workbench').then(function (next) {
+              report('space → ' + next);
+            }).catch(function (error) { report('空间切换失败：' + error); });
+          }
+          break;
+      }
+    });
 
     /* 菜单路径回传：`menu.rs` 的 ID_FULLSCREEN 在 set_fullscreen 成功后派发本事件。
        事件名是壳两侧的共享字面量，`__tests__/titlebar.spec.ts` 有跨文件契约用例守着。

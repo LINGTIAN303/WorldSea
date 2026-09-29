@@ -86,6 +86,8 @@ struct WindowGeometry {
     /// 快照时窗口处于最小化（E6）：此时 position/size 是平台占位值（Windows ≈ -32000 / 标题栏尺寸），
     /// **不可转移**给目标窗。
     minimized: bool,
+    /// 快照时窗口处于全屏（G1 收尾）：几何=屏幕尺寸，**不参与转移**（见 `geometry_transfer_skipped`）。
+    fullscreen: bool,
 }
 
 fn snapshot(window: &WebviewWindow) -> WindowGeometry {
@@ -94,7 +96,15 @@ fn snapshot(window: &WebviewWindow) -> WindowGeometry {
         size: window.inner_size().ok(),
         maximized: window.is_maximized().unwrap_or(false),
         minimized: window.is_minimized().unwrap_or(false),
+        fullscreen: window.is_fullscreen().unwrap_or(false),
     }
+}
+
+/// 几何转移跳过判据（纯函数，单测锁定）：最小化来源（占位几何不可转移，E6）与**全屏窗**（G1 收尾，2026-09-30）——
+/// 来源全屏（几何=屏幕尺寸，写过去只是摊成假全屏）或目标全屏（对全屏窗 `set_position`/`set_size`
+/// 会把全屏顶掉/成怪态）都不写。全屏态**不随切换转移**：每窗各自保有（切回时仍是全屏）。
+fn geometry_transfer_skipped(source_minimized: bool, source_fullscreen: bool, target_fullscreen: bool) -> bool {
+    source_minimized || source_fullscreen || target_fullscreen
 }
 
 /// 几何平移判据（纯函数：单测锁定「最大化只平移最大化」——2026-09-24 走查修复的核心规则）。
@@ -116,8 +126,11 @@ fn geometry_plan(source_maximized: bool, target_maximized: bool) -> (bool, bool)
 /// （实证：托盘在「工作台已最小化」时切回 Agent 面 → 主窗变成 159×27 @ -25600,-25600，且被
 /// 窗口状态插件持久化 → 应用此后「打开即不可见」）。调用方随后仍会 show/unminimize/focus，
 /// 目标窗保持自身几何即可。
+///
+/// ★ **全屏窗不参与转移（G1 收尾 2026-09-30）**：判据 `geometry_transfer_skipped`（来源最小化 /
+/// 来源全屏 / 目标全屏三者任一即跳过）——全屏态是窗口自己的状态，不随空间切换转移。
 fn apply_geometry(target: &WebviewWindow, geometry: &WindowGeometry) {
-    if geometry.minimized {
+    if geometry_transfer_skipped(geometry.minimized, geometry.fullscreen, target.is_fullscreen().unwrap_or(false)) {
         return;
     }
     let target_maximized = target.is_maximized().unwrap_or(false);
@@ -144,7 +157,11 @@ impl WindowGeometry {
     fn describe(&self) -> String {
         let position = self.position.map(|p| format!("{},{}", p.x, p.y)).unwrap_or_else(|| "?,?".to_string());
         let size = self.size.map(|s| format!("{}x{}", s.width, s.height)).unwrap_or_else(|| "?x?".to_string());
-        format!("{size}@{position}{}", if self.maximized { " max" } else { "" })
+        format!(
+            "{size}@{position}{}{}",
+            if self.maximized { " max" } else { "" },
+            if self.fullscreen { " 全屏" } else { "" }
+        )
     }
 }
 
