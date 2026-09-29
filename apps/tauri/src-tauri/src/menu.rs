@@ -139,7 +139,8 @@ fn handle(app: &AppHandle, id: &str) {
         }
         ID_FULLSCREEN => {
             let next = !window.is_fullscreen().unwrap_or(false);
-            if let Err(e) = window.set_fullscreen(next) {
+            // G1 收尾批修：与 F11 命令共用「进全屏先脱最大化」助手（tao 全屏不脱最大化 → 任务栏条/坏组合）
+            if let Err(e) = crate::shell_bridge::set_fullscreen_safely(&window, next) {
                 eprintln!("[DSH-SHELL] 菜单：全屏切换失败：{e}");
             } else if let Err(e) = window.eval(&sync_fullscreen_js(next)) {
                 // 切换已成功、只是回传失败：窗口确实进了全屏，页面侧靠 resize 查询自愈

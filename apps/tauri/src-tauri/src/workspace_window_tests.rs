@@ -161,6 +161,22 @@ fn geometry_snapshot_carries_minimized_and_apply_skips_it() {
 }
 
 #[test]
+fn space_switch_is_serialized_and_main_thread_safe() {
+    // G1 收尾批修：切换经互斥串行（async 命令并发时 show/hide 交错 → 双窗/双隐，实测复现）；
+    // 主线程调用方（托盘 / CloseRequested）只投递后台线程——主线程等锁会与窗口操作的消息泵互锁。
+    // 断言取**整行守卫**而非裸子串：`snapshot()` 里也有 `is_minimized().unwrap_or(false)`，
+    // 裸子串会被它假满足（反证 M14 实测踩到）。
+    let source = read_text("src/workspace_window.rs");
+    assert!(source.contains("static SPACE_SWITCH_LOCK"), "缺空间切换互斥");
+    assert!(source.contains("fn request_space_switch"), "缺主线程安全投递入口");
+    assert!(source.contains("fn ensure_target_visible"), "缺条件化显示助手");
+    assert!(source.contains("if window.is_minimized().unwrap_or(false) {"), "unminimize 须先判最小化（整行守卫）");
+    assert!(source.contains("fn state_pair"), "缺切换后状态对留痕");
+    let tray = read_text("src/tray.rs");
+    assert!(tray.contains("request_space_switch"), "托盘须走投递（主线程不得直呼等锁）");
+}
+
+#[test]
 fn geometry_transfer_is_skipped_for_fullscreen_windows() {
     // G1 收尾（2026-09-30）：全屏窗不参与几何转移——来源全屏（几何=屏尺寸，写过去只是摊成假全屏）；
     // 目标全屏（对全屏窗 set_position/set_size 会把全屏顶掉/成怪态）。与最小化共用一个纯判据。

@@ -129,11 +129,8 @@ pub fn build_tray(app: &AppHandle) -> tauri::Result<TrayIcon> {
             "show" => show_main_window(app),
             // E9：功能菜单项的监听方在工作台窗 → 先切到工作台（懒创建 + 显示 + 聚焦）再派发
             // D2-b2：「打开工作台」= 壳内直切（不派事件——项目选择在 dsh 界面/工作台下拉开）
-            "open-workbench" => {
-                if let Err(e) = crate::workspace_window::switch_to_workbench(app) {
-                    eprintln!("[WORLDSEA-TRAY] 切到工作台失败：{e}");
-                }
-            }
+            // G1 收尾批修：主线程只投递（空间切换经互斥串行、后台线程执行——主线程等锁会与窗口操作互锁）
+            "open-workbench" => crate::workspace_window::request_space_switch(app, "workbench"),
             "open-settings" => dispatch_workbench(app, "tray:open-settings", None),
             "quit" => app.exit(0),
             id if id.starts_with("recent-project:") => {
@@ -150,27 +147,33 @@ pub fn build_tray(app: &AppHandle) -> tauri::Result<TrayIcon> {
 /// ② 页面已就绪 → 直接 emit；未就绪（窗刚懒建，页面还在加载）→ 入积压队列，
 ///    页面 setup 调 [`cmd_tray_page_ready`] 时补投。
 /// 切窗失败（主窗不存在等）只记日志——托盘动作不做放大性重试。
+/// G1 收尾批修：整段移到**后台线程**——本函数跑在主线程（托盘菜单回调），不得阻塞等空间切换互斥
+/// （死锁纪律见 `workspace_window::SPACE_SWITCH_LOCK` 注释）；切换完成后在同一线程里派发/入队。
 fn dispatch_workbench(app: &AppHandle, event: &str, payload: Option<String>) {
-    if let Err(e) = crate::workspace_window::switch_to_workbench(app) {
-        eprintln!("[WORLDSEA-TRAY] 切到工作台失败（{event}）：{e}");
-        return;
-    }
-    let tray_state = app.state::<Mutex<TrayState>>();
-    let mut state = tray_state.lock().unwrap();
-    if state.page_ready {
-        drop(state);
-        if let Err(e) = app.emit(event, payload) {
-            eprintln!("[WORLDSEA-TRAY] 事件派发失败（{event}）：{e}");
+    let app = app.clone();
+    let event = event.to_string();
+    std::thread::spawn(move || {
+        if let Err(e) = crate::workspace_window::switch_to_workbench(&app) {
+            eprintln!("[WORLDSEA-TRAY] 切到工作台失败（{event}）：{e}");
+            return;
         }
-        println!("[WORLDSEA-TRAY] 动作派发：{event}（页面就绪，直发）");
-        return;
-    }
-    if state.pending.len() < 32 {
-        println!("[WORLDSEA-TRAY] 动作积压：{event}（页面未就绪，待补投）");
-        state.pending.push(PendingAction { event: event.to_string(), payload });
-    } else {
-        eprintln!("[WORLDSEA-TRAY] 动作积压超限，丢弃（{event}）");
-    }
+        let tray_state = app.state::<Mutex<TrayState>>();
+        let mut state = tray_state.lock().unwrap();
+        if state.page_ready {
+            drop(state);
+            if let Err(e) = app.emit(&event, payload) {
+                eprintln!("[WORLDSEA-TRAY] 事件派发失败（{event}）：{e}");
+            }
+            println!("[WORLDSEA-TRAY] 动作派发：{event}（页面就绪，直发）");
+            return;
+        }
+        if state.pending.len() < 32 {
+            println!("[WORLDSEA-TRAY] 动作积压：{event}（页面未就绪，待补投）");
+            state.pending.push(PendingAction { event: event.clone(), payload });
+        } else {
+            eprintln!("[WORLDSEA-TRAY] 动作积压超限，丢弃（{event}）");
+        }
+    });
 }
 
 /// 工作台页面就绪信号（`useSystemBridge.setup` 调用；其时三条 `listen` 已挂好）：

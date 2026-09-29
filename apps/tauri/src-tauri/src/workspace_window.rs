@@ -19,6 +19,19 @@ pub fn page_url() -> String {
     format!("{APP_URL}workspace/")
 }
 
+/// 空间切换互斥（G1 收尾批修，2026-09-30）。
+///
+/// 背景（实测）：`cmd_shell_space_switch` 是 async 命令——快速连切（连按 Ctrl+Tab、两窗交替触发）
+/// 时两次切换会**并发执行**，show/hide/unminimize 相互交错，**完成序 ≠ 提交序**（实测 6 连发
+/// 多次终态违背最后一条指令；用户侧现象为「两个窗同时在」/「界面状态拧巴」）。修法：所有切换经
+/// 本锁**串行化**（每对 show/hide 原子成对，不再交错）。
+///
+/// ★ 死锁纪律：切换内部的窗口操作要回**主线程消息泵**（tauri 的 `send_user_message`）——因此
+/// **主线程调用方（托盘菜单 `on_menu_event` / 工作台窗 CloseRequested）绝不能直呼 switch 函数
+/// 去阻塞等锁**（主线程卡在锁上 → 消息泵不转 → 持锁者的窗口操作永远完不成 → 死锁）；一律用
+/// [`request_space_switch`] 投递后台线程。async 命令线程（异步运行时）与后台线程阻塞等锁是安全的。
+static SPACE_SWITCH_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 /// 页面侧入口（旧前端的「Agent 空间⇄工作台」切换控件调用；经注入的 `__WORLDSEA_SPACE_SWITCH__` 桥）：
 /// `target` = `space`（Agent 空间）| `workbench`（工作台）。返回切换后的空间名（调用方可留痕）。
 ///
@@ -27,6 +40,8 @@ pub fn page_url() -> String {
 /// 正卡在本次 IPC 派发里 → 自锁（现象：窗口停在 `about:blank`、主线程此后不再响应任何 IPC、
 /// 壳日志无任何后续行）。async 命令跑在异步运行时线程上，`build()` 的「投递 + 等回执」才有泵可跑。
 /// （对照：窗口 getter / 动作类命令留同步没问题——C6 的 `cmd_shell_window_action` 就调 `is_maximized`。）
+/// G1 收尾批（2026-09-30）：两臂经 `switch_*` 内的 `SPACE_SWITCH_LOCK` 串行化——本命令在异步
+/// 运行时线程执行，阻塞等锁安全（主线程调用方须走 `request_space_switch` 投递）。
 #[tauri::command]
 pub async fn cmd_shell_space_switch(app: tauri::AppHandle, target: String) -> Result<String, String> {
     match target.as_str() {
@@ -37,7 +52,9 @@ pub async fn cmd_shell_space_switch(app: tauri::AppHandle, target: String) -> Re
 }
 
 /// 切到工作台：懒建（缺窗时创建）→ 几何平移来源窗 → 显示 + 聚焦 → 隐藏 Agent 空间窗。
+/// 互斥与「主线程调用方不得直呼」见 [`SPACE_SWITCH_LOCK`] / [`request_space_switch`]。
 pub(crate) fn switch_to_workbench(app: &tauri::AppHandle) -> Result<(), String> {
+    let _guard = SPACE_SWITCH_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
     // E2：切换是对齐主题的天然时机（可见性的那一侧切换前先跟上真源；dsh 里改过则此处跟随）
     crate::app_prefs::adopt_from_dsh(app);
     let main = app
@@ -49,28 +66,71 @@ pub(crate) fn switch_to_workbench(app: &tauri::AppHandle) -> Result<(), String> 
         None => create(app)?,
     };
     apply_geometry(&workspace, &geometry);
-    workspace.show().map_err(|e| format!("显示工作台窗口失败：{e}"))?;
-    let _ = workspace.unminimize();
+    ensure_target_visible(&workspace, "工作台窗口")?;
     let _ = workspace.set_focus();
     let _ = main.hide();
     println!("[DSH-SHELL] space: Agent 空间 → 工作台（窗口 {LABEL}；几何平移 {}）", geometry.describe());
+    println!("[DSH-SHELL] space: 切换后 {}", state_pair(&main, &workspace));
     Ok(())
 }
 
 /// 切回 Agent 空间：工作台窗几何回写 → 显示 + 聚焦主窗 → 隐藏工作台窗。
+/// 互斥与「主线程调用方不得直呼」见 [`SPACE_SWITCH_LOCK`] / [`request_space_switch`]。
 pub(crate) fn switch_to_space(app: &tauri::AppHandle) -> Result<(), String> {
+    let _guard = SPACE_SWITCH_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
     let workspace = app.get_webview_window(LABEL).ok_or_else(|| "工作台窗口尚未创建".to_string())?;
     let main = app
         .get_webview_window("main")
         .ok_or_else(|| "主窗口（Agent 空间）不存在".to_string())?;
     let geometry = snapshot(&workspace);
     apply_geometry(&main, &geometry);
-    main.show().map_err(|e| format!("显示 Agent 空间失败：{e}"))?;
-    let _ = main.unminimize();
+    ensure_target_visible(&main, "Agent 空间")?;
     let _ = main.set_focus();
     let _ = workspace.hide();
     println!("[DSH-SHELL] space: 工作台 → Agent 空间（窗口 main；几何平移 {}）", geometry.describe());
+    println!("[DSH-SHELL] space: 切换后 {}", state_pair(&main, &workspace));
     Ok(())
+}
+
+/// 主线程安全的空间切换投递（托盘 / CloseRequested 等主线程调用方专用）：
+/// 只把请求交给后台线程执行——主线程不得在 [`SPACE_SWITCH_LOCK`] 上等待（死锁纪律见其注释）。
+/// 失败只落日志（切换结果由窗口可见状态自证，不做放大性上报）。
+pub(crate) fn request_space_switch(app: &tauri::AppHandle, target: &'static str) {
+    let app = app.clone();
+    std::thread::spawn(move || {
+        let result = match target {
+            "workbench" => switch_to_workbench(&app),
+            "space" => switch_to_space(&app),
+            other => Err(format!("worldsea shell: 未知空间目标 {other}（可用：space / workbench）")),
+        };
+        if let Err(error) = result {
+            eprintln!("[DSH-SHELL] space: 后台切换（{target}）失败：{error}");
+        }
+    });
+}
+
+/// 显示目标窗（**仅当确实最小化才 restore**。G1 收尾批修）：对非最小化窗调 `unminimize()`
+/// （SW_RESTORE）是无谓扰动——全屏窗上尤其危险；条件分支后最小化语义（E6）原样保留。
+fn ensure_target_visible(window: &WebviewWindow, label: &str) -> Result<(), String> {
+    window.show().map_err(|e| format!("显示{label}失败：{e}"))?;
+    if window.is_minimized().unwrap_or(false) {
+        let _ = window.unminimize();
+    }
+    Ok(())
+}
+
+/// 切换后状态对（诊断留痕）：正常应恰有一侧 `vis=true`——用户报「双窗/界面拧巴」类现象时，
+/// 这行日志直接指认（随每次切换打印，走查与回归自检一并看）。
+fn state_pair(main: &WebviewWindow, workspace: &WebviewWindow) -> String {
+    let one = |w: &WebviewWindow| {
+        format!(
+            "vis={} max={} fs={}",
+            w.is_visible().unwrap_or(false),
+            w.is_maximized().unwrap_or(false),
+            w.is_fullscreen().unwrap_or(false)
+        )
+    };
+    format!("main({}) workspace({})", one(main), one(workspace))
 }
 
 /// 窗口几何快照。
@@ -192,13 +252,18 @@ pub(crate) fn sanitize_restored_geometry(window: &WebviewWindow) {
 }
 
 /// 关闭键语义（lib.rs 的 CloseRequested 分支调用）：回 Agent 空间；主窗缺失等异常态至少把工作台窗藏起。
+/// G1 收尾批修：本函数跑在**主线程**（窗口事件回调）——不得阻塞等 [`SPACE_SWITCH_LOCK`]，
+/// 交给后台线程执行（死锁纪律见其注释）。
 pub(crate) fn hide_and_back_to_space(app: &tauri::AppHandle) {
-    if let Err(e) = switch_to_space(app) {
-        eprintln!("[DSH-SHELL] space: 工作台关闭回切失败（{e}）——仅隐藏窗口");
-        if let Some(workspace) = app.get_webview_window(LABEL) {
-            let _ = workspace.hide();
+    let app = app.clone();
+    std::thread::spawn(move || {
+        if let Err(e) = switch_to_space(&app) {
+            eprintln!("[DSH-SHELL] space: 工作台关闭回切失败（{e}）——仅隐藏窗口");
+            if let Some(workspace) = app.get_webview_window(LABEL) {
+                let _ = workspace.hide();
+            }
         }
-    }
+    });
 }
 
 /// 主窗启动可见性裁决（E9 #11，P3 拍板 2026-09-27）：主窗配置 `visible:false`——

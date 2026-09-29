@@ -125,8 +125,11 @@ async function toggleFullscreen() {
   // 绝对全屏（无边框真全屏，区别于最大化）：F11 浏览器惯例
   if (!appWindow) return
   try {
-    await appWindow.setFullscreen(!(await appWindow.isFullscreen()))
-    await syncFullscreen() // G1 收尾：隐栏形态在切换后立即落定（不依赖 onResized 是否触发）
+    const entering = !(await appWindow.isFullscreen())
+    // G1 收尾批修：进全屏前先脱最大化（tao 直在最大化窗上全屏 → 任务栏条 + max+fs 坏组合）
+    if (entering && await appWindow.isMaximized()) await appWindow.unmaximize()
+    await appWindow.setFullscreen(entering)
+    await syncFullscreen()
   } catch (e) {
     console.error('[TitleBar] toggleFullscreen 失败:', e)
   }
@@ -167,11 +170,7 @@ async function syncMaximized() {
 const fullscreen = ref(false) // G1 收尾：全屏态驱动隐栏（与 Agent 侧同观感）；全屏中控件不可达属选定口径，F11 退出即恢复
 async function syncFullscreen() {
   if (!appWindow) return
-  try {
-    fullscreen.value = await appWindow.isFullscreen()
-  } catch {
-    fullscreen.value = false
-  }
+  try { fullscreen.value = await appWindow.isFullscreen() } catch { fullscreen.value = false }
 }
 
 onMounted(async () => {

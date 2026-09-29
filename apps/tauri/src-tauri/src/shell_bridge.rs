@@ -58,7 +58,7 @@ pub fn cmd_shell_window_action(
         // 绝对全屏（无边框真全屏，区别于最大化）：F11 浏览器惯例，与菜单「视图 → 全屏」同一原语
         "toggle-fullscreen" => {
             let now = window.is_fullscreen().map_err(failure)?;
-            window.set_fullscreen(!now).map_err(failure)?;
+            set_fullscreen_safely(&window, !now).map_err(failure)?;
         }
         "close" => {
             window.close().map_err(failure)?;
@@ -80,3 +80,21 @@ pub fn cmd_shell_window_action(
         fullscreen,
     })
 }
+
+/// 进入全屏前先脱最大化（G1 收尾批修，2026-09-30）。
+///
+/// 为什么：tao 的 Windows 全屏（`set_fullscreen(Borderless)`）**不脱最大化**——直接在最大化窗上
+/// `SetWindowPos` 到监视器矩形会被 Windows 的「最大化约束」顶回工作区（用户实测：全屏后留下任务栏
+/// 原位置的条带），并残留 `is_maximized()=true` 的「max+全屏」坏组合（几何快照/切换逻辑都会读到
+/// 坏值：实测全屏窗 `outer_position` 读回 -32000 最小化占位）。三处全屏入口（F11 命令 / 菜单
+/// 「视图 → 全屏」/ 工作台窗页内 F11）统一走本逻辑。
+pub(crate) fn set_fullscreen_safely(window: &tauri::WebviewWindow, enable: bool) -> Result<(), tauri::Error> {
+    if enable && window.is_maximized()? {
+        window.unmaximize()?;
+    }
+    window.set_fullscreen(enable)
+}
+
+#[cfg(test)]
+#[path = "shell_bridge_tests.rs"]
+mod tests;

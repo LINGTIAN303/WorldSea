@@ -472,11 +472,14 @@ describe('窗口栏：窗口控制键与空间切换键（G1 收尾）', () => {
 /* G1-c（2026-09-30）：工作台窗全屏隐栏的**接线锁**——隐栏的真实行为在真机走查看，这里只钉接线
    不漂移（类名绑定 / 隐栏 CSS / 全屏态读取三个锚点；任一处被摘掉即报红）。 */
 describe('工作台窗全屏隐栏接线（G1-c，跨文件契约）', () => {
-  it('TitleBar.vue：全屏态绑定 is-fullscreen 类 + 隐栏 CSS + 从窗口读全屏态', () => {
+  it('TitleBar.vue：全屏态绑定 is-fullscreen 类 + 隐栏 CSS + 从窗口读全屏态 + 进全屏先脱最大化', () => {
     const vue = readFileSync(join(process.cwd(), 'apps/tauri/src/ui/layout/TitleBar.vue'), 'utf8')
     expect(vue).toContain("'is-fullscreen': fullscreen")
     expect(vue).toContain('.titlebar.is-fullscreen')
     expect(vue).toContain('isFullscreen()')
+    // G1 收尾批修：tao 全屏不脱最大化 → 任务栏条/坏组合；进全屏前须 unmaximize
+    expect(vue).toContain('unmaximize()')
+    expect(vue).toContain('isMaximized()')
   })
 })
 
