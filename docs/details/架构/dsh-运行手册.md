@@ -128,7 +128,7 @@ DSH_HOME="D:/WorldSea/.独立项/b0-home" node apps/cli/lib/bin.js web --no-open
 
 **壳件与壳桥（C1-c）**：
 
-- **原生菜单**（`menu.rs`）：文件（关闭窗口/退出）· 编辑（撤销/重做/剪切/复制/粘贴/全选，muda 预定义项）· 视图（重新加载 `Ctrl+R` · 放大 `Ctrl+=` · 缩小 `Ctrl+-` · 实际大小 `Ctrl+0` · 全屏 `F11`）· 设置（打开设置 `Ctrl+,`）。**★ 上面这些键位是菜单项上的 accelerator 标注，实测全部不生效**（G1-d，2026-09-29 查实，见下条）——别把它们当可用快捷键用。
+- **原生菜单**（`menu.rs`）：文件（关闭窗口/退出）· 编辑（撤销/重做/剪切/复制/粘贴/全选，muda 预定义项）· 视图（重新加载 · 放大 · 缩小 · 实际大小 · 全屏）· 设置（打开设置 · 通知自检 · 修复工作区权限）。**菜单项一律不带快捷键标注**（G1-e，2026-09-29 摘除）：原先挂的 `Ctrl+R` / `Ctrl+=` / `Ctrl+-` / `Ctrl+0` / `F11` / `Ctrl+,` 实测**全不生效**（G1-d 查实，理由见下条「菜单改 popup」），标注纯属误导故全部摘除；**不要因为「看起来该有快捷键」而加回去**——即便将来修好加速键路由（例如改调 `set_menu`），`F11` 会与注入脚本的页面侧监听**双重触发**（全屏切两次 = 看似失灵）。真通的键只有 `F11`（`dsh_titlebar.js` 页面侧监听，G1）与 `Ctrl+Shift+W`（`tauri-plugin-global-shortcut`，OS 层）。编辑族的标准键由 WebView2 自行处理，与加速键路由无关。
 - **壳桥**（`dsh_shell_bridge.js` 注入 + `shell_bridge.rs` 命令）：页面可用 `globalThis.__WORLDSEA_SHELL__`：
   `notify(title, body)`（原生通知）· `openExternal(url)`（系统浏览器打开；仅 http(s)/mailto）· `report(msg)`（落壳日志 `[DSH-SHELL] bridge(page)`）· `openSettings()`（点开侧栏设置入口）。
   原理：我们的页面在 Tauri `is_local_url` 白名单内，`__TAURI_INTERNALS__.invoke` 直达应用命令（应用命令不属插件 ACL，无需 capability 项）。

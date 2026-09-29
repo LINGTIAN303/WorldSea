@@ -78,17 +78,27 @@ fn build(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
         .separator()
         .item(&PredefinedMenuItem::select_all(app, None)?)
         .build()?;
+    // G1-e（2026-09-29）：**菜单项一律不带 `accelerator`**——G1-d 已查实该列在壳内全不生效
+    // （菜单是 popup 资源、从未 `set_menu`，而 Windows 下 Tauri 只在 `set_menu` 过的菜单上装
+    // 加速键：`msg_hook` → `TranslateAcceleratorW` 遍历 `MenuManager.menus` stash，该 stash 只由
+    // `AppHandle::set_menu` / `Window::set_menu` / 建窗器显式菜单三处填充）。原先标注的
+    // `Ctrl+R` / `Ctrl+=` / `Ctrl+-` / `Ctrl+0` / `F11` / `Ctrl+,` 按下去毫无反应、纯属误导。
+    // **不要因为「看起来该有快捷键」而加回来**：加了不生效；即便将来把加速键路由修好（例如改调
+    // `set_menu`），`F11` 会与注入脚本的页面侧监听（`dsh_titlebar.js`）**双重触发** → 全屏切两次
+    // = 看似失灵。真通的键只有两个，且各自有独立承接方：`F11`（注入脚本页面侧监听，G1）与
+    // `Ctrl+Shift+W`（`tauri-plugin-global-shortcut`，OS 层）。编辑族用 muda 预定义项，其标准键
+    // 由 WebView2 自行处理（不依赖加速键路由），故无此问题。
     let view = SubmenuBuilder::new(app, "视图")
-        .item(&MenuItemBuilder::with_id(ID_RELOAD, "重新加载").accelerator("CmdOrCtrl+R").build(app)?)
+        .item(&MenuItemBuilder::with_id(ID_RELOAD, "重新加载").build(app)?)
         .separator()
-        .item(&MenuItemBuilder::with_id(ID_ZOOM_IN, "放大").accelerator("CmdOrCtrl+=").build(app)?)
-        .item(&MenuItemBuilder::with_id(ID_ZOOM_OUT, "缩小").accelerator("CmdOrCtrl+-").build(app)?)
-        .item(&MenuItemBuilder::with_id(ID_ZOOM_RESET, "实际大小").accelerator("CmdOrCtrl+0").build(app)?)
+        .item(&MenuItemBuilder::with_id(ID_ZOOM_IN, "放大").build(app)?)
+        .item(&MenuItemBuilder::with_id(ID_ZOOM_OUT, "缩小").build(app)?)
+        .item(&MenuItemBuilder::with_id(ID_ZOOM_RESET, "实际大小").build(app)?)
         .separator()
-        .item(&MenuItemBuilder::with_id(ID_FULLSCREEN, "全屏").accelerator("F11").build(app)?)
+        .item(&MenuItemBuilder::with_id(ID_FULLSCREEN, "全屏").build(app)?)
         .build()?;
     let settings = SubmenuBuilder::new(app, "设置")
-        .item(&MenuItemBuilder::with_id(ID_SETTINGS, "打开设置").accelerator("CmdOrCtrl+,").build(app)?)
+        .item(&MenuItemBuilder::with_id(ID_SETTINGS, "打开设置").build(app)?)
         .separator()
         .item(&MenuItemBuilder::with_id(ID_NOTIFY_TEST, "通知自检（测试系统通知）").build(app)?)
         .item(&MenuItemBuilder::with_id(ID_FIX_WORKSPACE, "修复工作区权限（授当前用户完全控制）").build(app)?)
