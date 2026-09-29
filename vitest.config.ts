@@ -31,6 +31,12 @@ export default defineConfig({
       // 的行为测试——外链守卫直接改变用户可见行为（点击外链 → 系统浏览器），而它是注入到页面的
       // 唯一拦截点，Rust 单测看不见；故以 jsdom 载入同一份文件直测（同一目录另有 Rust 侧守卫）。
       'apps/tauri/src-tauri/src/__tests__/**/*.spec.ts',
+      // 2026-09-30 纳入（D3-c2 数据面编辑）：两个内置级 dsh 插件的**手写零构建产物**
+      // 此前完全不参与测试 —— 宿主半的 config 声明与解析语义（dshHome 覆盖 > env、dataRoot
+      // 兜底）、客户端半的跨插件绑定接线（configForms 命名空间与字段名要与宿主/补丁行两侧
+      // 一致）都是会**静默断链**的契约，且 Rust 单测与 dsh 自带门禁都看不见它们。
+      'apps/dsh-plugin-worldsea/__tests__/**/*.spec.ts',
+      'apps/dsh-plugin-worldsea-console/__tests__/**/*.spec.ts',
     ],
     coverage: {
       provider: 'v8',

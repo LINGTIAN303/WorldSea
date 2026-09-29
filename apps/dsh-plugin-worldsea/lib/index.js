@@ -1,5 +1,5 @@
 /**
- * dsh-plugin-worldsea — WorldSea 产品域工具集（D2，2026-09-28；内置级 cordis 插件，零依赖）。
+ * dsh-plugin-worldsea — WorldSea 产品域工具集（D2，2026-09-28；内置级 cordis 插件）。
  *
  * 角色：让 Agent 以**原生工具**（与 fs/terminal 同级）直接读写工作台创作数据。
  * 执行体 = 直接读写 `worlddata/` 透明 JSON（与工作台 FileStorageBackend 同真相源）；
@@ -8,11 +8,17 @@
  * 口径（D2 批计划 §1.1）：**项目 = dsh 工作区**——工具的实体目录 = 会话 cwd 下的 `worlddata/`
  * （cwd 来自 `exec.agent.session.header.cwd`，与会话的 workspace 对齐）。
  *
- * 依赖策略：**零 import**（对齐 dsh-plugin-community 先例）——工具对象按 ToolDefinition
- * 形状手写（register 校验 output {schema, render} 子集；参数校验在 execute 内自查），
- * 规避 @deepseek-ai scope 私有包在 link: 目录下的解析问题。
+ * 依赖策略：**工具对象仍按 ToolDefinition 形状手写**（对齐 dsh-plugin-community 先例；register
+ * 校验 output {schema, render} 子集，参数校验在 execute 内自查），不需要 import 任何 cordis 包。
+ * **唯一第三方 import = `@deepseek-ai/schemastery`**（D3-c2，2026-09-30）——插件配置要有 schema
+ * 才能被 dsh 设置面编辑（见下方 `Config`）。该包在 `package.json` 里**显式声明**为
+ * `link:../../dsh/vendor/schemastery`，故 workspace 安装后 `apps/dsh-plugin-worldsea/node_modules/
+ * @deepseek-ai/schemastery` 是真符号链接、解析无碍（原「零 import」策略针对的是**未声明依赖**
+ * 时 @deepseek-ai scope 从 link: 目录解析不到的老问题）。代价：插件运行前 dsh 树须已构建
+ * （vendor 的 `lib/` 是构建产物；缺失则 import 直接 fail loud）。
  *
- * 配置（cordis.patch.yml 的插件 config）：
+ * 配置（cordis.patch.yml 的插件 config；**schema 见下方 `Config`**，可在「WorldSea 产品域」设置页的
+ * 「插件数据面」组直接编辑——D3-c2，2026-09-30）：
  * - `dshHome`：DSH_HOME 覆盖（缺省读 `process.env.DSH_HOME`）
  * - `dataRoot`：无会话 cwd 时的实体目录兜底（缺省无——非会话调用直接拒，fail loud）
  *
@@ -51,9 +57,28 @@ function readJson(path) {
   }
 }
 
-/** node:fs 惰性静态绑定（ESM 顶层 import 也无妨——零依赖指无第三方包）。 */
+/** node:fs 惰性静态绑定（ESM 顶层 import 也无妨——除 schemastery 外不引第三方包）。 */
 import { readFileSync as fsRead, writeFileSync, existsSync, mkdirSync, readdirSync, unlinkSync, rmSync, renameSync, statSync } from 'node:fs';
 import { dirname } from 'node:path';
+import z from '@deepseek-ai/schemastery';
+
+/**
+ * 插件配置 schema（cordis `Config` 约定）。
+ *
+ * **为什么必须有它**：dsh 设置面的写入门槛要求条目既有 schema、又含 volatile 字段
+ * （`dsh/packages/settings/settings/src/index.ts:383-385` 分别抛 `No configurable plugin entry`
+ * 与 `has no volatile fields`）——没有它，本插件的配置就只能读不能编辑。
+ *
+ * 两字段都 `volatile()`：插件是**每次调用现读 config**（见下方 dshHome / worlddataDir），
+ * 改值无需重挂载。缺省 `''` = 未设 → 既有回落链（env / fail loud）原样生效。
+ * 编辑入口 = 设置 → 内置插件 → 「WorldSea 产品域」的「插件数据面」组。
+ */
+export const Config = z.object({
+  /** DSH_HOME 覆盖（缺省读 `process.env.DSH_HOME`）。 */
+  dshHome: z.string().default('').volatile(),
+  /** 无会话 cwd 时的实体目录兜底（缺省无——非会话调用直接拒，fail loud）。 */
+  dataRoot: z.string().default('').volatile(),
+});
 
 /** 写 JSON（自动建父目录）。 */
 function writeJson(path, value) {
@@ -83,13 +108,28 @@ function sessionCwd(exec) {
 function worlddataDir(exec, config) {
   const cwd = sessionCwd(exec);
   if (cwd) return join(cwd, 'worlddata');
-  if (config?.dataRoot) return join(config.dataRoot, 'worlddata');
+  const fallback = configText(config?.dataRoot);
+  if (fallback) return join(fallback, 'worlddata');
   throw new Error('WORLDSEA_NO_SESSION: 本工具需要会话工作区上下文（cwd）——请从会话内调用，或在插件 config.dataRoot 配置兜底目录');
+}
+
+/**
+ * 取一次配置字段的当前值。
+ *
+ * **为什么需要它**：本插件声明了 `Config` schema 且两字段标了 `volatile()`——物化后这类字段**不是原值**，
+ * 而是 cosmokit 的 `Volatile<T>` 稳定引用（`{ get(): 快照 }`，见 `vendor/cosmokit/src/volatile.ts`：*keep the
+ * reference, or capture its value for one operation only*）。**加 schema 之前** cordis 传的是 patch 行里的原值，
+ * 故旧写法 `config.dshHome || env` 会把这个恒真句柄当路径用（`String(句柄)` = `[object Object]`）——实测踩到。
+ * 普通（非 volatile）字段仍是原值，故统一走本函数。判据与 cosmokit `isVolatile` 等价；不引 cosmokit 只为
+ * 一个谓词多挂一条 link 依赖，代价是若上游改判定需靠 `__tests__/config.spec.ts` 的物化链用例报警。
+ */
+function configText(value) {
+  return value !== null && typeof value === 'object' && typeof value.get === 'function' ? value.get() : value;
 }
 
 /** DSH_HOME（与壳的 spawn 口径同源）：config.dshHome 覆盖 > process.env.DSH_HOME。 */
 function dshHome(config) {
-  return config?.dshHome || process.env.DSH_HOME || null;
+  return configText(config?.dshHome) || process.env.DSH_HOME || null;
 }
 
 /** 文件名消毒：替换路径非法字符（id 已保证唯一性，文件名差异不影响按内容寻 id 的读取）。 */

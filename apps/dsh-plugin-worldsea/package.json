@@ -9,6 +9,9 @@
     ".": "./lib/index.js",
     "./package.json": "./package.json"
   },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "link:../../dsh/vendor/schemastery"
+  },
   "dsh": {
     "engines": {
       "dsh": ">=0.1.5-rc.1"

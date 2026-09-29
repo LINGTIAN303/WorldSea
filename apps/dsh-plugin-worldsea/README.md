@@ -1,6 +1,6 @@
 # dsh-plugin-worldsea
 
-WorldSea 产品域工具集（内置级 dsh 插件，零依赖）——让 Agent 以**原生工具**直接读写工作台创作数据。
+WorldSea 产品域工具集（内置级 dsh 插件）——让 Agent 以**原生工具**直接读写工作台创作数据。工具对象按 ToolDefinition 形状手写（不需 import cordis 包）；唯一第三方 import = `@deepseek-ai/schemastery`（配置 schema，D3-c2）。
 
 ## 工具集（12 条）
 
@@ -38,10 +38,17 @@ WorldSea 产品域工具集（内置级 dsh 插件，零依赖）——让 Agent
 - **写前工作区守卫（严格拒）**：五个写工具（entity put/update/delete · relation put/delete）要求会话 cwd 正好是某个已登记 dsh 工作区的根目录，否则拒 `WORLDSEA_NOT_A_WORKSPACE`（cwd 在某工作区内部非根同样拒——创作数据以工作区根的 worlddata/ 为准）；读操作不拦；`config.dataRoot` 兜底属显式配置不受限
 - **fail loud 三段式错误码**（码 + 人话 + 补救）：`WORLDSEA_NO_SESSION` / `NO_DSH_HOME` / `NO_SCHEMA_SNAPSHOT` / `TYPE_UNKNOWN` / `REQUIRED_MISSING` / `ENTITY_UNKNOWN` / `RELATION_UNKNOWN` / `RELATION_BUSY` / `NOT_A_WORKSPACE` / `BAD_ARGS`
 
-## 配置（cordis.patch.yml 的插件 config，均可省略）
+## 配置（cordis.patch.yml 的插件 config，均可省略；**schema 见 lib/index.js 的 `Config`**）
 
 - `dshHome`：DSH_HOME 覆盖（缺省读 `process.env.DSH_HOME`——壳 spawn 宿主时已设置）
 - `dataRoot`：无会话 cwd 时的实体目录兜底（缺省无——非会话调用 fail loud）
+
+两字段均声明 `.volatile()`（**设置面写入门槛要求 volatile**，`settings/settings/src/index.ts:383-385`），
+故可在 dsh 设置「内置插件 → WorldSea 产品域」的「插件数据面」组**直接编辑**（D3-c2，2026-09-30；
+console 页经 configForms 绑定本插件条目 id `worldsea`）。
+
+**★ 实现约束（实测踩到）**：volatile 字段物化后**不是原值**，而是 cosmokit 的 `Volatile<T>` 句柄
+（`{ get() }`）——读它必须经 `configText()`（`lib/index.js`），否则句柄会被当路径用。普通字段仍是原值。
 
 ## profile 装配（dsh-home/profiles/web/）
 
@@ -54,5 +61,5 @@ WorldSea 产品域工具集（内置级 dsh 插件，零依赖）——让 Agent
 ## 设计依据
 
 - D2 批计划：`docs/plans/2026-09-27-D2-Agent操作产品域-重设计批计划.md`（§2.1 能力形状 / §1.1 项目=workspace / §五 工具集第二轮）
-- 插件形态对齐 `dsh-plugin-community` 先例（零依赖自包含 lib/index.js + link: 装配）
+- 插件形态对齐 `dsh-plugin-community` 先例（自包含 lib/index.js + link: 装配）；D3-c2 起多一条 `@deepseek-ai/schemastery` 的 `link:` 依赖（配置 schema 所需，见「配置」节）
 - 工具注册 = `ctx.tools.register`（ToolDefinition 形状手写，见 dsh/packages/core/tools）；指引段 = `ctx.systemPrompt.section`

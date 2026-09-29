@@ -10,7 +10,8 @@
  * 职责（D3-c）：注册 `settings.plugins.tab`「WorldSea 产品域」标签页，管理产品域 ↔ dsh 交界配置：
  * ① 说明书与指针（壳偏好 manualGeneration / agentsPointer——生成类开关保存即时补生成）
  * ② 快照策略（snapshotExport：auto | off——工作台 boot.ts 导出门）
- * ③ 插件数据面（worldsea 插件的 cordis config：v1 只读指引，configForms 跨插件绑定验证后升级编辑）。
+ * ③ 插件数据面（worldsea 插件的 cordis config：dshHome / dataRoot）——**可编辑**（D3-c2，2026-09-30）：
+ *    经 `configForms` 跨插件绑定 + 上游 SettingsForm/SettingsFormModel 出表单，写盘落 profile 补丁层。
  * 壳命令经 `__TAURI_INTERNALS__.invoke`（ACL = worldsea-shell.toml，两窗共用）。
  */
 window.__ModuleLoader__.load({
@@ -18,7 +19,7 @@ window.__ModuleLoader__.load({
   factory: (require) => {
     const module = { exports: {} };
     const react = require('react');
-    const { Switch, SegmentedControl } = require('@deepseek-ai/dsh-client-ui-primitives');
+    const { Switch, SegmentedControl, SettingsForm, SettingsValueField, SettingsFormModel, settingsTextField } = require('@deepseek-ai/dsh-client-ui-primitives');
 
     const PLUGIN_ID = 'dsh-plugin-worldsea-console';
     /** 本插件独占的字典命名空间（locale 字典 + 标签页 label）。 */
@@ -37,7 +38,19 @@ window.__ModuleLoader__.load({
       snapshotAuto: '自动',
       snapshotOff: '关闭',
       dataFace: '插件数据面（worldsea 工具插件）',
-      dataFaceHint: 'dshHome 覆盖与 dataRoot 兜底属 worldsea 插件的 cordis config（profile patch 行内）；本页暂为只读指引，编辑随 configForms 跨插件绑定验证后开放。',
+      dataFaceHint: 'worldsea 插件的 cordis config（改动落 profile 补丁层，插件下次调用即生效）。留空＝沿用缺省：dshHome 用环境 DSH_HOME（与壳 spawn 同源），dataRoot 无缺省。',
+      dshHome: 'DSH_HOME 覆盖（dshHome）',
+      dshHomeHint: '解析顺序「覆盖值 > 环境 DSH_HOME」。★ 填了覆盖值，插件就去读那个 home 的 storages/ 与会话——若不是壳正在用的那个，Agent 会看不到你在壳里建的会话与项目。',
+      dataRoot: '实体目录兜底（dataRoot）',
+      dataRootHint: '只在**无会话 cwd** 的调用下生效（正常会话走会话工作区，不受影响）：插件改读 <dataRoot>/worlddata。留空＝非会话调用直接报错（fail loud）。',
+      overridden: '覆盖中',
+      reset: '恢复缺省',
+      invalidField: '插件不接受这个值',
+      save: '保存',
+      saving: '保存中…',
+      readOnly: '当前部署的插件配置为只读。',
+      saveFailed: '保存未被接受；改动已保留，请修正后重试。',
+      unavailable: '该配置当前不可用（插件未挂载）。',
       saved: '已保存',
       loadFailed: '读取失败',
       notTauri: '此面板需要桌面壳环境（Tauri IPC 不可用）。',
@@ -56,15 +69,28 @@ window.__ModuleLoader__.load({
       snapshotAuto: 'Auto',
       snapshotOff: 'Off',
       dataFace: 'Plugin data face (worldsea tool plugin)',
-      dataFaceHint: 'dshHome override and dataRoot fallback live in the worldsea plugin cordis config (profile patch row); read-only here for now — editing opens up after the configForms cross-plugin binding is verified.',
+      dataFaceHint: 'The worldsea plugin cordis config (writes land in the profile patch layer and apply on the next plugin call). Empty = keep the default: dshHome falls back to the environment DSH_HOME (same source the shell spawns with); dataRoot has no default.',
+      dshHome: 'DSH_HOME override (dshHome)',
+      dshHomeHint: 'Resolved as override > environment DSH_HOME. ★ With an override set, the plugin reads that home\'s storages/ and sessions — if it is not the home the shell uses, the Agent will not see the sessions and projects you created in the shell.',
+      dataRoot: 'Entity directory fallback (dataRoot)',
+      dataRootHint: 'Applies only to calls with **no session cwd** (normal sessions use the session workspace and are unaffected): the plugin reads <dataRoot>/worlddata. Empty = such calls fail loud.',
+      overridden: 'Overridden',
+      reset: 'Reset to default',
+      invalidField: 'The plugin does not accept this value',
+      save: 'Save',
+      saving: 'Saving…',
+      readOnly: 'This deployment stores plugin configuration read-only.',
+      saveFailed: 'The save was not accepted; your changes are kept — fix them and retry.',
+      unavailable: 'This configuration is unavailable (plugin not mounted).',
       saved: 'Saved',
       loadFailed: 'Failed to load',
       notTauri: 'This panel requires the desktop shell (Tauri IPC unavailable).',
       loading: 'Loading product preferences…',
     };
 
-    /** 客户端 ctx 需要的服务（slots = 模块系统核心；locale 来自 dsh-client-locale）。 */
-    const inject = ['slots', 'locale'];
+    /** 客户端 ctx 需要的服务（slots = 模块系统核心；locale 来自 dsh-client-locale；
+     *  configForms = 跨插件配置表单句柄——第三组「插件数据面」据此绑定 worldsea 插件的 config）。 */
+    const inject = ['slots', 'locale', 'configForms'];
 
     /** 壳命令调用（与壳注入的 shell_bridge 同链路：__TAURI_INTERNALS__.invoke，受 ACL 白名单管）。 */
     function shellInvoke(command, args) {
@@ -92,6 +118,17 @@ window.__ModuleLoader__.load({
       const t = ctx.locale.bind(NS);
       const h = react.createElement;
 
+      /* 第三组「插件数据面」= 宿主 worldsea 插件的 cordis config（D3-c2，2026-09-30）。
+         命名空间 = 该插件在 cordis.patch.yml 里的**条目 id**（worldsea）；字段名 = 其 Config 的键。
+         两侧任一漂移即静默断链，故 __tests__/client.spec.ts 有跨文件契约用例（与 patch 行、真 Config 对读）。
+         表单能力全取自上游：SettingsFormModel 管暂存/覆盖中判定/修订栅栏，SettingsForm + SettingsValueField 出 UI。 */
+      const scope = ctx.configForms.get('worldsea');
+      const form = new SettingsFormModel(scope, [settingsTextField('dshHome'), settingsTextField('dataRoot')]);
+      const store = form.bind(() => ({ ...form.shell(), dshHome: form.field('dshHome'), dataRoot: form.field('dataRoot') }));
+      ctx.effect(() => () => form.dispose(), 'worldsea-console: data-face form');
+      /** SettingsForm/字段共用文案（上游 SettingsFormLabels + 各字段的覆盖中/恢复/非法标签）。 */
+      const formLabels = () => ({ unavailable: t('unavailable'), readOnly: t('readOnly'), saveFailed: t('saveFailed'), save: t('save'), saving: t('saving') });
+
       /** 一行设置：左侧标题 + 说明，右侧控件（Switch）。 */
       function SwitchRow(props) {
         return h('div', { style: styles.row },
@@ -101,10 +138,13 @@ window.__ModuleLoader__.load({
           h(Switch, { checked: props.checked, onChange: props.onChange }));
       }
 
-      function ConsoleTab() {
+      function ConsoleTab(props) {
         const [prefs, setPrefs] = react.useState(null);
         const [error, setError] = react.useState('');
         const [status, setStatus] = react.useState('');
+        /* 第三组的状态走框架座位（renderer 把 inject.hooks.dataFace 绑成 useDataFace）：
+           组件内不自订阅（dsh 客户端规约：render 读到的一切可变量都必须经框架 hook）。 */
+        const face = props.useDataFace((snapshot) => snapshot);
 
         react.useEffect(() => {
           shellInvoke('cmd_product_prefs_get', {}).then((value) => {
@@ -158,7 +198,32 @@ window.__ModuleLoader__.load({
               status ? h('div', { style: { ...styles.status, marginTop: 4 } }, status) : null)),
           h('div', { style: styles.section },
             h('div', { style: styles.label }, t('dataFace')),
-            h('div', { style: styles.hint }, t('dataFaceHint'))));
+            h('div', { style: styles.hint }, t('dataFaceHint')),
+            h(SettingsForm, { labels: formLabels(), state: face, onSave: props.save, onDiscard: props.discard },
+              h(SettingsValueField, {
+                id: 'worldsea-console-dsh-home',
+                label: t('dshHome'),
+                hint: t('dshHomeHint'),
+                overriddenLabel: t('overridden'),
+                resetLabel: t('reset'),
+                invalidLabel: t('invalidField'),
+                disabled: !face.writable,
+                ...face.dshHome,
+                onEdit: (text) => { props.edit('dshHome', text); },
+                onReset: () => { props.resetField('dshHome'); },
+              }),
+              h(SettingsValueField, {
+                id: 'worldsea-console-data-root',
+                label: t('dataRoot'),
+                hint: t('dataRootHint'),
+                overriddenLabel: t('overridden'),
+                resetLabel: t('reset'),
+                invalidLabel: t('invalidField'),
+                disabled: !face.writable,
+                ...face.dataRoot,
+                onEdit: (text) => { props.edit('dataRoot', text); },
+                onReset: () => { props.resetField('dataRoot'); },
+              }))));
       }
 
       ctx.slots.inject('settings.plugins.tab', () => ctx.slots.register({
@@ -167,7 +232,7 @@ window.__ModuleLoader__.load({
         order: 20,
         label: () => t('tab'),
         locale: NS,
-        inject: () => ({}),
+        inject: () => ({ hooks: { dataFace: store }, ...form.actions() }),
       }, ConsoleTab));
     }
 
