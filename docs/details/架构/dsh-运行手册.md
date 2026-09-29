@@ -117,6 +117,15 @@ DSH_HOME="D:/WorldSea/.独立项/b0-home" node apps/cli/lib/bin.js web --no-open
 
 **HMR 已关闭**：`client-hmr` 的 `/plugins/events` 是 SSE 长连，而壳协议（Tauri `UriSchemeResponder`）只能回缓冲体 → 该行在壳内必然失效。已在 `apps/tauri/dsh-overlay.yml` 禁用；代理对任何 `text/event-stream` 响应显式 502 + 落档。若将来要 HMR，需要一条可流式的传输（C2 的 portless 通道是候选）。
 
+**dsh profile 装配面与可选 bundle（G3 查实，2026-09-29）**：
+
+- **补丁层序（低 → 高，`app-boot/src/profile-context.ts:65-69`）**：① bundle 层（各 `cordis.patch.yml`）→ ② **profile 补丁层**（`<DSH_HOME>/profiles/web/cordis.patch.yml`，由插件管理器/设置面写入）→ ③ home 层（`<DSH_HOME>/cordis.patch.yml`）→ ④ **我方 `--patch` overlay**（`context.overlays`，**最后 = 优先级最高**）。**含义**：我方 overlay 只该用于「覆盖上游默认值」，一旦某 `id` 写进去就**压住** ②③ 层对该 id 的改动——所以不要拿 overlay 去改用户会在 UI 里调的条目（现有两条 `ui-sidebar-browser` / `client-hmr` 都不属此类）。
+- **profile 补丁层是活的**（真机证据）：本机 `profiles/web/cordis.patch.yml` 里已有 `ui-settings-general` / `ui-chat` / `ui-theme` / `llm-pi-ai`（含自定义 provider）等条目——由 UI/设置面写入并生效，证明该层在壳内可读可写。
+- **可选 bundle = 上游内建的「装但默认关」机制**（`app-boot/src/profile.ts:213` 的 `OPTIONAL_BUNDLES`，注释原文「the bundles the dsh installation **ships for a person to switch on** … offered **switched off** by the plugin manager」）。四项：`dsh-experimental-agent-team-profile` / `voice-input-bundle` / `auto-review` / **`schedule-bundle`**。判定：`listBundles()` 里 `optional = OPTIONAL_BUNDLES.includes(name)`、`enabled = profile.manifest 的 dsh.profile.bundles 是否含它`（`plugin-manager/src/index.ts:280-317`）；本机 `profiles/web/package.json` 的 `bundles` **不含**任何可选 bundle → 默认关 ✓。
+- **开关面**：`plugin-manager`（base bundle `cordis.patch.yml:20`）+ agent 工具 `tool-plugin-manager`（`:16`）+ UI `ui-plugin-manager`（web-app `:304`）。**开一个 bundle 的动作**（`plugin-manager/src/index.ts:715-733`）＝写 profile manifest 的 `dsh.profile.bundles` + 从**已安装的 bundle 目录**读其行（`bundlePatchPaths(dir, dsh.bundle)` 经 installAnchor 解析）；**不触发 pnpm 安装、不联网**。
+- **`schedule-bundle` 已就位且默认关**：`dsh/apps/cli/package.json:42` 声明 `workspace:*`，符号链接 `dsh/apps/cli/node_modules/@deepseek-ai/dsh-experimental-schedule-bundle → packages/experimental/schedule-bundle/` 在位；开启后 insert 三行 `time-context` + `schedule` + `ui-schedule`（「自动化任务/定时提醒」）。**按需开即可，无需我方施工**（登记项 G3 已据此撤销）。
+- **教训（连续三次同型）**：G1（`data-fullscreen` 前提误判）、G2（ACL 技能假缺口）、G3（可选 bundle 假缺口）——**登记「装配/对齐上游 X」之前，先查 `OPTIONAL_BUNDLES`、该包的 apply 接线、以及真机 profile 磁盘**；三次里两次零施工收场。
+
 **壳件与壳桥（C1-c）**：
 
 - **原生菜单**（`menu.rs`）：文件（关闭窗口/退出）· 编辑（撤销/重做/剪切/复制/粘贴/全选，muda 预定义项）· 视图（重新加载 `Ctrl+R` · 放大 `Ctrl+=` · 缩小 `Ctrl+-` · 实际大小 `Ctrl+0` · 全屏 `F11`）· 设置（打开设置 `Ctrl+,`）。**★ 上面这些键位是菜单项上的 accelerator 标注，实测全部不生效**（G1-d，2026-09-29 查实，见下条）——别把它们当可用快捷键用。
