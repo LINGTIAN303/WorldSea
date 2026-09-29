@@ -22,7 +22,8 @@ impl TransportInject {
 }
 
 /// 注入壳脚本（**只合并不覆盖**）：「流桥 + `__DSH_TRANSPORT__`」（传输面，按 [`TransportInject`] 三态）、
-///「不白屏」安全网、壳桥（`__WORLDSEA_SHELL__`）、窗口栏（C6）、诊断钩子——各自可按开关关掉。
+///「不白屏」安全网、壳桥（`__WORLDSEA_SHELL__`）、窗口栏（C6）、诊断钩子——各自可按开关关掉；
+/// 另按 `dsh_home` 透传 **`__WORLDSEA_DSH_HOME__` 常量**（D3-c2b：console「插件数据面」显示缺省生效值）。
 ///
 /// **顺序契约**（C1-b 成文，C2-b 扩展）：宿主渲染的 index 里，`<base href="./">` 与 `__DSH_BOOT__` 等行紧跟 `<head>`；
 /// 壳在本函数里把脚本插到**同一个位置的最前**（即 `<head>` 之后、所有宿主行与模块脚本之前）：
@@ -37,6 +38,7 @@ pub(crate) fn inject_shell_scripts(
     diag: bool,
     capabilities: bool,
     notice: Option<&str>,
+    dsh_home: Option<&str>,
 ) -> String {
     let mut scripts = String::new();
     // E2-b（2026-09-24）：壳自有面（安全网 / 横幅 / 窗口栏退化值）按主题真源取亮暗——先于它们注入
@@ -46,6 +48,15 @@ pub(crate) fn inject_shell_scripts(
         crate::app_prefs::preference_now(),
         crate::app_prefs::dark_now()
     ));
+    // D3-c2b：壳解析出的 DSH_HOME（= spawn 时注入宿主 env 的同值）——console 数据面未覆盖时显示缺省生效值
+    if let Some(home) = dsh_home {
+        match serde_json::to_string(home) {
+            Ok(json) => scripts.push_str(&format!(
+                "<script>/* worldsea-shell:dsh-home */globalThis.__WORLDSEA_DSH_HOME__ = {json}</script>"
+            )),
+            Err(error) => eprintln!("[DSH-SHELL] DSH_HOME 序列化失败：{error}"),
+        }
+    }
     match transport {
         TransportInject::None => {}
         TransportInject::StreamBase(base_url) => {

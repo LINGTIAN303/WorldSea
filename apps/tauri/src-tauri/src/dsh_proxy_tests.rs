@@ -129,6 +129,7 @@ fn cfg(host_port: u16) -> ProxyCfg {
         deny_path: None,
         open_paths: false,
         workspace_notice: None,
+        dsh_home: None,
     }
 }
 
@@ -153,6 +154,7 @@ fn pipe_cfg(
             deny_path: None,
             open_paths: false,
             workspace_notice: None,
+            dsh_home: None,
         },
         handles,
         client,
@@ -232,6 +234,21 @@ fn index_carries_workspace_notice_only_when_warned() {
     assert!(text.contains("__WORLDSEA_WORKSPACE_NOTICE__"), "缺文案赋值：{text}");
     assert!(text.contains(r"D:\\A"), "文案未按 JSON 转义带入：{text}");
     assert!(text.contains("cmd_fix_workspace_acl"), "横幅脚本应带修复入口");
+}
+
+/// D3-c2b：壳解析出的 DSH_HOME 以页面常量透传（console 数据面据此显示缺省生效值）；未提供（None）时不注入。
+#[test]
+fn index_carries_dsh_home_only_when_provided() {
+    let (port, _seen) = fake_upstream();
+    let plain = body_text(&proxy(&cfg(port), &req("GET", "/")));
+    assert!(!plain.contains("__WORLDSEA_DSH_HOME__"), "未提供 DSH_HOME 不应注入");
+
+    let mut with_home = cfg(port);
+    with_home.dsh_home = Some(r"C:\Users\tester\AppData\dsh-home".to_string());
+    let text = body_text(&proxy(&with_home, &req("GET", "/")));
+    assert!(text.contains("worldsea-shell:dsh-home"), "缺 DSH_HOME 注入：{text}");
+    assert!(text.contains("__WORLDSEA_DSH_HOME__"), "缺常量赋值：{text}");
+    assert!(text.contains(r"C:\\Users\\tester\\AppData\\dsh-home"), "未按 JSON 转义带入：{text}");
 }
 
 #[test]

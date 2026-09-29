@@ -29,6 +29,9 @@ pub(crate) struct ProxyCfg {
     pub open_paths: bool,
     /// C4-b：工作区不可供给时的横幅文案（`None` = 可供给或已按 `WORLDSEA_NO_WORKSPACE_NOTICE=1` 关闭）
     pub workspace_notice: Option<String>,
+    /// D3-c2b：壳解析后的 DSH_HOME（= spawn 时注入宿主 env 的同值）——页面常量 `__WORLDSEA_DSH_HOME__`，
+    /// console「插件数据面」在未覆盖时据此显示缺省生效值。
+    pub dsh_home: Option<String>,
 }
 
 /// 上游传输面（两种形态产出同构的「状态 / 头 / 体」）。
@@ -239,7 +242,8 @@ pub(crate) fn proxy(cfg: &ProxyCfg, request: &http::Request<Vec<u8>>) -> http::R
             || cfg.titlebar
             || cfg.diag
             || cfg.capabilities
-            || cfg.workspace_notice.is_some())
+            || cfg.workspace_notice.is_some()
+            || cfg.dsh_home.is_some())
     {
         let text = String::from_utf8_lossy(&body).to_string();
         body = inject_shell_scripts(
@@ -250,6 +254,7 @@ pub(crate) fn proxy(cfg: &ProxyCfg, request: &http::Request<Vec<u8>>) -> http::R
             cfg.diag,
             cfg.capabilities,
             cfg.workspace_notice.as_deref(),
+            cfg.dsh_home.as_deref(),
         )
         .into_bytes();
     }

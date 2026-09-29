@@ -111,12 +111,13 @@ fn resolve_dsh_root() -> Result<PathBuf, String> {
     }
 }
 
-/// 启动 dsh host 并等就绪；返回（子进程句柄, 带 token 的 URL, 管道路径, 工作区横幅文案）。
+/// 启动 dsh host 并等就绪；返回（子进程句柄, 带 token 的 URL, 管道路径, 工作区横幅文案, 解析后的 DSH_HOME）。
 /// 管道路径仅在默认（C2 零 TCP）模式生成；`WORLDSEA_TCP_HOST=1` 走 legacy（无管道）。
-/// 横幅文案仅在「工作区不可供给且未关闭横幅」时非空（C4-b 起由 index 注入带出）。
+/// 横幅文案仅在「工作区不可供给且未关闭横幅」时非空（C4-b 起由 index 注入带出）；
+/// DSH_HOME 字符串供注入面透传（`__WORLDSEA_DSH_HOME__`，D3-c2b）。
 pub fn spawn_and_wait_ready(
     app: &tauri::AppHandle,
-) -> Result<(Child, String, Option<String>, Option<String>), String> {
+) -> Result<(Child, String, Option<String>, Option<String>, String), String> {
     let root = resolve_dsh_root()?;
     let port = free_loopback_port()?;
     let node = std::env::var("WORLDSEA_NODE").unwrap_or_else(|_| "node".to_string());
@@ -232,7 +233,7 @@ pub fn spawn_and_wait_ready(
     match rx.recv_timeout(READY_TIMEOUT) {
         Ok(url) if !url.is_empty() => {
             println!("[DSH-SHELL] ready: {url}");
-            Ok((child, url, pipe_path, workspace_notice))
+            Ok((child, url, pipe_path, workspace_notice, home.to_string_lossy().into_owned()))
         }
         Ok(_) => {
             let _ = child.kill();
@@ -256,7 +257,7 @@ pub fn install(app: &tauri::AppHandle, window: Option<&WebviewWindow>) {
     let app_handle = app.clone();
     let window = window.cloned();
     std::thread::spawn(move || match spawn_and_wait_ready(&app_handle) {
-        Ok((child, url, pipe_path, workspace_notice)) => {
+        Ok((child, url, pipe_path, workspace_notice, dsh_home)) => {
             tracing::info!("dsh shell: ready at {url}");
             crate::dsh_bridge::attach(
                 &app_handle,
@@ -264,6 +265,7 @@ pub fn install(app: &tauri::AppHandle, window: Option<&WebviewWindow>) {
                 &url,
                 pipe_path.as_deref(),
                 workspace_notice.as_deref(),
+                Some(&dsh_home),
             );
             app_handle.manage(DshProcess::new(child));
             watch_child(app_handle.clone());

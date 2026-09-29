@@ -70,7 +70,13 @@ impl DshBridge {
 /// 绑定桥：303 换 cookie → （管道模式）连宿主管道 / （legacy）起 WS 中转 → 造转发配置。
 /// 全部失败都返回可读原因（调用方回退直连）。
 /// `pipe_path` = 壳本次 spawn 传给宿主的 `--ipc-pipe` 值（由 `dsh_shell` 生成）；`None` = legacy TCP。
-pub fn prepare(ready_url: &str, pipe_path: Option<&str>, workspace_notice: Option<&str>) -> Result<DshBridge, String> {
+/// `dsh_home` = 壳解析后的 DSH_HOME（=宿主 env 同值）——注入面据此放 `__WORLDSEA_DSH_HOME__`（D3-c2b）。
+pub fn prepare(
+    ready_url: &str,
+    pipe_path: Option<&str>,
+    workspace_notice: Option<&str>,
+    dsh_home: Option<&str>,
+) -> Result<DshBridge, String> {
     let diag = diag_enabled();
     let inject_transport = std::env::var_os("WORLDSEA_NO_TRANSPORT_INJECT").is_none();
     let inject_shell_bridge = std::env::var_os("WORLDSEA_NO_SHELL_BRIDGE").is_none();
@@ -83,6 +89,8 @@ pub fn prepare(ready_url: &str, pipe_path: Option<&str>, workspace_notice: Optio
     let open_paths = std::env::var_os("WORLDSEA_BRIDGE_OPEN").is_some();
     // C4-b：工作区不可供给的横幅文案（探测在 dsh_shell 侧完成，这里只做透传）
     let workspace_notice = workspace_notice.map(str::to_string);
+    // D3-c2b：DSH_HOME（解析在 dsh_shell 侧完成）——页面常量注入用，同样只做透传
+    let dsh_home = dsh_home.map(str::to_string);
     if !inject_transport {
         eprintln!("[DSH-SHELL] bridge: 传输注入已按 WORLDSEA_NO_TRANSPORT_INJECT 关闭（反证模式：流面必须显式降级）");
     }
@@ -121,6 +129,7 @@ pub fn prepare(ready_url: &str, pipe_path: Option<&str>, workspace_notice: Optio
                 deny_path,
                 open_paths,
                 workspace_notice,
+                dsh_home,
             };
             let summary = format!("mode=pipe pipe={path} 页面={APP_URL}（零 TCP；token 只留在壳内）");
             Ok(DshBridge { cfg, summary, pipe: Some(client), _relay: None })
@@ -150,6 +159,7 @@ pub fn prepare(ready_url: &str, pipe_path: Option<&str>, workspace_notice: Optio
                 deny_path,
                 open_paths,
                 workspace_notice,
+                dsh_home,
             };
             let summary = format!(
                 "mode=tcp host=127.0.0.1:{host_port} relay_port={} 页面={APP_URL}（token 只留在壳内）",
@@ -232,19 +242,21 @@ fn exchange_cookie(ready_url: &str) -> Result<String, String> {
 /// 装配：桥成功 → 记桥状态 + 导航到壳协议页；桥失败或显式 `WORLDSEA_LEGACY_DIRECT=1`
 /// → 回退直连 loopback（B2/B3 行为），两条路都不静默。
 /// `pipe_path` 由 `dsh_shell` 生成并随 spawn 传入宿主（legacy 对照模式下为 None）。
+/// `dsh_home` = 壳解析后的 DSH_HOME（D3-c2b：注入面透传为页面常量 `__WORLDSEA_DSH_HOME__`）。
 pub fn attach(
     app: &tauri::AppHandle,
     window: Option<&WebviewWindow>,
     ready_url: &str,
     pipe_path: Option<&str>,
     workspace_notice: Option<&str>,
+    dsh_home: Option<&str>,
 ) {
     let legacy = std::env::var_os("WORLDSEA_LEGACY_DIRECT").is_some();
     let bridged = if legacy {
         println!("[DSH-SHELL] WORLDSEA_LEGACY_DIRECT=1：跳过桥，回退直连 loopback");
         false
     } else {
-        match prepare(ready_url, pipe_path, workspace_notice) {
+        match prepare(ready_url, pipe_path, workspace_notice, dsh_home) {
             Ok(bridge) => {
                 println!("[DSH-SHELL] bridge ready: {}", bridge.describe());
                 app.manage(bridge);

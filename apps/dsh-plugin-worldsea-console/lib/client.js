@@ -11,7 +11,8 @@
  * ① 说明书与指针（壳偏好 manualGeneration / agentsPointer——生成类开关保存即时补生成）
  * ② 快照策略（snapshotExport：auto | off——工作台 boot.ts 导出门）
  * ③ 插件数据面（worldsea 插件的 cordis config：dshHome / dataRoot）——**可编辑**（D3-c2，2026-09-30）：
- *    经 `configForms` 跨插件绑定 + 上游 SettingsForm/SettingsFormModel 出表单，写盘落 profile 补丁层。
+ *    经 `configForms` 跨插件绑定 + 上游 SettingsForm/SettingsFormModel 出表单，写盘落 profile 补丁层；
+ *    未覆盖时另显示壳注入的缺省生效值（D3-c2b，`__WORLDSEA_DSH_HOME__`）。
  * 壳命令经 `__TAURI_INTERNALS__.invoke`（ACL = worldsea-shell.toml，两窗共用）。
  */
 window.__ModuleLoader__.load({
@@ -41,6 +42,7 @@ window.__ModuleLoader__.load({
       dataFaceHint: 'worldsea 插件的 cordis config（改动落 profile 补丁层，插件下次调用即生效）。留空＝沿用缺省：dshHome 用环境 DSH_HOME（与壳 spawn 同源），dataRoot 无缺省。',
       dshHome: 'DSH_HOME 覆盖（dshHome）',
       dshHomeHint: '解析顺序「覆盖值 > 环境 DSH_HOME」。★ 填了覆盖值，插件就去读那个 home 的 storages/ 与会话——若不是壳正在用的那个，Agent 会看不到你在壳里建的会话与项目。',
+      dshHomeDefault: '缺省生效值：',
       dataRoot: '实体目录兜底（dataRoot）',
       dataRootHint: '只在**无会话 cwd** 的调用下生效（正常会话走会话工作区，不受影响）：插件改读 <dataRoot>/worlddata。留空＝非会话调用直接报错（fail loud）。',
       overridden: '覆盖中',
@@ -72,6 +74,7 @@ window.__ModuleLoader__.load({
       dataFaceHint: 'The worldsea plugin cordis config (writes land in the profile patch layer and apply on the next plugin call). Empty = keep the default: dshHome falls back to the environment DSH_HOME (same source the shell spawns with); dataRoot has no default.',
       dshHome: 'DSH_HOME override (dshHome)',
       dshHomeHint: 'Resolved as override > environment DSH_HOME. ★ With an override set, the plugin reads that home\'s storages/ and sessions — if it is not the home the shell uses, the Agent will not see the sessions and projects you created in the shell.',
+      dshHomeDefault: 'Effective default: ',
       dataRoot: 'Entity directory fallback (dataRoot)',
       dataRootHint: 'Applies only to calls with **no session cwd** (normal sessions use the session workspace and are unaffected): the plugin reads <dataRoot>/worlddata. Empty = such calls fail loud.',
       overridden: 'Overridden',
@@ -101,10 +104,17 @@ window.__ModuleLoader__.load({
       return ipc.invoke(command, args);
     }
 
+    /** 壳注入的缺省 DSH_HOME（D3-c2b）：未覆盖时把「生效缺省值」显示出来；非壳环境（无该全局）退化为不显示。 */
+    function shellDefaultDshHome() {
+      const value = globalThis.__WORLDSEA_DSH_HOME__;
+      return typeof value === 'string' && value.length > 0 ? value : null;
+    }
+
     const styles = {
       wrap: { maxWidth: 620, padding: '4px 2px', display: 'flex', flexDirection: 'column', gap: 16, fontSize: 13, lineHeight: 1.5 },
       title: { fontSize: 14, fontWeight: 600, margin: 0 },
       hint: { color: 'var(--text-tertiary, #888)', fontSize: 12, margin: '2px 0 0' },
+      defaultLine: { color: 'var(--text-tertiary, #888)', fontSize: 12, margin: '2px 0 0', wordBreak: 'break-all' },
       section: { display: 'flex', flexDirection: 'column', gap: 12, padding: '12px 0', borderBottom: '1px solid var(--border, rgba(127,127,127,.2))' },
       row: { display: 'flex', gap: 12, alignItems: 'center' },
       grow: { flex: 1, minWidth: 0 },
@@ -145,6 +155,8 @@ window.__ModuleLoader__.load({
         /* 第三组的状态走框架座位（renderer 把 inject.hooks.dataFace 绑成 useDataFace）：
            组件内不自订阅（dsh 客户端规约：render 读到的一切可变量都必须经框架 hook）。 */
         const face = props.useDataFace((snapshot) => snapshot);
+        /* D3-c2b：壳注入的缺省 DSH_HOME——未覆盖时作为「缺省生效值」显示（非壳环境为 null）。 */
+        const defaultHome = shellDefaultDshHome();
 
         react.useEffect(() => {
           shellInvoke('cmd_product_prefs_get', {}).then((value) => {
@@ -212,6 +224,9 @@ window.__ModuleLoader__.load({
                 onEdit: (text) => { props.edit('dshHome', text); },
                 onReset: () => { props.resetField('dshHome'); },
               }),
+              defaultHome !== null && face.dshHome && !face.dshHome.overridden
+                ? h('p', { style: styles.defaultLine }, `${t('dshHomeDefault')}${defaultHome}`)
+                : null,
               h(SettingsValueField, {
                 id: 'worldsea-console-data-root',
                 label: t('dataRoot'),
