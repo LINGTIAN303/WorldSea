@@ -165,16 +165,13 @@
 
     # Plain route-registration carrier; host and port come from the app's
     # webStartup provider, with these deployment fallbacks. The dist is served by
-    # the web-runtime row below through the fallback seat. With `--ipc-pipe`
-    # the carrier binds nothing: the web-runtime row starts the pipe carrier and
-    # feeds synthesized exchanges through the webserver's external mode.
+    # the web-runtime row below through the fallback seat.
     - id: webserver
       name: '@deepseek-ai/dsh-host-webserver'
       inject: [webStartup]
       config:
         host: !!js ctx.webStartup.host ?? '127.0.0.1'
         port: !!js ctx.webStartup.port ?? 3080
-        external: !!js ctx.webStartup.ipcPipe !== undefined
         compression: gzip
         compressionLevel: 1
         compressionThresholdBytes: 1024
@@ -197,7 +194,6 @@
         printUrl: true
         surfaceContext: true
         trustedHosts: !!js ctx.webStartup.trustedHosts
-        ipcPipe: !!js ctx.webStartup.ipcPipe
 
     # The client-plugin reload chain, always mounted: it is idle until a
     # rebuild watcher (pnpm run dev:web) actually rewrites client bundles. It
