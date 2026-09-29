@@ -16,7 +16,7 @@ WorldSea 产品域**管理面**（内置级 dsh 插件）——dsh 设置「内�
 |---|---|---|
 | 说明书与指针 | 壳偏好 `product_domain.manualGeneration / agentsPointer` | 壳启动**及保存时**在工作区根幂等生成 WORLDSEA.md / 薄指针 AGENTS.md（已存在绝不覆盖；薄指针经 dsh agent-instructions 自动注入会话） |
 | 快照策略 | 壳偏好 `product_domain.snapshotExport`（auto/off） | 工作台 boot.ts 导出门：off 时不再导出 schema 快照（Agent 写校验 fail loud 提示先开工作台） |
-| 插件数据面 | worldsea 插件 cordis config（dshHome/dataRoot） | **页内可编辑**（D3-c2，2026-09-30）：经 configForms 绑定条目 id `worldsea` + 上游 SettingsForm/SettingsFormModel；写盘落 profile 补丁层，插件下次调用即生效；「覆盖中」由 user 层**存在性**判定 |
+| 插件数据面 | worldsea 插件 cordis config（dshHome/dataRoot） | **页内可编辑**（D3-c2，2026-09-30）：经 configForms 绑定条目 id `worldsea` + 上游 SettingsForm/SettingsFormModel；写盘落 profile 补丁层，插件下次调用即生效；「覆盖中」由 user 层**存在性**判定。**未覆盖时另显示壳注入的缺省生效值**（D3-c2b：`__WORLDSEA_DSH_HOME__`，壳把解析后的 DSH_HOME 经注入面透传；非壳环境/覆盖中不显示） |
 
 壳命令：`cmd_product_prefs_get` / `cmd_product_prefs_set`（Rust 侧 `app_prefs.rs`；ACL = `worldsea-shell.toml` 两窗共用）。
 
