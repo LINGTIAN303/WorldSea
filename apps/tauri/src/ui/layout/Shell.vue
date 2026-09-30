@@ -54,7 +54,7 @@ import { useShortcuts, useUndoRedo, useGlobalEvents } from '@worldsea/ui-kit'
 import { usePluginStore, useDirtyTracker, useEntityStore, useRelationStore, entitySchemaRegistry, relationshipRegistry, useUIStore, useSettingsStore } from '@worldsea/entity-core'
 import { useFileSystemProject } from '@worldsea/entity-core/composables'
 // D2-b2：useProjectSwitcher 引用已随「打开目录建项目」入口退役移除（项目切换在 ProjectSwitcher 下拉）
-import { toggleShell } from '@/composables/shellSwitch'
+import { switchShell } from '@/composables/shellSwitch'
 import CompanionNotification from '../companion/CompanionNotification.vue'
 import { useCompanionMode } from '@worldsea/shared-composables/companion/useCompanionMode'
 
@@ -147,11 +147,10 @@ onGlobalEvent('ws-open-layout-mgr', onOpenLayoutMgr)
 onGlobalEvent('ws-open-trash', onOpenTrash)
 onGlobalEvent('ws-open-artifacts', onOpenArtifacts)
 onGlobalEvent('ws-open-consistency', onOpenConsistency)
-// 壳感知弹窗事件（2026-09-06）：设置/帮助来源（快捷键 handler / AppMenu / 托盘）统一 dispatch
-// 全局事件，两壳各监听同名事件、仅在自己壳激活时打开（AgentSpace 侧对称监听）——
-// 修复「Agent 空间按 ? / Ctrl+, 弹窗开在隐藏的 Shell 壳里」。
-onGlobalEvent('ws-open-settings', () => { if (uiStore.currentShell !== 'space') onOpenSettings() })
-onGlobalEvent('ws-open-shortcut-help', () => { if (uiStore.currentShell !== 'space') shortcutHelpOpen.value = true })
+// 设置/帮助事件（快捷键 handler / AppMenu / 托盘统一 dispatch 全局事件）：本页即工作台，
+// 直接打开（2026-09-30 C 批去陈旧壳守卫——旧「仅在激活壳打开」的前提随双窗改造消失）
+onGlobalEvent('ws-open-settings', () => { onOpenSettings() })
+onGlobalEvent('ws-open-shortcut-help', () => { shortcutHelpOpen.value = true })
 onGlobalEvent('ws-open-theme-editor', onOpenThemeEditor)
 onGlobalEvent('ws-open-custom-rel-type', onOpenCustomRelType)
 onGlobalEvent('ws-open-entity-template', onOpenEntityTemplate)
@@ -172,9 +171,9 @@ onMounted(() => {
   register({ id: 'sidebar.toggle', keys: ['ctrl', 'b'], description: '切换侧边栏', scope: 'global', handler: () => uiStore.toggleSidebar() })
   register({ id: 'search.open', keys: ['ctrl', 'k'], description: '全局搜索', scope: 'global', handler: () => { searchOpen.value = true } })
   register({ id: 'settings.open', keys: ['ctrl', ','], description: '打开设置', scope: 'global', handler: () => { window.dispatchEvent(new CustomEvent('ws-open-settings')) } })
-  // 空间切换交统一入口（shellSwitch）：新壳里 = 壳级窗口互斥切换（dsh 窗 ⇄ 工作台窗），
-  // 无壳桥时回退页内壳切换。此前直落页内 setShell('space') → 工作台渲染被桩空的旧 Agent 面（空页）。
-  register({ id: 'shell.toggle', keys: ['ctrl', 'tab'], description: '切换 Agent 空间 ⇄ 工作台', scope: 'global', preventDefault: true, handler: () => { toggleShell() } })
+  // 空间切换交统一入口（shellSwitch）：壳级双窗互斥切换（显示 dsh 窗、隐本窗）；
+  // 方向固定「进入 Agent 空间」（本页恒为工作台窗）。无壳桥（浏览器预览）仅警告。
+  register({ id: 'shell.toggle', keys: ['ctrl', 'tab'], description: '进入 Agent 空间', scope: 'global', preventDefault: true, handler: () => { switchShell('space') } })
   // D2-b2：project.manager（Ctrl+Shift+P 打开目录建项目）随同源模型退役——项目在 dsh 侧管理
   register({ id: 'global.undo', keys: ['ctrl', 'z'], description: '撤销', scope: 'global', handler: () => undo(entityStore, relationStore), preventDefault: true })
   register({ id: 'global.redo', keys: ['ctrl', 'y'], description: '重做', scope: 'global', handler: () => redo(entityStore, relationStore), preventDefault: true })
@@ -188,9 +187,6 @@ onMounted(() => {
   // 数字键失效根因 = for 循环在 setup 时展开，树异步装载前 views 为空 → 循环 0 次从未注册；
   // 新实现 handler 内动态读 store（引用同一实例），注册时机不再敏感。
   const switchViewBy = (delta: number) => {
-    // 壳感知（2026-09-06）：Agent 空间下数字键交给 space 层（右栏 Tab 切换），
-    // 不隐形切换被 v-show 隐藏的 workbench 视图
-    if (uiStore.currentShell === 'space') return
     const views = pluginStore.views
     if (views.length === 0) return
     const idx = views.findIndex(v => v.id === uiStore.currentView)

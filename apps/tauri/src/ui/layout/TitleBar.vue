@@ -2,42 +2,29 @@
   <!-- 自定义标题栏：窗口最顶，替代系统原生标题栏（decorations:false）
        data-tauri-drag-region 提供拖拽移动 + 双击最大化/还原（Tauri 2 内置）
        基础合并（2026-08-08）：MenuBar 左侧功能区（☰ 侧边栏切换 + 项目切换器 + 目录）上移并入窗口栏
-       variant="space"（2026-08-09）：Agent 空间精简窗口栏——仅拖拽区 + 居中标题 + 窗口控制，
-       隐藏工作台专属区（☰ 侧边栏 / 项目切换器 / 目录 / AppMenu / 视图名） -->
-  <div class="titlebar" :class="{ 'is-space': variant === 'space', 'is-fullscreen': fullscreen }" data-tauri-drag-region>
-    <!-- 左侧：Agent 空间/工作台 切换按钮（两种壳共用；取代原 ⋯ 更多操作菜单位） + space 变体注入面板控件
-         2026-09-06：space 变体下 左栏开关移到最左，壳切换（Agent 空间）随其后 -->
+      2026-09-30 C 批：旧「space 变体」死代码随 E7 残留清退删除（Agent 面为 dsh 窗口，不吃本组件） -->
+  <div class="titlebar" :class="{ 'is-fullscreen': fullscreen }" data-tauri-drag-region>
+    <!-- 左侧：进入 Agent 空间按钮（D1-b 双窗：本页恒为工作台窗，方向固定切到 dsh 窗口；
+         胶囊文案=当前空间「工作台」，tooltip=动作「进入 Agent 空间」，与 dsh 侧注入栏对称） -->
     <div class="titlebar-shell-left">
-      <!-- [A1] space 变体：AgentSpace 注入左侧栏开关（PanelToggle）等 -->
-      <slot v-if="variant === 'space'" name="space-left" />
       <button
         class="titlebar-shell-toggle"
-        :title="shellToggleTitle"
-        :aria-label="shellToggleTitle"
+        title="进入 Agent 空间"
+        aria-label="进入 Agent 空间"
         data-ws-tip-keys="Ctrl+Tab"
-        @click="toggleShell"
+        @click="switchShell('space')"
       >
-        <WsIcon :name="shellToggleIcon" size="sm" class="shell-toggle-icon" />
-        <span class="shell-toggle-label">{{ shellToggleLabel }}</span>
+        <WsIcon name="monitor" size="sm" class="shell-toggle-icon" />
+        <span class="shell-toggle-label">工作台</span>
       </button>
     </div>
-    <template v-if="variant === 'workbench'">
-      <div class="titlebar-left" data-tauri-drag-region>
-        <ProjectSwitcher variant="titlebar" />
-      </div>
-      <div class="titlebar-spacer" data-tauri-drag-region></div>
-      <div class="titlebar-center" data-tauri-drag-region>
-        <span v-if="uiStore.currentView" class="titlebar-viewname">{{ currentViewLabel }}</span>
-      </div>
-    </template>
-    <template v-else>
-      <!-- space 变体：拖拽区 + 居中标题（AgentSpace 顶部挂载） -->
-      <div class="titlebar-spacer" data-tauri-drag-region></div>
-      <div class="titlebar-center" data-tauri-drag-region>
-        <span class="titlebar-viewname">{{ title }}</span>
-      </div>
-      <div class="titlebar-spacer" data-tauri-drag-region></div>
-    </template>
+    <div class="titlebar-left" data-tauri-drag-region>
+      <ProjectSwitcher variant="titlebar" />
+    </div>
+    <div class="titlebar-spacer" data-tauri-drag-region></div>
+    <div class="titlebar-center" data-tauri-drag-region>
+      <span v-if="uiStore.currentView" class="titlebar-viewname">{{ currentViewLabel }}</span>
+    </div>
     <div class="titlebar-right">
       <div class="titlebar-controls">
       <button class="titlebar-btn" aria-label="更多操作" title="更多操作" @click="openPopupMenu">
@@ -72,17 +59,7 @@ import { useUIStore } from '@/stores/uiStore'
 import { usePluginStore } from '@worldsea/entity-core'
 import { WsIcon } from '@worldsea/ui-kit'
 import ProjectSwitcher from '@/ui/project/ProjectSwitcher.vue'
-import { toggleShell } from '@/composables/shellSwitch'
-
-// 变体：workbench=工作台完整窗口栏 / space=Agent 空间精简窗口栏（2026-08-09）
-const props = withDefaults(defineProps<{
-  variant?: 'workbench' | 'space'
-  /** space 变体居中标题（缺省 "WorldSea — Agent 空间"） */
-  title?: string
-}>(), {
-  variant: 'workbench',
-  title: 'WorldSea — Agent 空间',
-})
+import { switchShell } from '@/composables/shellSwitch'
 
 // 窗口控制仅在 Tauri 环境可用（浏览器预览 5175 时降级为 noop，避免顶层抛错）
 let appWindow: Window | null = null
@@ -99,12 +76,9 @@ const currentViewLabel = computed(() => {
   return view?.label ?? ''
 })
 
-/* ── Agent 空间 / 工作台 切换按钮（2026-08-10；D1-b 2026-09-24 起双窗）──
-   新壳里两个空间是**独立窗口**（dsh 页 / 工作台页各一窗），切换交壳做互斥显隐；
-   入口统一在 `composables/shellSwitch.ts`（桥优先，无桥回退页内壳切换）——与 Ctrl+Tab、托盘共用。 */
-const shellToggleLabel = computed(() => uiStore.currentShell === 'space' ? 'Agent 空间' : '工作台')
-const shellToggleIcon = computed(() => uiStore.currentShell === 'space' ? 'chat' : 'monitor')
-const shellToggleTitle = computed(() => uiStore.currentShell === 'space' ? '切换到工作台' : '进入 Agent 空间')
+/* ── 进入 Agent 空间按钮（2026-08-10；D1-b 双窗；2026-09-30 C 批去陈旧壳状态）──
+   双窗里本页恒为工作台窗，方向固定「进入 Agent 空间」（与 dsh 侧注入栏的「切换到工作台」对称）；
+   入口统一在 `composables/shellSwitch.ts`（壳桥 cmd_shell_space_switch）——与 Ctrl+Tab 共用。 */
 
 function minimize() {
   appWindow?.minimize().catch(e => console.error('[TitleBar] minimize 失败:', e))
@@ -200,7 +174,7 @@ function close() {
   height: 32px;
   flex-shrink: 0;
   /* 顶栏取中性灰（三级中性灰分区之一，2026-08-12）：胶囊填充 = 面板色（--switch-bg: var(--bg-surface)），
-     两色一致时胶囊会「看不见」（只剩文字与图标）——故两变体统一把底色落到 --bg-muted */
+     两色一致时胶囊会「看不见」（只剩文字与图标）——故底色统一落到 --bg-muted */
   --titlebar-bg: var(--bg-muted);
   background: var(--titlebar-bg, var(--color-bg-surface));
   border-bottom: 1px solid var(--border, var(--color-border));
@@ -209,11 +183,6 @@ function close() {
   position: relative;
   /* 高于内容区，保证 ⋯ 下拉菜单浮层可见 */
   z-index: 100;
-}
-/* space 变体：顶栏并入深色带（2026-08-12，与 SpaceNavbar 同 bg-muted 连成连续深色带）
-   去掉下沿分割线，与缝隙同色融为一体 */
-.titlebar.is-space {
-  border-bottom: none;
 }
 /* G1 收尾：全屏＝沉浸——隐栏（.shell 为 flex 纵向、shell-body flex:1，隐后内容区自然接管全高） */
 .titlebar.is-fullscreen {
@@ -227,16 +196,12 @@ function close() {
   /* 不裁切：AppMenu 下拉需要溢出可见（各子元素自带 max-width + overflow 截断） */
   white-space: nowrap;
 }
-/* [A1] 窗口栏左侧：Agent空间/工作台切换 + space 变体注入的面板控件（PanelToggle） */
+/* 窗口栏左侧：进入 Agent 空间按钮 */
 .titlebar-shell-left {
   display: flex;
   align-items: center;
   flex-shrink: 0;
 }
-.titlebar-shell-left :deep(.panel-toggle) {
-  height: 32px;
-}
-/* 2026-09-06 换位后：左栏开关贴左缘，2px 间距移到壳切换钮上 */
 .titlebar-shell-left .titlebar-shell-toggle {
   margin-left: 2px;
 }

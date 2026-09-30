@@ -398,12 +398,6 @@ async function triggerCompanionModeFromContext(ctx: TriggerContext) {
   if (!settingsStore.companionModeEnabled) return
   if (consecutiveFailures >= settingsStore.companionModeMaxFailures) return
 
-  // Agent 空间内静默
-  if (settingsStore.companionModeSilentInSpace) {
-    const uiStore = useUIStore()
-    if (uiStore.currentShell === 'space') return
-  }
-
   if (!runProbabilityGate(ctx)) return
 
   let entityId = ctx.entityId

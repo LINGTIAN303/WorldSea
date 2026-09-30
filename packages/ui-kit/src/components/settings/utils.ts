@@ -22,7 +22,8 @@ export interface ShortcutItem {
 /**
  * 快捷键目录（展示元数据）。权威键位以各注册处 register() 声明为准（registry
  * 注册时自动应用用户覆盖），此处 keys 仅作视图未激活时的展示 fallback。
- * 维护约束：新增/改 id 必须与注册处同步，此处不允许出现注册处没有的死条目。
+ * 维护约束：新增/改 id 必须与注册处同步，此处不允许出现注册处没有的死条目
+ * ——已由 `apps/tauri/src/ui/layout/__tests__/shortcutCatalog.spec.ts` 全目录守卫兜底（双向）。
  */
 export const SHORTCUT_CATALOG: ShortcutItem[] = [
   // ── 全局（Shell.vue / AppMenu.vue）──
@@ -30,15 +31,16 @@ export const SHORTCUT_CATALOG: ShortcutItem[] = [
   { id: 'sidebar.toggle', description: '切换侧边栏', keys: ['ctrl', 'b'], scope: 'global' },
   { id: 'search.open', description: '全局搜索', keys: ['ctrl', 'k'], scope: 'global' },
   { id: 'settings.open', description: '打开设置', keys: ['ctrl', ','], scope: 'global' },
-  { id: 'project.manager', description: '打开项目（选择目录）', keys: ['ctrl', 'shift', 'p'], scope: 'global' },
   { id: 'menu.import-export', description: '导入/导出', keys: ['ctrl', 'shift', 's'], scope: 'global' },
   { id: 'global.undo', description: '撤销', keys: ['ctrl', 'z'], scope: 'global' },
   { id: 'global.redo', description: '重做', keys: ['ctrl', 'y'], scope: 'global' },
   { id: 'global.redo-alt', description: '重做（备选）', keys: ['ctrl', 'shift', 'z'], scope: 'global' },
   { id: 'global.undoHistory', description: '撤销历史面板', keys: ['ctrl', 'alt', 'z'], scope: 'global' },
   { id: 'project.save', description: '导出到文件夹', keys: ['ctrl', 's'], scope: 'global' },
-  { id: 'shell.toggle', description: '切换 Agent 空间 ⇄ 工作台', keys: ['ctrl', 'tab'], scope: 'global' },
-  // ── 视图（各芽视图挂载期间生效；Agent 空间自动失效）──
+  { id: 'shell.toggle', description: '进入 Agent 空间', keys: ['ctrl', 'tab'], scope: 'global' },
+  { id: 'view.switch.next', description: '切换到下一个视图', keys: ['ctrl', 'down'], scope: 'global' },
+  { id: 'view.switch.prev', description: '切换到上一个视图', keys: ['ctrl', 'up'], scope: 'global' },
+  // ── 视图（各芽视图挂载期间生效；无视图上下文时 view 层失效）──
   { id: 'character.undo', description: '角色：撤销', keys: ['ctrl', 'z'], scope: 'view' },
   { id: 'character.redo', description: '角色：重做', keys: ['ctrl', 'y'], scope: 'view' },
   { id: 'timeline.undo', description: '时间轴：撤销', keys: ['ctrl', 'z'], scope: 'view' },
@@ -51,28 +53,6 @@ export const SHORTCUT_CATALOG: ShortcutItem[] = [
   { id: 'drawing.zoomIn', description: '画板：放大', keys: ['ctrl', '='], scope: 'view' },
   { id: 'drawing.zoomOut', description: '画板：缩小', keys: ['ctrl', '-'], scope: 'view' },
   { id: 'drawing.fitView', description: '画板：适应视图', keys: ['ctrl', '0'], scope: 'view' },
-  { id: 'mindmap.undo', description: '思维导图：撤销', keys: ['ctrl', 'z'], scope: 'view' },
-  { id: 'mindmap.redo', description: '思维导图：重做', keys: ['ctrl', 'y'], scope: 'view' },
-  { id: 'mindmap.toggleDetail', description: '思维导图：切换详情侧栏', keys: ['i'], scope: 'view' },
-  { id: 'mindmap.fitView', description: '思维导图：适应视图', keys: ['f'], scope: 'view' },
-  { id: 'mindmap.exitNested', description: '思维导图：取消选中/返回上层', keys: ['escape'], scope: 'view' },
-  { id: 'mindmap.deleteNode', description: '思维导图：删除节点', keys: ['delete'], scope: 'view' },
-  { id: 'mindmap.deleteNode-bs', description: '思维导图：删除节点（退格）', keys: ['backspace'], scope: 'view' },
-  { id: 'mindmap.freeDraw', description: '思维导图：自由绘图', keys: ['d'], scope: 'view' },
-  { id: 'mindmap.aiSuggest', description: '思维导图：AI 关系建议', keys: ['ctrl', 'j'], scope: 'view' },
-  { id: 'mindmap.addChild', description: '思维导图：添加子主题', keys: ['tab'], scope: 'view' },
-  { id: 'mindmap.addSibling', description: '思维导图：添加同级主题', keys: ['enter'], scope: 'view' },
-  // ── 视图·连击序列（kind=sequence，500ms 内依次按下）──
-  { id: 'mindmap.seq.nc', description: '思维导图：新建角色（n c）', keys: ['n', 'c'], scope: 'view' },
-  { id: 'mindmap.seq.nr', description: '思维导图：新建区域（n r）', keys: ['n', 'r'], scope: 'view' },
-  { id: 'mindmap.seq.ne', description: '思维导图：新建事件（n e）', keys: ['n', 'e'], scope: 'view' },
-  { id: 'mindmap.seq.nt', description: '思维导图：新建文本框（n t）', keys: ['n', 't'], scope: 'view' },
-  { id: 'mindmap.seq.en', description: '思维导图：编辑名称（e n）', keys: ['e', 'n'], scope: 'view' },
-  { id: 'mindmap.seq.ed', description: '思维导图：编辑描述（e d）', keys: ['e', 'd'], scope: 'view' },
-  { id: 'mindmap.seq.cl', description: '思维导图：连接节点（c l）', keys: ['c', 'l'], scope: 'view' },
-  { id: 'mindmap.seq.gs', description: '思维导图：创建分组框（g s）', keys: ['g', 's'], scope: 'view' },
-  { id: 'mindmap.seq.gn', description: '思维导图：聚焦节点（g n）', keys: ['g', 'n'], scope: 'view' },
-  { id: 'mindmap.seq.ji', description: '思维导图：进入子图（j i）', keys: ['j', 'i'], scope: 'view' },
   // ── 视图·战术板（战斗阶段条件在 handler 内判断）──
   { id: 'tactical.endTurn', description: '战术板：结束回合', keys: ['space'], scope: 'view' },
   { id: 'tactical.move', description: '战术板：移动', keys: ['m'], scope: 'view' },
@@ -93,33 +73,14 @@ export const SHORTCUT_CATALOG: ShortcutItem[] = [
   { id: 'outline-board.fit-all', description: '大纲白板：适配全部', keys: ['!'], scope: 'view' },
   { id: 'outline-board.draw-section', description: '大纲白板：画区', keys: ['s'], scope: 'view' },
   { id: 'outline-board.escape', description: '大纲白板：取消选中 / 退出画区', keys: ['escape'], scope: 'view' },
-  // ── Agent 空间（AgentSpace.vue；仅 Agent 空间壳激活时生效，群聊模式左栏相关键空转）──
-  { id: 'space.session.new', description: '新建会话', keys: ['ctrl', 'n'], scope: 'space' },
-  { id: 'space.session.search', description: '聚焦会话搜索', keys: ['ctrl', 'f'], scope: 'space' },
-  { id: 'space.sidebar.toggle', description: '左栏开合', keys: ['ctrl', 'b'], scope: 'space' },
-  { id: 'space.right.toggle', description: '右栏开合', keys: ['ctrl', 'shift', 'b'], scope: 'space' },
-  { id: 'space.mode.toggle', description: '切换单聊/群聊', keys: ['ctrl', 't'], scope: 'space' },
-  { id: 'space.tab.exec', description: '右栏切到「执行」', keys: ['1'], scope: 'space' },
-  { id: 'space.tab.config', description: '右栏切到「配置」', keys: ['2'], scope: 'space' },
-  { id: 'space.tab.creation', description: '右栏切到「创作」', keys: ['3'], scope: 'space' },
-  { id: 'space.tab.preview', description: '右栏切到「文件」', keys: ['4'], scope: 'space' },
-  { id: 'space.tab.usage', description: '右栏切到「用量」', keys: ['5'], scope: 'space' },
-  { id: 'space.scene.worldbuilding', description: '切换到「世界」场景', keys: ['ctrl', '1'], scope: 'space' },
-  { id: 'space.scene.novel', description: '切换到「小说」场景', keys: ['ctrl', '2'], scope: 'space' },
-  { id: 'space.scene.general', description: '切换到「通用」场景', keys: ['ctrl', '3'], scope: 'space' },
-  { id: 'space.scene.coding', description: '切换到「编程」场景', keys: ['ctrl', '4'], scope: 'space' },
-  { id: 'space.scene.design', description: '切换到「设计」场景', keys: ['ctrl', '5'], scope: 'space' },
-  { id: 'chat.send', description: '发送消息（输入框内）', keys: ['enter'], scope: 'space' },
-  { id: 'chat.newline', description: '输入框换行', keys: ['shift', 'enter'], scope: 'space' },
-  { id: 'space.fileEditor.save', description: '保存文件（编辑器内）', keys: ['ctrl', 's'], scope: 'space' },
 ]
 
-/** 快捷键分组顺序（低→高优先级，与 useShortcuts.SCOPE_ORDER 互补同步） */
-export const SCOPE_ORDER = ['global', 'view', 'space', 'editor', 'modal']
+/** 快捷键分组顺序（低→高优先级，与 useShortcuts.SCOPE_ORDER 互补同步；space 已随 E7 退役） */
+export const SCOPE_ORDER = ['global', 'view', 'editor', 'modal']
 
 /** 快捷键作用域文案 */
 export function scopeLabel(scope: string): string {
-  const m: Record<string, string> = { global: '全局', view: '当前视图', space: 'Agent 空间', editor: '编辑器', modal: '弹窗' }
+  const m: Record<string, string> = { global: '全局', view: '当前视图', editor: '编辑器', modal: '弹窗' }
   return m[scope] || scope
 }
 

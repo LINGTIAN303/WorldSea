@@ -92,7 +92,6 @@ const STORAGE_KEY_COMPANION_MODE_SCENE_PROBS = 'worldsea_companion_mode_scene_pr
 const STORAGE_KEY_COMPANION_MODE_CUSTOM_MODEL = 'worldsea_companion_mode_custom_model'
 const STORAGE_KEY_COMPANION_MODE_PROVIDER_KEY = 'worldsea_companion_mode_provider_key'
 const STORAGE_KEY_COMPANION_MODE_MODEL_ID = 'worldsea_companion_mode_model_id'
-const STORAGE_KEY_COMPANION_MODE_SILENT_IN_SPACE = 'worldsea_companion_mode_silent_in_space'
 const STORAGE_KEY_SIDEBAR_POSITION = 'worldsea_sidebar_position'
 const STORAGE_KEY_DETAIL_PANEL_POSITION = 'worldsea_detail_panel_position'
 const STORAGE_KEY_TIMELINE_DRAG_ENABLED = 'worldsea_timeline_drag_enabled'
@@ -319,7 +318,6 @@ export const useSettingsStore = defineStore('settings', () => {
   const companionModeCustomModel = persistedRef(STORAGE_KEY_COMPANION_MODE_CUSTOM_MODEL, false)
   const companionModeProviderKey = persistedRef(STORAGE_KEY_COMPANION_MODE_PROVIDER_KEY, '')
   const companionModeModelId = persistedRef(STORAGE_KEY_COMPANION_MODE_MODEL_ID, '')
-  const companionModeSilentInSpace = persistedRef(STORAGE_KEY_COMPANION_MODE_SILENT_IN_SPACE, true)
 
   const groupChatMaxAgents = persistedRef(STORAGE_KEY_GROUP_CHAT_MAX_AGENTS, 5)
   const groupChatDefaultStrategy = persistedRef(STORAGE_KEY_GROUP_CHAT_DEFAULT_STRATEGY, 'speaking-desire')
@@ -474,7 +472,6 @@ export const useSettingsStore = defineStore('settings', () => {
            companionModeLuckEnabled, companionModeLuckResetMinutes, companionModeLuckResetOps,
            companionModePositionContext, companionModeClickPin, companionModeSceneProbs,
            companionModeCustomModel, companionModeProviderKey, companionModeModelId,
-           companionModeSilentInSpace,
            groupChatMaxAgents, groupChatDefaultStrategy, groupChatGlobalRpm, groupChatGlobalConcurrent,
             reduceMotion, animations, ANIMATION_GROUPS,
             sidebarPosition, detailPanelPosition,

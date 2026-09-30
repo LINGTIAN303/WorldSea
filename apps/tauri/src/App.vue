@@ -4,7 +4,7 @@ import Shell from './ui/layout/Shell.vue'
 import { useUIStore } from './stores/uiStore'
 import { useTheme } from './components/ui/useTheme'
 import { useTheme as useEntityTheme, useSettingsStore } from '@worldsea/entity-core'
-import { useGlobalEvents, setActiveViewId, setAgentSpaceActive, enableGlobalTooltips } from '@worldsea/ui-kit'
+import { useGlobalEvents, setActiveViewId, enableGlobalTooltips } from '@worldsea/ui-kit'
 import { bootstrapShell } from './plugins/boot'
 import { useProjectSwitcher } from './composables/useProjectSwitcher'
 import { useSystemBridge } from './composables/useSystemBridge'
@@ -64,12 +64,11 @@ function onSetTheme(e: Event) {
 const { on: onGlobalEvent } = useGlobalEvents()
 onGlobalEvent('ws-set-theme', onSetTheme)
 
-// 视图上下文注入：view 快捷键跟随当前视图（旧 Agent 空间壳已随本体删除，2026-09-27 E7；
-// space scope 由此恒为未激活）
+// 视图上下文注入：view 快捷键跟随当前视图（未装载视图=null 时 view 层失效；
+// 旧 Agent 空间壳已随本体删除，2026-09-27 E7）
 watch(
-  () => [uiStore.currentShell, uiStore.currentView] as const,
-  ([shell, view]) => {
-    setAgentSpaceActive(shell === 'space')
+  () => uiStore.currentView,
+  (view) => {
     setActiveViewId(view)
   },
   { immediate: true },

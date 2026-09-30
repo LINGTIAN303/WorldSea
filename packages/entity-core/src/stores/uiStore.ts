@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, shallowRef, watch } from 'vue'
+import { ref, shallowRef } from 'vue'
 import type { Component } from 'vue'
 import { watchDebounced } from '@worldsea/perf-kit/render'
 
@@ -28,14 +28,6 @@ export const useUIStore = defineStore('ui', () => {
   const viewComponent = shallowRef<Component | null>(null)
   const viewRefreshKey = ref(0)
   const _jumpBackViewId = ref<string | null>(null)
-
-  const currentShell = ref<'space' | 'workbench'>(
-    (localStorage.getItem('worldsea_shell') as 'space' | 'workbench') || 'space'
-  )
-
-  watch(currentShell, (val) => {
-    try { localStorage.setItem('worldsea_shell', val) } catch {}
-  })
 
   const sidebarOrder = ref<string[]>(loadOrder())
 
@@ -119,8 +111,6 @@ export const useUIStore = defineStore('ui', () => {
     viewComponent,
     viewRefreshKey,
     _jumpBackViewId,
-    currentShell,
-    setShell(shell: 'space' | 'workbench') { currentShell.value = shell },
     sidebarOrder,
     setView,
     selectEntity,
