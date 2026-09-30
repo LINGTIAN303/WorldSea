@@ -28,5 +28,5 @@ WorldSea 产品域**管理面**（内置级 dsh 插件）——dsh 设置「内�
 
 ## 设计依据
 
-- D3 批计划：`docs/plans/2026-09-28-D3-产品域设置页批计划.md`（五理由 / 拆两插件拍板 / 真相源草案 / 待验证核实）
+- D3 批计划：`docs/plans/已完成/2026-09-28-D3-产品域设置页批计划.md`（五理由 / 拆两插件拍板 / 真相源草案 / 待验证核实）
 - 先例：`dsh/packages/client/ui-settings-plugin-inventory`（tab 贡献者）/ `ui-settings-shell`（configForms 卡片 + 空 apply 占行）

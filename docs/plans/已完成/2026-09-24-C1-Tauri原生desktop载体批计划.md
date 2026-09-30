@@ -1,7 +1,7 @@
 # C1 批计划：Tauri 原生「desktop 类」载体
 
 > **status: 已完成**（2026-09-24）｜ C1-a～c′ 全批落地 + C1-e 收口完成；上游策略前提：**本项目 fork dsh、不追随上游**（D10）；C1 的产物是「壳自有的 desktop 级载体」，技术模板 = dsh 自己的 Electron desktop 载体（只借机制、不复刻其打包流水线）。**dsh 树零改动**（fork 台账保持空）。
-> 关联：[准备方案](2026-09-23-dsh接管Agent面-大重构准备.md) §六/§九 · [dsh fork 台账](../details/架构/dsh-fork台账.md) · [运行手册 §五 载体侧事实](../details/架构/dsh-运行手册.md)
+> 关联：[准备方案](../2026-09-23-dsh接管Agent面-大重构准备.md) §六/§九 · [dsh fork 台账](../../details/架构/dsh-fork台账.md) · [运行手册 §五 载体侧事实](../../details/架构/dsh-运行手册.md)
 
 ---
 
