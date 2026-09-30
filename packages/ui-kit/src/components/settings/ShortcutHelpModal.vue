@@ -26,7 +26,8 @@
         </div>
       </div>
       <div class="sh-footer">
-        <span class="sh-hint">按 <kbd class="sh-kbd">?</kbd> 再次打开此面板</span>
+        <div class="sh-hint">按 <kbd class="sh-kbd">?</kbd> 再次打开此面板</div>
+        <div class="sh-hint">Agent 空间窗（独立窗口）键位见该窗 <kbd class="sh-kbd">Ctrl+/</kbd> 速查</div>
       </div>
       <div class="resize-handle-right" @mousedown="modalResizable.onResizeStart"></div>
     </div>
