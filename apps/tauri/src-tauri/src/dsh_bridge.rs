@@ -261,7 +261,7 @@ pub fn attach(
                 println!("[DSH-SHELL] bridge ready: {}", bridge.describe());
                 app.manage(bridge);
                 // E2：主题真源与 dsh 对齐（首次反向读做种子；已有真源则以真源为准写回 dsh）
-                crate::app_prefs::init_after_bridge(app);
+                crate::app_prefs_dsh::init_after_bridge(app);
                 if let Some(window) = window {
                     navigate_to_app(window);
                 }

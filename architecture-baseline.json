@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-09-28",
+  "updatedAt": "2026-09-30",
   "note": "存量基线（P4）：files = 超限文件行数冻结（只禁增长）；other = 存量违规豁免（新增违例不在内）",
   "files": {
     "worldsea-core/src/algo/draft/constraint.rs": 621,
@@ -17,9 +17,7 @@
     "worldsea-core/src/storage/workflow.rs": 413,
     "worldsea-core/src/validate/entity.rs": 504,
     "worldsea-core/src/wasm_export.rs": 1211,
-    "apps/tauri/src-tauri/src/app_prefs.rs": 458,
     "apps/tauri/src-tauri/src/entity_commands.rs": 587,
-    "apps/tauri/src-tauri/src/lib.rs": 403,
     "apps/tauri/src-tauri/src/whisper.rs": 571,
     "apps/tauri/src/components/files/CodeEditor.vue": 475,
     "apps/tauri/src/components/files/FilePreview.vue": 958,
@@ -52,7 +50,6 @@
     "packages/core-api-types/src/index.ts": 526,
     "packages/entity-core/src/core/AutoLinkEngine.ts": 734,
     "packages/entity-core/src/core/FileStorageBackend.ts": 942,
-    "packages/entity-core/src/core/ProjectManager.ts": 435,
     "packages/entity-core/src/core/StorageBackend.ts": 614,
     "packages/entity-core/src/relations/index.ts": 617,
     "packages/entity-core/src/stores/settingsStore.ts": 485,

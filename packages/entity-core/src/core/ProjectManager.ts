@@ -8,6 +8,9 @@
 
 import Dexie, { type Table } from 'dexie'
 
+import { WorldDatabase } from './database'
+import { acquireProjectDb, releaseProjectDb as releasePooledProjectDb } from './projectDbPool'
+
 /* ════════════════════════════════════════
    类型定义
    ════════════════════════════════════════ */
@@ -54,21 +57,6 @@ function getMetaDb(): MetaDB {
   }
   return metaDb
 }
-
-/* ════════════════════════════════════════
-   数据库实例池
-   ════════════════════════════════════════ */
-
-import { WorldDatabase } from './database'
-
-const MAX_CACHED_DBS = 3
-
-interface CachedDb {
-  db: WorldDatabase
-  lastAccess: number
-}
-
-const dbPool = new Map<string, CachedDb>()
 
 /* ════════════════════════════════════════
    ProjectManager 单例
@@ -305,39 +293,11 @@ class ProjectManager {
     return true
   }
 
-  /* ─── 数据库实例池 ─── */
+  /* ─── 数据库实例池（实现外迁 projectDbPool.ts）─── */
 
-  /**
-   * 获取指定项目的 WorldDatabase 实例。
-   * 使用 LRU 策略管理缓存，最多保留 MAX_CACHED_DBS 个实例。
-   */
+  /** 获取指定项目的 WorldDatabase 实例（LRU 池见 projectDbPool.acquireProjectDb）。 */
   getProjectDb(projectId: string): WorldDatabase {
-    const cached = dbPool.get(projectId)
-    if (cached) {
-      cached.lastAccess = Date.now()
-      return cached.db
-    }
-
-    // 创建新实例
-    const db = new WorldDatabase(projectId)
-    dbPool.set(projectId, { db, lastAccess: Date.now() })
-
-    // LRU 淘汰
-    if (dbPool.size > MAX_CACHED_DBS) {
-      let oldestKey: string | null = null
-      let oldestTime = Infinity
-      for (const [key, entry] of dbPool) {
-        if (key !== projectId && entry.lastAccess < oldestTime) {
-          oldestTime = entry.lastAccess
-          oldestKey = key
-        }
-      }
-      if (oldestKey) {
-        this.releaseProjectDb(oldestKey)
-      }
-    }
-
-    return db
+    return acquireProjectDb(projectId)
   }
 
   /**
@@ -350,15 +310,9 @@ class ProjectManager {
     return this.getProjectDb(this.currentProjectId)
   }
 
-  /**
-   * 释放指定项目的数据库连接。
-   */
+  /** 释放指定项目的数据库连接。 */
   releaseProjectDb(projectId: string): void {
-    const cached = dbPool.get(projectId)
-    if (cached) {
-      cached.db.close()
-      dbPool.delete(projectId)
-    }
+    releasePooledProjectDb(projectId)
   }
 
   /* ─── 最近项目 ─── */

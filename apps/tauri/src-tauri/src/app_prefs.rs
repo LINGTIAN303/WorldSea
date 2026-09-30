@@ -1,5 +1,6 @@
 // E2-a（2026-09-24）：应用级偏好真源（主题）+ 壳自有面的色板。
 //
+// 2026-09-30 arch 拆分：dsh 主题桥外迁 app_prefs_dsh.rs、测试外迁 app_prefs_tests.rs（本文件保留真源/文件 IO/壳自有面/广播/产品域）。
 // 口径（见 docs/details/架构/一致性盘点.md §三）：
 // - **真源** = `<app_data>/worldsea/prefs.json` 的 `theme`（`light|dark|system`）——壳是应用级偏好的所有者；
 // - **产品页**：`/workspace` index 注入 `__WORLDSEA_THEME__`（真源值，防闪脚本优先用它）与
@@ -175,83 +176,6 @@ pub fn bootstrap(app: &tauri::AppHandle) {
     println!("[DSH-SHELL] theme: 真源={pref}（壳自有面按{}渲染）", if dark { "深色" } else { "浅色" });
 }
 
-/// 与 dsh 侧对齐（桥就绪后调用）：**首次**反向读 dsh 现有偏好做种子（不夺用户已有选择）；
-/// 已有真源且与 dsh 不同 → 以真源为准写回 dsh。
-pub fn init_after_bridge(app: &tauri::AppHandle) {
-    let dsh = read_dsh_theme(app);
-    match (load(app), dsh) {
-        (None, Some(dsh)) => match save(app, &dsh) {
-            Ok(()) => println!("[DSH-SHELL] theme: 真源首次建立，种子取 dsh 现值（{dsh}）"),
-            Err(e) => eprintln!("[DSH-SHELL] theme: 种子写入失败：{e}"),
-        },
-        (None, None) => {
-            let _ = save(app, "system");
-            println!("[DSH-SHELL] theme: 真源首次建立，取默认 system（dsh 侧读数不可用）");
-        }
-        (Some(source), Some(dsh)) if source != dsh => {
-            println!("[DSH-SHELL] theme: dsh 现值（{dsh}）与真源（{source}）不同 → 按真源写回 dsh");
-            if let Err(e) = write_dsh_theme(app, &source) {
-                eprintln!("[DSH-SHELL] theme: 写回 dsh 失败（下次切换重试）：{e}");
-            }
-        }
-        (Some(_), None) => println!("[DSH-SHELL] theme: dsh 侧读数不可用（跳过对齐）"),
-        _ => {}
-    }
-}
-
-/// 经壳内管道调 dsh API（与页面同链路；自动带 cookie）。**注意**：dsh 的 HTTP API 是 **RPC 信封**——
-/// 路由名即 `method`、`payload.args` 必须恰好一个对象字段（实测：`{"args":{}}` 正确，
-/// `{"input":…}` 会被拒 `gateway/arguments-invalid`，缺 `type` 则 400 `body is not JSON`）。
-fn dsh_call(
-    app: &tauri::AppHandle,
-    path: &str,
-    method: &str,
-    args: &serde_json::Value,
-) -> Result<(u16, String), String> {
-    let bridge = app
-        .try_state::<crate::dsh_bridge::DshBridge>()
-        .ok_or_else(|| "壳协议桥未装配".to_string())?;
-    let envelope = serde_json::json!({
-        "type": "client-request",
-        "rpcId": "worldsea-shell",
-        "method": method,
-        "payload": { "args": args },
-    });
-    bridge.call_api("POST", path, Some(envelope.to_string().into_bytes()))
-}
-
-/// 读 dsh 当前主题偏好：**直接读 dsh 的 index**——其 `boot-theme` 行由 host 按 durable 偏好渲染，
-/// 形状固定为 `const preference = "…"`（比解析 `settings/describe` 稳：那里的 `preference` 同名键
-/// 在多个命名空间与 schema 里都出现，实测会误读成 `fontSize` 之类的相邻键）。
-pub fn read_dsh_theme(app: &tauri::AppHandle) -> Option<String> {
-    let bridge = app.try_state::<crate::dsh_bridge::DshBridge>()?;
-    let (status, body) = bridge.call_api("GET", "/", None).ok()?;
-    if status != 200 {
-        eprintln!("[DSH-SHELL] theme: 读 dsh index 返回 {status}");
-        return None;
-    }
-    let needle = "const preference = \"";
-    let at = body.find(needle)? + needle.len();
-    let value: String = body[at..].chars().take_while(|c| *c != '"').collect();
-    if valid(&value) {
-        Some(value)
-    } else {
-        eprintln!("[DSH-SHELL] theme: dsh index 读数不可解析（{value}）");
-        None
-    }
-}
-
-/// 把真源写给 dsh（`ui-theme` 命名空间；字段名 = `patch`，实测口径）。
-pub fn write_dsh_theme(app: &tauri::AppHandle, value: &str) -> Result<(), String> {
-    let args = serde_json::json!({ "ns": "ui-theme", "patch": { "preference": value } });
-    let (status, body) = dsh_call(app, "/api/settings/update", "settings/update", &args)?;
-    if (200..300).contains(&status) && !body.contains("\"ok\":false") {
-        Ok(())
-    } else {
-        Err(format!("settings/update 返回 {status}：{}", body.chars().take(160).collect::<String>()))
-    }
-}
-
 /// 广播给所有窗口（产品页监听后重应用；dsh 页不监听——它由自己的设置通道更新）。
 /// 顺带**刷新两页注入的全局快照**（`__WORLDSEA_DARK__`/`__WORLDSEA_THEME__`）：安全网与横幅在
 /// 触发时才读它们取色，不刷新会拿到「页面加载时」的旧值。
@@ -291,30 +215,11 @@ pub fn cmd_theme_set(
     let dark = resolve_dark(&value, &window);
     set_dark(dark);
     println!("[DSH-SHELL] theme: 真源 → {value}（壳自有面{}；同步 dsh）", if dark { "深色" } else { "浅色" });
-    if let Err(e) = write_dsh_theme(&app, &value) {
+    if let Err(e) = crate::app_prefs_dsh::write_dsh_theme(&app, &value) {
         eprintln!("[DSH-SHELL] theme: 同步 dsh 失败：{e}");
     }
     broadcast(&app, dark, &value);
     Ok(value)
-}
-
-/// 切换空间前对齐（dsh 里改过主题 → 切到工作台时跟随）：读数不同则以 dsh 为新真源。
-pub fn adopt_from_dsh(app: &tauri::AppHandle) {    let Some(dsh) = read_dsh_theme(app) else { return };
-    if load(app).as_deref() == Some(dsh.as_str()) {
-        return;
-    }
-    match save(app, &dsh) {
-        Ok(()) => {
-            let dark = match app.get_webview_window("main") {
-                Some(window) => resolve_dark(&dsh, &window),
-                None => dsh == "dark",
-            };
-            set_dark(dark);
-            broadcast(app, dark, &dsh);
-            println!("[DSH-SHELL] theme: 跟随 dsh 现值 → {dsh}（真源已更新并广播两窗）");
-        }
-        Err(e) => eprintln!("[DSH-SHELL] theme: 跟随 dsh 失败：{e}"),
-    }
 }
 
 /// D3-a（2026-09-28）：产品域设置节（dsh 侧设置页「WorldSea 产品域」经 `cmd_product_prefs_*`
@@ -404,54 +309,5 @@ pub fn cmd_product_prefs_set(app: tauri::AppHandle, prefs: ProductDomainPrefs) -
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn valid_values_are_the_three_state_model() {
-        assert!(valid("light") && valid("dark") && valid("system"));
-        assert!(!valid("auto"));
-        assert!(!valid("Dark"));
-        assert!(!valid(""));
-    }
-
-    #[test]
-    fn product_domain_prefs_normalize_fieldwise() {
-        // 全缺省：节缺失 → 说明书开 / 薄指针关 / 快照 auto
-        let defaults = normalize_product_domain(None);
-        assert!(defaults.manual_generation);
-        assert!(!defaults.agents_pointer);
-        assert_eq!(defaults.snapshot_export, "auto");
-        // 逐字段归一：好值保留，坏值回落缺省
-        let node = serde_json::json!({
-            "manualGeneration": false,
-            "agentsPointer": true,
-            "snapshotExport": "bogus",
-        });
-        let mixed = normalize_product_domain(Some(&node));
-        assert!(!mixed.manual_generation);
-        assert!(mixed.agents_pointer);
-        assert_eq!(mixed.snapshot_export, "auto");
-    }
-
-    /// 全局标志与色板同测（同一用例内串行）：避免并行用例互相翻转 `DARK_NOW` 造成偶发红。
-    #[test]
-    fn dark_flag_drives_the_own_pages_palette() {
-        let before = dark_now();
-        set_dark(true);
-        assert!(dark_now());
-        let dark_html = error_page_html("标题 <x>", "详情 & 说明");
-        set_dark(false);
-        assert!(!dark_now());
-        let light_html = error_page_html("标题 <x>", "详情 & 说明");
-        set_dark(before);
-
-        assert!(dark_html.contains("#111113") && light_html.contains("#fafaf9"), "亮暗两套底色应不同");
-        assert_ne!(dark_html, light_html, "色板必须随真源变化（此前恒深色）");
-        for html in [&dark_html, &light_html] {
-            assert!(html.contains("&lt;x&gt;"), "标题需转义");
-            assert!(html.contains("详情 &amp; 说明"), "详情需转义");
-            assert!(html.contains("<meta charset=\"utf-8\">"));
-        }
-    }
-}
+#[path = "app_prefs_tests.rs"]
+mod tests;

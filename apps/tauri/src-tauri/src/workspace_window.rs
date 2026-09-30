@@ -56,7 +56,7 @@ pub async fn cmd_shell_space_switch(app: tauri::AppHandle, target: String) -> Re
 pub(crate) fn switch_to_workbench(app: &tauri::AppHandle) -> Result<(), String> {
     let _guard = SPACE_SWITCH_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
     // E2：切换是对齐主题的天然时机（可见性的那一侧切换前先跟上真源；dsh 里改过则此处跟随）
-    crate::app_prefs::adopt_from_dsh(app);
+    crate::app_prefs_dsh::adopt_from_dsh(app);
     let main = app
         .get_webview_window("main")
         .ok_or_else(|| "主窗口（Agent 空间）不存在，无法同步几何".to_string())?;
