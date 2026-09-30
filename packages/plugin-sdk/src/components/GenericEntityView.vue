@@ -635,6 +635,8 @@ defineExpose({
   flex: 1;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  /* 定高容器下 auto 隐式行的自动最小尺寸因卡片 overflow:hidden 归零 → 行被压扁且永不滚动；min-content 让行高回到内容高（详见 docs/details/注释/packages/plugin-sdk/实体视图滚动链.md） */
+  grid-auto-rows: min-content;
   gap: 12px;
   overflow-y: auto;
   align-content: start;
@@ -645,6 +647,8 @@ defineExpose({
 .entity-grid.is-empty { display: flex !important; align-items: center; justify-content: center; grid-template-columns: unset; }
 /* 自定义 #list 插槽：改为 flex 列撑满视图，避免自定义列表内容被困在默认卡片 grid 单列（导致空提示停在左上角） */
 .entity-grid.has-custom-list { display: flex; flex-direction: column; grid-template-columns: unset; }
+/* 列向 flex 下同因：子项（卡片 overflow:hidden）自动最小尺寸归零会被 flex-shrink 压扁且不滚动；自带 flex:1+overflow 的树/图视图不受影响（基尺寸 0、靠 grow 撑满） */
+.entity-grid.has-custom-list > * { flex-shrink: 0; }
 .large-list-warning { margin-bottom: 12px; }
 
 /* ── 实体卡片（双线分隔：每卡自带 1px 边框 + gap 缝隙透出 app 底色）── */

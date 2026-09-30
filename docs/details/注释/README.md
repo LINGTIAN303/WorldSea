@@ -108,6 +108,7 @@
 | src/components/entity/useDynamicForm.ts | [entity-form-modal.md](packages/plugin-sdk/entity-form-modal.md) | formData 状态与初始化、输入事件（name/text 事件总线）〔ghost 防抖已于 E6 随 Smart Fill 退场〕 |
 | src/components/entity/useEntityRefSearch.ts | [entity-form-modal.md](packages/plugin-sdk/entity-form-modal.md) | entityRef 类型字段的搜索下拉状态与交互 |
 | src/components/entity/useEntityFormSave.ts | [entity-form-modal.md](packages/plugin-sdk/entity-form-modal.md) | save 校验/收集（properties/tags/entityRef/autoLink/封面）、实体引用关系同步 |
+| src/components/GenericEntityView.vue | [实体视图滚动链.md](packages/plugin-sdk/实体视图滚动链.md) | 实体卡片网格滚动链：定高容器下 auto 隐式行 / 列向 flex 子项的自动最小尺寸因卡片 overflow:hidden 归零 → 压扁且不出滚动条；`grid-auto-rows:min-content` + `has-custom-list>*{flex-shrink:0}` 修复（2026-10-01） |
 
 > ~~src/agent-descriptor.ts~~（pluginSdkDescriptor）已于 2026-09-27 E8 随 Agent 工具目录退场。
 
