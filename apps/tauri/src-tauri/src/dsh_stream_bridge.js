@@ -21,6 +21,18 @@
       return ipc.invoke(command, args);
     };
 
+    /* F4（2026-09-30）：本页未完成流登记——文档卸载（pagehide）时批量取消。
+       动机（真机取证）：页重载后旧页已开的流无人取消，壳持续向失效 callback id 投递
+       （`[TAURI] Couldn't find callback id` 刷屏，且每次刷新叠加一套 workspace/follow、$events、
+       session/control）——pagehide 是唯一一次性的机会窗口，且窗口隐藏/最小化不触发它（不误伤流式）。
+       尽力而为：invoke 在卸载期仍会被宿主收到；漏掉即退回今日行为（无回归）。 */
+    var openIds = {};
+    addEventListener('pagehide', function () {
+      for (var key in openIds) {
+        try { invoke('cmd_stream_cancel', { id: Number(key) }); } catch (error) { /* 尽力而为 */ }
+      }
+    });
+
     /* 失败标记：与客户端 normalizeConnectionStream 的读取面逐字一致 */
     function failureOf(failure) {
       var message = failure && failure.message ? String(failure.message) : 'worldsea stream: 流失败';
@@ -82,6 +94,7 @@
       } catch (error) {
         throw failureOf({ kind: 'carrier', message: 'worldsea stream: 打开失败（' + String(error && error.message ? error.message : error) + '）' });
       }
+      openIds[id] = true; /* F4：登记未完成流（终态/取消时注销，见 finally） */
       var onAbort = function () {
         try { invoke('cmd_stream_cancel', { id: id }); } catch (error) { /* 取消尽力而为 */ }
         failed = signal.reason instanceof Error ? signal.reason : new Error('worldsea stream: aborted');
@@ -122,6 +135,7 @@
       } finally {
         if (signal) signal.removeEventListener('abort', onAbort);
         uplinkStopped = true;
+        if (id !== null) delete openIds[id]; /* F4：离开未完成集（终态或已取消） */
         /* 未达终态而退出（消费方提前 return / 抛错）→ 取消宿主侧流 */
         if (!terminal) {
           try { invoke('cmd_stream_cancel', { id: id }); } catch (error) { /* 尽力而为 */ }

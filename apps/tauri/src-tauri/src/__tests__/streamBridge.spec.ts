@@ -34,7 +34,10 @@ interface Bridge {
 
 let calls: InvokeCall[] = []
 let callbacks: Array<(event: unknown) => void> = []
-let openResult: () => Promise<unknown> = () => Promise.resolve(1)
+/** 流 id = cmd_stream_open 的返回值（取消/上行都用它）；channel id 另算（transformCallback）。 */
+let nextStreamId = 1
+const defaultOpen = () => Promise.resolve(nextStreamId++)
+let openResult: () => Promise<unknown> = defaultOpen
 let nextId = 1
 
 /** 装桥（含 IPC 桩）；脚本自身幂等，重复 boot 只换桩。 */
@@ -42,6 +45,8 @@ function boot(): { bridge: Bridge; calls: InvokeCall[] } {
   calls = []
   callbacks = []
   nextId = 1
+  nextStreamId = 1
+  openResult = defaultOpen
   ;(globalThis as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {
     invoke: (command: string, args: Record<string, unknown>) => {
       calls.push({ command, args })
@@ -137,7 +142,7 @@ describe('页面流桥：openStream 钩子', () => {
     }
     expect(String(error.message)).toContain('bridge not ready')
     expect(error.dshRemoteStreamFailure).toEqual({ kind: 'carrier' })
-    openResult = () => Promise.resolve(1)
+    openResult = defaultOpen
   })
 
   it('AbortSignal 触发 → cmd_stream_cancel', async () => {
@@ -196,5 +201,36 @@ describe('页面流桥：openStream 钩子', () => {
     const error = await collect(bridge.openStream('x', null, controller.signal)).catch(reason => reason)
     expect(String((error as Error).message)).toContain('already')
     expect(calls.some(call => call.command === 'cmd_stream_open')).toBe(false)
+  })
+
+  // F4（2026-09-30）：页重载泄漏修——旧页已开的流必须随文档卸载被取消
+  // （否则壳持续向失效 callback id 投递：`Couldn't find callback id` 刷屏 + 每次刷新叠加一套流）。
+  it('页面卸载（pagehide）→ 批量取消本页未完成流', async () => {
+    const { bridge } = boot()
+    const first = collect(bridge.openStream('a', null))
+    await new Promise(resolve => setTimeout(resolve, 0))
+    const second = collect(bridge.openStream('b', null))
+    await new Promise(resolve => setTimeout(resolve, 0))
+    // boot 重置后两条流各占一个流 id（桩递增：1、2）
+    expect(calls.filter(call => call.command === 'cmd_stream_open')).toHaveLength(2)
+    window.dispatchEvent(new Event('pagehide'))
+    await new Promise(resolve => setTimeout(resolve, 0))
+    const cancelled = calls.filter(call => call.command === 'cmd_stream_cancel').map(call => call.args.id)
+    expect(cancelled).toEqual(expect.arrayContaining([1, 2]))
+    void first
+    void second
+  })
+
+  it('已终态（end）的流：pagehide 不再重复取消', async () => {
+    const { bridge } = boot()
+    const pending = collect(bridge.openStream('done', null))
+    await Promise.resolve()
+    const channel = channelOf(calls.find(call => call.command === 'cmd_stream_open') as InvokeCall)
+    deliver(channel.id, { type: 'item', value: 'x' })
+    deliver(channel.id, { type: 'end' })
+    expect(await pending).toEqual(['x'])
+    window.dispatchEvent(new Event('pagehide'))
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(calls.some(call => call.command === 'cmd_stream_cancel' && call.args.id === channel.id)).toBe(false)
   })
 })

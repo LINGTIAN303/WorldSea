@@ -57,6 +57,8 @@ mod dsh_pipe;
 mod dsh_pipe_io;
 // C2-b（2026-09-24）：页面流桥命令（openStream 钩子 → 管道 mux 流）
 mod dsh_stream;
+// F4（2026-09-30）：Channel 投递全序修复（拦截器：全部 Channel 消息走有序 eval 直投，弃异步 fetch 路径）
+mod channel_order;
 // C1-c（2026-09-24）：壳桥（页面可调的壳命令：外链 / 日志）——JS 侧见 dsh_shell_bridge.js
 mod shell_bridge;
 // C1-c（2026-09-24）：原生菜单（文件/编辑/视图/设置）
@@ -123,6 +125,10 @@ pub fn run() {
         ))
         // 托盘动态状态（前端命令回写）
         .manage(Mutex::new(tray::TrayState::default()))
+        // F4（2026-09-30）：Channel 投递全序修复——Tauri 默认对 ≥8KB 的 JSON 走异步 fetch，
+        // 与 <8KB 的同步 eval 相混时不保序（真机取证：长会话快照被流式小帧超车 → 前端冻结）。
+        // 反证开关 WORLDSEA_NO_CHANNEL_ORDER_FIX=1 → 交回默认双路径（确定性复现应再红）。
+        .channel_interceptor(channel_order::interceptor)
         // C1-a（2026-09-24）：壳注册 `worldsea` 协议——UI 页 origin 不再等于宿主 authority。
         // Windows 落形 = `http://worldsea.localhost/`（wry workaround，见 dsh_bridge.rs 头注）。
         // D1-a：`/workspace` 前缀 = 工作台静态伺服（不依赖 dsh 桥——宿主未就绪也能开工作台）。

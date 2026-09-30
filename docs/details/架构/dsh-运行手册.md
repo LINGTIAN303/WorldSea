@@ -77,6 +77,18 @@ DSH_HOME="D:/WorldSea/.独立项/b0-home" node apps/cli/lib/bin.js web --no-open
 
 > 排查「Rust 侧写不达宿主」的手动探针：`.workbuddy/c2b-manual-host.mjs`（起带正确管道路径的宿主并写探针文件）、`.workbuddy/c2b-pipe-probe.mjs`（Node 原生管道客户端）、`cargo test -- --ignored --nocapture probe_live_pipe_exchange`（Rust 客户端对活管道）。三者都在 `.workbuddy/`（gitignored）。
 
+### Channel 投递全序（F4，2026-09-30，务必先读）
+
+**机制（真机取证）**：Tauri `Channel` 对 JSON 载荷有**两条投递路径**——<8192B 走同步 `webview.eval`（有序），≥8192B 走异步 `plugin:__TAURI_CHANNEL__|fetch`（`invoke(...).then(runCallback)`）。两者混用时**不保序**：长会话 follow 的开局快照实测 ~420–630KB，会被紧随其后的 ~240B 流式小帧**超车**。而 dsh 客户端流协议要求**全序**（assistant 帧 revision 连续、持久事件 seq 连续）：乱序 → 客户端判定 carrier 故障 → 拆流重启；重启若发生在**回合进行中**，新快照与实时帧再次竞态 → 重试耗尽 → 会话事件流终止（页面报 `历史加载失败：session assistant stream skipped revision 1`）→ **前端流式渲染冻结**（后台照常跑；切会话/刷新重取才「接上」——即用户报告的「流式卡住」）。
+
+**修法**：壳装官方扩展点 `Builder::channel_interceptor`（`apps/tauri/src-tauri/src/channel_order.rs`）——**全部 JSON 消息统一走同步 eval 直投**（`window.__TAURI_INTERNALS__.runCallback(id, {message, index})`，与 Tauri 小载荷分支同形），弃用异步 fetch 路径 → 全序由构造保证。Raw 交回默认。代价（实测）：大消息不再走异步 fetch —— 同窗口实测 fetch 比 eval 迟约 27ms，正常小帧路径零改动。
+
+**确定性复现 / 反证配方**：长文**流式进行中刷新页面**（`location.reload()`）——修前必现上述报错文案 + 冻结（帧先到、快照迟到）；修后正常接续（快照先于帧、revision 连续）。反证开关 `WORLDSEA_NO_CHANNEL_ORDER_FIX=1` 恢复默认双路径 → 配方应再红。
+
+**页重载泄漏流（同批修）**：页重载时旧页已开的流此前无人取消——壳持续向失效 callback id 投递（`[TAURI] Couldn't find callback id` 刷屏），且每次刷新叠加一套 workspace/follow、$events、session/control。修法＝注入桥登记本页未完成流，**`pagehide` 批量 `cmd_stream_cancel`**（终态流自动出集，不重复取消；窗口隐藏/最小化不触发 pagehide，不误伤流式）。
+
+> F4 取证/验收工具（`.workbuddy/`，gitignored）：`_stream-probe.mjs`（CDP 探针：rafΔ/cbΔ/mutΔ/text + **线级帧序 rev/size/entry/GAP 标记** + abort 调用栈与 reason + console 捕获）、`_cdp-send.mjs`（CDP 驱动向输入框发消息）、`_shell-timestamps.log`（壳日志时间戳旁路）。
+
 **壳侧安全面（C3-b/c，2026-09-24，详见 [C3 批计划](../../plans/2026-09-24-C3-壳侧安全面批计划.md)）**：
 
 - **命令面白名单（应用级 ACL）**：`apps/tauri/src-tauri/permissions/worldsea-shell.toml` 只放页面在用的 **10 条**（壳桥 5 + 窗口栏 1 + 流桥 4；C3 起步为 7 条，C4-b/C6 逐条增补）；其余应用命令（旧 Agent 面全族）从「页面可调」降为 **ACL 拒**（`cmd_agent_tool_names not allowed. Command not found`）。**页面新增可调命令必须在此逐条加**（改 `permissions/*.toml` → 重建即生效）。
@@ -108,6 +120,7 @@ DSH_HOME="D:/WorldSea/.独立项/b0-home" node apps/cli/lib/bin.js web --no-open
 | `WORLDSEA_KEEP_ENV_KEYS=1` | 反证/逃生口（C5）：强制保留继承的凭据环境变量。默认口径 = **库优先 + env 兜底**：`$DSH_HOME/.credentials.yaml`（页面「设置 → 模型」写入）已有该凭据时，壳 spawn 前剥离继承的 `DEEPSEEK_API_KEY`；库里没有则保留继承作零配置兜底 |
 | `WORLDSEA_FRAMED=1` | **回退原生边框（C6）**：运行时 `set_decorations(true)` 且**不注入窗口栏**；缺省 = 无边框 + 窗口栏（旧 `WORLDSEA_FRAMELESS` 已按此语义反转移除） |
 | `WORLDSEA_NO_TITLEBAR=1` | 反证用（C6）：不注入窗口栏（无边框下页面顶格、无拖拽——显式缺省，非静默） |
+| `WORLDSEA_NO_CHANNEL_ORDER_FIX=1` | **反证用（F4）**：不装 Channel 全序拦截器（交回 Tauri 默认双路径）——「流式进行中刷新页面」的确定性复现应再红 |
 
 > 日志面：宿主的 stdout 现以 **`[DSH-HOST]`** 前缀直出壳日志（管道载体/协议违规行都在那里）；壳的流命令留 `[DSH-SHELL] stream: open id=… endpoint=…` / `cancel id=…` 行——验收「流真的经管道」看这行。
 
