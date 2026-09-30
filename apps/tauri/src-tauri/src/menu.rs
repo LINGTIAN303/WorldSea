@@ -166,10 +166,10 @@ fn handle(app: &AppHandle, id: &str) {
             }
         }
         ID_FIX_WORKSPACE => {
-            let (title, body) = match crate::dsh_workspace::fix_workspace_permissions(app) {
-                Ok(label) => (
+            let (title, body) = match crate::acl_fix::fix_workspace_permissions(app) {
+                Ok(outcome) => (
                     "WorldSea：工作区权限已修复",
-                    format!("当前探测：{label}。若命令仍报沙箱初始化失败，请重启应用后重试。"),
+                    format!("当前探测：{}。{}", outcome.label, outcome.note),
                 ),
                 Err(error) => ("WorldSea：工作区权限修复失败", error),
             };

@@ -1,7 +1,9 @@
 /* worldsea-shell:workspace-notice —— 工作区不可供给时的顶部横幅（C4-b）。
    只在壳探测判定「dsh 的 Windows ACL 沙箱无法供给默认工作区」时注入（文案由注入方带到
    `globalThis.__WORLDSEA_WORKSPACE_NOTICE__`）。「修复工作区权限」按钮调 `cmd_fix_workspace_acl`——
-   只在用户点击时执行；授权后 dsh 会在该目录常驻能力 ACE、删除拒绝与 Low 完整性标签（上游设计使然）。
+   只在用户点击时执行；**G3（2026-10-01）起为可回滚修复**（先备份后授权，恢复命令落
+   `<工作区>/.acl-recovery/restore-command.txt`；授权后 dsh 会在该目录常驻能力 ACE、
+   删除拒绝与 Low 完整性标签——上游设计使然）。
    反证开关：WORLDSEA_NO_WORKSPACE_NOTICE=1（壳侧不注入本脚本）。 */
 (function () {
   try {
@@ -38,9 +40,11 @@
       }
       fix.disabled = true;
       fix.textContent = '修复中…';
-      Promise.resolve(invoke('cmd_fix_workspace_acl')).then(function (label) {
-        text.textContent = '已执行授权（' + label + '）。若命令仍报沙箱初始化失败，请重启应用后重试；'
-          + '完整过程见应用日志 [DSH-SHELL] 工作区行。';
+      /* G3（2026-10-01）：可回滚修复——回执 { mode, label, recoveryDir, note }（note 已含恢复指引） */
+      Promise.resolve(invoke('cmd_fix_workspace_acl')).then(function (result) {
+        var label = (result && result.label) || '';
+        var note = (result && result.note) || '';
+        text.textContent = '已修复（' + label + '）。' + note;
         fix.setAttribute('style', 'display:none');
       }).catch(function (error) {
         text.textContent = '修复失败：' + String((error && error.message) || error) + '\n原提示：' + message;

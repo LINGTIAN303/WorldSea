@@ -85,7 +85,8 @@ fn generate_pipe_path() -> String {
 }
 
 /// 定位仓内 dsh 树：`WORLDSEA_DSH_ROOT` 优先；否则按 CARGO_MANIFEST_DIR 上溯（dev 口径）。
-fn resolve_dsh_root() -> Result<PathBuf, String> {
+/// G3 起对 `acl_fix` 可见（上游 ACL 脚本的树内相对路径由它拼出）。
+pub(crate) fn resolve_dsh_root() -> Result<PathBuf, String> {
     let bin_rel = ["apps", "cli", "lib", "bin.js"];
     if let Some(raw) = std::env::var_os("WORLDSEA_DSH_ROOT") {
         let candidate = strip_verbatim_prefix(PathBuf::from(raw));

@@ -69,6 +69,8 @@ mod nav_fence;
 mod workspace_probe;
 // C4（2026-09-24）：工作区取向与提示（默认工作区解析 / 启动探测+通知 / 一键修复）
 mod dsh_workspace;
+// G3（2026-10-01）：可回滚的工作区修复（主路径=上游 rc.2 ACL 脚本 / 兜底=icacls 备份+授权；恢复命令落盘）
+mod acl_fix;
 // C5（2026-09-24）：凭据环境取向（库优先 + env 兜底；判定与留痕）
 mod dsh_credentials;
 // D2-c（2026-09-27）：产品域说明书（Agent 认知面——工作区根 WORLDSEA.md，幂等生成不覆盖）

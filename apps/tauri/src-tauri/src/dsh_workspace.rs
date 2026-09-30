@@ -70,29 +70,9 @@ pub(crate) fn announce_workspace(app: &tauri::AppHandle, workspace: &Path) -> Op
     Some(format!("工作区不可供给：{}", probe.describe(workspace)))
 }
 
-/// C4-b：一键修复工作区权限——对当前默认工作区授「用户完全控制」（含 dsh 沙箱供给所需的 WRITE_OWNER）。
-/// 页面横幅按钮与「设置 → 修复工作区权限…」菜单共用；**只有用户显式点击才会走到这里**。
-/// 授权后 dsh 会在该目录常驻能力 ACE、删除拒绝与 Low 完整性标签（上游设计使然、粘滞）。
-pub(crate) fn fix_workspace_permissions(app: &tauri::AppHandle) -> Result<String, String> {
-    let workspace = resolve_workspace(app)?;
-    let user = crate::workspace_probe::current_user();
-    let output = std::process::Command::new("icacls")
-        .arg(&workspace)
-        .arg("/grant")
-        .arg(format!("{user}:(OI)(CI)F"))
-        .output()
-        .map_err(|e| format!("调用 icacls 失败：{e}"))?;
-    if !output.status.success() {
-        return Err(format!(
-            "icacls 失败（{}）：{}",
-            output.status,
-            String::from_utf8_lossy(&output.stderr).trim()
-        ));
-    }
-    let probe = crate::workspace_probe::check(&workspace);
-    println!("[DSH-SHELL] 工作区修复后探测：{} —— {}", probe.label(), probe.describe(&workspace));
-    Ok(probe.label().to_string())
-}
+/// C4-b：一键修复工作区权限——G3（2026-10-01）起升级为**可回滚修复**并迁至 [`crate::acl_fix`]
+/// （主路径 = 上游 rc.2 的 `diagnose-windows-sandbox-acl` 脚本；兜底 = icacls 备份 + 授权）。
+/// 本模块只保留取向解析（[`resolve_workspace`]）与启动提示（[`announce_workspace`]）。
 
 // ── D2-a：dsh 工作区列表转发（2026-09-27）─────────────────────────────────────
 //

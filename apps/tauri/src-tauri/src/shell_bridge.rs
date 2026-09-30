@@ -23,10 +23,11 @@ pub fn cmd_shell_bridge_report(message: String) {
 }
 
 /// C4-b：一键修复工作区权限（页面横幅按钮 / 「设置 → 修复工作区权限…」菜单共用）。
-/// **只在用户显式点击时执行**；语义、后果与探测口径见 `dsh_workspace::fix_workspace_permissions`。
+/// **只在用户显式点击时执行**；G3 起为**可回滚修复**（主路径=上游 rc.2 脚本 / 兜底=icacls 备份+授权；
+/// 恢复命令落 `<工作区>/.acl-recovery/restore-command.txt`）——语义与设计见 `acl_fix` 头注。
 #[tauri::command]
-pub fn cmd_fix_workspace_acl(app: tauri::AppHandle) -> Result<String, String> {
-    crate::dsh_workspace::fix_workspace_permissions(&app)
+pub fn cmd_fix_workspace_acl(app: tauri::AppHandle) -> Result<crate::acl_fix::FixOutcome, String> {
+    crate::acl_fix::fix_workspace_permissions(&app)
 }
 
 /// C6（2026-09-24）：窗口栏的窗口动作（最小化 / 最大化⇄还原 / 关闭 / 起拖 / 查询最大化）。
