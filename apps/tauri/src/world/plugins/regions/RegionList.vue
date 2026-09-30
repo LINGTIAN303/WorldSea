@@ -53,8 +53,8 @@
       <!-- Map view -->
       <RegionMap v-else-if="viewMode === 'map' && entities.length" :regions="entities" @select="(e: any) => { selectedRegion = e; selectFn(e) }" />
 
-      <!-- Cards view: render default card grid manually (since we're in the list slot) -->
-      <template v-else-if="viewMode === 'grid'">
+      <!-- Cards view: 自包 grid 容器（插槽内容带父作用域 id，GEV 的卡片样式作用不到，样式见本文件 .region-card-grid 段） -->
+      <div v-else-if="viewMode === 'grid'" class="region-card-grid">
         <div
           v-for="e in entities"
           :key="e.id"
@@ -72,7 +72,7 @@
             </div>
           </div>
         </div>
-      </template>
+      </div>
 
       <WsEmpty v-if="entities.length === 0" title="暂无区域" description="点击上方按钮创建第一个区域">
         <template #icon><WsIcon name="region" size="xl" /></template>
@@ -345,6 +345,19 @@ function onRelSelect(entity: any) {
 .btn-view.active { border-color: var(--primary); background: var(--primary-light); }
 
 .tree-view { flex: 1; overflow-y: auto; }
+/* 卡片模式自包网格 + 自带卡片样式：#list 插槽内容带父作用域 id，GEV 的 scoped 卡片样式作用不到这里；
+   视觉与 GEV 默认卡片对齐（详见 docs/details/注释/packages/plugin-sdk/实体视图滚动链.md） */
+.region-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; align-content: start; }
+.region-card-grid .entity-card-wrapper { position: relative; display: flex; border: 1px solid var(--border, #ececec); border-radius: var(--radius-mid, 8px); background: var(--bg-surface, #ffffff); overflow: hidden; }
+.region-card-grid .entity-card-wrapper:hover { border-color: var(--border-strong, #d9d9de); box-shadow: var(--shadow-sm, 0 1px 2px rgba(16, 24, 40, 0.05)); }
+.region-card-grid .entity-card-wrapper.batch-selected { border-color: var(--accent, #4f46e5); background: var(--accent-soft, #eef2ff); }
+.region-card-grid .entity-card { position: relative; flex: 1; display: flex; flex-direction: column; padding: 12px; cursor: pointer; outline: none; user-select: none; }
+.region-card-grid .card-header { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.region-card-grid .card-icon { color: var(--accent, #4f46e5); flex-shrink: 0; }
+.region-card-grid .card-body { flex: 1; min-width: 0; }
+.region-card-grid .card-body h3 { margin: 0; font-size: var(--fs-base, 14px); font-weight: 600; color: var(--text-primary, #1f2328); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.region-card-grid .card-body p { margin: 2px 0 0; font-size: var(--fs-xs, 11px); color: var(--text-secondary, #6b7280); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.region-card-grid .batch-check { position: absolute; top: 8px; left: 8px; z-index: 2; width: 14px; height: 14px; margin: 0; accent-color: var(--accent, #4f46e5); cursor: pointer; }
 .tree-item { display: flex; align-items: center; gap: 6px; padding: 6px 8px; cursor: pointer; font-size: var(--font-size-base); }
 .tree-item:hover { background: var(--hover-bg); }
 .tree-item.selected { background: var(--accent-bg); font-weight: var(--font-weight-semibold); }
