@@ -71,8 +71,8 @@
             </div>
 
             <div class="crt-form-actions">
-              <button class="btn btn-primary" @click="onCreate" :disabled="!canCreate">创建</button>
-              <button class="btn" @click="resetForm">重置</button>
+              <TuiButton variant="primary" @click="onCreate" :disabled="!canCreate">创建</TuiButton>
+              <TuiButton variant="secondary" @click="resetForm">重置</TuiButton>
             </div>
           </div>
 
@@ -86,7 +86,7 @@
                 <span class="crt-list-item-label">{{ ct.label }}</span>
                 <span class="crt-list-item-domain" v-if="ct.domain">{{ domainLabel(ct.domain) }}</span>
               </div>
-              <button class="btn btn-sm btn-danger" @click="onDelete(ct.type)">删除</button>
+              <TuiButton variant="danger-ghost" size="sm" @click="onDelete(ct.type)">删除</TuiButton>
             </div>
           </div>
         </div>
@@ -96,6 +96,7 @@
 </template>
 
 <script setup lang="ts">
+import { TuiButton } from '@worldsea/ui-kit'
 import { ref, reactive, computed, watch, nextTick } from 'vue'
 import { relationshipRegistry, entitySchemaRegistry } from '@worldsea/entity-core'
 import type { RelationTypeSchemaV2 } from '@worldsea/entity-core'
@@ -317,41 +318,7 @@ function close() {
   display: flex;
   gap: 8px;
   margin-top: 12px;
-}
-.btn {
-  padding: 6px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--bg);
-  cursor: pointer;
-  font-size: var(--font-size-sm);
-}
-.btn:hover {
-  background: var(--bg-hover);
-}
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.btn.btn-sm {
-  padding: 3px 8px;
-  font-size: var(--font-size-xs);
-}
-.btn.btn-primary {
-  color: var(--on-accent);
-  background: var(--primary);
-  border-color: var(--primary);
-}
-.btn.btn-primary:hover {
-  opacity: 0.9;
-}
-.btn.btn-danger {
-  color: var(--danger);
-  border-color: var(--danger);
-}
-.btn.btn-danger:hover {
-  background: color-mix(in srgb, var(--danger) 10%, transparent);
-}
+}
 .crt-list-section {
   margin-top: 4px;
 }

@@ -132,9 +132,8 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { FileIcon, WsIcon, useConfirm } from '@worldsea/ui-kit'
+import { FileIcon, TuiButton, WsIcon, useConfirm } from '@worldsea/ui-kit'
 import TuiModal from '../../components/ui/TuiModal.vue'
-import TuiButton from '../../components/ui/TuiButton.vue'
 import { invoke } from '@/composables/transport'
 import { resolveWorkspaceDir, ensureWorkspaceDir } from '@/composables/workspace'
 import { useFileTrash, type FileTrashRecord } from '@/composables/fileTrash'

@@ -1,6 +1,7 @@
 // ui-kit 包说明（FACADE：聚合/委托各包导出，自身不含业务逻辑），详细见 docs/details/注释/packages/ui-kit/index.md
 // Ws* Components（Pure UI Atoms）— 原生于 ui-kit，当前从 src/ui/ re-export，见 docs/details/注释/packages/ui-kit/index.md
 export { default as WsIcon } from './components/WsIcon.vue'
+export { default as TuiButton } from './components/TuiButton.vue'
 export { default as WsEmpty } from './components/WsEmpty.vue'
 export { default as WsSpinner } from './components/WsSpinner.vue'
 // R 批 R-0：文件类型图标（vscode-great-icons 资产下沉——apps 文件树/tab/预览头与对话区行段两端共用）

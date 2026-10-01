@@ -10,27 +10,15 @@
       <CustomDropdown v-model="groupModeValue" :options="groupModeOptions" />
     </Teleport>
     <Teleport to="#view-toolbar-actions">
-      <button class="btn-ghost btn-sm" :class="{ active: sortMode === 'tree' }" @click="toggleSortMode" :title="sortMode === 'chrono' ? '切换为大纲视图' : '切换为时间排序'">
-        <WsIcon :name="sortMode === 'chrono' ? 'timeline' : 'plant'" size="xs" /> {{ sortMode === 'chrono' ? '时间序' : '大纲序' }}
-      </button>
-      <button class="btn-ghost btn-sm" :class="{ active: layoutMode === 'horizontal' }" @click="toggleLayoutMode" :title="layoutMode === 'vertical' ? '切换为水平时间线' : '切换为垂直时间线'">
-        <WsIcon :name="layoutMode === 'vertical' ? 'timeline' : 'graph'" size="xs" /> {{ layoutMode === 'vertical' ? '垂直' : '水平' }}
-      </button>
-      <button v-if="sortMode === 'tree'" class="btn-ghost btn-sm" @click="tree.expandAll()" title="全部展开"><WsIcon name="expand" size="xs" /> 展开</button>
-      <button v-if="sortMode === 'tree'" class="btn-ghost btn-sm" @click="tree.collapseAll()" title="全部折叠"><WsIcon name="collapse" size="xs" /> 折叠</button>
-      <button v-if="layoutMode === 'vertical'" class="btn-ghost btn-sm" :class="{ active: compactMode }" @click="compactMode = !compactMode" title="紧凑模式"><WsIcon name="list" size="xs" /> {{ compactMode ? '紧凑' : '展开' }}</button>
-      <button class="btn-ghost btn-sm" @click="showConflicts = true" :title="hasConflicts ? `${conflicts.length} 个冲突` : '检测时间冲突'">
-        <WsIcon name="warning" size="xs" /> 冲突{{ hasConflicts ? ` (${conflicts.length})` : '' }}
-      </button>
-      <button
-        class="btn-ghost btn-sm"
-        :class="{ active: selecting }"
-        :aria-pressed="selecting"
-        :title="selecting ? '退出批量选择（Esc）' : '进入批量选择'"
-        @click="toggleSelectMode"
-      >批量选择</button>
-      <button v-if="selectedIds.size > 0" class="btn-danger" @click="batchDelete(filteredEvents, '事件')"><WsIcon name="delete" size="xs" /> 删除 ({{ selectedIds.size }})</button>
-      <button v-if="selectedIds.size > 0" class="btn-ghost" @click="clearSelection">取消选择</button>
+      <TuiButton variant="secondary" size="sm" :active="sortMode === 'tree'" :icon="sortMode === 'chrono' ? 'timeline' : 'plant'" @click="toggleSortMode" :title="sortMode === 'chrono' ? '切换为大纲视图' : '切换为时间排序'">{{ sortMode === 'chrono' ? '时间序' : '大纲序' }}</TuiButton>
+      <TuiButton variant="secondary" size="sm" :active="layoutMode === 'horizontal'" :icon="layoutMode === 'vertical' ? 'timeline' : 'graph'" @click="toggleLayoutMode" :title="layoutMode === 'vertical' ? '切换为水平时间线' : '切换为垂直时间线'">{{ layoutMode === 'vertical' ? '垂直' : '水平' }}</TuiButton>
+      <TuiButton v-if="sortMode === 'tree'" variant="secondary" size="sm" icon="expand" title="全部展开" @click="tree.expandAll()">展开</TuiButton>
+      <TuiButton v-if="sortMode === 'tree'" variant="secondary" size="sm" icon="collapse" title="全部折叠" @click="tree.collapseAll()">折叠</TuiButton>
+      <TuiButton v-if="layoutMode === 'vertical'" variant="secondary" size="sm" :active="compactMode" icon="list" title="紧凑模式" @click="compactMode = !compactMode">{{ compactMode ? '紧凑' : '展开' }}</TuiButton>
+      <TuiButton variant="secondary" size="sm" icon="warning" :title="hasConflicts ? `${conflicts.length} 个冲突` : '检测时间冲突'" @click="showConflicts = true">冲突{{ hasConflicts ? ` (${conflicts.length})` : '' }}</TuiButton>
+      <TuiButton variant="secondary" size="sm" :active="selecting" :title="selecting ? '退出批量选择（Esc）' : '进入批量选择'" @click="toggleSelectMode">批量选择</TuiButton>
+      <TuiButton v-if="selectedIds.size > 0" variant="danger-ghost" size="sm" icon="delete" @click="batchDelete(filteredEvents, '事件')">删除 ({{ selectedIds.size }})</TuiButton>
+      <TuiButton v-if="selectedIds.size > 0" variant="secondary" size="sm" @click="clearSelection">取消选择</TuiButton>
     </Teleport>
     <Teleport to="#view-toolbar-create">
       <CreateButton label="新建事件" @click="openNewForm" />
@@ -88,11 +76,11 @@
           <div v-for="e in involved" :key="e.id" class="involved-item">{{ e.name }}</div>
         </div>
         <div class="detail-actions" style="margin-top:16px">
-          <button v-if="isEditing && selectedEvent" class="btn-danger btn-sm" @click="deleteEvent(selectedEvent.id)">删除</button>
+          <TuiButton v-if="isEditing && selectedEvent" variant="danger-ghost" size="sm" @click="deleteEvent(selectedEvent.id)">删除</TuiButton>
         </div>
         <DynamicFieldsAdder entity-type="event" v-model="editForm" :field-defs="customFieldDefs" @update:field-defs="customFieldDefs = $event" />
         <div class="detail-edit-bar" v-if="isEditing">
-          <button class="btn-primary btn-sm" @click="saveEdit()">保存</button>
+          <TuiButton variant="primary" size="sm" @click="saveEdit()">保存</TuiButton>
         </div>
       </template>
       <template #causal>
@@ -134,7 +122,7 @@ import type { Entity } from '@worldsea/entity-core'
 import { CustomDropdown, EntityFormModal, CreateButton, EntityDetailPanel, DetailField, DynamicFieldsAdder, UniversalRelationPanel, EntityRelationSelector, useDuplicateNameCheck, useShortcuts, useBatchDelete, useConfirm, useEntityEdit, type FormFieldDef } from '@worldsea/plugin-sdk'
 import { toastSuccess, toastWithUndo, useUndoRedo } from '@worldsea/ui-kit'
 import { useSettingsStore } from '@/stores/settingsStore'
-import { WsIcon } from '@worldsea/ui-kit'
+import { TuiButton } from '@worldsea/ui-kit'
 
 import TimelineChart from './components/TimelineChart.vue'
 import ConflictDetector from './components/ConflictDetector.vue'
@@ -436,7 +424,4 @@ onMounted(async () => {
 .detail-section h4 { font-size: var(--font-size-sm); color: var(--color-text-secondary); margin-bottom: 6px; border-bottom: 1px solid var(--color-border); padding-bottom: 4px; }
 .involved-item { padding: 4px 8px; font-size: var(--font-size-sm); border-radius: var(--radius-sm); }
 .involved-item:hover { background: var(--color-bg-hover); }
-/* 工具条按钮规格见共享源（scoped src 引入，规则落入本视图作用域） */
 </style>
-
-<style scoped src="@worldsea/plugin-sdk/components/toolbar-buttons.css"></style>

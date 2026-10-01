@@ -376,11 +376,7 @@ function movePanel(idx: number, dir: number) {
   flex-direction: column;
   height: 100%;
 }
-
-.btn-sm {
-  padding: 6px 14px;
-  font-size: var(--font-size-sm);
-}
+
 
 .cv-layout {
   display: flex;

@@ -12,8 +12,8 @@
           <div v-else class="binfo-cover-empty"><WsIcon name="book" size="xl" /></div>
         </div>
         <div class="binfo-cover-actions">
-          <button class="btn-secondary btn-sm" @click="coverInput?.click()">上传封面</button>
-          <button v-if="coverPreview" class="btn-secondary btn-sm" @click="removeCover">移除封面</button>
+          <TuiButton variant="secondary" size="sm" @click="coverInput?.click()">上传封面</TuiButton>
+          <TuiButton v-if="coverPreview" variant="secondary" size="sm" @click="removeCover">移除封面</TuiButton>
         </div>
         <input ref="coverInput" type="file" accept="image/*" class="binfo-hidden-input" @change="onPickCover" />
       </div>
@@ -48,8 +48,8 @@
       </div>
 
       <div class="binfo-actions">
-        <button class="btn-secondary" @click="$emit('close')">取消</button>
-        <button class="btn-primary" :disabled="saving" @click="save">{{ saving ? (isCreate ? '创建中...' : '保存中...') : (isCreate ? '创建' : '保存') }}</button>
+        <TuiButton variant="secondary" @click="$emit('close')">取消</TuiButton>
+        <TuiButton variant="primary" :disabled="saving" @click="save">{{ saving ? (isCreate ? '创建中...' : '保存中...') : (isCreate ? '创建' : '保存') }}</TuiButton>
       </div>
     </div>
   </div>
@@ -57,7 +57,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import { WsIcon } from '@worldsea/ui-kit'
+import { TuiButton, WsIcon  } from '@worldsea/ui-kit'
 import { useEntityStore } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
 import { writeImageAsset, ASSET_MAX_BYTES } from '@/composables/imageAssets'

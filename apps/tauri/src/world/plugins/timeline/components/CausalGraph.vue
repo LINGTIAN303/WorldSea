@@ -2,9 +2,9 @@
   <div class="causal-graph-wrapper">
     <div class="cg-toolbar">
       <span class="cg-help">因果链可视化 · 点击节点可跳转</span>
-      <button class="btn-sm btn-ghost" @click="toggleExpand">
+      <TuiButton variant="secondary" size="sm" @click="toggleExpand">
         {{ expanded ? '收起' : '展开全部' }}
-      </button>
+      </TuiButton>
     </div>
     <div ref="graphRef" class="causal-graph"></div>
     <WsEmpty v-if="chainCount === 0" preset="no-data" title="暂无因果链" />
@@ -13,7 +13,7 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick, computed } from 'vue'
-import { WsEmpty } from '@worldsea/ui-kit'
+import { TuiButton, WsEmpty  } from '@worldsea/ui-kit'
 import type { Entity, Relation } from '@worldsea/entity-core'
 import { useSmallCanvasGraph, type SGNode, type SGEdge } from '@worldsea/ui-kit'
 
@@ -139,9 +139,5 @@ watch(() => props.event, async () => {
   background: var(--card-bg);
   border-radius: var(--radius-md);
   border: 1px solid var(--border-color);
-}
-.btn-sm {
-  padding: 5px 12px;
-  font-size: var(--font-size-sm);
 }
 </style>

@@ -27,16 +27,10 @@
         <slot name="toolbar-extra" />
         <!-- 分页只管 GEV 默认卡片网格；插槽消费方经 paginate-slot 显式开启（其自绘列表里树等形态不能分页） -->
         <EntityPager v-if="totalPages > 1 && (!hasListSlot || paginateSlot)" :page="page" :total="totalPages" @prev="pagePrev" @next="pageNext" />
-        <button
-          class="btn-ghost btn-sm"
-          :class="{ active: selecting }"
-          :aria-pressed="selecting"
-          :title="selecting ? '退出批量选择（Esc）' : '进入批量选择'"
-          @click="toggleSelectMode"
-        >批量选择</button>
+        <TuiButton variant="secondary" size="sm" :active="selecting" :title="selecting ? '退出批量选择（Esc）' : '进入批量选择'" @click="toggleSelectMode">批量选择</TuiButton>
         <template v-if="selectedIds.size > 0">
-          <button class="btn-danger btn-sm" @click="onBatchDel" title="删除选中" data-ws-tip-keys="Del">删除 ({{ selectedIds.size }})</button>
-          <button class="btn-ghost btn-sm" @click="clearSelection">取消选择</button>
+          <TuiButton variant="danger-ghost" size="sm" title="删除选中" data-ws-tip-keys="Del" @click="onBatchDel">删除 ({{ selectedIds.size }})</TuiButton>
+          <TuiButton variant="secondary" size="sm" @click="clearSelection">取消选择</TuiButton>
         </template>
       </div>
     </Teleport>
@@ -264,7 +258,7 @@ import EntityFormModal from './EntityFormModal.vue'
 import EntityDetailPanel from './EntityDetailPanel.vue'
 import EntityRelationSelector from './EntityRelationSelector.vue'
 import type { FormFieldDef, RelationTabDef, CardFieldDef, CustomTabDef, FilterDef } from './types'
-import { WsIcon, WsEmpty } from '@worldsea/ui-kit'
+import { TuiButton, WsIcon, WsEmpty } from '@worldsea/ui-kit'
 import EntityPager from './EntityPager.vue'
 import EntityCardCover from './EntityCardCover.vue'
 import EntityCardBack from './EntityCardBack.vue'
@@ -871,5 +865,3 @@ defineExpose({
 .dp-rel-meta { color: var(--text-tertiary); font-size: var(--font-size-xs); margin-left: auto; }
 </style>
 
-<!-- 工具条按钮共用源：以 scoped src 引入 → 规则落入本组件作用域，不产生全局泄漏 -->
-<style scoped src="./toolbar-buttons.css"></style>

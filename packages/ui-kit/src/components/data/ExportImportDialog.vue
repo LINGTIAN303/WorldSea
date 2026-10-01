@@ -16,11 +16,11 @@
           <div>关系：{{ relationCount }} 条</div>
         </div>
         <div class="modal-actions">
-          <button class="btn-secondary" @click="close">取消</button>
-          <button class="btn-primary" @click="doExport" :disabled="exporting">
+          <TuiButton variant="secondary" @click="close">取消</TuiButton>
+          <TuiButton variant="primary" @click="doExport" :disabled="exporting">
             <template v-if="!exporting"><WsIcon name="item" size="xs" /> 导出为 JSON</template>
             <template v-else>导出中...</template>
-          </button>
+          </TuiButton>
         </div>
       </div>
 
@@ -50,11 +50,11 @@
           </div>
         </div>
         <div class="modal-actions" style="margin-top:16px;">
-          <button class="btn-secondary" @click="close">取消</button>
-          <button class="btn-danger" @click="doImport" :disabled="!preview || importing">
+          <TuiButton variant="secondary" @click="close">取消</TuiButton>
+          <TuiButton variant="danger-ghost" @click="doImport" :disabled="!preview || importing">
             <template v-if="!importing"><WsIcon name="item" size="xs" /> 导入数据</template>
             <template v-else>导入中...</template>
-          </button>
+          </TuiButton>
         </div>
       </div>
     </div>
@@ -62,6 +62,7 @@
 </template>
 
 <script setup lang="ts">
+import { TuiButton } from '@worldsea/ui-kit'
 import { ref, computed } from 'vue'
 import WsIcon from '../WsIcon.vue'
 import { useEntityStore, useRelationStore, storage } from '@worldsea/entity-core'
@@ -195,9 +196,5 @@ defineExpose({ open })
 .import-placeholder p { font-size: var(--font-size-sm); color: var(--text-tertiary); margin: 8px 0 0; }
 .import-preview { text-align: left; }
 
-.modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
-.btn-primary { padding: 8px 16px; background: var(--primary); color: white; border: none; border-radius: var(--radius-md); cursor: pointer; font-size: var(--font-size-base); }
-.btn-secondary { padding: 8px 16px; background: var(--color-bg-elevated); color: var(--text-color); border: none; border-radius: var(--radius-md); cursor: pointer; font-size: var(--font-size-base); }
-.btn-danger { padding: 8px 16px; background: var(--danger); color: white; border: none; border-radius: var(--radius-md); cursor: pointer; font-size: var(--font-size-base); }
-.btn-primary:disabled, .btn-danger:disabled { opacity: 0.5; cursor: default; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
 </style>

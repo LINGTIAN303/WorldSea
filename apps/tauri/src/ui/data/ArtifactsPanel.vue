@@ -6,7 +6,7 @@
           <h3>产物</h3>
           <div class="artifacts-hdr-actions">
             <span class="artifacts-count">{{ artifacts.length }} 项</span>
-            <button class="btn btn-sm" @click="openCreate">+ 新建</button>
+            <TuiButton variant="secondary" size="sm" @click="openCreate">+ 新建</TuiButton>
             <button class="artifacts-close" @click="close">✕</button>
           </div>
         </div>
@@ -22,8 +22,8 @@
           </select>
           <textarea v-model="createContent" class="input textarea" rows="4" placeholder="产物内容" />
           <div class="create-actions">
-            <button class="btn btn-sm" @click="creating = false">取消</button>
-            <button class="btn btn-sm btn-primary" @click="doCreate">保存</button>
+            <TuiButton variant="secondary" size="sm" @click="creating = false">取消</TuiButton>
+            <TuiButton variant="primary" size="sm" @click="doCreate">保存</TuiButton>
           </div>
         </div>
 
@@ -42,7 +42,7 @@
                 <span class="artifact-item-meta">v{{ a.version }} · {{ typeLabel(a.artifact_type) }}</span>
               </div>
               <div class="artifact-item-actions">
-                <button class="btn btn-sm btn-danger" @click.stop="doDelete(a)">删除</button>
+                <TuiButton variant="danger-ghost" size="sm" @click.stop="doDelete(a)">删除</TuiButton>
               </div>
             </div>
             <div v-if="artifacts.length === 0" class="artifacts-empty">暂无产物，点击「新建」创建</div>
@@ -54,7 +54,7 @@
               <div class="preview-header">
                 <span class="preview-title">{{ selected.title }}</span>
                 <span class="preview-meta">v{{ selected.version }}</span>
-                <button class="btn btn-sm" @click="openVersions(selected)">历史版本</button>
+                <TuiButton variant="secondary" size="sm" @click="openVersions(selected)">历史版本</TuiButton>
               </div>
               <div class="preview-content">{{ selected.content }}</div>
             </template>
@@ -66,19 +66,19 @@
         <div v-if="versionsOpen" class="versions-drawer">
           <div class="versions-header">
             <span>历史版本 · {{ versionsTarget?.title }}</span>
-            <button class="btn btn-sm" @click="versionsOpen = false">关闭</button>
+            <TuiButton variant="secondary" size="sm" @click="versionsOpen = false">关闭</TuiButton>
           </div>
           <div class="versions-list">
             <div v-for="v in versions" :key="v.id" class="version-item">
               <span class="version-num">v{{ v.version }}</span>
               <span class="version-date">{{ formatDate(v.created_at) }}</span>
-              <button
-                class="btn btn-sm"
+              <TuiButton
+                variant="secondary" size="sm"
                 :disabled="v.version === selected?.version"
                 @click="doRollback(v)"
               >
                 {{ v.version === selected?.version ? '当前' : '回滚到此版本' }}
-              </button>
+              </TuiButton>
             </div>
             <div v-if="versions.length === 0" class="versions-empty">暂无历史版本</div>
           </div>
@@ -89,6 +89,7 @@
 </template>
 
 <script setup lang="ts">
+import { TuiButton } from '@worldsea/ui-kit'
 import { ref, watch } from 'vue'
 import { useArtifacts } from '@worldsea/entity-core'
 import type { Artifact, ArtifactVersion } from '@worldsea/entity-core'
@@ -224,11 +225,4 @@ watch(() => props.show, (v: boolean) => {
 .version-num { font-weight: var(--font-weight-semibold); flex-shrink: 0; }
 .version-date { flex: 1; font-size: var(--font-size-xs); color: var(--text-tertiary); }
 .versions-empty { text-align: center; padding: 30px; color: var(--text-tertiary); font-size: var(--font-size-sm); }
-.btn { padding: 6px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); cursor: pointer; font-size: var(--font-size-sm); }
-.btn:hover { background: var(--bg-hover); }
-.btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.btn.btn-sm { padding: 3px 8px; font-size: var(--font-size-xs); }
-.btn.btn-primary { color: #fff; background: var(--color-primary, #3b82f6); border-color: var(--color-primary, #3b82f6); }
-.btn.btn-danger { color: var(--danger); border-color: var(--danger); }
-.btn.btn-danger:hover { background: color-mix(in srgb, var(--danger) 10%, transparent); }
 </style>

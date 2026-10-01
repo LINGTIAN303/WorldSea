@@ -44,12 +44,12 @@
         />
       </div>
       <div class="image-field-actions">
-        <button class="btn-sm" @click="fileInputRef?.click()">选择文件</button>
-        <button v-if="resolvedUrl" class="btn-sm btn-danger" @click="removeImage">移除</button>
-        <button v-if="resolvedUrl" class="btn-sm btn-focal" @click="toggleFocalMode">
+        <TuiButton variant="secondary" size="sm" @click="fileInputRef?.click()">选择文件</TuiButton>
+        <TuiButton v-if="resolvedUrl" variant="danger-ghost" size="sm" @click="removeImage">移除</TuiButton>
+        <TuiButton v-if="resolvedUrl" variant="secondary" size="sm" class="btn-focal" @click="toggleFocalMode">
           {{ focalMode ? '完成调整' : '调整封面焦点' }}
-        </button>
-        <button v-if="resolvedUrl && localCoverPosition !== '50% 50%'" class="btn-sm" @click="resetFocal">重置焦点</button>
+        </TuiButton>
+        <TuiButton v-if="resolvedUrl && localCoverPosition !== '50% 50%'" variant="secondary" size="sm" @click="resetFocal">重置焦点</TuiButton>
         <button v-if="resolvedUrl && localCoverZoom > 1" class="btn-sm" @click="resetZoom">重置缩放</button>
       </div>
       <p v-if="focalMode && resolvedUrl" class="focal-hint">点击设定焦点 · 滚轮缩放裁剪 · 当前 {{ Math.round(localCoverZoom * 100) }}%</p>
@@ -68,7 +68,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useEntityImage } from '@worldsea/entity-core/composables'
 import { useFileStore } from '@worldsea/entity-core'
-import { WsIcon } from '@worldsea/ui-kit'
+import { TuiButton, WsIcon  } from '@worldsea/ui-kit'
 
 const props = defineProps<{
   value: unknown
@@ -331,32 +331,6 @@ onUnmounted(() => document.removeEventListener('paste', onDocumentPaste))
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
-}
-.btn-sm {
-  padding: 4px 10px;
-  font-size: var(--font-size-xs);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  background: var(--card-bg);
-  color: var(--text-color);
-  cursor: pointer;
-}
-.btn-sm:hover {
-  background: var(--hover-bg);
-}
-.btn-danger {
-  color: var(--danger);
-  border-color: var(--danger);
-}
-.btn-danger:hover {
-  background: var(--danger-light);
-}
-.btn-focal {
-  color: var(--primary);
-  border-color: var(--primary);
-}
-.btn-focal:hover {
-  background: var(--primary-light);
 }
 .focal-hint {
   margin: 0;

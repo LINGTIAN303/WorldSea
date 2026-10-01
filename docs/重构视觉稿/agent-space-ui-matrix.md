@@ -290,7 +290,7 @@ Space/Agent 语义 | `--color-surface(-elevated)` / `--color-text(-muted)` / `--
 
 组件 | 职责 | token | 主题三态 | 备注
 ---|---|---|---|---
-[TuiButton.vue](../../apps/tauri/src/components/ui/TuiButton.vue) | 按钮 | `--radius-* --fs-* --dur-* --accent-* --bg-* --text-*` | ✓ | 含按压反馈与 reduced-motion
+[TuiButton.vue](../../packages/ui-kit/src/components/TuiButton.vue) | 按钮 | `--radius-* --fs-* --dur-* --accent-* --bg-* --text-*` | ✓ | 含按压反馈与 reduced-motion
 TuiCheckbox | 复选框 | 全局 | ✓ | — |
 TuiConfirm | 确认弹窗 | — | ✓ | — |
 TuiDrawer | 抽屉 | — | ✓ | — |

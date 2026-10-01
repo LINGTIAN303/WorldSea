@@ -5,9 +5,9 @@
         <div class="consistency-header">
           <h3>一致性检查</h3>
           <div class="consistency-hdr-actions">
-            <button class="btn btn-primary" :disabled="checking" @click="onRunCheck">
+            <TuiButton variant="primary" :disabled="checking" @click="onRunCheck">
               {{ checking ? '检查中...' : '运行检查' }}
-            </button>
+            </TuiButton>
             <button class="consistency-close" @click="close">✕</button>
           </div>
         </div>
@@ -22,7 +22,7 @@
 
         <!-- Toolbar -->
         <div class="consistency-toolbar" v-if="danglingRelations.length > 0">
-          <button class="btn btn-danger" @click="onFixDangling">一键修复悬空关系（{{ danglingRelations.length }} 项）</button>
+          <TuiButton variant="danger-ghost" @click="onFixDangling">一键修复悬空关系（{{ danglingRelations.length }} 项）</TuiButton>
         </div>
 
         <!-- Issue list grouped by category -->
@@ -43,8 +43,8 @@
                     <div class="issue-suggestion" v-if="issue.suggestion">建议：{{ issue.suggestion }}</div>
                   </div>
                   <div class="issue-links" v-if="issue.entityId || issue.relationId">
-                    <button v-if="issue.entityId" class="btn btn-sm" @click="navigateToEntity(issue.entityId!)">查看实体</button>
-                    <button v-if="issue.relationId" class="btn btn-sm" @click="navigateToRelation(issue.relationId!)">查看关系</button>
+                    <TuiButton v-if="issue.entityId" variant="secondary" size="sm" @click="navigateToEntity(issue.entityId!)">查看实体</TuiButton>
+                    <TuiButton v-if="issue.relationId" variant="secondary" size="sm" @click="navigateToRelation(issue.relationId!)">查看关系</TuiButton>
                   </div>
                 </div>
               </div>
@@ -65,7 +65,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue'
-import { WsIcon, useModalShortcuts } from '@worldsea/ui-kit'
+import { TuiButton, WsIcon, useModalShortcuts  } from '@worldsea/ui-kit'
 import { useConsistencyChecker, type ConsistencyIssue } from '@worldsea/entity-core'
 import { useRelationStore } from '@worldsea/entity-core'
 
@@ -190,12 +190,4 @@ function close() {
 
 .consistency-empty { text-align: center; padding: 40px; color: var(--text-tertiary); }
 
-.btn { padding: 6px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); cursor: pointer; font-size: var(--font-size-sm); }
-.btn:hover { background: var(--bg-hover); }
-.btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.btn.btn-sm { padding: 3px 8px; font-size: var(--font-size-xs); }
-.btn.btn-primary { color: var(--primary); border-color: var(--primary); }
-.btn.btn-primary:hover { background: color-mix(in srgb, var(--primary) 10%, transparent); }
-.btn.btn-danger { color: var(--danger); border-color: var(--danger); }
-.btn.btn-danger:hover { background: color-mix(in srgb, var(--danger) 10%, transparent); }
 </style>

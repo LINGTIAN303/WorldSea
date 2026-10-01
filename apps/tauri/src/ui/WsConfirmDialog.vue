@@ -56,8 +56,7 @@ import { useConfirm } from '@worldsea/plugin-sdk'
 import type { ConfirmExtraAction } from '@worldsea/ui-kit'
 import { useFocusTrap } from '@/composables/useFocusTrap'
 import { useDockPanelRect } from '@/composables/useDockPanelRect'
-import { WsIcon } from '@worldsea/ui-kit'
-import TuiButton from '@/components/ui/TuiButton.vue'
+import { TuiButton, WsIcon } from '@worldsea/ui-kit'
 
 const { state, doConfirm, doCancel, doNeutral } = useConfirm()
 const confirmRef = ref<HTMLElement | null>(null)

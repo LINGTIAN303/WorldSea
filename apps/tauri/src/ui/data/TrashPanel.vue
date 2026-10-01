@@ -11,7 +11,7 @@
         </div>
 
         <div class="trash-toolbar" v-if="trashStore.totalCount > 0">
-          <button class="btn btn-danger" @click="confirmEmptyTrash">清空回收站</button>
+          <TuiButton variant="danger-ghost" @click="confirmEmptyTrash">清空回收站</TuiButton>
         </div>
 
         <div class="trash-list">
@@ -22,8 +22,8 @@
               <span class="trash-item-date">{{ formatDate(item.deletedAt) }}</span>
             </div>
             <div class="trash-item-actions">
-              <button class="btn btn-sm" @click="doRestore(item.id)">恢复</button>
-              <button class="btn btn-sm btn-danger" @click="doPermanentDelete(item.id)">永久删除</button>
+              <TuiButton variant="secondary" size="sm" @click="doRestore(item.id)">恢复</TuiButton>
+              <TuiButton variant="danger-ghost" size="sm" @click="doPermanentDelete(item.id)">永久删除</TuiButton>
             </div>
           </div>
 
@@ -37,6 +37,7 @@
 </template>
 
 <script setup lang="ts">
+import { TuiButton } from '@worldsea/ui-kit'
 import { useTrashStore } from '@worldsea/entity-core'
 import { useTrash } from '@worldsea/entity-core'
 
@@ -96,10 +97,5 @@ function close() {
 .trash-item-type { font-size: var(--font-size-xs); color: var(--text-tertiary); background: var(--bg); padding: 2px 6px; border-radius: var(--radius-xs); flex-shrink: 0; }
 .trash-item-date { font-size: var(--font-size-xs); color: var(--text-tertiary); flex-shrink: 0; }
 .trash-item-actions { display: flex; gap: 6px; flex-shrink: 0; margin-left: 12px; }
-.trash-empty { text-align: center; padding: 40px; color: var(--text-tertiary); }
-.btn { padding: 6px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); cursor: pointer; font-size: var(--font-size-sm); }
-.btn:hover { background: var(--bg-hover); }
-.btn.btn-sm { padding: 3px 8px; font-size: var(--font-size-xs); }
-.btn.btn-danger { color: var(--danger); border-color: var(--danger); }
-.btn.btn-danger:hover { background: color-mix(in srgb, var(--danger) 10%, transparent); }
+.trash-empty { text-align: center; padding: 40px; color: var(--text-tertiary); }
 </style>

@@ -89,8 +89,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
-import { useAsk } from '@worldsea/ui-kit'
-import TuiButton from '@/components/ui/TuiButton.vue'
+import { TuiButton, useAsk } from '@worldsea/ui-kit'
 import { useFocusTrap } from '@/composables/useFocusTrap'
 import { useDockPanelRect } from '@/composables/useDockPanelRect'
 

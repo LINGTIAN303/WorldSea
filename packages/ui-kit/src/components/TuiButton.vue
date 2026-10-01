@@ -1,13 +1,15 @@
 <script setup lang="ts">
 /**
- * TuiButton：Tauri 端统一按钮（消除各视图按钮样式分叉）
+ * TuiButton：统一按钮（消除各视图按钮样式分叉）。2026-10-01 自 apps/tauri 下沉至 ui-kit，
+ * 使 plugin-sdk（GEV/EntityPager 等）也能消费，作为全仓唯一按钮组件。
  *
- * 变体：primary（主操作）/ secondary（次操作/描边）/ ghost（弱操作）/ danger（危险）
+ * 变体：primary（主操作）/ secondary（次操作/描边）/ ghost（弱操作）/ danger（危险）/ danger-ghost（危险描边）
  * 尺寸：sm / md；可选 icon 前缀；统一 hover/active/disabled 反馈与按压回弹。
+ * `active`：切换类按钮的「当前态」高亮（accent 描边 + 浅底）。
  * 详细why请见 docs/details/注释/tauri/components/TuiButton.md
  */
 import { computed } from 'vue'
-import { WsIcon } from '@worldsea/ui-kit'
+import WsIcon from './WsIcon.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -18,15 +20,16 @@ const props = withDefaults(
     type?: 'button' | 'submit'
     title?: string
     loading?: boolean
+    active?: boolean
   }>(),
-  { variant: 'secondary', size: 'md', icon: '', disabled: false, type: 'button', title: '', loading: false },
+  { variant: 'secondary', size: 'md', icon: '', disabled: false, type: 'button', title: '', loading: false, active: false },
 )
 
 const emit = defineEmits<{
   (e: 'click', ev: MouseEvent): void
 }>()
 
-const cls = computed(() => [`is-${props.variant}`, `is-${props.size}`, { 'is-loading': props.loading }])
+const cls = computed(() => [`is-${props.variant}`, `is-${props.size}`, { 'is-loading': props.loading, 'is-active': props.active }])
 </script>
 
 <template>
@@ -36,6 +39,7 @@ const cls = computed(() => [`is-${props.variant}`, `is-${props.size}`, { 'is-loa
     :class="cls"
     :disabled="disabled || loading"
     :title="title"
+    :aria-pressed="active || undefined"
     @click="emit('click', $event)"
   >
     <WsIcon v-if="loading" name="dots" :size="size === 'sm' ? 12 : 14" class="tui-btn__spin" :stroke-width="1.7" />
@@ -130,6 +134,12 @@ const cls = computed(() => [`is-${props.variant}`, `is-${props.size}`, { 'is-loa
   background: var(--danger);
   border-color: var(--danger);
   color: var(--on-accent);
+}
+/* 切换类按钮的当前态：accent 描边 + 浅底（2026-10-01 批量态/视图模式切换共用） */
+.tui-btn.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft, color-mix(in srgb, var(--accent) 12%, transparent));
+  color: var(--accent);
 }
 /* 减弱动态偏好：去掉按压位移，保留颜色过渡（Emil 可访问性规则） */
 :root[data-anim-overlays='off'] .tui-btn {

@@ -42,6 +42,7 @@
 | src/components/entity/map/useBorderErase.ts | [useBorderErase.md](packages/ui-kit/components/entity/map/useBorderErase.md) | 抹除/移动边境线 composable（偏移/重划模式） |
 | src/components/entity/map/useDrawing.ts | [useDrawing.md](packages/ui-kit/components/entity/map/useDrawing.md) | 绘制模式 composable（手绘 + Alt 边境线） |
 | src/components/entity/GenericTreeView.vue | [批量选择态.md](packages/plugin-sdk/批量选择态.md) | 树行批量态路由：`showCheckbox` 退役（复选框不再使用），新增 `batchMode`（行点击→选中切换）；势力树经 `OrgTreeNode` 接线（2026-10-01） |
+| src/components/TuiButton.vue | [TuiButton.md](tauri/components/TuiButton.md) | 全仓唯一按钮组件（2026-10-01 自 apps 下沉 + `active` 属性）；收编跨文件重复的 `.btn*` 族（映射见档），基座 `button{color:inherit}` 复位 UA 黑字坑 |
 | src/components/settings/panels/SproutsPanel.vue | — | 芽管理面板（26 个世界观芽开关 + 分类筛选 + 拖拽排序；2026-09-10 由 PluginsPanel 更名；原 27 个，`official.module-builder` 已于 2026-09-25 随「自定义模块」整体剪除） |
 | src/components/settings/settings-panels.css | [settings-panels-convention.md](packages/ui-kit/settings-panels-convention.md) | 设置面板统一约定（三契约/基座样式/scoped 陷阱/卡片清单） |
 | src/index.ts | [index.md](packages/ui-kit/index.md) | ui-kit FACADE 包说明（聚合/委托导出） |
@@ -114,7 +115,6 @@
 | src/components/entity/useEntityFormSave.ts | [entity-form-modal.md](packages/plugin-sdk/entity-form-modal.md) | save 校验/收集（properties/tags/entityRef/autoLink/封面）、实体引用关系同步 |
 | src/components/GenericEntityView.vue | [实体视图滚动链.md](packages/plugin-sdk/实体视图滚动链.md) | 实体卡片网格滚动链：定高容器下 auto 隐式行 / 列向 flex 子项的自动最小尺寸因卡片 overflow:hidden 归零 → 压扁且不出滚动条；`grid-auto-rows:min-content` + `has-custom-list>*{flex-shrink:0}` 修复（2026-10-01） |
 | src/composables/useBatchDelete.ts | [批量选择态.md](packages/plugin-sdk/批量选择态.md) | 批量态状态机（进出清空选中 / 清空≠退出 / 删除后留态）；常驻复选框退役，改显式批量态 + 点击路由（2026-10-01） |
-| src/components/toolbar-buttons.css | [批量选择态.md](packages/plugin-sdk/批量选择态.md) | 工具条按钮共用源（ghost/danger/sm/active）：各消费组件以 `<style scoped src>` 引入，规则落各自作用域、零全局泄漏（GEV + TimelineView 两处去重，2026-10-01） |
 | src/components/EntityPager.vue | [实体视图分页.md](packages/plugin-sdk/实体视图分页.md) | 分页控件（左右箭头 + 当前页/总页数）；抽独立组件保持 GEV 精简、可复用（2026-10-01） |
 | src/components/GenericEntityView.vue（分页） | [实体视图分页.md](packages/plugin-sdk/实体视图分页.md) | 每页 100 条 + `Ctrl+←/→` + 撤「>200 项」警告条；**插槽消费方（区域/势力）不分页**——分页子集会让树丢页外节点（2026-10-01） |
 

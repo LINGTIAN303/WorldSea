@@ -9,7 +9,7 @@
  * 详细why请见 docs/details/注释/tauri/components/TuiConfirm.md
  */
 import TuiModal from './TuiModal.vue'
-import TuiButton from './TuiButton.vue'
+import { TuiButton } from '@worldsea/ui-kit'
 
 const props = withDefaults(
   defineProps<{

@@ -44,10 +44,10 @@
           </div>
 
           <div class="ie-actions">
-            <button class="btn btn-secondary" @click="close">取消</button>
-            <button class="btn btn-primary" @click="doExport" :disabled="exporting">
+            <TuiButton variant="secondary" @click="close">取消</TuiButton>
+            <TuiButton variant="primary" @click="doExport" :disabled="exporting">
               {{ exporting ? '导出中...' : `下载 ${exportFormat.toUpperCase()}` }}
-            </button>
+            </TuiButton>
           </div>
         </div>
 
@@ -93,7 +93,7 @@
           <div class="ie-overwrite-warn" v-if="importPack && importStrategy === 'overwrite' && !overwriteConfirmed">
             <p class="ie-warn-text">覆盖模式将清空所有现有数据！建议先备份。</p>
             <div class="ie-warn-actions">
-              <button class="btn btn-secondary" @click="doBackupFirst">先备份再导入</button>
+              <TuiButton variant="secondary" @click="doBackupFirst">先备份再导入</TuiButton>
               <label class="ie-warn-check">
                 <input type="checkbox" v-model="overwriteConfirmed" />
                 我已了解风险，确认覆盖
@@ -123,13 +123,13 @@
           </div>
 
           <div class="ie-actions" v-if="!importReport">
-            <button class="btn btn-secondary" @click="close">取消</button>
-            <button class="btn btn-danger" @click="doImport" :disabled="!importPack || importing || (importStrategy === 'overwrite' && !overwriteConfirmed)">
+            <TuiButton variant="secondary" @click="close">取消</TuiButton>
+            <TuiButton variant="danger-ghost" @click="doImport" :disabled="!importPack || importing || (importStrategy === 'overwrite' && !overwriteConfirmed)">
               {{ importing ? '导入中...' : '导入数据' }}
-            </button>
+            </TuiButton>
           </div>
           <div class="ie-actions" v-else>
-            <button class="btn btn-primary" @click="close">完成</button>
+            <TuiButton variant="primary" @click="close">完成</TuiButton>
           </div>
         </div>
       </div>
@@ -153,7 +153,7 @@ import {
   type ImportStrategy,
   type ImportReport,
 } from '@worldsea/entity-core'
-import { useResizable, useModalShortcuts } from '@worldsea/ui-kit'
+import { TuiButton, useResizable, useModalShortcuts  } from '@worldsea/ui-kit'
 import WsIcon from '../WsIcon.vue'
 
 const props = defineProps<{ show: boolean }>()

@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { onMounted, computed, ref } from 'vue'
-import { WsIcon } from '@worldsea/ui-kit'
+import { TuiButton, WsIcon } from '@worldsea/ui-kit'
 import { CardDeck } from '@worldsea/ui-kit'
-import TuiButton from '@/components/ui/TuiButton.vue'
 import TuiCheckbox from '@/components/ui/TuiCheckbox.vue'
 import { useStorageStats } from '@worldsea/entity-core/composables'
 import { useOrphanCleanup } from '@worldsea/entity-core/composables'

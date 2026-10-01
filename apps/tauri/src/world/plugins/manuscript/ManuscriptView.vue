@@ -142,8 +142,8 @@
             <span class="ms-snap-time">{{ formatTime(snap.time) }}</span>
             <span class="ms-snap-words">{{ snap.wordCount }}字</span>
             <span v-if="snap.label" class="ms-snap-label">{{ snap.label }}</span>
-            <button class="btn-sm" @click="restoreSnap(idx)">恢复</button>
-            <button class="btn-sm btn-danger-sm" @click="deleteSnap(idx)" aria-label="删除快照"><WsIcon name="close" size="xs" /></button>
+            <TuiButton variant="secondary" size="sm" @click="restoreSnap(idx)">恢复</TuiButton>
+            <TuiButton variant="secondary" size="sm" class="btn-danger-sm" @click="deleteSnap(idx)" aria-label="删除快照"><WsIcon name="close" size="xs" /></TuiButton>
           </div>
           <WsEmpty v-if="snapshots.length === 0" preset="no-data" title="暂无版本快照" />
         </div>
@@ -182,7 +182,7 @@ import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import draggable from 'vuedraggable'
 import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
 import { useDuplicateNameCheck, CustomDropdown, CreateButton } from '@worldsea/plugin-sdk'
-import { WsIcon, WsEmpty, useConfirm } from '@worldsea/ui-kit'
+import { TuiButton, WsIcon, WsEmpty, useConfirm  } from '@worldsea/ui-kit'
 import ChapterEditor from './components/ChapterEditor.vue'
 import ChapterList from './components/ChapterList.vue'
 import PhonePreview from './components/PhonePreview.vue'

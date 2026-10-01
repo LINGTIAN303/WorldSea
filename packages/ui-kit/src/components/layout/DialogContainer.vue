@@ -18,8 +18,8 @@
             />
           </div>
           <div class="dialog-actions">
-            <button v-if="state.mode !== 'alert'" class="btn-secondary" @click="cancel">取消</button>
-            <button class="btn-primary" @click="ok">{{ state.mode === 'confirm' ? '确定' : state.mode === 'alert' ? '知道了' : '确定' }}</button>
+            <TuiButton v-if="state.mode !== 'alert'" variant="secondary" @click="cancel">取消</TuiButton>
+            <TuiButton variant="primary" @click="ok">{{ state.mode === 'confirm' ? '确定' : state.mode === 'alert' ? '知道了' : '确定' }}</TuiButton>
           </div>
         </div>
       </div>
@@ -29,7 +29,7 @@
 
 <script setup lang="ts">
 import { watch, nextTick, ref, onBeforeUnmount } from 'vue'
-import { useDialog, setShortcutModalActive } from '@worldsea/ui-kit'
+import { TuiButton, useDialog, setShortcutModalActive  } from '@worldsea/ui-kit'
 
 // 注册表弹窗深度守卫标记（本实例是否已入栈，防重复/泄漏）
 let modalGuardActive = false
@@ -132,9 +132,5 @@ onBeforeUnmount(() => {
 }
 .dialog-input:focus { border-color: var(--accent); }
 .dialog-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
-.btn-secondary { padding: 7px 16px; background: var(--bg-tertiary); color: #888; border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; font-size: var(--font-size-sm); }
-.btn-primary { padding: 7px 16px; background: var(--accent-bg); color: var(--accent); border: 1px solid var(--accent); border-radius: var(--radius-sm); cursor: pointer; font-size: var(--font-size-sm); }
-.btn-secondary:hover { background: var(--color-border); }
-.btn-primary:hover { background: var(--color-primary-active); }
 
 </style>

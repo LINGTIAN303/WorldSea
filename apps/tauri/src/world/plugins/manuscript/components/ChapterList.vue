@@ -87,8 +87,8 @@
           @keyup.enter="confirmRename"
         />
         <div class="cl-modal-actions">
-          <button class="btn-secondary btn-sm" @click="showRenameInput = false">取消</button>
-          <button class="btn-primary btn-sm" @click="confirmRename">确定</button>
+          <TuiButton variant="secondary" size="sm" @click="showRenameInput = false">取消</TuiButton>
+          <TuiButton variant="primary" size="sm" @click="confirmRename">确定</TuiButton>
         </div>
       </div>
     </div>
@@ -112,8 +112,8 @@
           </div>
         </div>
         <div class="cl-modal-actions">
-          <button class="btn-secondary btn-sm" @click="showBookPicker = false">取消</button>
-          <button class="btn-primary btn-sm" @click="confirmBookMove">确定</button>
+          <TuiButton variant="secondary" size="sm" @click="showBookPicker = false">取消</TuiButton>
+          <TuiButton variant="primary" size="sm" @click="confirmBookMove">确定</TuiButton>
         </div>
       </div>
     </div>
@@ -123,8 +123,8 @@
         <h4>修改所属卷</h4>
         <input v-model="volumeInputVal" class="cl-input" placeholder="卷名（留空=未分组）" @keyup.enter="confirmVolume" />
         <div class="cl-modal-actions">
-          <button class="btn-secondary btn-sm" @click="showVolumeInput = false">取消</button>
-          <button class="btn-primary btn-sm" @click="confirmVolume">确定</button>
+          <TuiButton variant="secondary" size="sm" @click="showVolumeInput = false">取消</TuiButton>
+          <TuiButton variant="primary" size="sm" @click="confirmVolume">确定</TuiButton>
         </div>
       </div>
     </div>
@@ -147,8 +147,8 @@
           </div>
         </div>
         <div class="cl-modal-actions">
-          <button class="btn-secondary btn-sm" @click="showOutlinePicker = false">取消</button>
-          <button class="btn-primary btn-sm" @click="confirmOutline">确定</button>
+          <TuiButton variant="secondary" size="sm" @click="showOutlinePicker = false">取消</TuiButton>
+          <TuiButton variant="primary" size="sm" @click="confirmOutline">确定</TuiButton>
         </div>
       </div>
     </div>
@@ -158,7 +158,7 @@
 <script setup lang="ts">
 import { ref, computed, reactive, watch, nextTick, onBeforeUnmount } from 'vue'
 import draggable from 'vuedraggable'
-import { WsIcon } from '@worldsea/ui-kit'
+import { TuiButton, WsIcon  } from '@worldsea/ui-kit'
 import { WsEmpty } from '@worldsea/ui-kit'
 import { useEntityStore } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
