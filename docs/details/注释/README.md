@@ -21,6 +21,7 @@
 | vite.config.ts | [vite-config.md](tauri/vite-config.md) | Tauri 端 Vite 配置：IPC 直连设计原则、WASM 算法降级、端口与构建触发 |
 | src/memory-archive/adapters/TauriFsOperations.ts | [TauriFsOperations.md](tauri/TauriFsOperations.md) | FsOperations 的 Tauri 实现：cmd_fs_* 命令映射 |
 | src/ui/layout/sidebar/viewOrder.ts | — | 侧栏可见视图**唯一顺序口径**（`isViewVisible` 过滤 + `sidebarOrder` 排序）：渲染（SidebarV2）与 `Ctrl+↑/↓` 切换（Shell）共用，修「切得太多/乱跳」（2026-10-01；短注释未立文档） |
+| src/world/plugins/regions/RegionList.vue | [实体视图滚动链.md](packages/plugin-sdk/实体视图滚动链.md) | 区域视图：插槽自绘卡片/树的样式自带、批量态路由、视图切换按钮必须显式写 `color`（button 在 UA 里是 `color:buttontext` 不继承，缺省则图标不跟随主题）（2026-10-01） |
 | 拆分记录（2026-08-06） | — | coreBackend.ts 按领域拆为 src/core/api/（schema / retrofit / entity / algo / health / runtime + index 聚合），coreBackend.ts 保留 `export * from './api'`，类型统一来自 @worldsea/core-api-types，公共导出签名不变，原 import 处无需改动；各新文件无 ≥ 10 行连续注释块，未生成新文档 |
 
 > ~~src-tauri/src/commands.rs~~（commands.md）、search-config / net-egress / web-fetch / useTerminalRust /

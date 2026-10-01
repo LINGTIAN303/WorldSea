@@ -356,8 +356,11 @@ function onRelSelect(entity: any) {
 </script>
 
 <style scoped>
-.btn-view { width: 36px; height: 36px; border: 1px solid var(--border-color); border-radius: var(--radius-xs); cursor: pointer; font-size: var(--font-size-base); background: var(--card-bg); display: inline-flex; align-items: center; justify-content: center; }
-.btn-view.active { border-color: var(--primary); background: var(--primary-light); }
+/* 视图切换按钮：必须显式写 color——button 元素在 UA 样式表里是 color:buttontext（不继承），
+   缺省时图标恒为黑色、不跟随主题（2026-10-01 走查修复） */
+.btn-view { width: 36px; height: 36px; border: 1px solid var(--border-color); border-radius: var(--radius-xs); cursor: pointer; font-size: var(--font-size-base); background: var(--card-bg); color: var(--text-secondary); display: inline-flex; align-items: center; justify-content: center; }
+.btn-view:hover { color: var(--text-color); border-color: var(--border-strong, var(--border-color)); }
+.btn-view.active { border-color: var(--primary); background: var(--primary-light); color: var(--primary); }
 
 .tree-view { flex: 1; overflow-y: auto; }
 /* 卡片模式自包网格 + 自带卡片样式：#list 插槽内容带父作用域 id，GEV 的 scoped 卡片样式作用不到这里；
