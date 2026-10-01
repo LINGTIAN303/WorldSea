@@ -111,6 +111,7 @@
 | src/components/entity/useEntityFormSave.ts | [entity-form-modal.md](packages/plugin-sdk/entity-form-modal.md) | save 校验/收集（properties/tags/entityRef/autoLink/封面）、实体引用关系同步 |
 | src/components/GenericEntityView.vue | [实体视图滚动链.md](packages/plugin-sdk/实体视图滚动链.md) | 实体卡片网格滚动链：定高容器下 auto 隐式行 / 列向 flex 子项的自动最小尺寸因卡片 overflow:hidden 归零 → 压扁且不出滚动条；`grid-auto-rows:min-content` + `has-custom-list>*{flex-shrink:0}` 修复（2026-10-01） |
 | src/composables/useBatchDelete.ts | [批量选择态.md](packages/plugin-sdk/批量选择态.md) | 批量态状态机（进出清空选中 / 清空≠退出 / 删除后留态）；常驻复选框退役，改显式批量态 + 点击路由（2026-10-01） |
+| src/components/toolbar-buttons.css | [批量选择态.md](packages/plugin-sdk/批量选择态.md) | 工具条按钮共用源（ghost/danger/sm/active）：各消费组件以 `<style scoped src>` 引入，规则落各自作用域、零全局泄漏（GEV + TimelineView 两处去重，2026-10-01） |
 
 > ~~src/agent-descriptor.ts~~（pluginSdkDescriptor）已于 2026-09-27 E8 随 Agent 工具目录退场。
 

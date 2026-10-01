@@ -431,29 +431,12 @@ onMounted(async () => {
   color: var(--text-color, var(--color-text-primary)); outline: none; min-width: 160px;
 }
 .search-input:focus { border-color: var(--primary); box-shadow: 0 0 0 2px var(--color-primary-subtle); }
-.btn-ghost {
-  padding: 4px 10px; font-size: var(--font-size-sm);
-  border: 1px solid var(--border-color, var(--color-border));
-  border-radius: var(--radius-sm); background: var(--color-bg-elevated);
-  color: var(--text-color, var(--color-text-primary)); cursor: pointer;
-  white-space: nowrap; transition: background .15s, border-color .15s;
-}
-.btn-ghost:hover { background: var(--hover-bg, var(--color-bg-hover)); }
-.btn-danger {
-  padding: 4px 10px; font-size: var(--font-size-sm);
-  border: 1px solid var(--danger); border-radius: var(--radius-sm);
-  background: transparent; color: var(--danger); cursor: pointer; white-space: nowrap;
-}
-.btn-danger:hover { background: color-mix(in srgb, var(--danger) 12%, transparent); }
-.btn-sm { padding: 5px 12px; font-size: var(--font-size-sm); }
 /* ── 事件详情面板内容（自私有 EventDetailPanel 收敛而来）── */
 .detail-section { margin: 12px 0; }
 .detail-section h4 { font-size: var(--font-size-sm); color: var(--color-text-secondary); margin-bottom: 6px; border-bottom: 1px solid var(--color-border); padding-bottom: 4px; }
 .involved-item { padding: 4px 8px; font-size: var(--font-size-sm); border-radius: var(--radius-sm); }
 .involved-item:hover { background: var(--color-bg-hover); }
-.btn-ghost.active {
-  background: var(--primary-light);
-  color: var(--primary);
-  border-color: var(--primary);
-}
+/* 工具条按钮规格见共享源（scoped src 引入，规则落入本视图作用域） */
 </style>
+
+<style scoped src="@worldsea/plugin-sdk/components/toolbar-buttons.css"></style>

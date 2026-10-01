@@ -780,30 +780,6 @@ defineExpose({
 .entity-card-wrapper.batch-mode { cursor: pointer; }
 .entity-card-wrapper.batch-mode:hover { border-color: var(--accent, #4f46e5); border-style: dashed; }
 
-/* 工具条按钮（本组件自持；与 TimelineView 同名类同规格，保证跨视图一致） */
-.btn-ghost,
-.btn-danger {
-  padding: 4px 10px;
-  font-size: var(--font-size-sm);
-  border: 1px solid var(--border-color, var(--color-border));
-  border-radius: var(--radius-sm);
-  background: var(--color-bg-elevated);
-  color: var(--text-color, var(--color-text-primary));
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background var(--dur-fast, 0.15s), border-color var(--dur-fast, 0.15s);
-}
-.btn-ghost:hover { background: var(--hover-bg, var(--color-bg-hover)); }
-.btn-danger { border-color: var(--danger); background: transparent; color: var(--danger); }
-.btn-danger:hover { background: color-mix(in srgb, var(--danger) 12%, transparent); }
-.btn-sm { padding: 5px 12px; font-size: var(--font-size-sm); }
-/* 批量选择按钮激活态：accent 描边 + 浅底，供「当前处于批量态」自明 */
-.btn-ghost.active {
-  border-color: var(--accent, #4f46e5);
-  background: var(--accent-soft, #eef2ff);
-  color: var(--accent, #4f46e5);
-}
-
 /* 翻转容器（3D 双面） */
 .entity-card-flipper {
   position: relative;
@@ -844,3 +820,6 @@ defineExpose({
 .dp-rel-name { color: var(--text); }
 .dp-rel-meta { color: var(--text-tertiary); font-size: var(--font-size-xs); margin-left: auto; }
 </style>
+
+<!-- 工具条按钮共用源：以 scoped src 引入 → 规则落入本组件作用域，不产生全局泄漏 -->
+<style scoped src="./toolbar-buttons.css"></style>

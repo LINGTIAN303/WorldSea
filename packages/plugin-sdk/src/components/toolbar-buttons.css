@@ -1,0 +1,33 @@
+/* 视图工具条按钮共用源（toolbar-actions 落点内的操作按钮：批量选择 / 删除选中 / 取消选择等）。
+ *
+ * 消费方以 `<style scoped src="...">` 引入 → 同一份规则分别落入各消费组件的作用域，
+ * 不产生全局泄漏（对比：全局 CSS 会连带染色所有未定义 .btn-* 的面板，影响面不可控）。
+ * 消费方：GenericEntityView（全部实体视图）、TimelineView（时间线工具条）。
+ * 改这里＝同时改两处观感；why 与批量态语义见 docs/details/注释/packages/plugin-sdk/批量选择态.md
+ */
+.btn-ghost,
+.btn-danger {
+  padding: 4px 10px;
+  font-size: var(--font-size-sm);
+  border: 1px solid var(--border-color, var(--color-border));
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-elevated);
+  color: var(--text-color, var(--color-text-primary));
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s, border-color .15s;
+}
+.btn-ghost:hover { background: var(--hover-bg, var(--color-bg-hover)); }
+.btn-danger {
+  border-color: var(--danger);
+  background: transparent;
+  color: var(--danger);
+}
+.btn-danger:hover { background: color-mix(in srgb, var(--danger) 12%, transparent); }
+.btn-sm { padding: 5px 12px; font-size: var(--font-size-sm); }
+/* 激活态（切换类按钮）：供「当前处于该态」自明 */
+.btn-ghost.active {
+  background: var(--primary-light);
+  color: var(--primary);
+  border-color: var(--primary);
+}
