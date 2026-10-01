@@ -10,6 +10,7 @@
     entity-label="区域"
     id-prefix="rgn"
     :icon-fn="iconFn"
+    :paginate-slot="viewMode === 'grid'"
     @select-entity="onSelectEntity"
   >
     <!-- Toolbar: view mode toggle buttons -->
@@ -26,7 +27,7 @@
     </template>
 
     <!-- Custom list slot: tree view or map view; fall through to default for cards -->
-    <template #list="{ entities, pagedEntities, page, totalPages, setPage, selectedIds: batchIds, toggleSelect: batchToggle, select: selectFn, batchMode }">
+    <template #list="{ entities, pagedEntities, selectedIds: batchIds, toggleSelect: batchToggle, select: selectFn, batchMode }">
       <!-- Tree view -->
       <div v-if="viewMode === 'tree' && entities.length" class="tree-view">
         <div v-for="item in visibleTree(entities)" :key="item.entity.id" class="tree-item"
@@ -78,8 +79,6 @@
           </div>
         </div>
       </div>
-      <!-- 卡片模式的分页控件：复用 GEV 的页状态（Ctrl+←/→ 由 GEV 注册，此处自动生效） -->
-      <EntityPager v-if="viewMode === 'grid' && totalPages > 1" :page="page" :total="totalPages" @prev="setPage(page - 1)" @next="setPage(page + 1)" />
 
       <WsEmpty v-if="entities.length === 0" title="暂无区域" description="点击上方按钮创建第一个区域">
         <template #icon><WsIcon name="region" size="xl" /></template>
@@ -148,7 +147,7 @@
 import { ref, computed, reactive } from 'vue'
 import { GenericEntityView, type FilterDef, type CardFieldDef, type CustomTabDef, type RelationTabDef } from '@worldsea/plugin-sdk'
 import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
-import { EntityRelationSelector, EntityPager } from '@worldsea/plugin-sdk'
+import { EntityRelationSelector } from '@worldsea/plugin-sdk'
 import { RegionMap, WsIcon, WsEmpty } from '@worldsea/ui-kit'
 import { regionFields, typeIconMap } from './regionConfig'
 

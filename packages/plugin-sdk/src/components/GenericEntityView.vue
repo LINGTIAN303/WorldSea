@@ -25,8 +25,8 @@
     <Teleport to="#view-toolbar-actions">
       <div class="toolbar-actions">
         <slot name="toolbar-extra" />
-        <!-- 分页只管 GEV 默认卡片网格：插槽消费方（区域/势力）自绘树/网格，分页子集会让树丢页外节点 -->
-        <EntityPager v-if="totalPages > 1 && !hasListSlot" :page="page" :total="totalPages" @prev="pagePrev" @next="pageNext" />
+        <!-- 分页只管 GEV 默认卡片网格；插槽消费方经 paginate-slot 显式开启（其自绘列表里树等形态不能分页） -->
+        <EntityPager v-if="totalPages > 1 && (!hasListSlot || paginateSlot)" :page="page" :total="totalPages" @prev="pagePrev" @next="pageNext" />
         <button
           class="btn-ghost btn-sm"
           :class="{ active: selecting }"
@@ -52,9 +52,6 @@
         name="list"
         :entities="filteredList"
         :paged-entities="pagedList"
-        :page="page"
-        :total-pages="totalPages"
-        :set-page="setPage"
         :selected-ids="selectedIds"
         :toggle-select="toggleSelect"
         :select="selectEntity"
@@ -296,6 +293,8 @@ const props = withDefaults(defineProps<{
   facetOnCreate?: string
   /** 每页条数（分页；超 1 页时工具条出现翻页控件） */
   pageSize?: number
+  /** 插槽消费方也启用分页（工具条分页器 + 槽属性 paged-entities）；默认关，因自绘树等形态不能分页 */
+  paginateSlot?: boolean
 }>(), {
   filterOptions: () => [{ value: '', label: '全部' }],
   filterDefs: () => [],
@@ -309,6 +308,7 @@ const props = withDefaults(defineProps<{
   hideCreateButton: false,
   facetOnCreate: '',
   pageSize: 100,
+  paginateSlot: false,
 })
 
 const entityStore = useEntityStore()
@@ -460,8 +460,6 @@ const pagedHighlight = computed(() => listHighlight.applyToList(pagedList.value)
 
 function pagePrev() { if (page.value > 1) page.value -= 1 }
 function pageNext() { if (page.value < totalPages.value) page.value += 1 }
-/** 供插槽消费方自绘分页控件时复用同一份页状态（含 Ctrl+←/→ 的注册） */
-function setPage(n: number) { page.value = Math.min(Math.max(1, n), totalPages.value) }
 
 // 过滤/排序变化可能把当前页挤出范围 → 收敛到末页；搜索词变化直接回第 1 页
 watch(totalPages, (tp) => { if (page.value > tp) page.value = tp })
