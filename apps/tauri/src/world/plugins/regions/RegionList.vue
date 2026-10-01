@@ -26,7 +26,7 @@
     </template>
 
     <!-- Custom list slot: tree view or map view; fall through to default for cards -->
-    <template #list="{ entities, selectedIds: batchIds, toggleSelect: batchToggle, select: selectFn, batchMode }">
+    <template #list="{ entities, pagedEntities, page, totalPages, setPage, selectedIds: batchIds, toggleSelect: batchToggle, select: selectFn, batchMode }">
       <!-- Tree view -->
       <div v-if="viewMode === 'tree' && entities.length" class="tree-view">
         <div v-for="item in visibleTree(entities)" :key="item.entity.id" class="tree-item"
@@ -53,10 +53,11 @@
       <!-- Map view -->
       <RegionMap v-else-if="viewMode === 'map' && entities.length" :regions="entities" @select="(e: any) => { selectedRegion = e; selectFn(e) }" />
 
-      <!-- Cards view: 自包 grid 容器（插槽内容带父作用域 id，GEV 的卡片样式作用不到，样式见本文件 .region-card-grid 段） -->
+      <!-- Cards view: 自包 grid 容器（插槽内容带父作用域 id，GEV 的卡片样式作用不到，样式见本文件 .region-card-grid 段）。
+           分页只作用于卡片模式：树/地图需要全量（页外子节点会丢），故它们仍用 entities -->
       <div v-else-if="viewMode === 'grid'" class="region-card-grid">
         <div
-          v-for="e in entities"
+          v-for="e in pagedEntities"
           :key="e.id"
           class="entity-card-wrapper"
           :class="{ 'batch-selected': batchIds.has(e.id), 'batch-mode': batchMode }"
@@ -77,6 +78,8 @@
           </div>
         </div>
       </div>
+      <!-- 卡片模式的分页控件：复用 GEV 的页状态（Ctrl+←/→ 由 GEV 注册，此处自动生效） -->
+      <EntityPager v-if="viewMode === 'grid' && totalPages > 1" :page="page" :total="totalPages" @prev="setPage(page - 1)" @next="setPage(page + 1)" />
 
       <WsEmpty v-if="entities.length === 0" title="暂无区域" description="点击上方按钮创建第一个区域">
         <template #icon><WsIcon name="region" size="xl" /></template>
@@ -143,17 +146,17 @@
 
 <script setup lang="ts">
 import { ref, computed, reactive } from 'vue'
-import { GenericEntityView, type FormFieldDef, type FilterDef, type CardFieldDef, type CustomTabDef, type RelationTabDef } from '@worldsea/plugin-sdk'
+import { GenericEntityView, type FilterDef, type CardFieldDef, type CustomTabDef, type RelationTabDef } from '@worldsea/plugin-sdk'
 import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
-import { EntityRelationSelector } from '@worldsea/plugin-sdk'
+import { EntityRelationSelector, EntityPager } from '@worldsea/plugin-sdk'
 import { RegionMap, WsIcon, WsEmpty } from '@worldsea/ui-kit'
-import { typeIconMap } from './regionConfig'
+import { regionFields, typeIconMap } from './regionConfig'
 
 const entityStore = useEntityStore()
 const relationStore = useRelationStore()
 
-// ── View mode ──
-const viewMode = ref<string>('tree')
+// ── View mode（2026-10-01：默认卡片；树/地图仍可切）──
+const viewMode = ref<string>('grid')
 const selectedRegion = ref<any>(null)
 
 // ── Tree expand state ──
@@ -167,35 +170,9 @@ function iconFn() { return 'region' }
 function typeIcon(r: any) { return typeIconMap[r.properties?.regionType as string] || 'region' }
 
 // ── Form fields ──
-const fields: FormFieldDef[] = [
-  { key: 'name', label: '名称', type: 'text', required: true, placeholder: '区域名称' },
-  { key: 'description', label: '描述', type: 'textarea', placeholder: '简要描述' },
-  { key: 'regionType', label: '类型', type: 'select', options: [
-    { value: '大陆', label: '大陆' }, { value: '国家', label: '国家' },
-    { value: '行省', label: '行省' }, { value: '城市', label: '城市' },
-    { value: '地标', label: '地标' }, { value: '区域', label: '区域' },
-  ] },
-  { key: 'climate', label: '气候', type: 'select', options: [
-    { value: '热带雨林', label: '热带雨林' }, { value: '热带草原', label: '热带草原' },
-    { value: '热带沙漠', label: '热带沙漠' }, { value: '地中海', label: '地中海' },
-    { value: '温带海洋', label: '温带海洋' }, { value: '温带大陆', label: '温带大陆' },
-    { value: '温带季风', label: '温带季风' }, { value: '亚寒带', label: '亚寒带' },
-    { value: '寒带苔原', label: '寒带苔原' }, { value: '寒带冰原', label: '寒带冰原' },
-    { value: '高山高原', label: '高山高原' },
-  ] },
-  { key: 'population', label: '人口', type: 'number' },
-  { key: 'area', label: '面积', type: 'text' },
-  { key: 'government', label: '政体/统治', type: 'select', options: [
-    { value: '君主制', label: '君主制' }, { value: '共和制', label: '共和制' },
-    { value: '民主制', label: '民主制' }, { value: '寡头制', label: '寡头制' },
-    { value: '神权制', label: '神权制' }, { value: '军事独裁', label: '军事独裁' },
-    { value: '部落制', label: '部落制' }, { value: '联邦制', label: '联邦制' },
-    { value: '其他', label: '其他' },
-  ] },
-  { key: 'significance', label: '重要性', type: 'textarea' },
-  { key: 'tags', label: '标签', type: 'tags' },
-]
+const fields = regionFields
 
+// ── Filter definitions ──
 // ── Filter definitions ──
 const filterDefs: FilterDef[] = [
   { key: 'regionType', label: '类型', dynamic: true },

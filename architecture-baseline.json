@@ -61,7 +61,7 @@
     "packages/memory-archive/src/storage/IdbStorageAdapter.ts": 469,
     "packages/plugin-sdk/src/components/EntityFormModal.vue": 490,
     "packages/plugin-sdk/src/components/EntityRelationSelector.vue": 597,
-    "packages/plugin-sdk/src/components/GenericEntityView.vue": 865,
+    "packages/plugin-sdk/src/components/GenericEntityView.vue": 878,
     "packages/plugin-sdk/src/components/ImageField.vue": 402,
     "packages/plugin-sdk/src/components/SmartFieldAdder.vue": 503,
     "packages/plugin-sdk/src/components/UniversalRelationPanel.vue": 924,

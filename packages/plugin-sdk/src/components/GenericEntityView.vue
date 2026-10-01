@@ -48,7 +48,18 @@
     </Teleport>
 
     <div class="entity-grid" :class="{ 'is-empty': !hasListSlot && filteredList.length === 0, 'has-custom-list': hasListSlot }">
-      <slot name="list" :entities="filteredList" :selected-ids="selectedIds" :toggle-select="toggleSelect" :select="selectEntity" :batch-mode="selecting">
+      <slot
+        name="list"
+        :entities="filteredList"
+        :paged-entities="pagedList"
+        :page="page"
+        :total-pages="totalPages"
+        :set-page="setPage"
+        :selected-ids="selectedIds"
+        :toggle-select="toggleSelect"
+        :select="selectEntity"
+        :batch-mode="selecting"
+      >
         <div
           v-for="(e, idx) in pagedList"
           :key="e.id"
@@ -449,6 +460,8 @@ const pagedHighlight = computed(() => listHighlight.applyToList(pagedList.value)
 
 function pagePrev() { if (page.value > 1) page.value -= 1 }
 function pageNext() { if (page.value < totalPages.value) page.value += 1 }
+/** 供插槽消费方自绘分页控件时复用同一份页状态（含 Ctrl+←/→ 的注册） */
+function setPage(n: number) { page.value = Math.min(Math.max(1, n), totalPages.value) }
 
 // 过滤/排序变化可能把当前页挤出范围 → 收敛到末页；搜索词变化直接回第 1 页
 watch(totalPages, (tp) => { if (page.value > tp) page.value = tp })
