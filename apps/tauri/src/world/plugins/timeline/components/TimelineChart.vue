@@ -123,6 +123,7 @@ import type { ParsedDate, EraInfo } from '../composables/useDateParser'
 import type { TreeNode as TreeNodeType } from '../composables/useEventTree'
 import { useTimelineScale } from '../composables/useTimelineScale'
 import { useSwimlaneLayout } from '../composables/useSwimlaneLayout'
+import { buildEraGroups } from '../composables/eraGroups'
 
 import TimelineAxis from './TimelineAxis.vue'
 import TimelineMinimap from './TimelineMinimap.vue'
@@ -135,6 +136,8 @@ import TreeNode from './TreeNode.vue'
 
 const props = defineProps<{
   events: Entity[]
+  /** 时序表的当前页子集（省略 = 不分页）；只作用于「竖向 + 时序表」分支，见 verticalEvents */
+  pagedEvents?: Entity[]
   parsedDates: Map<string, ParsedDate | null>
   depthMap: Map<string, number>
   selectedEventId: string | null
@@ -255,32 +258,14 @@ function getEventY(event: Entity): number {
   return assignment?.pixelY ?? 0
 }
 
-const eraGroups = computed(() => {
-  if (props.eras.length === 0) {
-    return [{ era: '', range: '', events: props.events }]
-  }
-  const eraSet = new Set(props.eras.map(e => e.name))
-  const groups: { era: string; range: string; events: Entity[] }[] = []
-  for (const era of props.eras) {
-    groups.push({ era: era.name, range: `${era.startYear} ~ ${era.endYear}`, events: [] })
-  }
-  const noEraGroup = { era: '未知纪元', range: '', events: [] as Entity[] }
-  let hasNoEra = false
-  for (const event of props.events) {
-    const eraText = (event.properties.era as string) || ''
-    const eraName = eraText || '未知纪元'
-    if (eraSet.has(eraName)) {
-      const group = groups.find(g => g.era === eraName)
-      if (group) group.events.push(event)
-    } else {
-      noEraGroup.events.push(event)
-      hasNoEra = true
-    }
-  }
-  const result = groups.filter(g => g.events.length > 0)
-  if (hasNoEra) result.push(noEraGroup)
-  return result
-})
+/** 竖向列表的数据源：时序表吃分页子集（DOM 条目数随事件量线性增长），大纲树仍吃全量——
+ *  分页子集会让树丢掉页外子节点（与 GEV 的分页边界同一口径）。横向画布不经此处：
+ *  泳道/标尺/缩略图必须基于全量时间跨度，切页会让轴与缩略图失真。 */
+const verticalEvents = computed(() =>
+  props.sortMode === 'chrono' && props.pagedEvents ? props.pagedEvents : props.events,
+)
+
+const eraGroups = computed(() => buildEraGroups(verticalEvents.value, props.eras))
 
 function getRootNodesForGroup(group: { events: Entity[] }): TreeNodeType[] {
   const eventIds = new Set(group.events.map(e => e.id))

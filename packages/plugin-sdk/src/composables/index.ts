@@ -15,6 +15,7 @@ export { useSelection, SelectionKey, provideGlobalSelection, type SelectionState
 export { useLoading } from './useLoading'
 export { useEntityEdit, type EditFormValues } from './useEntityEdit'
 export { useBatchDelete } from './useBatchDelete'
+export { useEntityPaging } from './useEntityPaging'
 export { useDuplicateNameCheck } from './useDuplicateNameCheck'
 export { useUndoRedo, isUndoing } from '@worldsea/entity-core/composables'
 export { useHighlight, type HighlightOptions } from './useHighlight'

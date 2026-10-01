@@ -46,6 +46,8 @@ export const SHORTCUT_CATALOG: ShortcutItem[] = [
   { id: 'timeline.undo', description: '时间轴：撤销', keys: ['ctrl', 'z'], scope: 'view' },
   { id: 'timeline.redo', description: '时间轴：重做', keys: ['ctrl', 'y'], scope: 'view' },
   { id: 'timeline.close', description: '时间轴：关闭详情 / 退出批量选择', keys: ['escape'], scope: 'view' },
+  { id: 'timeline.page-prev', description: '时间轴：上一页', keys: ['ctrl', 'left'], scope: 'view' },
+  { id: 'timeline.page-next', description: '时间轴：下一页', keys: ['ctrl', 'right'], scope: 'view' },
   { id: 'region.borderline', description: '区域图谱：边境线模式', keys: ['alt'], scope: 'view' },
   { id: 'region.erase-confirm', description: '区域图谱：确认偏移边境线', keys: ['enter'], scope: 'view' },
   { id: 'region.erase-cancel', description: '区域图谱：取消边境线编辑', keys: ['escape'], scope: 'view' },

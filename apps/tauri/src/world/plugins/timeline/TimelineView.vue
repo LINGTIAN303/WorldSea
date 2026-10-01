@@ -16,6 +16,8 @@
       <TuiButton v-if="sortMode === 'tree'" variant="secondary" size="sm" icon="collapse" title="全部折叠" @click="tree.collapseAll()">折叠</TuiButton>
       <TuiButton v-if="layoutMode === 'vertical'" variant="secondary" size="sm" :active="compactMode" icon="list" title="紧凑模式" @click="compactMode = !compactMode">{{ compactMode ? '紧凑' : '展开' }}</TuiButton>
       <TuiButton variant="secondary" size="sm" icon="warning" :title="hasConflicts ? `${conflicts.length} 个冲突` : '检测时间冲突'" @click="showConflicts = true">冲突{{ hasConflicts ? ` (${conflicts.length})` : '' }}</TuiButton>
+      <!-- 分页只在「竖向 + 时序表」出现：横向画布吃全量时间跨度、大纲树分页会丢页外子节点 -->
+      <EntityPager v-if="pageable && totalPages > 1" :page="page" :total="totalPages" @prev="pagePrev" @next="pageNext" />
       <TuiButton variant="secondary" size="sm" :active="selecting" :title="selecting ? '退出批量选择（Esc）' : '进入批量选择'" @click="toggleSelectMode">批量选择</TuiButton>
       <TuiButton v-if="selectedIds.size > 0" variant="danger-ghost" size="sm" icon="delete" @click="batchDelete(filteredEvents, '事件')">删除 ({{ selectedIds.size }})</TuiButton>
       <TuiButton v-if="selectedIds.size > 0" variant="secondary" size="sm" @click="clearSelection">取消选择</TuiButton>
@@ -26,6 +28,7 @@
 
     <TimelineChart
       :events="filteredEvents"
+      :paged-events="pagedEvents"
       :parsed-dates="parsedDates"
       :depth-map="depthMap"
       :selected-event-id="selectedEvent?.id ?? null"
@@ -116,10 +119,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
-import { CustomDropdown, EntityFormModal, CreateButton, EntityDetailPanel, DetailField, DynamicFieldsAdder, UniversalRelationPanel, EntityRelationSelector, useDuplicateNameCheck, useShortcuts, useBatchDelete, useConfirm, useEntityEdit, type FormFieldDef } from '@worldsea/plugin-sdk'
+import { CustomDropdown, EntityFormModal, CreateButton, EntityDetailPanel, DetailField, DynamicFieldsAdder, UniversalRelationPanel, EntityRelationSelector, EntityPager, useDuplicateNameCheck, useShortcuts, useBatchDelete, useConfirm, useEntityEdit, useEntityPaging, type FormFieldDef } from '@worldsea/plugin-sdk'
 import { toastSuccess, toastWithUndo, useUndoRedo } from '@worldsea/ui-kit'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { TuiButton } from '@worldsea/ui-kit'
@@ -138,7 +141,7 @@ const entityStore = useEntityStore()
 const relationStore = useRelationStore()
 const { checkAndConfirmName } = useDuplicateNameCheck()
 const { confirm } = useConfirm()
-const { register } = useShortcuts()
+const { register, unregister } = useShortcuts()
 const { undo, redo } = useUndoRedo()
 const settingsStore = useSettingsStore()
 const { selectedIds, selecting, toggleSelect, clearSelection, toggleSelectMode, batchDelete } = useBatchDelete()
@@ -259,6 +262,15 @@ const filteredEvents = computed(() => {
   }
   return list
 })
+
+/* ── 分页（2026-10-01，与 GEV 同一口径：只切「渲染哪一段」，filteredEvents 仍全量——
+ * 冲突检测、批量删除取名、跨页选中都吃全量，不随翻页变化）── */
+const { page, totalPages, pagedList: pagedEvents, pagePrev, pageNext, resetPage } = useEntityPaging(filteredEvents, 100)
+/** 可分页形态 = 竖向 + 时序表（横向画布吃全量时间跨度；大纲树分页会丢页外子节点） */
+const pageable = computed(() => layoutMode.value === 'vertical' && sortMode.value === 'chrono')
+// 离开可分页形态即回第 1 页：否则切回来时停在上次那页，像是「事件少了」
+watch(pageable, on => { if (!on) resetPage() })
+watch([searchQuery, eraFilter, importanceFilter], resetPage)
 
 function involvedEntities(eventId: string): Entity[] {
   const rels = relationStore.relations.filter(r => r.type === 'involves' && r.sourceId === eventId)
@@ -399,18 +411,19 @@ onMounted(async () => {
       else if (selecting.value) toggleSelectMode()
     },
   })
+  // 分页（Ctrl+←/→，与 GEV 的 `${entityType}.page-*` 同键位、不同 id）
+  register({ id: 'timeline.page-prev', keys: ['ctrl', 'left'], scope: 'view', description: '时间轴：上一页', preventDefault: true, handler: pagePrev })
+  register({ id: 'timeline.page-next', keys: ['ctrl', 'right'], scope: 'view', description: '时间轴：下一页', preventDefault: true, handler: pageNext })
 })
+
+/** 本视图注册的快捷键 id：注册表不随组件销毁清理，不注销会叠下指向陈旧闭包的记录 */
+const TIMELINE_SHORTCUT_IDS = ['timeline.undo', 'timeline.redo', 'timeline.close', 'timeline.page-prev', 'timeline.page-next']
+onBeforeUnmount(() => { for (const id of TIMELINE_SHORTCUT_IDS) unregister(id) })
 
 </script>
 
 <style scoped>
 .timeline-view { padding: 20px; height: 100%; display: flex; flex-direction: column; }
-/* ── 工具栏上移 R3：中和背景/边框/padding，撑满控件区（BuildingSectionView 模式） ── */
-.tl-toolbar {
-  display: flex; align-items: center; gap: 8px;
-  padding: 0; background: transparent; border: none;
-  flex-shrink: 0; flex-wrap: nowrap; min-width: 0;
-}
 /* R3 单行适配：上移后控件基线样式（scoped，仅作用于本视图 teleport 内容） */
 .search-input {
   padding: 4px 10px; font-size: var(--font-size-sm);

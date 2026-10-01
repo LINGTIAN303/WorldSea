@@ -245,7 +245,7 @@
 
 <script setup lang="ts">
 import { toastSuccess, toastWithUndo } from '@worldsea/ui-kit'
-import { useEntityEdit, useBatchDelete, useDuplicateNameCheck, useShortcuts, useConfirm, useHighlight } from '../composables'
+import { useEntityEdit, useBatchDelete, useDuplicateNameCheck, useShortcuts, useConfirm, useHighlight, useEntityPaging } from '../composables'
 import { ref, computed, onMounted, onBeforeUnmount, reactive, useSlots, watch } from 'vue'
 import { useEntityStore, useRelationStore, entitySchemaRegistry } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
@@ -439,25 +439,12 @@ const filteredList = computed(() => {
   return l
 })
 
-/* ── 分页（2026-10-01）──
- * 只切「渲染哪一段」，`filteredList` 仍是全量过滤结果——批量删除的取名、跨页选中、
- * 计数与空态都基于全量，不随翻页变化。 */
-const page = ref(1)
-const totalPages = computed(() => Math.max(1, Math.ceil(filteredList.value.length / Math.max(1, props.pageSize))))
-const pagedList = computed(() => {
-  const size = Math.max(1, props.pageSize)
-  const start = (page.value - 1) * size
-  return filteredList.value.slice(start, start + size)
-})
+/* ── 分页（2026-10-01，口径见 useEntityPaging：只切渲染段，filteredList 仍全量）── */
+const { page, totalPages, pagedList, pagePrev, pageNext, resetPage } = useEntityPaging(filteredList, () => props.pageSize)
 /** 高亮/变暗按当前页算（与 v-for 下标一一对应） */
 const pagedHighlight = computed(() => listHighlight.applyToList(pagedList.value))
 
-function pagePrev() { if (page.value > 1) page.value -= 1 }
-function pageNext() { if (page.value < totalPages.value) page.value += 1 }
-
-// 过滤/排序变化可能把当前页挤出范围 → 收敛到末页；搜索词变化直接回第 1 页
-watch(totalPages, (tp) => { if (page.value > tp) page.value = tp })
-watch(searchQuery, () => { page.value = 1 })
+watch(searchQuery, resetPage)
 
 onMounted(async () => {
   try {

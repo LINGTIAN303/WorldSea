@@ -22,6 +22,10 @@
 | src/memory-archive/adapters/TauriFsOperations.ts | [TauriFsOperations.md](tauri/TauriFsOperations.md) | FsOperations 的 Tauri 实现：cmd_fs_* 命令映射 |
 | src/ui/layout/sidebar/viewOrder.ts | — | 侧栏可见视图**唯一顺序口径**（`isViewVisible` 过滤 + `sidebarOrder` 排序）：渲染（SidebarV2）与 `Ctrl+↑/↓` 切换（Shell）共用，修「切得太多/乱跳」（2026-10-01；短注释未立文档） |
 | src/world/plugins/regions/RegionList.vue | [实体视图分页.md](packages/plugin-sdk/实体视图分页.md) | 区域视图：默认卡片 + 卡片模式分页（页状态由 GEV 经槽属性下放）；插槽自绘卡片/树样式自带、批量态路由、视图切换按钮显式 color（2026-10-01） |
+| src/world/plugins/timeline/TimelineView.vue | [实体视图分页.md](packages/plugin-sdk/实体视图分页.md) | 时序表分页：`pageable`=竖向+时序表（横向画布/大纲树不分页）；`timeline.page-prev/next` 字面量 id 须进快捷键目录；卸载注销全部视图键（2026-10-01） |
+| src/world/plugins/timeline/components/TimelineChart.vue | [实体视图分页.md](packages/plugin-sdk/实体视图分页.md) | `verticalEvents` 决定喂分页子集（时序表）还是全量（树）；`pagedEvents` prop 可选，缺省即不分页（2026-10-01） |
+| src/world/plugins/timeline/composables/eraGroups.ts | — | 纪元分组纯函数（空组剔除 / 未知纪元归尾）；抽出以让「喂全量还是喂当前页」由调用方决定（2026-10-01；短注释未立文档） |
+| src/world/plugins/outline/board/BoardView.vue | [实体视图分页.md](packages/plugin-sdk/实体视图分页.md) | 大纲侧核查结论：**三处自有列表都不分页**（白板网格量级个位数 / 节点是树 / 章节是拖拽调色板）；挂账改做虚拟化（2026-10-01） |
 | src/styles/theme.css | — | 全局基座：`*{box-sizing}` + **`button{color:inherit}` 复位**（UA 的 `color:buttontext` 不继承 → 未写 color 的按钮在暗色下黑字；25 处存量同型一次免疫，2026-10-01） |
 | 拆分记录（2026-08-06） | — | coreBackend.ts 按领域拆为 src/core/api/（schema / retrofit / entity / algo / health / runtime + index 聚合），coreBackend.ts 保留 `export * from './api'`，类型统一来自 @worldsea/core-api-types，公共导出签名不变，原 import 处无需改动；各新文件无 ≥ 10 行连续注释块，未生成新文档 |
 
@@ -115,8 +119,9 @@
 | src/components/entity/useEntityFormSave.ts | [entity-form-modal.md](packages/plugin-sdk/entity-form-modal.md) | save 校验/收集（properties/tags/entityRef/autoLink/封面）、实体引用关系同步 |
 | src/components/GenericEntityView.vue | [实体视图滚动链.md](packages/plugin-sdk/实体视图滚动链.md) | 实体卡片网格滚动链：定高容器下 auto 隐式行 / 列向 flex 子项的自动最小尺寸因卡片 overflow:hidden 归零 → 压扁且不出滚动条；`grid-auto-rows:min-content` + `has-custom-list>*{flex-shrink:0}` 修复（2026-10-01） |
 | src/composables/useBatchDelete.ts | [批量选择态.md](packages/plugin-sdk/批量选择态.md) | 批量态状态机（进出清空选中 / 清空≠退出 / 删除后留态）；常驻复选框退役，改显式批量态 + 点击路由（2026-10-01） |
+| src/composables/useEntityPaging.ts | [实体视图分页.md](packages/plugin-sdk/实体视图分页.md) | 分页口径唯一实现：源列表全量 / `pagedList` 只切渲染段 / 末页收敛内置 / `resetPage` 由调用方接线；6 例守卫（反证：摘收敛 watch → 收敛例报红）（2026-10-01） |
 | src/components/EntityPager.vue | [实体视图分页.md](packages/plugin-sdk/实体视图分页.md) | 分页控件（左右箭头 + 当前页/总页数）；抽独立组件保持 GEV 精简、可复用（2026-10-01） |
-| src/components/GenericEntityView.vue（分页） | [实体视图分页.md](packages/plugin-sdk/实体视图分页.md) | 每页 100 条 + `Ctrl+←/→` + 撤「>200 项」警告条；**插槽消费方（区域/势力）不分页**——分页子集会让树丢页外节点（2026-10-01） |
+| src/components/GenericEntityView.vue（分页） | [实体视图分页.md](packages/plugin-sdk/实体视图分页.md) | 每页 100 条 + `Ctrl+←/→` + 撤「>200 项」警告条；分页逻辑已下沉 `useEntityPaging`；**插槽消费方（区域/势力）默认不分页**——分页子集会让树丢页外节点（2026-10-01） |
 
 > ~~src/agent-descriptor.ts~~（pluginSdkDescriptor）已于 2026-09-27 E8 随 Agent 工具目录退场。
 
