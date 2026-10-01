@@ -1,18 +1,15 @@
 <template>
   <div
     class="event-card"
-    :class="{ highlighted: highlighted, 'is-range': isRange, compact }"
+    :class="{ highlighted: highlighted, 'is-range': isRange, compact, 'batch-selected': batchSelected, 'batch-mode': batchMode }"
     role="button"
     tabindex="0"
-    :aria-label="`选择事件：${event.name}`"
-    @click="$emit('select')"
-    @keydown.enter="$emit('select')"
-    @keydown.space.prevent="$emit('select')"
+    :aria-label="batchMode ? `选中事件 ${event.name}` : `打开事件 ${event.name}`"
+    :aria-pressed="batchMode ? batchSelected : undefined"
+    @click="onActivate"
+    @keydown.enter="onActivate"
+    @keydown.space.prevent="onActivate"
   >
-    <label v-if="!compact" class="batch-check" @click.stop>
-      <input type="checkbox" :checked="batchSelected" :aria-label="`批量选择：${event.name}`" @change="$emit('toggleSelect')" />
-    </label>
-
     <div v-if="breadcrumb && !compact" class="ec-breadcrumb">{{ breadcrumb }}</div>
 
     <div class="ec-header">
@@ -39,6 +36,8 @@ const props = withDefaults(defineProps<{
   event: Entity
   highlighted: boolean
   batchSelected: boolean
+  /** 批量态：点击/回车路由到选中切换而非打开详情 */
+  batchMode?: boolean
   compact?: boolean
   breadcrumb?: string
 }>(), {
@@ -46,10 +45,15 @@ const props = withDefaults(defineProps<{
   breadcrumb: '',
 })
 
-defineEmits<{
+const emit = defineEmits<{
   select: []
   toggleSelect: []
 }>()
+
+/** 激活：批量态=选中切换；浏览态=打开详情 */
+function onActivate() {
+  props.batchMode ? emit('toggleSelect') : emit('select')
+}
 
 const isRange = computed(() => {
   const dateEnd = props.event.properties.dateEnd as string
@@ -174,26 +178,13 @@ const statusClass = computed(() => {
 .status-abandoned { background: var(--danger-light); color: var(--danger); }
 .status-alternate { background: var(--warning-light); color: var(--warning); }
 
-.batch-check {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  z-index: 2;
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg-surface, rgba(255,255,255,0.9));
-  border-radius: var(--radius-xs);
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.15s;
+.batch-selected {
+  border-color: var(--accent, #4f46e5) !important;
+  background: var(--accent-soft, #eef2ff);
 }
-.event-card:hover .batch-check { opacity: 1; }
-.batch-check input[type="checkbox"] {
-  margin: 0;
-  cursor: pointer;
-  accent-color: var(--primary, #4f46e5);
+/* 批量态：hover 虚线描边示意「点击=选中」（常驻复选框已撤） */
+.event-card.batch-mode:hover {
+  border-color: var(--accent, #4f46e5);
+  border-style: dashed;
 }
 </style>

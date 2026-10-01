@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-09-30",
+  "updatedAt": "2026-10-01",
   "note": "存量基线（P4）：files = 超限文件行数冻结（只禁增长）；other = 存量违规豁免（新增违例不在内）",
   "files": {
     "worldsea-core/src/algo/draft/constraint.rs": 621,
@@ -43,8 +43,8 @@
     "apps/tauri/src/world/plugins/outline/board/layoutSchema.ts": 455,
     "apps/tauri/src/world/plugins/tactical-board/composables/boardOverlay.ts": 425,
     "apps/tauri/src/world/plugins/tactical-board/TacticalBoardView.vue": 758,
-    "apps/tauri/src/world/plugins/timeline/components/TimelineChart.vue": 433,
-    "apps/tauri/src/world/plugins/timeline/TimelineView.vue": 441,
+    "apps/tauri/src/world/plugins/timeline/components/TimelineChart.vue": 437,
+    "apps/tauri/src/world/plugins/timeline/TimelineView.vue": 460,
     "packages/canvas-engine/src/core/useSmallCanvasGraph.ts": 516,
     "packages/canvas-engine/src/tree/useTreeCanvas.ts": 458,
     "packages/core-api-types/src/index.ts": 526,
@@ -61,7 +61,7 @@
     "packages/memory-archive/src/storage/IdbStorageAdapter.ts": 469,
     "packages/plugin-sdk/src/components/EntityFormModal.vue": 490,
     "packages/plugin-sdk/src/components/EntityRelationSelector.vue": 597,
-    "packages/plugin-sdk/src/components/GenericEntityView.vue": 819,
+    "packages/plugin-sdk/src/components/GenericEntityView.vue": 847,
     "packages/plugin-sdk/src/components/ImageField.vue": 402,
     "packages/plugin-sdk/src/components/SmartFieldAdder.vue": 503,
     "packages/plugin-sdk/src/components/UniversalRelationPanel.vue": 924,

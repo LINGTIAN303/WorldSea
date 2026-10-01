@@ -3,7 +3,7 @@
     :node="node"
     :depth="depth"
     :selected-id="selectedId"
-    :show-checkbox="true"
+    :batch-mode="batchMode"
     :selected-ids="selectedIds"
     @select="(e: any) => $emit('select', e)"
     @toggle-select="(id: string) => $emit('toggle-select', id)"
@@ -29,6 +29,7 @@ const props = defineProps<{
   node: TreeNodeData
   depth: number
   selectedId?: string
+  batchMode?: boolean
   selectedIds?: Set<string>
 }>()
 

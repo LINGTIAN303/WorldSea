@@ -5,6 +5,7 @@
       :class="{
         selected: isSelected,
         'batch-selected': batchSelected,
+        'batch-mode': batchMode,
         'drag-over': dragOver && dropPosition === 'inside',
         'drag-before': dragOver && dropPosition === 'before',
         'drag-after': dragOver && dropPosition === 'after',
@@ -15,10 +16,11 @@
       tabindex="0"
       :aria-current="isSelected ? 'true' : undefined"
       :aria-expanded="node.children.length > 0 ? expanded : undefined"
-      :aria-label="`打开 ${node.entity.name}`"
-      @click="$emit('select', node.entity)"
-      @keydown.enter.prevent="$emit('select', node.entity)"
-      @keydown.space.prevent="$emit('select', node.entity)"
+      :aria-label="batchMode ? `选择 ${node.entity.name}` : `打开 ${node.entity.name}`"
+      :aria-pressed="batchMode ? batchSelected : undefined"
+      @click="onRowActivate"
+      @keydown.enter.prevent="onRowActivate"
+      @keydown.space.prevent="onRowActivate"
       @dragstart="onDragStart"
       @dragover.prevent="onDragOver"
       @dragleave="onDragLeave"
@@ -29,16 +31,6 @@
         <WsIcon v-if="node.children.length > 0" :name="expanded ? 'chevron-down' : 'chevron-right'" size="xs" />
         <span v-else class="tree-toggle-spacer"></span>
       </button>
-
-      <!-- 批量选择复选框（可选） -->
-      <label v-if="showCheckbox" class="tree-check-label" @click.stop>
-        <input
-          type="checkbox"
-          class="tree-checkbox"
-          :checked="batchSelected"
-          @change="$emit('toggle-select', node.entity.id)"
-        />
-      </label>
 
       <!-- 图标（可自定义） -->
       <span v-if="$slots.icon" class="tree-icon">
@@ -68,7 +60,7 @@
         :node="child"
         :depth="depth + 1"
         :selected-id="selectedId"
-        :show-checkbox="showCheckbox"
+        :batch-mode="batchMode"
         :selected-ids="selectedIds"
         :expanded-ids="expandedIds"
         @select="(e: any) => $emit('select', e)"
@@ -111,7 +103,8 @@ const props = defineProps<{
   node: TreeNodeData
   depth: number
   selectedId?: string
-  showCheckbox?: boolean
+  /** 批量态：行点击路由到 toggle-select 而非 select（常驻复选框已撤） */
+  batchMode?: boolean
   selectedIds?: Set<string>
   /** 外部控制的展开节点 ID 集合，传入后组件不再自行管理展开状态 */
   expandedIds?: Set<string>
@@ -155,9 +148,13 @@ let dragTimer: ReturnType<typeof setTimeout> | null = null
 
 const isSelected = computed(() => props.selectedId === props.node.entity.id)
 
-const batchSelected = computed(() =>
-  props.showCheckbox && props.selectedIds?.has(props.node.entity.id)
-)
+const batchSelected = computed(() => !!props.selectedIds?.has(props.node.entity.id))
+
+/** 行激活：批量态=选中切换；浏览态=打开/选中节点 */
+function onRowActivate() {
+  if (props.batchMode) emit('toggle-select', props.node.entity.id)
+  else emit('select', props.node.entity)
+}
 
 function onDragStart(e: DragEvent) {
   e.dataTransfer?.setData('text/plain', props.node.entity.id)
@@ -244,6 +241,10 @@ function findNode(node: any, targetId: string): boolean {
 .tree-row.batch-selected {
   background: var(--primary-light, #eef2ff) !important;
 }
+/* 批量态：hover 浅 accent 底示意「点击=选中」（常驻复选框已撤） */
+.tree-row.batch-mode:hover {
+  background: var(--accent-soft, #eef2ff);
+}
 .tree-toggle {
   width: 18px;
   height: 18px;
@@ -257,20 +258,6 @@ function findNode(node: any, targetId: string): boolean {
   justify-content: center;
   color: var(--text-tertiary, #888);
   flex-shrink: 0;
-}
-.tree-check-label {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  margin-right: 2px;
-  cursor: pointer;
-}
-.tree-checkbox {
-  margin: 0;
-  cursor: pointer;
-  accent-color: var(--primary, #4f46e5);
 }
 .tree-icon {
   font-size: var(--font-size-lg);

@@ -26,24 +26,24 @@
     </template>
 
     <!-- Custom list slot: tree view or map view; fall through to default for cards -->
-    <template #list="{ entities, selectedIds: batchIds, toggleSelect: batchToggle, select: selectFn }">
+    <template #list="{ entities, selectedIds: batchIds, toggleSelect: batchToggle, select: selectFn, batchMode }">
       <!-- Tree view -->
       <div v-if="viewMode === 'tree' && entities.length" class="tree-view">
         <div v-for="item in visibleTree(entities)" :key="item.entity.id" class="tree-item"
-          :class="{ selected: selectedRegion?.id === item.entity.id, 'batch-selected': batchIds.has(item.entity.id) }"
+          :class="{ selected: selectedRegion?.id === item.entity.id, 'batch-selected': batchIds.has(item.entity.id), 'batch-mode': batchMode }"
           :style="{ paddingLeft: (item.depth * 20 + 8) + 'px' }"
           role="button"
           tabindex="0"
           :aria-current="selectedRegion?.id === item.entity.id ? 'true' : undefined"
-          :aria-label="`打开区域 ${item.entity.name}`"
-          @click="onTreeSelect(item.entity, selectFn)"
-          @keydown.enter.prevent="onTreeSelect(item.entity, selectFn)"
-          @keydown.space.prevent="onTreeSelect(item.entity, selectFn)">
+          :aria-pressed="batchMode ? batchIds.has(item.entity.id) : undefined"
+          :aria-label="batchMode ? `选择 ${item.entity.name}` : `打开区域 ${item.entity.name}`"
+          @click="activateTreeItem(item.entity, selectFn, batchToggle, batchMode)"
+          @keydown.enter.prevent="activateTreeItem(item.entity, selectFn, batchToggle, batchMode)"
+          @keydown.space.prevent="activateTreeItem(item.entity, selectFn, batchToggle, batchMode)">
           <span v-if="item.children.length" class="tree-toggle" tabindex="-1" role="button" :aria-label="`${expandedMap[item.entity.id] !== false ? '收起' : '展开'} ${item.entity.name}`" @click.stop="toggleExpand(item.entity.id)" @keydown.enter.prevent.stop="toggleExpand(item.entity.id)">
             {{ expandedMap[item.entity.id] !== false ? 'v' : '>' }}
           </span>
           <span v-else class="tree-toggle tree-toggle-spacer"></span>
-          <label class="batch-check-inline" @click.stop><input type="checkbox" :checked="batchIds.has(item.entity.id)" @change="batchToggle(item.entity.id)" /></label>
           <span><WsIcon :name="typeIcon(item.entity)" size="xs" /></span>
           <span>{{ item.entity.name }}</span>
           <span class="region-type">{{ item.entity.properties?.regionType }}</span>
@@ -59,10 +59,14 @@
           v-for="e in entities"
           :key="e.id"
           class="entity-card-wrapper"
-          :class="{ 'batch-selected': batchIds.has(e.id) }"
+          :class="{ 'batch-selected': batchIds.has(e.id), 'batch-mode': batchMode }"
         >
-          <div class="entity-card" role="button" tabindex="0" :aria-label="`打开区域 ${e.name}`" @click="selectFn(e)" @keydown.enter.prevent="selectFn(e)" @keydown.space.prevent="selectFn(e)">
-            <input type="checkbox" class="batch-check" :checked="batchIds.has(e.id)" @change="batchToggle(e.id)" @click.stop />
+          <div class="entity-card" role="button" tabindex="0"
+            :aria-label="batchMode ? `选择 ${e.name}` : `打开区域 ${e.name}`"
+            :aria-pressed="batchMode ? batchIds.has(e.id) : undefined"
+            @click="activateCard(e, selectFn, batchToggle, batchMode)"
+            @keydown.enter.prevent="activateCard(e, selectFn, batchToggle, batchMode)"
+            @keydown.space.prevent="activateCard(e, selectFn, batchToggle, batchMode)">
             <div class="card-header">
               <WsIcon class="card-icon" :name="typeIcon(e)" size="sm" />
               <div class="card-body">
@@ -335,6 +339,17 @@ function onTreeSelect(entity: any, selectFn: (e: any) => void) {
   selectFn(entity)
 }
 
+/** 批量态=选中切换；浏览态=打开详情（树行与卡片共用同一路由规则） */
+function activateTreeItem(entity: any, selectFn: (e: any) => void, batchToggle: (id: string) => void, batchMode: boolean) {
+  if (batchMode) batchToggle(entity.id)
+  else onTreeSelect(entity, selectFn)
+}
+
+function activateCard(entity: any, selectFn: (e: any) => void, batchToggle: (id: string) => void, batchMode: boolean) {
+  if (batchMode) batchToggle(entity.id)
+  else selectFn(entity)
+}
+
 function onRelSelect(entity: any) {
   selectedRegion.value = entity
 }
@@ -351,13 +366,16 @@ function onRelSelect(entity: any) {
 .region-card-grid .entity-card-wrapper { position: relative; display: flex; border: 1px solid var(--border, #ececec); border-radius: var(--radius-mid, 8px); background: var(--bg-surface, #ffffff); overflow: hidden; }
 .region-card-grid .entity-card-wrapper:hover { border-color: var(--border-strong, #d9d9de); box-shadow: var(--shadow-sm, 0 1px 2px rgba(16, 24, 40, 0.05)); }
 .region-card-grid .entity-card-wrapper.batch-selected { border-color: var(--accent, #4f46e5); background: var(--accent-soft, #eef2ff); }
+/* 批量态：hover 虚线描边示意「点击=选中」（常驻复选框已撤） */
+.region-card-grid .entity-card-wrapper.batch-mode { cursor: pointer; }
+.region-card-grid .entity-card-wrapper.batch-mode:hover { border-color: var(--accent, #4f46e5); border-style: dashed; }
 .region-card-grid .entity-card { position: relative; flex: 1; display: flex; flex-direction: column; padding: 12px; cursor: pointer; outline: none; user-select: none; }
 .region-card-grid .card-header { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .region-card-grid .card-icon { color: var(--accent, #4f46e5); flex-shrink: 0; }
 .region-card-grid .card-body { flex: 1; min-width: 0; }
 .region-card-grid .card-body h3 { margin: 0; font-size: var(--fs-base, 14px); font-weight: 600; color: var(--text-primary, #1f2328); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .region-card-grid .card-body p { margin: 2px 0 0; font-size: var(--fs-xs, 11px); color: var(--text-secondary, #6b7280); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.region-card-grid .batch-check { position: absolute; top: 8px; left: 8px; z-index: 2; width: 14px; height: 14px; margin: 0; accent-color: var(--accent, #4f46e5); cursor: pointer; }
+.tree-item.batch-mode:hover { background: var(--accent-soft, #eef2ff); }
 .tree-item { display: flex; align-items: center; gap: 6px; padding: 6px 8px; cursor: pointer; font-size: var(--font-size-base); }
 .tree-item:hover { background: var(--hover-bg); }
 .tree-item.selected { background: var(--accent-bg); font-weight: var(--font-weight-semibold); }
@@ -365,9 +383,6 @@ function onRelSelect(entity: any) {
 .tree-toggle { width: 14px; font-size: var(--font-size-xs); color: var(--text-tertiary); cursor: pointer; user-select: none; flex-shrink: 0; }
 .tree-toggle-spacer { visibility: hidden; }
 .region-type { font-size: var(--font-size-xs); color: var(--text-tertiary); margin-left: auto; }
-.batch-check-inline { display: inline-flex; align-items: center; }
-.batch-check-inline input[type="checkbox"] { margin: 0; cursor: pointer; accent-color: var(--primary, #4f46e5); }
-
 .region-field-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: var(--font-size-sm); }
 .region-field-row .region-field-key { color: var(--text-secondary); min-width: 64px; flex-shrink: 0; }
 .region-field-row .region-field-val { color: var(--text); flex: 1; }

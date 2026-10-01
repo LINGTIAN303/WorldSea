@@ -20,6 +20,7 @@
       :event="node.entity"
       :highlighted="isSelected"
       :batch-selected="isBatchSelected"
+      :batch-mode="batchMode"
       :compact="compact"
       :breadcrumb="breadcrumbText"
       @select="$emit('select', node.entity)"
@@ -39,6 +40,7 @@
       :collapsed-set="collapsedSet"
       :selected-event-id="selectedEventId"
       :selected-ids="selectedIds"
+      :batch-mode="batchMode"
       :compact="compact"
       :parent-names="[...parentNames, node.entity.name]"
       @select="(e: Entity) => $emit('select', e)"
@@ -62,6 +64,7 @@ const props = defineProps<{
   collapsedSet: Set<string>
   selectedEventId: string | null
   selectedIds: Set<string>
+  batchMode?: boolean
   compact: boolean
   parentNames: string[]
 }>()

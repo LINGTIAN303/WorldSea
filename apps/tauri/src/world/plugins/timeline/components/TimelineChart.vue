@@ -81,6 +81,7 @@
                 :collapsed-set="treeCollapsedSet"
                 :selected-event-id="selectedEventId"
                 :selected-ids="selectedIds"
+                :batch-mode="batchMode"
                 :compact="compactMode"
                 :parent-names="[]"
                 @select="(e: Entity) => $emit('selectEvent', e)"
@@ -97,6 +98,7 @@
                 :event="event"
                 :highlighted="selectedEventId === event.id"
                 :batch-selected="selectedIds.has(event.id)"
+                :batch-mode="batchMode"
                 :compact="compactMode"
                 @select="$emit('selectEvent', event)"
                 @toggle-select="$emit('toggleSelect', event.id)"
@@ -137,6 +139,8 @@ const props = defineProps<{
   depthMap: Map<string, number>
   selectedEventId: string | null
   selectedIds: Set<string>
+  /** 批量态：点击事件卡路由到选中切换而非打开详情 */
+  batchMode?: boolean
   loading: boolean
   eras: EraInfo[]
   layoutMode: 'horizontal' | 'vertical'

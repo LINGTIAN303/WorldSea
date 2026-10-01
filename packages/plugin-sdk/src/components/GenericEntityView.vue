@@ -25,6 +25,13 @@
     <Teleport to="#view-toolbar-actions">
       <div class="toolbar-actions">
         <slot name="toolbar-extra" />
+        <button
+          class="btn-ghost btn-sm"
+          :class="{ active: selecting }"
+          :aria-pressed="selecting"
+          :title="selecting ? '退出批量选择（Esc）' : '进入批量选择'"
+          @click="toggleSelectMode"
+        >批量选择</button>
         <template v-if="selectedIds.size > 0">
           <button class="btn-danger btn-sm" @click="onBatchDel" title="删除选中" data-ws-tip-keys="Del">删除 ({{ selectedIds.size }})</button>
           <button class="btn-ghost btn-sm" @click="clearSelection">取消选择</button>
@@ -43,7 +50,7 @@
     </n-alert>
 
     <div class="entity-grid" :class="{ 'is-empty': !hasListSlot && filteredList.length === 0, 'has-custom-list': hasListSlot }">
-      <slot name="list" :entities="filteredList" :selected-ids="selectedIds" :toggle-select="toggleSelect" :select="selectEntity">
+      <slot name="list" :entities="filteredList" :selected-ids="selectedIds" :toggle-select="toggleSelect" :select="selectEntity" :batch-mode="selecting">
         <div
           v-for="(e, idx) in filteredList"
           :key="e.id"
@@ -51,14 +58,14 @@
           :class="{
             'is-flipped': hasImageField && isFlipped(e.id),
             'batch-selected': selectedIds.has(e.id),
+            'batch-mode': selecting,
             'active': listHighlight.selectedId.value === e.id,
             'dimmed': listHighlight.applyToList(filteredList)[idx]?.dimmed,
             'search-highlight': listHighlight.applyToList(filteredList)[idx]?.searchHit,
           }"
         >
           <div v-if="hasImageField" class="entity-card-flipper">
-            <div class="entity-card card-front" role="button" tabindex="0" :aria-label="`打开 ${e.name}`" @click="selectEntity(e)" @keydown.enter.prevent="selectEntity(e)" @keydown.space.prevent="selectEntity(e)">
-              <input type="checkbox" class="batch-check" :checked="selectedIds.has(e.id)" @change="toggleSelect(e.id)" @click.stop />
+            <div class="entity-card card-front" role="button" tabindex="0" :aria-label="cardActivateLabel(e)" :aria-pressed="selecting ? selectedIds.has(e.id) : undefined" @click="onCardActivate(e)" @keydown.enter.prevent="onCardActivate(e)" @keydown.space.prevent="onCardActivate(e)">
               <EntityCardCover :entity="e" :cover-field-key="coverFieldKey" />
               <div class="card-header">
                 <WsIcon class="card-icon" :name="resolvedIconFn(e)" size="sm" />
@@ -92,8 +99,7 @@
               <button class="card-flip-btn" @click.stop="toggleFlip(e.id)" title="翻转回正面">🔄</button>
             </div>
           </div>
-          <div v-else class="entity-card" role="button" tabindex="0" :aria-label="`打开 ${e.name}`" @click="selectEntity(e)" @keydown.enter.prevent="selectEntity(e)" @keydown.space.prevent="selectEntity(e)">
-            <input type="checkbox" class="batch-check" :checked="selectedIds.has(e.id)" @change="toggleSelect(e.id)" @click.stop />
+          <div v-else class="entity-card" role="button" tabindex="0" :aria-label="cardActivateLabel(e)" :aria-pressed="selecting ? selectedIds.has(e.id) : undefined" @click="onCardActivate(e)" @keydown.enter.prevent="onCardActivate(e)" @keydown.space.prevent="onCardActivate(e)">
             <div class="card-header">
               <WsIcon class="card-icon" :name="resolvedIconFn(e)" size="sm" />
               <div class="card-body">
@@ -332,7 +338,7 @@ const editingEntity = ref<Entity | null>(null)
 const detailPanelRef = ref<InstanceType<typeof EntityDetailPanel> | null>(null)
 
 const { isEditing, editForm, customFieldDefs, startEdit, cancelEdit, saveEdit } = useEntityEdit(selectedEntity)
-const { selectedIds, toggleSelect, clearSelection, batchDelete } = useBatchDelete()
+const { selectedIds, selecting, toggleSelect, clearSelection, toggleSelectMode, batchDelete } = useBatchDelete()
 
 const entityLabel = computed(() => props.entityLabel || props.entityType)
 const idPrefix = computed(() => props.idPrefix || `${props.entityType.slice(0, 3)}-`)
@@ -453,8 +459,12 @@ onMounted(async () => {
     id: `${props.entityType}.close`,
     keys: ['escape'],
     scope: 'view',
-    description: '关闭详情',
-    handler: () => { selectedEntity.value = null },
+    description: '关闭详情 / 退出批量选择',
+    // 详情优先：有详情先关详情，否则退批量态（批量态也可空选中，故用 selecting 而非 size 判定）
+    handler: () => {
+      if (selectedEntity.value) selectedEntity.value = null
+      else if (selecting.value) toggleSelectMode()
+    },
   })
 })
 
@@ -465,6 +475,9 @@ onBeforeUnmount(() => {
 })
 
 function selectEntity(e: Entity) { selectedEntity.value = e; listHighlight.select(e.id); emit('select-entity', e) }
+/** 卡片激活：批量态=选中切换；浏览态=打开详情（批量态下不弹详情，见批计划裁定） */
+function onCardActivate(e: Entity) { selecting.value ? toggleSelect(e.id) : selectEntity(e) }
+function cardActivateLabel(e: Entity) { return selecting.value ? `选择 ${e.name}` : `打开 ${e.name}` }
 function openNewForm() { editingEntity.value = null; showForm.value = true }
 
 async function onFormSave(data: { name: string; description: string; properties: Record<string, any>; tags: string[]; _autoLinkFields?: any[]; _coverPosition?: string; _coverZoom?: number }) {
@@ -763,17 +776,32 @@ defineExpose({
 }
 .entity-card-wrapper:hover .card-flip-btn { opacity: 1; }
 
-/* 批量选择复选框 */
-.batch-check {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  z-index: 2;
-  width: 14px;
-  height: 14px;
-  margin: 0;
-  accent-color: var(--accent, #4f46e5);
+/* 批量态：hover 虚线描边示意「点击=选中」（常驻复选框已撤，见 docs/details/注释/packages/plugin-sdk/批量选择态.md） */
+.entity-card-wrapper.batch-mode { cursor: pointer; }
+.entity-card-wrapper.batch-mode:hover { border-color: var(--accent, #4f46e5); border-style: dashed; }
+
+/* 工具条按钮（本组件自持；与 TimelineView 同名类同规格，保证跨视图一致） */
+.btn-ghost,
+.btn-danger {
+  padding: 4px 10px;
+  font-size: var(--font-size-sm);
+  border: 1px solid var(--border-color, var(--color-border));
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-elevated);
+  color: var(--text-color, var(--color-text-primary));
   cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--dur-fast, 0.15s), border-color var(--dur-fast, 0.15s);
+}
+.btn-ghost:hover { background: var(--hover-bg, var(--color-bg-hover)); }
+.btn-danger { border-color: var(--danger); background: transparent; color: var(--danger); }
+.btn-danger:hover { background: color-mix(in srgb, var(--danger) 12%, transparent); }
+.btn-sm { padding: 5px 12px; font-size: var(--font-size-sm); }
+/* 批量选择按钮激活态：accent 描边 + 浅底，供「当前处于批量态」自明 */
+.btn-ghost.active {
+  border-color: var(--accent, #4f46e5);
+  background: var(--accent-soft, #eef2ff);
+  color: var(--accent, #4f46e5);
 }
 
 /* 翻转容器（3D 双面） */

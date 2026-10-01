@@ -13,7 +13,7 @@
     @select-entity="onSelectEntity"
   >
     <!-- Tree list view via list slot -->
-    <template #list="{ entities, selectedIds: batchIds, toggleSelect: batchToggle, select: gevSelect }">
+    <template #list="{ entities, selectedIds: batchIds, toggleSelect: batchToggle, select: gevSelect, batchMode }">
       <div class="org-tree" :class="{ 'is-empty': entities.length === 0 }">
         <OrgTreeNode
           v-for="node in buildTree(entities)"
@@ -21,6 +21,7 @@
           :node="node"
           :depth="0"
           :selected-id="selectedOrgId ?? undefined"
+          :batch-mode="batchMode"
           :selected-ids="batchIds"
           @select="gevSelect"
           @toggle-select="batchToggle"

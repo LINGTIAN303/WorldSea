@@ -18,13 +18,14 @@ export function useBatchDelete() {
     selectedIds.value = new Set(entities.map(e => e.id))
   }
 
+  /** 只清空选中，不改批量态（「清空 ≠ 退出」，退出靠 toggleSelectMode 或 Esc） */
   function clearSelection() {
     selectedIds.value = new Set()
-    selecting.value = false
   }
 
-  function enterSelectMode() {
-    selecting.value = true
+  /** 批量态开关：进出都清空选中（选中项只活在批量会话内，避免退出后残留选中与工具条按钮） */
+  function toggleSelectMode() {
+    selecting.value = !selecting.value
     selectedIds.value = new Set()
   }
 
@@ -75,7 +76,7 @@ export function useBatchDelete() {
     toggleSelect,
     selectAll,
     clearSelection,
-    enterSelectMode,
+    toggleSelectMode,
     batchDelete,
   }
 }

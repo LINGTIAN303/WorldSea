@@ -22,6 +22,13 @@
       <button class="btn-ghost btn-sm" @click="showConflicts = true" :title="hasConflicts ? `${conflicts.length} 个冲突` : '检测时间冲突'">
         <WsIcon name="warning" size="xs" /> 冲突{{ hasConflicts ? ` (${conflicts.length})` : '' }}
       </button>
+      <button
+        class="btn-ghost btn-sm"
+        :class="{ active: selecting }"
+        :aria-pressed="selecting"
+        :title="selecting ? '退出批量选择（Esc）' : '进入批量选择'"
+        @click="toggleSelectMode"
+      >批量选择</button>
       <button v-if="selectedIds.size > 0" class="btn-danger" @click="batchDelete(filteredEvents, '事件')"><WsIcon name="delete" size="xs" /> 删除 ({{ selectedIds.size }})</button>
       <button v-if="selectedIds.size > 0" class="btn-ghost" @click="clearSelection">取消选择</button>
     </Teleport>
@@ -35,6 +42,7 @@
       :depth-map="depthMap"
       :selected-event-id="selectedEvent?.id ?? null"
       :selected-ids="selectedIds"
+      :batch-mode="selecting"
       :loading="loading"
       :eras="detectedEras"
       :layout-mode="layoutMode"
@@ -145,7 +153,7 @@ const { confirm } = useConfirm()
 const { register } = useShortcuts()
 const { undo, redo } = useUndoRedo()
 const settingsStore = useSettingsStore()
-const { selectedIds, toggleSelect, clearSelection, batchDelete } = useBatchDelete()
+const { selectedIds, selecting, toggleSelect, clearSelection, toggleSelectMode, batchDelete } = useBatchDelete()
 
 const searchQuery = ref('')
 const eraFilter = ref('')
@@ -392,6 +400,17 @@ onMounted(async () => {
   // 导致 Agent 空间下全局撤销失效；改用视图自有 id，与全局键在 scope 优先级下自然共存
   register({ id: 'timeline.undo', keys: ['ctrl', 'z'], scope: 'view', description: '时间轴：撤销', handler: () => undo(entityStore, relationStore) })
   register({ id: 'timeline.redo', keys: ['ctrl', 'y'], scope: 'view', description: '时间轴：重做', handler: () => redo(entityStore, relationStore) })
+  register({
+    id: 'timeline.close',
+    keys: ['escape'],
+    scope: 'view',
+    description: '关闭详情 / 退出批量选择',
+    // 详情优先：有详情先关详情，否则退批量态（与 GEV 同规则）
+    handler: () => {
+      if (selectedEvent.value) selectedEvent.value = null
+      else if (selecting.value) toggleSelectMode()
+    },
+  })
 })
 
 </script>
