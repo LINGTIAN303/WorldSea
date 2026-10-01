@@ -276,6 +276,13 @@
   box-sizing: border-box;
 }
 
+/* button 在 UA 样式表里是 color:buttontext（显式值、不继承）——缺省即黑字，暗色主题下不可见。
+   复位为继承父级文字色，使未显式写 color 的按钮（含图标按钮，WsIcon 用 currentColor）跟随主题；
+   已显式写 color 的变体规则（.btn-danger 等）不受影响。2026-10-01 由区域视图切换按钮个案引出全量复位。 */
+button {
+  color: inherit;
+}
+
 html,
 body,
 #app {
