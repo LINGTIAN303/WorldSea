@@ -71,11 +71,12 @@
 import { computed, ref, watch, nextTick, onBeforeUnmount } from 'vue'
 import { useUIStore } from '@/stores/uiStore'
 import { useSettingsStore } from '@/stores/settingsStore'
-import { usePluginStore, useEntityStore, entitySchemaRegistry, isViewVisible } from '@worldsea/entity-core'
+import { useEntityStore, entitySchemaRegistry } from '@worldsea/entity-core'
 import type { PluginView } from '@worldsea/entity-core/types'
 import { WsIcon } from '@worldsea/ui-kit'
 import { hasIcon } from '@/assets/iconRegistry'
 import CountBadge from './CountBadge.vue'
+import { visibleViewsInSidebarOrder } from './viewOrder'
 import { useSidebarPhysics } from './useSidebarPhysics'
 import { useSidebarInteraction } from './useSidebarInteraction'
 import { useSidebarDragHandler } from './useSidebarDragHandler'
@@ -83,7 +84,6 @@ import AppMenu from '@/ui/layout/AppMenu.vue'
 
 const uiStore = useUIStore()
 const settingsStore = useSettingsStore()
-const pluginStore = usePluginStore()
 const entityStore = useEntityStore()
 
 const carouselRef = ref<HTMLElement | null>(null)
@@ -148,19 +148,7 @@ const pluginEntityCounts = computed(() => {
   return counts
 })
 
-const sortedViews = computed(() => {
-  const order = uiStore.sidebarOrder
-  const orderMap = new Map<string, number>()
-  for (let i = 0; i < order.length; i++) orderMap.set(order[i], i)
-  return pluginStore.views
-    .filter(v => isViewVisible(v.pluginId))
-    .slice()
-    .sort((a, b) => {
-      const ia = orderMap.get(a.id) ?? 999
-      const ib = orderMap.get(b.id) ?? 999
-      return ia - ib
-    })
-})
+const sortedViews = computed(() => visibleViewsInSidebarOrder())
 
 /* ── 物理引擎 ── */
 

@@ -8,7 +8,7 @@
  */
 import { afterEach, describe, expect, it } from 'vitest'
 import { pluginAPI } from '@worldsea/entity-core'
-import { disposeWorldTree, startWorldTree, worldTreeState } from '../tree'
+import { disposeWorldTree, setPluginEnabled, startWorldTree, unloadPlugin, worldTreeState } from '../tree'
 import { registerPluginCleanup, registerViewFor, unregisterViewFor } from '../registry'
 import type { WorldPlugin } from '../manifest'
 
@@ -70,5 +70,17 @@ describe('startWorldTree / disposeWorldTree', () => {
     const handle = await startWorldTree({ plugins: [broken] })
     expect(handle.started).toBe(true)
     expect(handle.plugins).toContain('ws.fake.broken')
+  })
+
+  it('卸载后立即重装（项目切换 reinitializeModules 的背靠背序列）→ 视图仍应在真源', async () => {
+    await startWorldTree({ plugins: [fakePlugin] })
+    expect(pluginAPI.getViews().map(v => v.id)).toContain(VIEW_ID)
+
+    unloadPlugin(PLUGIN_ID)
+    setPluginEnabled(PLUGIN_ID, true)
+
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(worldTreeState().plugins).toContain(PLUGIN_ID)
+    expect(pluginAPI.getViews().map(v => v.id), '重装后视图应重新注册').toContain(VIEW_ID)
   })
 })

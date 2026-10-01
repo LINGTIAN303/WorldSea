@@ -20,6 +20,7 @@
 | src/main.ts | [main.md](tauri/main.md) | Tauri 端入口：端分离策略、Phase 3/4 演进说明 |
 | vite.config.ts | [vite-config.md](tauri/vite-config.md) | Tauri 端 Vite 配置：IPC 直连设计原则、WASM 算法降级、端口与构建触发 |
 | src/memory-archive/adapters/TauriFsOperations.ts | [TauriFsOperations.md](tauri/TauriFsOperations.md) | FsOperations 的 Tauri 实现：cmd_fs_* 命令映射 |
+| src/ui/layout/sidebar/viewOrder.ts | — | 侧栏可见视图**唯一顺序口径**（`isViewVisible` 过滤 + `sidebarOrder` 排序）：渲染（SidebarV2）与 `Ctrl+↑/↓` 切换（Shell）共用，修「切得太多/乱跳」（2026-10-01；短注释未立文档） |
 | 拆分记录（2026-08-06） | — | coreBackend.ts 按领域拆为 src/core/api/（schema / retrofit / entity / algo / health / runtime + index 聚合），coreBackend.ts 保留 `export * from './api'`，类型统一来自 @worldsea/core-api-types，公共导出签名不变，原 import 处无需改动；各新文件无 ≥ 10 行连续注释块，未生成新文档 |
 
 > ~~src-tauri/src/commands.rs~~（commands.md）、search-config / net-egress / web-fetch / useTerminalRust /
@@ -112,6 +113,8 @@
 | src/components/GenericEntityView.vue | [实体视图滚动链.md](packages/plugin-sdk/实体视图滚动链.md) | 实体卡片网格滚动链：定高容器下 auto 隐式行 / 列向 flex 子项的自动最小尺寸因卡片 overflow:hidden 归零 → 压扁且不出滚动条；`grid-auto-rows:min-content` + `has-custom-list>*{flex-shrink:0}` 修复（2026-10-01） |
 | src/composables/useBatchDelete.ts | [批量选择态.md](packages/plugin-sdk/批量选择态.md) | 批量态状态机（进出清空选中 / 清空≠退出 / 删除后留态）；常驻复选框退役，改显式批量态 + 点击路由（2026-10-01） |
 | src/components/toolbar-buttons.css | [批量选择态.md](packages/plugin-sdk/批量选择态.md) | 工具条按钮共用源（ghost/danger/sm/active）：各消费组件以 `<style scoped src>` 引入，规则落各自作用域、零全局泄漏（GEV + TimelineView 两处去重，2026-10-01） |
+| src/components/EntityPager.vue | [实体视图分页.md](packages/plugin-sdk/实体视图分页.md) | 分页控件（左右箭头 + 当前页/总页数）；抽独立组件保持 GEV 精简、可复用（2026-10-01） |
+| src/components/GenericEntityView.vue（分页） | [实体视图分页.md](packages/plugin-sdk/实体视图分页.md) | 每页 100 条 + `Ctrl+←/→` + 撤「>200 项」警告条；**插槽消费方（区域/势力）不分页**——分页子集会让树丢页外节点（2026-10-01） |
 
 > ~~src/agent-descriptor.ts~~（pluginSdkDescriptor）已于 2026-09-27 E8 随 Agent 工具目录退场。
 

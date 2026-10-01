@@ -35,6 +35,7 @@
 import { ref, defineAsyncComponent, onMounted, onUnmounted, watch } from 'vue'
 import TitleBar from './TitleBar.vue'
 import Sidebar from './sidebar/SidebarV2.vue'
+import { visibleViewsInSidebarOrder } from './sidebar/viewOrder'
 import { Toast, DialogContainer, ViewContainer } from '@worldsea/ui-kit'
 import WsConfirmDialog from '../WsConfirmDialog.vue'
 import WsAskDialog from '../WsAskDialog.vue'
@@ -186,8 +187,10 @@ onMounted(() => {
   // 视图顺序切换（2026-09-28 用户拍板，替代失效的数字键）：Ctrl+↑/↓ 循环切换。
   // 数字键失效根因 = for 循环在 setup 时展开，树异步装载前 views 为空 → 循环 0 次从未注册；
   // 新实现 handler 内动态读 store（引用同一实例），注册时机不再敏感。
+  // 2026-10-01 修「切得太多/乱跳」：改用**侧栏同一份可见顺序**（viewOrder 单一口径）——
+  // 旧实现走 pluginStore.views 注册序且不过滤隐藏芽，按键后常跳到侧栏看不见的位置。
   const switchViewBy = (delta: number) => {
-    const views = pluginStore.views
+    const views = visibleViewsInSidebarOrder()
     if (views.length === 0) return
     const idx = views.findIndex(v => v.id === uiStore.currentView)
     const next = ((idx === -1 ? 0 : idx + delta) + views.length) % views.length

@@ -25,6 +25,8 @@
     <Teleport to="#view-toolbar-actions">
       <div class="toolbar-actions">
         <slot name="toolbar-extra" />
+        <!-- 分页只管 GEV 默认卡片网格：插槽消费方（区域/势力）自绘树/网格，分页子集会让树丢页外节点 -->
+        <EntityPager v-if="totalPages > 1 && !hasListSlot" :page="page" :total="totalPages" @prev="pagePrev" @next="pageNext" />
         <button
           class="btn-ghost btn-sm"
           :class="{ active: selecting }"
@@ -45,14 +47,10 @@
       <slot name="toolbar-create-extra" />
     </Teleport>
 
-    <n-alert v-if="filteredList.length > 200" type="warning" :show-icon="true" class="large-list-warning">
-      当前显示 {{ filteredList.length }} 项，建议使用筛选器缩小范围以获得最佳体验。
-    </n-alert>
-
     <div class="entity-grid" :class="{ 'is-empty': !hasListSlot && filteredList.length === 0, 'has-custom-list': hasListSlot }">
       <slot name="list" :entities="filteredList" :selected-ids="selectedIds" :toggle-select="toggleSelect" :select="selectEntity" :batch-mode="selecting">
         <div
-          v-for="(e, idx) in filteredList"
+          v-for="(e, idx) in pagedList"
           :key="e.id"
           class="entity-card-wrapper"
           :class="{
@@ -60,8 +58,8 @@
             'batch-selected': selectedIds.has(e.id),
             'batch-mode': selecting,
             'active': listHighlight.selectedId.value === e.id,
-            'dimmed': listHighlight.applyToList(filteredList)[idx]?.dimmed,
-            'search-highlight': listHighlight.applyToList(filteredList)[idx]?.searchHit,
+            'dimmed': pagedHighlight[idx]?.dimmed,
+            'search-highlight': pagedHighlight[idx]?.searchHit,
           }"
         >
           <div v-if="hasImageField" class="entity-card-flipper">
@@ -246,10 +244,9 @@
 <script setup lang="ts">
 import { toastSuccess, toastWithUndo } from '@worldsea/ui-kit'
 import { useEntityEdit, useBatchDelete, useDuplicateNameCheck, useShortcuts, useConfirm, useHighlight } from '../composables'
-import { ref, computed, onMounted, onBeforeUnmount, reactive, useSlots } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, reactive, useSlots, watch } from 'vue'
 import { useEntityStore, useRelationStore, entitySchemaRegistry } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
-import { NAlert } from 'naive-ui'
 import DetailField from './DetailField.vue'
 import CustomDropdown from './CustomDropdown.vue'
 import CreateButton from './CreateButton.vue'
@@ -260,6 +257,7 @@ import EntityDetailPanel from './EntityDetailPanel.vue'
 import EntityRelationSelector from './EntityRelationSelector.vue'
 import type { FormFieldDef, RelationTabDef, CardFieldDef, CustomTabDef, FilterDef } from './types'
 import { WsIcon, WsEmpty } from '@worldsea/ui-kit'
+import EntityPager from './EntityPager.vue'
 import EntityCardCover from './EntityCardCover.vue'
 import EntityCardBack from './EntityCardBack.vue'
 import AutoLinkSuggestions from './AutoLinkSuggestions.vue'
@@ -285,6 +283,8 @@ const props = withDefaults(defineProps<{
   sortOptions?: { key: string; label: string }[]
   hideCreateButton?: boolean
   facetOnCreate?: string
+  /** 每页条数（分页；超 1 页时工具条出现翻页控件） */
+  pageSize?: number
 }>(), {
   filterOptions: () => [{ value: '', label: '全部' }],
   filterDefs: () => [],
@@ -297,6 +297,7 @@ const props = withDefaults(defineProps<{
   sortOptions: () => [],
   hideCreateButton: false,
   facetOnCreate: '',
+  pageSize: 100,
 })
 
 const entityStore = useEntityStore()
@@ -433,6 +434,26 @@ const filteredList = computed(() => {
   return l
 })
 
+/* ── 分页（2026-10-01）──
+ * 只切「渲染哪一段」，`filteredList` 仍是全量过滤结果——批量删除的取名、跨页选中、
+ * 计数与空态都基于全量，不随翻页变化。 */
+const page = ref(1)
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredList.value.length / Math.max(1, props.pageSize))))
+const pagedList = computed(() => {
+  const size = Math.max(1, props.pageSize)
+  const start = (page.value - 1) * size
+  return filteredList.value.slice(start, start + size)
+})
+/** 高亮/变暗按当前页算（与 v-for 下标一一对应） */
+const pagedHighlight = computed(() => listHighlight.applyToList(pagedList.value))
+
+function pagePrev() { if (page.value > 1) page.value -= 1 }
+function pageNext() { if (page.value < totalPages.value) page.value += 1 }
+
+// 过滤/排序变化可能把当前页挤出范围 → 收敛到末页；搜索词变化直接回第 1 页
+watch(totalPages, (tp) => { if (page.value > tp) page.value = tp })
+watch(searchQuery, () => { page.value = 1 })
+
 onMounted(async () => {
   try {
     await entityStore.loadAll()
@@ -466,12 +487,31 @@ onMounted(async () => {
       else if (selecting.value) toggleSelectMode()
     },
   })
+  // 分页（Ctrl+←/→；view 层，per-entityType id 避免多视图共存时互相覆盖）
+  register({
+    id: `${props.entityType}.page-prev`,
+    keys: ['ctrl', 'left'],
+    scope: 'view',
+    description: '上一页',
+    preventDefault: true,
+    handler: pagePrev,
+  })
+  register({
+    id: `${props.entityType}.page-next`,
+    keys: ['ctrl', 'right'],
+    scope: 'view',
+    description: '下一页',
+    preventDefault: true,
+    handler: pageNext,
+  })
 })
 
 onBeforeUnmount(() => {
   unregister(`${props.entityType}.delete`)
   unregister(`${props.entityType}.new`)
   unregister(`${props.entityType}.close`)
+  unregister(`${props.entityType}.page-prev`)
+  unregister(`${props.entityType}.page-next`)
 })
 
 function selectEntity(e: Entity) { selectedEntity.value = e; listHighlight.select(e.id); emit('select-entity', e) }
@@ -662,7 +702,6 @@ defineExpose({
 .entity-grid.has-custom-list { display: flex; flex-direction: column; grid-template-columns: unset; }
 /* 列向 flex 下同因：子项（卡片 overflow:hidden）自动最小尺寸归零会被 flex-shrink 压扁且不滚动；自带 flex:1+overflow 的树/图视图不受影响（基尺寸 0、靠 grow 撑满） */
 .entity-grid.has-custom-list > * { flex-shrink: 0; }
-.large-list-warning { margin-bottom: 12px; }
 
 /* ── 实体卡片（双线分隔：每卡自带 1px 边框 + gap 缝隙透出 app 底色）── */
 .entity-card-wrapper {
