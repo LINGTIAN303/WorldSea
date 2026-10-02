@@ -273,7 +273,7 @@ function attachGlobalListener() {
           e.preventDefault()
         }
         // 【消费策略（2026-09 批5）】view 层命令命中后阻断传播：document/window 级残留
-        // 监听（未收编的组件局部监听，如 InfoPanel 的 Delete）不再重复执行同键行为。
+        // 监听（未收编的组件局部监听）不再重复执行同键行为。
         // modal/global 层暂不阻断——兼容存量浮层（TuiModal 等约 30 处）的 window Esc
         // 监听，其收编按规范渐进（新代码一律 useScopedShortcuts）。
         if (scope === 'view') {

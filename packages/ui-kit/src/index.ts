@@ -49,7 +49,6 @@ export type {
 export { default as RichTextEditor } from './components/editor/RichTextEditor.vue'
 export { default as FloatingPanel } from './components/layout/FloatingPanel.vue'
 export { default as ColorPickerDialog } from './components/editor/ColorPickerDialog.vue'
-export { default as InfoPanel } from './components/entity/InfoPanel.vue'
 export { default as DialogContainer } from './components/layout/DialogContainer.vue'
 export { default as Toast } from './components/feedback/Toast.vue'
 export { default as Sidebar } from './components/layout/Sidebar.vue'
@@ -165,7 +164,6 @@ export {
   type AskAnswer,
   type AskRequest,
 } from './composables/useAsk'
-export { useSelection, SelectionKey, provideGlobalSelection, type SelectionState } from './composables/useSelection'
 export {
   useShortcuts,
   setActiveViewId,

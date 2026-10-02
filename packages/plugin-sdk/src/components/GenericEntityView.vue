@@ -162,50 +162,25 @@
             :properties="entity.properties"
           />
 
-          <div class="detail-fields">
-            <DetailField
-              v-for="f in displayFields"
-              :key="f.key"
-              :label="f.label"
-              :value="entity.properties[f.key]"
-              :editing="editing"
-              :type="(f.fieldType as any)"
-              :options="f.options?.map(o => o.value)"
-              :entity-id="entity.id"
-              :cover-position="entity.coverPosition"
-              :cover-zoom="entity.coverZoom"
-              :auto-link="(f as any).autoLink"
-              @update:value="editForm[f.key] = $event"
-              @update:cover-position="(val) => { editForm._coverPosition = val; entityStore.update(entity.id, { coverPosition: val }) }"
-              @update:cover-zoom="(val) => { editForm._coverZoom = val; entityStore.update(entity.id, { coverZoom: val }) }"
-              @commit="saveEdit"
-            />
-          </div>
-
-          <DetailField
-            label="描述"
-            :value="entity.description"
+          <EntityDetailForm
+            :entity="entity"
+            :fields="detailFieldMetas"
+            :layout="detailLayout"
             :editing="editing"
-            type="textarea"
-            @update:value="editForm._description = $event"
-            @commit="saveEdit"
-          />
-
-          <DynamicFieldsAdder
-            :entity-type="entityType"
-            v-model="editForm"
-            :field-defs="customFieldDefs"
-            @update:field-defs="customFieldDefs = $event"
-          />
-
-          <slot name="detail-extra" :entity="entity" :editing="editing" />
-
-          <div class="detail-actions" v-if="editing">
-            <button class="btn-danger btn-sm" @click="deleteEntity">删除</button>
-          </div>
-          <div class="detail-edit-bar" v-if="editing">
-            <button class="btn-primary btn-sm" @click="saveEdit()">保存</button>
-          </div>
+            :draft="editForm"
+            :entity-label="entityLabel"
+            @update:field="onDraftField"
+            @add-field="onAddField"
+            @remove-field="onRemoveField"
+            @enter-edit="startEdit"
+            @save="saveEdit()"
+            @cancel="cancelEdit"
+            @delete="deleteEntity"
+          >
+            <template #extra="{ entity: extraEntity, editing: extraEditing }">
+              <slot name="detail-extra" :entity="extraEntity" :editing="extraEditing" />
+            </template>
+          </EntityDetailForm>
         </slot>
       </template>
 
@@ -244,15 +219,13 @@
 </template>
 
 <script setup lang="ts">
-import { toastSuccess, toastWithUndo } from '@worldsea/ui-kit'
+import { toastSuccess, toastWarn, toastWithUndo } from '@worldsea/ui-kit'
 import { useEntityEdit, useBatchDelete, useDuplicateNameCheck, useShortcuts, useConfirm, useHighlight, useEntityPaging } from '../composables'
 import { ref, computed, onMounted, onBeforeUnmount, reactive, useSlots, watch } from 'vue'
-import { useEntityStore, useRelationStore, entitySchemaRegistry } from '@worldsea/entity-core'
+import { useEntityStore, useRelationStore, entitySchemaRegistry, fieldRegistry } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
-import DetailField from './DetailField.vue'
 import CustomDropdown from './CustomDropdown.vue'
 import CreateButton from './CreateButton.vue'
-import DynamicFieldsAdder from './DynamicFieldsAdder.vue'
 import UniversalRelationPanel from './UniversalRelationPanel.vue'
 import EntityFormModal from './EntityFormModal.vue'
 import EntityDetailPanel from './EntityDetailPanel.vue'
@@ -263,6 +236,12 @@ import EntityPager from './EntityPager.vue'
 import EntityCardCover from './EntityCardCover.vue'
 import EntityCardBack from './EntityCardBack.vue'
 import AutoLinkSuggestions from './AutoLinkSuggestions.vue'
+import EntityDetailForm from '../detail/EntityDetailForm.vue'
+import type { DetailFieldMeta } from '../detail/fieldMeta'
+import { useDetailLayout } from '../detail/useDetailLayout'
+import { draftKeyOf } from '../detail/draftKeys'
+import { emptyValueFor } from '../detail/fieldValue'
+import { normalizeFieldType } from '../detail/fieldType'
 
 const emit = defineEmits<{
   (e: 'select-entity', entity: Entity): void
@@ -343,7 +322,7 @@ const showForm = ref(false)
 const editingEntity = ref<Entity | null>(null)
 const detailPanelRef = ref<InstanceType<typeof EntityDetailPanel> | null>(null)
 
-const { isEditing, editForm, customFieldDefs, startEdit, cancelEdit, saveEdit } = useEntityEdit(selectedEntity)
+const { isEditing, editForm, startEdit, cancelEdit, saveEdit } = useEntityEdit(selectedEntity)
 const { selectedIds, selecting, toggleSelect, clearSelection, toggleSelectMode, batchDelete } = useBatchDelete()
 
 const entityLabel = computed(() => props.entityLabel || props.entityType)
@@ -369,10 +348,43 @@ const hasImageField = computed(() => {
   return fields.some((f: any) => f.fieldType === 'image')
 })
 
-const displayFields = computed(() => {
-  const schema = entitySchemaRegistry.get(props.entityType)
-  return (schema?.fields || []).filter((f: any) => f.key !== typeFieldKey.value)
+/* ── 详情字段与布局：详情段外移至 EntityDetailForm，字段取类型级注册表（含用户加的字段）── */
+const detailFieldMetas = computed<DetailFieldMeta[]>(() => {
+  void fieldRegistry.version.value
+  return fieldRegistry.getFields(props.entityType).map(f => ({
+    key: f.key,
+    label: f.label,
+    fieldType: f.fieldType,
+    options: f.options,
+    refType: f.refType,
+    source: f.source,
+  }))
 })
+
+const { layout: detailLayout } = useDetailLayout(
+  () => props.entityType,
+  () => detailFieldMetas.value.map(f => f.key),
+)
+
+function onDraftField(key: string, value: unknown) {
+  editForm.value[draftKeyOf(key)] = value
+}
+
+/** 加字段是**类型级**操作：同类型所有实体共享（裁定 ⑩） */
+function onAddField(field: { key: string; label: string; fieldType: string }) {
+  if (!fieldRegistry.addUserField(props.entityType, field)) {
+    toastWarn(`字段「${field.label}」已存在`)
+    return
+  }
+  editForm.value[field.key] = emptyValueFor(normalizeFieldType(field.fieldType))
+  toastSuccess(`已为「${entityLabel.value}」添加字段「${field.label}」`)
+}
+
+function onRemoveField(key: string) {
+  fieldRegistry.removeField(props.entityType, key)
+  delete editForm.value[key]
+  toastSuccess(`已移除字段「${key}」`)
+}
 
 const relationTabs = computed(() => props.detailTabs || [])
 
@@ -515,15 +527,18 @@ function openNewForm() { editingEntity.value = null; showForm.value = true }
 async function onFormSave(data: { name: string; description: string; properties: Record<string, any>; tags: string[]; _autoLinkFields?: any[]; _coverPosition?: string; _coverZoom?: number }) {
   const now = new Date().toISOString()
   let savedEntityId: string | undefined
-  if (editingEntity.value) {
-    savedEntityId = editingEntity.value.id
+  // 判据是 id 而非「editingEntity 是否非空」：模板预填造的假实体 id 为空串，
+  // 早先按非空判定会把它送进更新分支去 update('') —— 表单关掉但实体根本不落地
+  const editingId = editingEntity.value?.id
+  if (editingId) {
+    savedEntityId = editingId
     const updateData: Record<string, unknown> = {
       name: data.name, description: data.description,
       properties: data.properties, tags: data.tags,
     }
     if (data._coverPosition) updateData.coverPosition = data._coverPosition
     if (data._coverZoom) updateData.coverZoom = data._coverZoom
-    await entityStore.update(editingEntity.value.id, updateData)
+    await entityStore.update(editingId, updateData)
   } else {
     const checkedName = await checkAndConfirmName(data.name, undefined, props.entityType)
     if (!checkedName) return

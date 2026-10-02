@@ -19,7 +19,6 @@
     <LayoutManager :show="layoutMgrOpen" @close="layoutMgrOpen = false" />
     <ShortcutHelpModal :show="shortcutHelpOpen" @close="shortcutHelpOpen = false" />
     <UndoHistoryPanel :show="undoHistoryOpen" @close="undoHistoryOpen = false" @redo="onRedoFromHistory" />
-    <InfoPanel />
     <TrashPanel :show="trashOpen" @close="trashOpen = false" />
     <ArtifactsPanel :show="artifactsOpen" @close="artifactsOpen = false" />
     <ConsistencyReportPanel :show="consistencyOpen" @close="consistencyOpen = false" />
@@ -50,7 +49,6 @@ const DocExport = defineAsyncComponent(() => import('@worldsea/ui-kit').then(m =
 const LayoutManager = defineAsyncComponent(() => import('@worldsea/ui-kit').then(m => m.LayoutManager))
 const ShortcutHelpModal = defineAsyncComponent(() => import('@worldsea/ui-kit').then(m => m.ShortcutHelpModal))
 const UndoHistoryPanel = defineAsyncComponent(() => import('@worldsea/ui-kit').then(m => m.UndoHistoryPanel))
-const InfoPanel = defineAsyncComponent(() => import('@worldsea/ui-kit').then(m => m.InfoPanel))
 import { useShortcuts, useUndoRedo, useGlobalEvents } from '@worldsea/ui-kit'
 import { usePluginStore, useDirtyTracker, useEntityStore, useRelationStore, entitySchemaRegistry, relationshipRegistry, useUIStore, useSettingsStore } from '@worldsea/entity-core'
 import { useFileSystemProject } from '@worldsea/entity-core/composables'

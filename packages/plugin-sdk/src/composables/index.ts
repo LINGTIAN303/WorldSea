@@ -7,7 +7,6 @@ export { useConfirm, type ConfirmType } from '@worldsea/ui-kit'
 export { useDialog } from '@worldsea/ui-kit'
 export { useResizable, getAllPanelWidths, resetPanelWidth, resetAllPanelWidths, PANEL_LABELS, type ResizableOptions } from '@worldsea/ui-kit'
 export { useShortcuts, currentSequence, formatKeysForDisplay, formatKeyForDisplay, type ShortcutScope, type ShortcutKind, type ShortcutDef, type ShortcutConflict } from '@worldsea/ui-kit'
-export { useSelection, SelectionKey, provideGlobalSelection, type SelectionState } from '@worldsea/ui-kit'
 
 // ----------------------------------------------------------------------------
 // Native to plugin-sdk (业务逻辑层 composables)

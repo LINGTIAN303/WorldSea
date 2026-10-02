@@ -1,6 +1,7 @@
 import { ref, watch, type Ref } from 'vue'
-import { useEntityStore, type Entity, type FieldSchema } from '@worldsea/entity-core'
+import { fieldRegistry, useEntityStore, type Entity, type FieldSchema } from '@worldsea/entity-core'
 import { toastSuccess, toastError } from '@worldsea/ui-kit'
+import { splitDraft } from '../detail/draftKeys'
 
 export interface EditFormValues {
   _name: string
@@ -8,26 +9,25 @@ export interface EditFormValues {
   [key: string]: unknown
 }
 
+/**
+ * 详情行内编辑的草稿与唯一写路径。
+ * 详细见 docs/details/注释/packages/plugin-sdk/实体详情表单.md
+ */
 export function useEntityEdit(selectedEntity: Ref<Entity | null>) {
   const isEditing = ref(false)
   const editForm = ref<EditFormValues>({ _name: '', _description: '' })
   const customFieldDefs = ref<FieldSchema[]>([])
 
   function buildForm(e: Entity): EditFormValues {
-    const props = e.properties || {}
-    if (props.__customFieldDefs) {
-      try {
-        customFieldDefs.value = JSON.parse(props.__customFieldDefs as string) as FieldSchema[]
-      } catch { customFieldDefs.value = [] }
-    } else {
-      customFieldDefs.value = []
-    }
+    // 顶层承载的字段用草稿键种下，否则详情里它们永远读成 properties 的空值
     return {
       _name: e.name || '',
       _description: e.description || '',
+      _tags: [...(e.tags ?? [])],
+      _coverImage: e.coverImage || '',
       _coverPosition: e.coverPosition || '50% 50%',
-      _coverZoom: e.coverZoom || 1,
-      ...props,
+      _coverZoom: e.coverZoom ?? 1,
+      ...(e.properties || {}),
     } as EditFormValues
   }
 
@@ -50,6 +50,14 @@ export function useEntityEdit(selectedEntity: Ref<Entity | null>) {
     }
   }
 
+  /** 自定义字段落**类型级**注册表（同类型共享），不再塞进实体 properties（裁定 ⑩） */
+  function persistCustomFields(entityType: string) {
+    for (const f of customFieldDefs.value) {
+      if (fieldRegistry.getFields(entityType).some(cur => cur.key === f.key)) continue
+      fieldRegistry.addUserField(entityType, f)
+    }
+  }
+
   async function saveEdit(
     entityStore?: ReturnType<typeof useEntityStore>,
     afterSave?: (entityId: string, form: EditFormValues) => Promise<void>,
@@ -58,24 +66,14 @@ export function useEntityEdit(selectedEntity: Ref<Entity | null>) {
     const entity = selectedEntity.value
     if (!entity) return
 
-    const { _name, _description, _coverPosition, _coverZoom, __customFieldDefs, ...properties } = editForm.value
-    if (customFieldDefs.value.length > 0) {
-      properties.__customFieldDefs = JSON.stringify(customFieldDefs.value)
-    } else {
-      delete properties.__customFieldDefs
-    }
+    const { topLevel, properties } = splitDraft(editForm.value)
+    // properties 是整体替换语义，必须与旧值合并，否则未编辑的字段会被抹掉
     const updateData: Record<string, unknown> = {
-      name: _name || entity.name,
-      description: _description !== undefined ? _description : entity.description,
-      properties,
-    }
-    if (_coverPosition !== undefined) {
-      updateData.coverPosition = _coverPosition
-    }
-    if (_coverZoom !== undefined) {
-      updateData.coverZoom = _coverZoom
+      ...topLevel,
+      properties: { ...(entity.properties ?? {}), ...properties },
     }
     try {
+      persistCustomFields(entity.type)
       await store.update(entity.id, updateData)
       if (afterSave) {
         await afterSave(entity.id, editForm.value)

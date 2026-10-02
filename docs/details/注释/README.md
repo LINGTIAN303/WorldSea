@@ -122,6 +122,9 @@
 | src/composables/useEntityPaging.ts | [实体视图分页.md](packages/plugin-sdk/实体视图分页.md) | 分页口径唯一实现：源列表全量 / `pagedList` 只切渲染段 / 末页收敛内置 / `resetPage` 由调用方接线；6 例守卫（反证：摘收敛 watch → 收敛例报红）（2026-10-01） |
 | src/components/EntityPager.vue | [实体视图分页.md](packages/plugin-sdk/实体视图分页.md) | 分页控件（左右箭头 + 当前页/总页数）；抽独立组件保持 GEV 精简、可复用（2026-10-01） |
 | src/components/GenericEntityView.vue（分页） | [实体视图分页.md](packages/plugin-sdk/实体视图分页.md) | 每页 100 条 + `Ctrl+←/→` + 撤「>200 项」警告条；分页逻辑已下沉 `useEntityPaging`；**插槽消费方（区域/势力）默认不分页**——分页子集会让树丢页外节点（2026-10-01） |
+| src/detail/（fieldType / fieldControlMap / fieldValue / fieldAccessor / draftKeys / detailLayout / useDetailLayout / FieldControl / EntityRefControl / EntityDetailForm） | [实体详情表单.md](packages/plugin-sdk/实体详情表单.md) | 详情地基：`normalizeFieldType` 单点吸收三套 fieldType 命名漂移（未知类型显式 `unknown`，不得静默转 text）；控件映射是**数据**不是分支；顶层字段真值定位（修「每实体白挂 2-3 条恒为 — 的幽灵行」）；三级合并取整表替换 + 缺失补齐 + 幽灵 key 剔除；布局落 `worldsea_detail_layouts`，自定义字段改**类型级 `fieldRegistry`**（不再塞 `properties.__customFieldDefs`）（2026-10-02 批次 1a） |
+| src/composables/useEntityEdit.ts | [实体详情表单.md](packages/plugin-sdk/实体详情表单.md) | 编辑态单轨：`editForm` 草稿 + `saveEdit` 一次提交为唯一写路径；`splitDraft` 保 properties 合并语义；顺带修「模板预填新建走 `update('')` 静默不落地」（守卫 `components/__tests__/genericEntityViewSaveMode.spec.ts`，反证已咬）（2026-10-02） |
+| src/components/UniversalRelationPanel.vue · EntityRelationSelector.vue · AutoLinkSuggestions.vue | [实体详情关系区.md](packages/plugin-sdk/实体详情关系区.md) | 关系区**事实清单**（用户裁定本轮不动结构）：三套 UI 并存 + URP 内嵌 ERS 两次 + 四芽绕行单挂 ERS；三条写口语义分叉（`createBidirectional` 双向 vs `storage.putRelation` 单向且绕 store vs `deleteWithConfirm` 只覆盖 URP 视图内的边）；留给裁定的三问（2026-10-02） |
 
 > ~~src/agent-descriptor.ts~~（pluginSdkDescriptor）已于 2026-09-27 E8 随 Agent 工具目录退场。
 

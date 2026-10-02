@@ -68,7 +68,6 @@
     "packages/shared-composables/src/companion/useCompanionMode.ts": 747,
     "packages/shared-ui/src/markdown/markdownStream.ts": 432,
     "packages/ui-kit/src/components/data/ImportExportModal.vue": 516,
-    "packages/ui-kit/src/components/entity/InfoPanel.vue": 610,
     "packages/ui-kit/src/components/entity/RegionMap.vue": 644,
     "packages/ui-kit/src/components/font/AnimatedFontExportPanel.vue": 583,
     "packages/ui-kit/src/components/font/FontPreviewPanel.vue": 408,
