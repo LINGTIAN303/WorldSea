@@ -27,7 +27,6 @@ export { useArtifacts } from './useArtifacts'
 export { useEntityTemplates } from './useEntityTemplates'
 export { useAdvancedSearch, type SearchFilter } from './useAdvancedSearch'
 export { useVersionSnapshot, type Snapshot } from './useVersionSnapshot'
-export { useConsistencyChecker, type ConsistencyIssue } from './useConsistencyChecker'
 
 // Phase 8a: 自动备份（从根 src/composables/useAutoBackup.ts 下沉）
 export { useAutoBackup } from './useAutoBackup'

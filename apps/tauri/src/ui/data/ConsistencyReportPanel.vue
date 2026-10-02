@@ -65,8 +65,8 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue'
-import { TuiButton, WsIcon, useModalShortcuts  } from '@worldsea/ui-kit'
-import { useConsistencyChecker, type ConsistencyIssue } from '@worldsea/entity-core'
+import { TuiButton, WsIcon, useModalShortcuts, useConfirm } from '@worldsea/ui-kit'
+import { useConsistencyChecker, type ConsistencyIssue } from '@worldsea/plugin-sdk'
 import { useRelationStore } from '@worldsea/entity-core'
 
 const props = defineProps<{ show: boolean }>()
@@ -77,6 +77,7 @@ useModalShortcuts(() => props.show, { id: 'consistency.close', onEscape: () => c
 
 const { checking, issues, runFullCheck, getIssueCountBySeverity } = useConsistencyChecker()
 const relationStore = useRelationStore()
+const { confirm } = useConfirm()
 
 const hasRun = ref(false)
 const expandedCategories = reactive<Record<string, boolean>>({
@@ -84,6 +85,12 @@ const expandedCategories = reactive<Record<string, boolean>>({
   missing_required: true,
   type_mismatch: true,
   orphan_entity: true,
+  duplicate_name: true,
+  empty_name: true,
+  dangling_ref: true,
+  invalid_select: true,
+  unregistered_type: true,
+  self_loop: true,
 })
 
 const errorCount = computed(() => getIssueCountBySeverity('error'))
@@ -95,8 +102,14 @@ const danglingRelations = computed(() => issues.value.filter(i => i.category ===
 // 图标取 ui-kit 图标集名（禁 emoji 当图标；2026-09-27 E7 收拾）
 const categories = [
   { key: 'dangling_relation' as const, label: '悬空关系', icon: 'link' },
+  { key: 'dangling_ref' as const, label: '失效引用', icon: 'relation' },
+  { key: 'empty_name' as const, label: '空白名称', icon: 'document' },
+  { key: 'duplicate_name' as const, label: '重名实体', icon: 'copy' },
   { key: 'missing_required' as const, label: '缺少必填字段', icon: 'edit' },
+  { key: 'invalid_select' as const, label: '选项越界', icon: 'list' },
   { key: 'type_mismatch' as const, label: '类型不匹配', icon: 'warning' },
+  { key: 'unregistered_type' as const, label: '未注册关系类型', icon: 'help' },
+  { key: 'self_loop' as const, label: '自环关系', icon: 'trade' },
   { key: 'orphan_entity' as const, label: '孤立实体', icon: 'location' },
 ]
 
@@ -124,7 +137,14 @@ async function onRunCheck() {
 async function onFixDangling() {
   const dangling = danglingRelations.value
   if (dangling.length === 0) return
-  if (!confirm(`确定删除 ${dangling.length} 条悬空关系？此操作不可撤销。`)) return
+  // 危险操作走统一确认弹窗 + 二段式确认键（原 window.confirm 与全应用弹窗体系不一致）
+  const ok = await confirm({
+    type: 'danger',
+    title: '一键修复悬空关系',
+    description: `将删除 ${dangling.length} 条悬空关系，此操作不可撤销。`,
+    armedConfirmText: '确认删除',
+  })
+  if (!ok) return
 
   const relationIds = new Set(dangling.map(i => i.relationId!))
   for (const relId of relationIds) {
@@ -139,8 +159,11 @@ function navigateToEntity(entityId: string) {
   window.dispatchEvent(new CustomEvent('ws-select-entity', { detail: { entityId } }))
 }
 
-function navigateToRelation(_relationId: string) {
-  // Relations don't have a dedicated view; just close the panel for now
+function navigateToRelation(relationId: string) {
+  // 关系无专属视图：跳到其源实体（原实现仅关面板，按钮等于摆设）
+  const rel = relationStore.relations.find(r => r.id === relationId)
+  if (!rel) return
+  window.dispatchEvent(new CustomEvent('ws-select-entity', { detail: { entityId: rel.sourceId } }))
   close()
 }
 
