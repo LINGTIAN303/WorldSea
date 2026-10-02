@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import 'fake-indexeddb/auto'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia, type Pinia } from 'pinia'
+import { useDetailLayoutStore } from '@worldsea/entity-core'
 import type { EntityTypeSchema } from '@worldsea/core-api-types'
 
 import GenericEntityView from '../GenericEntityView.vue'
@@ -85,5 +86,17 @@ describe('芽声明通道的两端', () => {
     const gev = wrapper.findComponent(GenericEntityView)
     expect(gev.exists(), 'schema 未加载或 GEV 未渲染＝本例失效').toBe(true)
     expect(gev.props('detailLayout')).toEqual({ contentForm: 'table' })
+  })
+
+  it('设置面写的覆写＝详情面读到的（两面共用同一条三级合并，没有第二份默认值）', () => {
+    useDetailLayoutStore().patch('concept', { contentForm: 'summary' })
+    wrapper = mount(GenericEntityView, {
+      props: { entityType: 'concept', formFields: [], detailLayout: { contentForm: 'table' } },
+      global: { plugins: [pinia], stubs: { EntityDetailPanel: PANEL_STUB } },
+      shallow: true,
+    })
+    // 用户覆写（设置面板写的）压过芽声明，详情面与设置面看到的必然是同一个值
+    expect((wrapper.findComponent(EntityDetailForm).props('layout') as { contentForm: string }).contentForm)
+      .toBe('summary')
   })
 })

@@ -42,6 +42,7 @@
             <SproutsPanel v-if="cat.id === 'plugins'" :search-query="searchQuery" @dirty="onDirty" />
             <EditorPanel v-if="cat.id === 'editor'" :search-query="searchQuery" @dirty="onDirty" />
             <LayoutPanel v-if="cat.id === 'layout'" :search-query="searchQuery" @dirty="onDirty" />
+            <DetailSettingsPanel v-if="cat.id === 'detail'" :search-query="searchQuery" />
             <RelationsPanel v-if="cat.id === 'relations'" :search-query="searchQuery" @dirty="onDirty" />
             <ShortcutsPanel v-if="cat.id === 'shortcuts'" :search-query="searchQuery" @dirty="onDirty" />
             <AccessibilityPanel v-if="cat.id === 'accessibility'" :search-query="searchQuery" />
@@ -57,6 +58,7 @@
           <SproutsPanel v-else-if="activeSection === 'plugins'" ref="pluginsRef" @dirty="onDirty" @card-change="onPanelCardChange" />
           <EditorPanel v-else-if="activeSection === 'editor'" ref="editorRef" @dirty="onDirty" @card-change="onPanelCardChange" />
           <LayoutPanel v-else-if="activeSection === 'layout'" ref="layoutRef" @dirty="onDirty" @card-change="onPanelCardChange" />
+          <DetailSettingsPanel v-else-if="activeSection === 'detail'" ref="detailRef" @card-change="onPanelCardChange" />
           <RelationsPanel v-else-if="activeSection === 'relations'" ref="relationsRef" @dirty="onDirty" @card-change="onPanelCardChange" />
           <ShortcutsPanel v-else-if="activeSection === 'shortcuts'" ref="shortcutsRef" @dirty="onDirty" @card-change="onPanelCardChange" />
           <AccessibilityPanel v-else-if="activeSection === 'accessibility'" ref="accessibilityRef" @card-change="onPanelCardChange" />
@@ -85,6 +87,7 @@ import AppearancePanel from './panels/AppearancePanel.vue'
 import SproutsPanel from './panels/SproutsPanel.vue'
 import EditorPanel from './panels/EditorPanel.vue'
 import LayoutPanel from './panels/LayoutPanel.vue'
+import DetailSettingsPanel from './panels/DetailSettingsPanel.vue'
 import RelationsPanel from './panels/RelationsPanel.vue'
 import ShortcutsPanel from './panels/ShortcutsPanel.vue'
 import AccessibilityPanel from './panels/AccessibilityPanel.vue'
@@ -129,6 +132,7 @@ const categories = [
   { id: 'plugins', icon: 'cat-plugins', label: '芽' },
   { id: 'editor', icon: 'cat-editor', label: '编辑' },
   { id: 'layout', icon: 'cat-layout', label: '布局' },
+  { id: 'detail', icon: 'data-entity', label: '实体详情' },
   { id: 'relations', icon: 'cat-relations', label: '关系' },
   { id: 'shortcuts', icon: 'cat-shortcuts', label: '快捷键' },
   { id: 'storage', icon: 'cat-storage', label: '存储' },
@@ -217,6 +221,7 @@ const appearanceRef = ref<InstanceType<typeof AppearancePanel> | null>(null)
 const pluginsRef = ref<InstanceType<typeof SproutsPanel> | null>(null)
 const editorRef = ref<InstanceType<typeof EditorPanel> | null>(null)
 const layoutRef = ref<InstanceType<typeof LayoutPanel> | null>(null)
+const detailRef = ref<InstanceType<typeof DetailSettingsPanel> | null>(null)
 const relationsRef = ref<InstanceType<typeof RelationsPanel> | null>(null)
 const shortcutsRef = ref<InstanceType<typeof ShortcutsPanel> | null>(null)
 const storageRef = ref<InstanceType<typeof StorageManagementTab> | null>(null)
@@ -227,6 +232,7 @@ const panelRefs: Record<string, { value: any }> = {
   plugins: pluginsRef,
   editor: editorRef,
   layout: layoutRef,
+  detail: detailRef,
   relations: relationsRef,
   shortcuts: shortcutsRef,
   storage: storageRef,
