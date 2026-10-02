@@ -1,12 +1,9 @@
-<script setup lang="ts">
 import { onMounted, computed, ref } from 'vue'
 import { TuiButton, WsIcon } from '@worldsea/ui-kit'
 import { CardDeck } from '@worldsea/ui-kit'
 import TuiCheckbox from '@/components/ui/TuiCheckbox.vue'
 import { useStorageStats } from '@worldsea/entity-core/composables'
 import { useOrphanCleanup } from '@worldsea/entity-core/composables'
-import { useDataDiagnostics } from '@worldsea/entity-core/composables'
-import { useAutoCleanup } from '@worldsea/entity-core/composables'
 import { useToast } from '../../composables/useToast'
 import { useSystemBridge } from '@/composables/useSystemBridge'
 
@@ -18,15 +15,13 @@ const {
   orphans, selectedIds, isScanning: orphanScanning, isCleaning,
   scanProgress, scan, cleanSelected, cleanAll, selectAll, deselectAll, toggleSelect,
 } = useOrphanCleanup()
-const { result: diagResult, isRunning: diagRunning, backendAvailable, run: runDiag } = useDataDiagnostics()
-const { lastRunAt, forceRun } = useAutoCleanup()
 
-// ── 叠放翻卡：复用通用 CardDeck（count=5，五个功能分区为五张卡；左列标题点击 → goToCard） ──
+// ── 叠放翻卡：复用通用 CardDeck（count=3，三个功能分区为三张卡；左列标题点击 → goToCard） ──
 const emit = defineEmits<{ 'card-change': [index: number] }>()
 const deckRef = ref<InstanceType<typeof CardDeck> | null>(null)
 defineExpose({ goToCard: (i: number) => deckRef.value?.goToCard(i) })
 
-// ── 设置搜索：按关键词过滤五张功能卡（面板三契约之一；存储为即时操作型面板，dirty 豁免） ──
+// ── 设置搜索：按关键词过滤三张功能卡（面板三契约之一；存储为即时操作型面板，dirty 豁免） ──
 const props = withDefaults(defineProps<{ searchQuery?: string }>(), { searchQuery: '' })
 
 function match(keywords: string): boolean {
@@ -45,11 +40,6 @@ function formatSize(bytes: number): string {
   if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
   if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${bytes} B`
-}
-
-function formatDate(ts: number): string {
-  if (!ts) return '从未'
-  return new Date(ts).toLocaleString('zh-CN')
 }
 
 async function onRefreshStats(): Promise<void> {
@@ -71,13 +61,9 @@ async function onCleanAll(): Promise<void> {
   await refresh()
 }
 
-async function onRunDiagnostics(): Promise<void> {
-  await runDiag()
-}
-
-async function onForceAutoCleanup(): Promise<void> {
-  const count = await forceRun()
-  toast.toastSuccess(`自动清理完成，清理了 ${count} 项缓存`)
+/** 跳转一致性检查（2026-10-02 裁定：原「数据诊断」卡退役，体检统一归一致性检查面板） */
+function openConsistencyCheck(): void {
+  window.dispatchEvent(new CustomEvent('ws-open-consistency'))
 }
 
 async function onToggleAutostart(e: Event): Promise<void> {
@@ -101,7 +87,7 @@ onMounted(async () => {
 
 <template>
   <div class="sm-tab">
-    <CardDeck :count="5" :flat="!!searchQuery" @change="(i) => emit('card-change', i)" ref="deckRef">
+    <CardDeck :count="3" :flat="!!searchQuery" @change="(i) => emit('card-change', i)" ref="deckRef">
       <template #card="{ idx, cls }">
         <div v-if="idx === 0" class="set-card deck-card" :class="cls" :data-index="0" v-show="match('系统集成 自启 开机 autostart settings')">
           <div class="sc-head">
@@ -118,7 +104,7 @@ onMounted(async () => {
           </div>
         </div>
 
-        <div v-else-if="idx === 1" class="set-card deck-card" :class="cls" :data-index="1" v-show="match('存储 概览 空间 配额 实体 关系 文件 会话 stats storage')">
+        <div v-else-if="idx === 1" class="set-card deck-card" :class="cls" :data-index="1" v-show="match('存储 概览 空间 实体 关系 文件 一致性 stats storage')">
           <div class="sc-head">
             <WsIcon name="dashboard" size="xs" />
             <span>存储概览</span>
@@ -129,11 +115,7 @@ onMounted(async () => {
           <div class="sm-stats-grid">
             <div class="sm-stat-item">
               <span class="sm-stat-value">{{ stats.totalUsageMB.toFixed(1) }} MB</span>
-              <span class="sm-stat-label">已用空间</span>
-            </div>
-            <div class="sm-stat-item" v-if="stats.quotaMB">
-              <span class="sm-stat-value">{{ stats.quotaMB.toFixed(0) }} MB</span>
-              <span class="sm-stat-label">存储配额</span>
+              <span class="sm-stat-label">数据占用（估算）</span>
             </div>
             <div class="sm-stat-item">
               <span class="sm-stat-value">{{ stats.entityCount }}</span>
@@ -147,10 +129,22 @@ onMounted(async () => {
               <span class="sm-stat-value">{{ stats.fileCount }}</span>
               <span class="sm-stat-label">文件</span>
             </div>
+            <div class="sm-stat-item">
+              <span class="sm-stat-value">{{ stats.fileTotalMB.toFixed(1) }} MB</span>
+              <span class="sm-stat-label">文件体积</span>
+            </div>
+            <div class="sm-stat-item">
+              <span class="sm-stat-value">{{ stats.kvCount }}</span>
+              <span class="sm-stat-label">键值项</span>
+            </div>
           </div>
           <div class="sm-orphan-hint" v-if="stats.orphanFileCount !== null && stats.orphanFileCount > 0">
             <WsIcon name="warning" size="xs" />
             <span>孤立文件: {{ stats.orphanFileCount }} 个</span>
+          </div>
+          <div class="sm-consistency-row">
+            <span>实体/关系体检（悬空关系、重名、失效引用等 10 项）</span>
+            <TuiButton size="sm" variant="secondary" @click="openConsistencyCheck">打开一致性检查</TuiButton>
           </div>
         </div>
 
@@ -185,58 +179,6 @@ onMounted(async () => {
           <div v-else-if="!orphanScanning" class="sm-empty-hint">
             {{ stats.orphanFileCount === 0 ? '未发现孤立文件' : '点击"扫描"检测孤立文件' }}
           </div>
-        </div>
-
-        <div v-else-if="idx === 3" class="set-card deck-card" :class="cls" :data-index="3" v-show="match('数据 诊断 实体 关系 重名 类型 diagnose diagnostic')">
-          <div class="sc-head">
-            <WsIcon name="search" size="xs" />
-            <span>数据诊断</span>
-          </div>
-          <div class="sm-diag-backend">
-            WASM 后端:
-            <span v-if="backendAvailable"><WsIcon name="check-circle" size="xs" /> 可用</span>
-            <span v-else><WsIcon name="alert" size="xs" /> 不可用（降级模式）</span>
-          </div>
-          <TuiButton size="sm" variant="secondary" @click="onRunDiagnostics" :disabled="diagRunning">
-            {{ diagRunning ? '诊断中...' : '运行诊断' }}
-          </TuiButton>
-          <div v-if="diagResult" class="sm-diag-results">
-            <div class="sm-diag-item" :class="{ 'sm-diag-ok': diagResult.orphanEntities.length === 0 }">
-              <WsIcon v-if="diagResult.orphanEntities.length > 0" name="alert" size="xs" />
-              <WsIcon v-else name="check-circle" size="xs" />
-              孤立实体: {{ diagResult.orphanEntities.length }} 个
-            </div>
-            <div class="sm-diag-item" :class="{ 'sm-diag-ok': diagResult.danglingRelations.length === 0 }">
-              <WsIcon v-if="diagResult.danglingRelations.length > 0" name="alert" size="xs" />
-              <WsIcon v-else name="check-circle" size="xs" />
-              悬空关系: {{ diagResult.danglingRelations.length }} 个
-            </div>
-            <div class="sm-diag-item" :class="{ 'sm-diag-ok': diagResult.duplicateNames.length === 0 }">
-              <WsIcon v-if="diagResult.duplicateNames.length > 0" name="alert" size="xs" />
-              <WsIcon v-else name="check-circle" size="xs" />
-              重名冲突: {{ diagResult.duplicateNames.length }} 处
-            </div>
-            <div class="sm-diag-item" :class="{ 'sm-diag-ok': diagResult.inconsistentTypes.length === 0 }">
-              <WsIcon v-if="diagResult.inconsistentTypes.length > 0" name="alert" size="xs" />
-              <WsIcon v-else name="check-circle" size="xs" />
-              未注册类型: {{ diagResult.inconsistentTypes.length }} 个
-            </div>
-          </div>
-        </div>
-
-        <div v-else class="set-card deck-card" :class="cls" :data-index="4" v-show="match('自动 清理 缓存 临时 autoclean cache')">
-          <div class="sc-head">
-            <WsIcon name="refresh" size="xs" />
-            <span>自动清理</span>
-          </div>
-          <div class="sm-autoclean-info">
-            <div>上次自动清理: {{ formatDate(lastRunAt) }}</div>
-            <div>自动清理范围: 过期缓存 + 临时标记</div>
-            <div>执行频率: 每 24 小时（应用启动时）</div>
-          </div>
-          <TuiButton size="sm" variant="ghost" @click="onForceAutoCleanup">
-            立即执行一次
-          </TuiButton>
         </div>
       </template>
     </CardDeck>
@@ -285,6 +227,21 @@ onMounted(async () => {
   font-size: var(--text-caption-font-size);
   color: var(--color-text-tertiary);
   margin-top: 2px;
+}
+.sm-consistency-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 8px 10px;
+  background: var(--color-bg-hover);
+  border-radius: var(--radius-md);
+  font-size: var(--text-body-sm-font-size);
+  color: var(--color-text-secondary);
+}
+.sm-consistency-row > span {
+  flex: 1;
+  min-width: 0;
 }
 .sm-orphan-hint {
   display: flex;
@@ -336,32 +293,5 @@ onMounted(async () => {
   color: var(--color-text-tertiary);
   text-align: center;
   padding: 12px;
-}
-.sm-diag-backend {
-  font-size: var(--text-body-sm-font-size);
-  margin-bottom: 8px;
-  color: var(--color-text-secondary);
-}
-.sm-diag-results {
-  margin-top: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.sm-diag-item {
-  font-size: var(--text-body-sm-font-size);
-  padding: 4px 8px;
-  border-radius: var(--radius-sm);
-}
-.sm-diag-ok {
-  color: var(--color-text-secondary);
-}
-.sm-autoclean-info {
-  font-size: var(--text-body-sm-font-size);
-  color: var(--color-text-secondary);
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-bottom: 8px;
 }
 </style>
