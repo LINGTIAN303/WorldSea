@@ -22,6 +22,7 @@
     :sort-options="sortOptions"
     :hide-create-button="hideCreateButton"
     :facet-on-create="facetOnCreate"
+    :detail-layout="detailLayout"
   >
     <template #toolbar-extra>
       <slot name="toolbar-extra" />
@@ -61,6 +62,7 @@ import { entitySchemaRegistry } from '@worldsea/entity-core'
 import type { EntityTypeSchema } from '@worldsea/core-api-types'
 import GenericEntityView from './GenericEntityView.vue'
 import type { FormFieldDef, RelationTabDef, CardFieldDef, CustomTabDef, FilterDef } from './types'
+import type { LayoutSource } from '../detail/detailLayout'
 
 const slots = useSlots()
 /** 消费者是否真正提供了 list 插槽（用于条件转发，避免 GenericEntityView 误判） */
@@ -83,6 +85,8 @@ const props = withDefaults(defineProps<{
   iconFn?: (entity: any) => string
   /** 实体类型 schema 加载器（端分离后由宿主注入；未提供时降级到 entitySchemaRegistry） */
   schemaLoader?: (typeKey: string) => Promise<EntityTypeSchema | null>
+  /** 芽声明的详情默认（顺序/分组/可见性/内容形态），原样下传 GenericEntityView */
+  detailLayout?: LayoutSource
 }>(), {
   detailTabs: () => [],
   customTabs: () => [],

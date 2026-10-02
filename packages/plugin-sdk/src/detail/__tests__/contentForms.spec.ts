@@ -36,7 +36,7 @@ const ENTITY = {
   id: 'e1',
   type: 'character',
   name: '林渊',
-  description: '少年剑客',
+  description: '少年**剑客**，守夜人',
   tags: [],
   properties: { species: '人族', born: '1420-03-01', master: 'e2' },
 } as unknown as Entity
@@ -143,6 +143,10 @@ describe('EntityDetailForm 分发', () => {
     expect(mountForm('summary').findAll('.dfs-chip').length).toBeGreaterThan(0)
     expect(mountForm('grouped').findAll('.dfm-group').length).toBeGreaterThan(0)
     expect(mountForm('narrative').find('.dfm-para').text()).toContain('少年剑客')
+    // 段落式真的走富文本渲染：markdown 源要变成结构，而不是把 `**` 原样贴在正文里
+    const md = mountForm('narrative')
+    expect(md.find('.dfm-para-text').html()).toContain('<strong>剑客</strong>')
+    expect(md.find('.dfm-para-text').text()).not.toContain('**')
     expect(mountForm('timeline').find('.dft-node').text()).toContain('1420-03-01')
   })
 

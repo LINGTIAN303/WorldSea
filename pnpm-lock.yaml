@@ -502,6 +502,9 @@ importers:
       '@worldsea/entity-core':
         specifier: link:../entity-core
         version: link:../entity-core
+      '@worldsea/shared-ui':
+        specifier: link:../shared-ui
+        version: link:../shared-ui
       '@worldsea/ui-kit':
         specifier: link:../ui-kit
         version: link:../ui-kit

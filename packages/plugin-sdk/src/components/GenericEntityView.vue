@@ -190,6 +190,7 @@ import EntityCard from './EntityCard.vue'
 import AutoLinkSuggestions from './AutoLinkSuggestions.vue'
 import EntityDetailForm from '../detail/EntityDetailForm.vue'
 import type { DetailFieldMeta } from '../detail/fieldMeta'
+import type { LayoutSource } from '../detail/detailLayout'
 import { useDetailLayout } from '../detail/useDetailLayout'
 import { draftKeyOf } from '../detail/draftKeys'
 import { emptyValueFor } from '../detail/fieldValue'
@@ -231,6 +232,8 @@ const props = withDefaults(defineProps<{
   pageSize?: number
   /** 插槽消费方也启用分页（工具条分页器 + 槽属性 paged-entities）；默认关，因自绘树等形态不能分页 */
   paginateSlot?: boolean
+  /** 芽声明的详情默认（顺序/分组/可见性/内容形态）；用户按类型的覆写与抽屉即时态都在它之上 */
+  detailLayout?: LayoutSource
 }>(), {
   filterOptions: () => [{ value: '', label: '全部' }],
   filterDefs: () => [],
@@ -328,6 +331,7 @@ const detailFieldMetas = computed(() => mergeScopedFields(typeLevelFields.value,
 const { layout: detailLayout, setContentForm } = useDetailLayout(
   () => props.entityType,
   () => detailFieldMetas.value.map(f => f.key),
+  () => props.detailLayout,
 )
 
 function onDraftField(key: string, value: unknown) {

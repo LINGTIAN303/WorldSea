@@ -122,11 +122,18 @@ export function shortChips(fields: DetailFieldMeta[], src: FieldSource) {
     })
 }
 
-/** 段落式的成篇内容：长文本字段按字段顺序，各带小标题 */
+/**
+ * 段落式的成篇内容：长文本字段按字段顺序，各带小标题。
+ * `raw` 给富文本渲染（markdown/HTML 原样），`text` 给纯文本消费（摘要摘录）——
+ * 两者都要，是因为剥标签与不剥标签在两侧各有各的理由，合成一个字段必有一侧出错。
+ */
 export function narrativeSections(fields: DetailFieldMeta[], src: FieldSource, includeDescription: boolean) {
   return fields
     .filter(f => fieldFamily(f) === 'long')
-    .map(f => ({ key: f.key, label: f.label, text: stripHtml(String(valueOfField(f, src) ?? '')) }))
+    .map(f => {
+      const raw = String(valueOfField(f, src) ?? '')
+      return { key: f.key, label: f.label, fieldType: f.fieldType, raw, text: stripHtml(raw) }
+    })
     .filter(s => includeDescription || s.key !== 'description')
 }
 

@@ -7,6 +7,7 @@
       :filter-defs="filterDefs"
       :sort-options="sortOptions"
       :custom-tabs="customTabs"
+      :detail-layout="DETAIL_LAYOUT"
       entity-label="角色"
       id-prefix="chr"
       :icon-fn="() => 'character'"
@@ -131,7 +132,7 @@ import { GenericEntityView, EntityRelationSelector, CustomDropdown, useShortcuts
 import { toastSuccess } from '@worldsea/ui-kit'
 import { characterFields } from './characterConfig'
 import { characterTemplates } from './characterTemplates'
-import type { FilterDef, CustomTabDef } from '@worldsea/plugin-sdk'
+import type { FilterDef, CustomTabDef, LayoutSource } from '@worldsea/plugin-sdk'
 
 const entityStore = useEntityStore()
 const relationStore = useRelationStore()
@@ -142,6 +143,8 @@ const { undo, redo } = useUndoRedo()
 // ── GenericEntityView ref ──
 const gevRef = ref<InstanceType<typeof GenericEntityView> | null>(null)
 
+/** 角色详情以正文为主，默认段落式；用户在抽屉里选过之后以覆写为准 */
+const DETAIL_LAYOUT: LayoutSource = { contentForm: 'narrative' }
 // ── Filter definitions (dynamic) ──
 const filterDefs: FilterDef[] = [
   { key: 'gender', label: '性别', dynamic: true },

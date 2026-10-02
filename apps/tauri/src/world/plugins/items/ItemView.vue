@@ -5,6 +5,7 @@
     :filter-defs="filterDefs"
     :card-footer-fields="cardFooterFields"
     :detail-tabs="detailTabs"
+    :detail-layout="DETAIL_LAYOUT"
     entity-label="道具"
     id-prefix="item"
     :icon-fn="() => 'item'"
@@ -12,7 +13,10 @@
 </template>
 
 <script setup lang="ts">
-import { GenericEntityView, type FormFieldDef, type FilterDef, type CardFieldDef, type RelationTabDef } from '@worldsea/plugin-sdk'
+import { GenericEntityView, type FormFieldDef, type FilterDef, type CardFieldDef, type RelationTabDef, type LayoutSource } from '@worldsea/plugin-sdk'
+
+/** 道具详情是短属性堆叠（类型/稀有度/材质/重量…），默认走摘要式一屏看全；用户选过之后以覆写为准 */
+const DETAIL_LAYOUT: LayoutSource = { contentForm: 'summary' }
 
 const fields: FormFieldDef[] = [
   { key: 'name', label: '名称', type: 'text', required: true, placeholder: '道具名称' },

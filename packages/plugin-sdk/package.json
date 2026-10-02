@@ -17,6 +17,7 @@
   "dependencies": {
     "@worldsea/core-api-types": "link:../core-api-types",
     "@worldsea/entity-core": "link:../entity-core",
+    "@worldsea/shared-ui": "link:../shared-ui",
     "@worldsea/ui-kit": "link:../ui-kit"
   }
 }

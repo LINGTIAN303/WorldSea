@@ -54,6 +54,17 @@ describe('useDetailLayout —— 读通与落盘', () => {
     expect(layout.value.order).toEqual(['b', 'a', 'c'])
   })
 
+  it('芽声明的内容形态生效，且用户覆写与即时态都压得过它', () => {
+    const { layout, setContentForm, setContentConfig } = mk(ref({ contentForm: 'narrative', contentConfig: { includeDescription: false } }))
+    expect(layout.value.contentForm).toBe('narrative')
+    expect(layout.value.contentConfig).toEqual({ includeDescription: false })
+    setContentConfig({ includeDescription: true })
+    expect(layout.value.contentConfig).toEqual({ includeDescription: true })
+    setContentForm('summary')
+    expect(layout.value.contentForm).toBe('summary')
+    expect(JSON.parse(localStorage.getItem('worldsea_detail_layouts') || '{}').character.contentForm).toBe('summary')
+  })
+
   it('芽默认参与合并，reset 后回到芽默认', () => {
     const sprout = ref({ order: ['b', 'c', 'a'], contentForm: 'narrative' })
     const { layout, reset, setContentForm } = mk(sprout)
