@@ -32,6 +32,17 @@
               </label>
             </div>
           </div>
+          <div class="set-row"><span>新建自定义字段默认作用于</span>
+            <div class="set-chip-group">
+              <label class="set-chip" :class="{ on: detailStore.fieldScopeDefault !== 'type' }">
+                <input type="radio" name="fieldScope" value="entity" v-model="detailStore.fieldScopeDefault" /> 仅当前实体
+              </label>
+              <label class="set-chip" :class="{ on: detailStore.fieldScopeDefault === 'type' }">
+                <input type="radio" name="fieldScope" value="type" v-model="detailStore.fieldScopeDefault" /> 整个类型共享
+              </label>
+            </div>
+          </div>
+          <div class="set-hint">在实体详情里「＋ 添加字段」时的默认作用域；当场可改，已有字段可在详情里「共享 / 仅本实体」互转（值不动）。</div>
           <div v-if="panelWidths.length > 0" class="set-panel-widths">
             <div v-for="pw in panelWidths" :key="pw.panelId" class="spw-row"><span class="spw-label">{{ panelLabel(pw.panelId) }}</span><span class="spw-value">{{ pw.width }}px</span><button class="spw-reset" @click="onResetPanelWidth(pw.panelId)">↺</button></div>
             <button class="set-btn" @click="resetAllWidths">重置所有面板宽度</button>
@@ -63,7 +74,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useSettingsStore, useFieldOrderStore, fieldRegistry } from '@worldsea/entity-core'
+import { useSettingsStore, useFieldOrderStore, useDetailLayoutStore, fieldRegistry } from '@worldsea/entity-core'
 import { useConfirm, getAllPanelWidths, resetPanelWidth, resetAllPanelWidths, PANEL_LABELS, toastSuccess, CardDeck } from '@worldsea/ui-kit'
 import { matchKeywords } from '../utils'
 
@@ -75,6 +86,7 @@ const deckRef = ref<InstanceType<typeof CardDeck> | null>(null)
 defineExpose({ goToCard: (i: number) => deckRef.value?.goToCard(i) })
 
 const store = useSettingsStore()
+const detailStore = useDetailLayoutStore()
 const { confirm } = useConfirm()
 const fieldOrderStore = useFieldOrderStore()
 

@@ -17,13 +17,29 @@
         >
           <div class="edf-row-head">
             <span class="edf-label">{{ labelOf(key) }}</span>
-            <button
-              v-if="canRemove(key) && editing"
-              class="edf-field-del"
-              type="button"
-              :title="`从「${entityLabel}」类型移除该字段`"
-              @click="emit('remove-field', key)"
-            >×</button>
+            <span v-if="editing" class="edf-row-acts">
+              <button
+                v-if="scopeOf(key) === 'entity'"
+                class="edf-act"
+                type="button"
+                title="共享给整个类型：同类型所有实体的详情都会出现该字段"
+                @click="emit('promote-field', key)"
+              >共享</button>
+              <button
+                v-else-if="canRemove(key)"
+                class="edf-act"
+                type="button"
+                title="仅保留在本实体：从类型定义里摘出，值不动"
+                @click="emit('demote-field', key)"
+              >仅本实体</button>
+              <button
+                v-if="canRemove(key)"
+                class="edf-field-del"
+                type="button"
+                :title="`从「${entityLabel}」移除该字段`"
+                @click="emit('remove-field', key)"
+              >×</button>
+            </span>
           </div>
           <div class="edf-control" @dblclick="onRowDblClick">
             <FieldControl
@@ -54,6 +70,10 @@
         <select v-model="newType" class="edf-input" aria-label="字段类型">
           <option v-for="t in CREATABLE_TYPES" :key="t.value" :value="t.value">{{ t.label }}</option>
         </select>
+        <select v-model="newScope" class="edf-input" aria-label="字段作用域" title="字段出现在哪些实体的详情里">
+          <option value="entity">仅本实体</option>
+          <option value="type">整个类型共享</option>
+        </select>
         <button class="edf-btn" type="button" @click="confirmAdd">确定</button>
         <button class="edf-btn" type="button" @click="cancelAdd">取消</button>
       </div>
@@ -80,11 +100,12 @@
  */
 import { computed, ref, watch } from 'vue'
 import { TuiButton, WsIcon } from '@worldsea/ui-kit'
-import type { Entity } from '@worldsea/entity-core'
+import { useDetailLayoutStore, type Entity } from '@worldsea/entity-core'
 import FieldControl from './FieldControl.vue'
 import { controlSpecFor } from './fieldControlMap'
 import { normalizeFieldType } from './fieldType'
 import { isTitleField, readFieldValue } from './fieldAccessor'
+import type { FieldScope } from './fieldScope'
 import type { DetailLayout } from './detailLayout'
 import type { DetailFieldMeta } from './fieldMeta'
 
@@ -102,8 +123,10 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
   'update:field': [key: string, value: unknown]
-  'add-field': [field: { key: string; label: string; fieldType: string }]
+  'add-field': [field: { key: string; label: string; fieldType: string; scope: FieldScope }]
   'remove-field': [key: string]
+  'promote-field': [key: string]
+  'demote-field': [key: string]
   'enter-edit': []
   save: []
   cancel: []
@@ -128,6 +151,11 @@ const adding = ref(false)
 const newKey = ref('')
 const newLabel = ref('')
 const newType = ref('text')
+
+/** 新建字段的默认作用域取详情面偏好（缺省＝仅本实体） */
+const detailPrefs = useDetailLayoutStore()
+const defaultScope = computed<FieldScope>(() => (detailPrefs.fieldScopeDefault === 'type' ? 'type' : 'entity'))
+const newScope = ref<FieldScope>(defaultScope.value)
 
 /** 标题栏已承载 title，正文不重复一行 */
 const visibleGroups = computed(() => {
@@ -168,9 +196,13 @@ function valueOf(key: string): unknown {
   return readFieldValue(props.entity, key)
 }
 
-/** 只有非内置字段可移除（类型级操作，同类型所有实体共享） */
+/** 只有非内置字段可移除（内置字段由芽声明，移除等于改芽的语义） */
 function canRemove(key: string): boolean {
   return (metaOf(key)?.source ?? 'builtin') !== 'builtin'
+}
+
+function scopeOf(key: string): FieldScope {
+  return metaOf(key)?.scope ?? 'type'
 }
 
 function toggleGroup(key: string) {
@@ -191,7 +223,7 @@ function enterEdit() {
 function confirmAdd() {
   const key = newKey.value.trim()
   if (!key) return
-  emit('add-field', { key, label: newLabel.value.trim() || key, fieldType: newType.value })
+  emit('add-field', { key, label: newLabel.value.trim() || key, fieldType: newType.value, scope: newScope.value })
   cancelAdd()
 }
 
@@ -200,6 +232,7 @@ function cancelAdd() {
   newKey.value = ''
   newLabel.value = ''
   newType.value = 'text'
+  newScope.value = defaultScope.value
 }
 
 // 换实体时收起「添加字段」展开态，避免把上一份草稿的输入带过来
@@ -230,6 +263,13 @@ watch(() => props.entity?.id, () => { cancelAdd(); collapsed.value = new Set() }
   color: var(--danger, #d97706); font-size: var(--font-size-xs); opacity: 0.6;
 }
 .edf-field-del:hover { opacity: 1; }
+.edf-row-acts { margin-left: auto; display: inline-flex; align-items: center; gap: 2px; flex-shrink: 0; }
+.edf-act {
+  padding: 0 5px; font-size: var(--font-size-xs); cursor: pointer;
+  background: none; border: 1px solid var(--border, #d1d5db); border-radius: 3px;
+  color: var(--text-tertiary, #9ca3af); white-space: nowrap;
+}
+.edf-act:hover { border-color: var(--accent, #4f46e5); color: var(--accent, #4f46e5); }
 .edf-control { min-width: 0; cursor: default; }
 .edf-add { margin-top: 2px; }
 .edf-add-btn {

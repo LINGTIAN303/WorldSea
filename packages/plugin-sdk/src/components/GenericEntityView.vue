@@ -51,77 +51,27 @@
         :select="selectEntity"
         :batch-mode="selecting"
       >
-        <div
+        <EntityCard
           v-for="(e, idx) in pagedList"
           :key="e.id"
-          class="entity-card-wrapper"
-          :class="{
-            'is-flipped': hasImageField && isFlipped(e.id),
-            'batch-selected': selectedIds.has(e.id),
-            'batch-mode': selecting,
-            'active': listHighlight.selectedId.value === e.id,
-            'dimmed': pagedHighlight[idx]?.dimmed,
-            'search-highlight': pagedHighlight[idx]?.searchHit,
-          }"
+          :entity="e"
+          :icon="resolvedIconFn(e)"
+          :cover-field-key="coverFieldKey"
+          :has-image-field="hasImageField"
+          :card-subtitle="cardSubtitle"
+          :type-field-key="typeFieldKey"
+          :card-footer-fields="cardFooterFields"
+          :batch-mode="selecting"
+          :batch-selected="selectedIds.has(e.id)"
+          :active="listHighlight.selectedId.value === e.id"
+          :dimmed="pagedHighlight[idx]?.dimmed"
+          :search-highlighted="pagedHighlight[idx]?.searchHit"
+          @activate="onCardActivate(e)"
         >
-          <div v-if="hasImageField" class="entity-card-flipper">
-            <div class="entity-card card-front" role="button" tabindex="0" :aria-label="cardActivateLabel(e)" :aria-pressed="selecting ? selectedIds.has(e.id) : undefined" @click="onCardActivate(e)" @keydown.enter.prevent="onCardActivate(e)" @keydown.space.prevent="onCardActivate(e)">
-              <EntityCardCover :entity="e" :cover-field-key="coverFieldKey" />
-              <div class="card-header">
-                <WsIcon class="card-icon" :name="resolvedIconFn(e)" size="sm" />
-                <div class="card-body">
-                  <h3>{{ e.name }}</h3>
-                  <slot name="card-subtitle" :entity="e">
-                    <p v-if="cardSubtitle">{{ e.properties[cardSubtitle] }}</p>
-                    <p v-else>{{ e.properties[typeFieldKey] || '' }}</p>
-                  </slot>
-                </div>
-                <div v-if="cardFooterFields?.length" class="card-footer">
-                  <span
-                    v-for="ff in cardFooterFields"
-                    :key="ff.key"
-                    class="card-tag"
-                    :class="ff.classMap?.[String(e.properties[ff.key] || '')]"
-                  >
-                    {{ e.properties[ff.key] }}
-                  </span>
-                </div>
-              </div>
-              <button class="card-flip-btn" @click.stop="toggleFlip(e.id)" title="翻转查看图片">🔄</button>
-            </div>
-            <div class="entity-card card-back" role="button" tabindex="0" :aria-label="`翻转回 ${e.name} 正面`" @click="toggleFlip(e.id)" @keydown.enter.prevent="toggleFlip(e.id)" @keydown.space.prevent="toggleFlip(e.id)">
-              <EntityCardBack :entity="e" :cover-field-key="coverFieldKey" />
-              <div class="card-back-info">
-                <h3>{{ e.name }}</h3>
-                <p v-if="cardSubtitle">{{ e.properties[cardSubtitle] }}</p>
-                <p v-else>{{ e.properties[typeFieldKey] || '' }}</p>
-              </div>
-              <button class="card-flip-btn" @click.stop="toggleFlip(e.id)" title="翻转回正面">🔄</button>
-            </div>
-          </div>
-          <div v-else class="entity-card" role="button" tabindex="0" :aria-label="cardActivateLabel(e)" :aria-pressed="selecting ? selectedIds.has(e.id) : undefined" @click="onCardActivate(e)" @keydown.enter.prevent="onCardActivate(e)" @keydown.space.prevent="onCardActivate(e)">
-            <div class="card-header">
-              <WsIcon class="card-icon" :name="resolvedIconFn(e)" size="sm" />
-              <div class="card-body">
-                <h3>{{ e.name }}</h3>
-                <slot name="card-subtitle" :entity="e">
-                  <p v-if="cardSubtitle">{{ e.properties[cardSubtitle] }}</p>
-                  <p v-else>{{ e.properties[typeFieldKey] || '' }}</p>
-                </slot>
-              </div>
-              <div v-if="cardFooterFields?.length" class="card-footer">
-                <span
-                  v-for="ff in cardFooterFields"
-                  :key="ff.key"
-                  class="card-tag"
-                  :class="ff.classMap?.[String(e.properties[ff.key] || '')]"
-                >
-                  {{ e.properties[ff.key] }}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
+          <template v-if="$slots['card-subtitle']" #subtitle="{ entity: subEntity }">
+            <slot name="card-subtitle" :entity="subEntity" />
+          </template>
+        </EntityCard>
         <WsEmpty v-if="filteredList.length === 0" :title="`暂无${entityLabel}`" :description="`点击上方按钮创建第一个${entityLabel}`">
           <template #icon>
             <WsIcon :name="resolvedIconFn({ properties: {} } as any) || 'manuscript'" size="xl" />
@@ -172,6 +122,8 @@
             @update:field="onDraftField"
             @add-field="onAddField"
             @remove-field="onRemoveField"
+            @promote-field="onPromoteField"
+            @demote-field="onDemoteField"
             @enter-edit="startEdit"
             @save="saveEdit()"
             @cancel="cancelEdit"
@@ -233,8 +185,7 @@ import EntityRelationSelector from './EntityRelationSelector.vue'
 import type { FormFieldDef, RelationTabDef, CardFieldDef, CustomTabDef, FilterDef } from './types'
 import { TuiButton, WsIcon, WsEmpty } from '@worldsea/ui-kit'
 import EntityPager from './EntityPager.vue'
-import EntityCardCover from './EntityCardCover.vue'
-import EntityCardBack from './EntityCardBack.vue'
+import EntityCard from './EntityCard.vue'
 import AutoLinkSuggestions from './AutoLinkSuggestions.vue'
 import EntityDetailForm from '../detail/EntityDetailForm.vue'
 import type { DetailFieldMeta } from '../detail/fieldMeta'
@@ -242,6 +193,17 @@ import { useDetailLayout } from '../detail/useDetailLayout'
 import { draftKeyOf } from '../detail/draftKeys'
 import { emptyValueFor } from '../detail/fieldValue'
 import { normalizeFieldType } from '../detail/fieldType'
+import {
+  buildFieldDefsPatch,
+  defsAfterDemote,
+  defsAfterPromote,
+  ENTITY_FIELD_DEFS_KEY,
+  isFieldKeyTaken,
+  mergeScopedFields,
+  readEntityFieldDefs,
+  type EntityFieldDef,
+  type FieldScope,
+} from '../detail/fieldScope'
 
 const emit = defineEmits<{
   (e: 'select-entity', entity: Entity): void
@@ -296,24 +258,10 @@ const listHighlight = useHighlight({
   getRelations: () => relationStore.relations,
 })
 
-const flippedCardIds = ref<string[]>([])
 const sortBy = ref('')
 const filters = reactive<Record<string, string>>(
   Object.fromEntries((props.filterDefs || []).map(fd => [fd.key, '']))
 )
-
-function toggleFlip(entityId: string) {
-  const idx = flippedCardIds.value.indexOf(entityId)
-  if (idx !== -1) {
-    flippedCardIds.value = flippedCardIds.value.filter(id => id !== entityId)
-  } else {
-    flippedCardIds.value = [...flippedCardIds.value, entityId]
-  }
-}
-
-function isFlipped(entityId: string): boolean {
-  return flippedCardIds.value.includes(entityId)
-}
 
 const searchQuery = ref('')
 const typeFilter = ref('')
@@ -348,8 +296,8 @@ const hasImageField = computed(() => {
   return fields.some((f: any) => f.fieldType === 'image')
 })
 
-/* ── 详情字段与布局：详情段外移至 EntityDetailForm，字段取类型级注册表（含用户加的字段）── */
-const detailFieldMetas = computed<DetailFieldMeta[]>(() => {
+/* ── 详情字段与布局：详情段外移至 EntityDetailForm，字段两级合并（类型级注册表 ⊕ 实体级自带定义）── */
+const typeLevelFields = computed<DetailFieldMeta[]>(() => {
   void fieldRegistry.version.value
   return fieldRegistry.getFields(props.entityType).map(f => ({
     key: f.key,
@@ -358,8 +306,23 @@ const detailFieldMetas = computed<DetailFieldMeta[]>(() => {
     options: f.options,
     refType: f.refType,
     source: f.source,
+    scope: 'type' as const,
   }))
 })
+
+const entityLevelFields = computed<DetailFieldMeta[]>(() =>
+  readEntityFieldDefs(selectedEntity.value).map(d => ({
+    key: d.key,
+    label: d.label,
+    fieldType: d.fieldType,
+    options: d.options,
+    refType: d.refType,
+    source: 'user' as const,
+    scope: 'entity' as const,
+  })),
+)
+
+const detailFieldMetas = computed(() => mergeScopedFields(typeLevelFields.value, entityLevelFields.value))
 
 const { layout: detailLayout } = useDetailLayout(
   () => props.entityType,
@@ -370,18 +333,73 @@ function onDraftField(key: string, value: unknown) {
   editForm.value[draftKeyOf(key)] = value
 }
 
-/** 加字段是**类型级**操作：同类型所有实体共享（裁定 ⑩） */
-function onAddField(field: { key: string; label: string; fieldType: string }) {
-  if (!fieldRegistry.addUserField(props.entityType, field)) {
+/** 实体级定义随实体走（导出保真、删实体一起消失）；定义即时落库，值仍走草稿 */
+function persistEntityDefs(entity: Entity, defs: EntityFieldDef[]) {
+  entityStore.update(entity.id, buildFieldDefsPatch(entity, defs))
+}
+
+function onAddField(field: { key: string; label: string; fieldType: string; scope: FieldScope }) {
+  const entity = selectedEntity.value
+  const entityDefs = readEntityFieldDefs(entity)
+  if (isFieldKeyTaken(field.key, typeLevelFields.value, entityDefs)) {
     toastWarn(`字段「${field.label}」已存在`)
     return
   }
+  if (field.scope === 'type') {
+    fieldRegistry.addUserField(props.entityType, { key: field.key, label: field.label, fieldType: field.fieldType })
+  } else if (entity) {
+    persistEntityDefs(entity, [...entityDefs, { key: field.key, label: field.label, fieldType: field.fieldType }])
+  }
   editForm.value[field.key] = emptyValueFor(normalizeFieldType(field.fieldType))
-  toastSuccess(`已为「${entityLabel.value}」添加字段「${field.label}」`)
+  toastSuccess(field.scope === 'type'
+    ? `已为「${entityLabel.value}」全部实体添加字段「${field.label}」`
+    : `已为本条${entityLabel.value}添加字段「${field.label}」`)
+}
+
+/** 实体级 → 类型级：定义进注册表并从实体摘出，值不动 */
+function onPromoteField(key: string) {
+  const entity = selectedEntity.value
+  const defs = readEntityFieldDefs(entity)
+  const def = defs.find(d => d.key === key)
+  if (!entity || !def) return
+  if (!fieldRegistry.addUserField(entity.type, { key: def.key, label: def.label, fieldType: def.fieldType, options: def.options, refType: def.refType })) {
+    toastWarn('该字段已是类型级')
+    return
+  }
+  persistEntityDefs(entity, defsAfterPromote(defs, key))
+  toastSuccess(`「${def.label}」已共享给该类型的所有实体`)
+}
+
+/** 类型级 → 实体级：从注册表摘出并写进本实体定义，值不动 */
+function onDemoteField(key: string) {
+  const entity = selectedEntity.value
+  const field = typeLevelFields.value.find(f => f.key === key)
+  if (!entity || !field) return
+  fieldRegistry.removeField(entity.type, key)
+  persistEntityDefs(entity, defsAfterDemote(readEntityFieldDefs(entity), {
+    key: field.key,
+    label: field.label,
+    fieldType: field.fieldType,
+    options: field.options as { value: string; label: string }[] | undefined,
+    refType: field.refType,
+  }))
+  toastSuccess(`「${field.label}」已改为仅本实体可见`)
 }
 
 function onRemoveField(key: string) {
-  fieldRegistry.removeField(props.entityType, key)
+  const entity = selectedEntity.value
+  if (!entity) return
+  const properties = { ...(entity.properties ?? {}) }
+  delete properties[key]
+  const defs = readEntityFieldDefs(entity)
+  if (defs.some(d => d.key === key)) {
+    const next = defsAfterPromote(defs, key)
+    if (next.length) properties[ENTITY_FIELD_DEFS_KEY] = next
+    else delete properties[ENTITY_FIELD_DEFS_KEY]
+  } else {
+    fieldRegistry.removeField(entity.type, key)
+  }
+  entityStore.update(entity.id, { properties })
   delete editForm.value[key]
   toastSuccess(`已移除字段「${key}」`)
 }
@@ -521,7 +539,6 @@ onBeforeUnmount(() => {
 function selectEntity(e: Entity) { selectedEntity.value = e; listHighlight.select(e.id); emit('select-entity', e) }
 /** 卡片激活：批量态=选中切换；浏览态=打开详情（批量态下不弹详情，见批计划裁定） */
 function onCardActivate(e: Entity) { selecting.value ? toggleSelect(e.id) : selectEntity(e) }
-function cardActivateLabel(e: Entity) { return selecting.value ? `选择 ${e.name}` : `打开 ${e.name}` }
 function openNewForm() { editingEntity.value = null; showForm.value = true }
 
 async function onFormSave(data: { name: string; description: string; properties: Record<string, any>; tags: string[]; _autoLinkFields?: any[]; _coverPosition?: string; _coverZoom?: number }) {
@@ -710,157 +727,6 @@ defineExpose({
 /* 列向 flex 下同因：子项（卡片 overflow:hidden）自动最小尺寸归零会被 flex-shrink 压扁且不滚动；自带 flex:1+overflow 的树/图视图不受影响（基尺寸 0、靠 grow 撑满） */
 .entity-grid.has-custom-list > * { flex-shrink: 0; }
 
-/* ── 实体卡片（双线分隔：每卡自带 1px 边框 + gap 缝隙透出 app 底色）── */
-.entity-card-wrapper {
-  position: relative;
-  display: flex;
-  border: 1px solid var(--border, #ececec);
-  border-radius: var(--radius-mid, 8px);
-  background: var(--bg-surface, #ffffff);
-  overflow: hidden;
-  transition: border-color var(--dur-fast, 0.15s) var(--ease, ease),
-              box-shadow var(--dur-fast, 0.15s) var(--ease, ease);
-}
-.entity-card-wrapper:hover {
-  border-color: var(--border-strong, #d9d9de);
-  box-shadow: var(--shadow-sm, 0 1px 2px rgba(16, 24, 40, 0.05));
-}
-/* 打开详情：accent 描边高亮 */
-.entity-card-wrapper.active {
-  border-color: var(--accent, #4f46e5);
-  box-shadow: 0 0 0 1px var(--accent, #4f46e5);
-}
-/* 批量选择态 */
-.entity-card-wrapper.batch-selected {
-  border-color: var(--accent, #4f46e5);
-  background: var(--accent-soft, #eef2ff);
-}
-/* 搜索命中高亮 */
-.entity-card-wrapper.search-highlight { border-color: var(--warning, #d97706); }
-/* 关系高亮过滤时未命中项变暗 */
-.entity-card-wrapper.dimmed { opacity: 0.45; }
-
-/* 卡片本体：可点击填充区 */
-.entity-card {
-  position: relative;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  padding: 12px;
-  cursor: pointer;
-  outline: none;
-  -webkit-user-select: none;
-  user-select: none;
-}
-.entity-card:focus-visible {
-  box-shadow: 0 0 0 var(--ring-width, 3px) var(--ring-color, rgba(79, 70, 229, 0.35));
-}
-
-/* 封面：贴合卡片顶部（负边距抵消卡片内边距） */
-.entity-card .card-cover-wrap {
-  margin: -12px -12px 10px;
-}
-.entity-card .card-cover {
-  width: 100%;
-  height: 110px;
-  object-fit: cover;
-  display: block;
-}
-
-/* 卡片头部：图标 + 名称区 */
-.card-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-.card-icon {
-  color: var(--accent, #4f46e5);
-  flex-shrink: 0;
-}
-.card-body {
-  flex: 1;
-  min-width: 0;
-}
-.card-body h3 {
-  margin: 0;
-  font-size: var(--fs-base, 14px);
-  font-weight: 600;
-  color: var(--text-primary, #1f2328);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.card-body p {
-  margin: 2px 0 0;
-  font-size: var(--fs-xs, 11px);
-  color: var(--text-secondary, #6b7280);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* 翻转按钮：hover 浮现 */
-.card-flip-btn {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  z-index: 1;
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: var(--fs-xs, 11px);
-  background: var(--bg-muted, #f4f4f5);
-  border: 1px solid var(--border, #ececec);
-  border-radius: var(--radius-xs, 4px);
-  color: var(--text-secondary, #6b7280);
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity var(--dur-fast, 0.15s) var(--ease, ease);
-}
-.entity-card-wrapper:hover .card-flip-btn { opacity: 1; }
-
-/* 批量态：hover 虚线描边示意「点击=选中」（常驻复选框已撤，见 docs/details/注释/packages/plugin-sdk/批量选择态.md） */
-.entity-card-wrapper.batch-mode { cursor: pointer; }
-.entity-card-wrapper.batch-mode:hover { border-color: var(--accent, #4f46e5); border-style: dashed; }
-
-/* 翻转容器（3D 双面） */
-.entity-card-flipper {
-  position: relative;
-  flex: 1;
-  display: flex;
-  perspective: 1000px;
-}
-.entity-card-flipper .entity-card {
-  backface-visibility: hidden;
-  transition: transform var(--dur-base, 0.22s) var(--ease, ease);
-}
-.entity-card-flipper .card-back {
-  position: absolute;
-  inset: 0;
-  transform: rotateY(180deg);
-  background: var(--bg-surface, #ffffff);
-}
-.entity-card-wrapper.is-flipped .entity-card-flipper .card-front { transform: rotateY(180deg); }
-.entity-card-wrapper.is-flipped .entity-card-flipper .card-back { transform: rotateY(0deg); }
-
-/* 卡片背面信息区 */
-.card-back-info { margin-top: auto; }
-.card-back-info h3 {
-  margin: 0;
-  font-size: var(--fs-base, 14px);
-  font-weight: 600;
-  color: var(--text-primary, #1f2328);
-}
-.card-back-info p {
-  margin: 2px 0 0;
-  font-size: var(--fs-xs, 11px);
-  color: var(--text-secondary, #6b7280);
-}
-.card-footer { display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: 4px; margin-left: auto; }
-.card-tag { font-size: var(--font-size-xs); padding: 1px 6px; background: var(--hover-bg); border-radius: 4px; color: var(--text-secondary); }
 .dp-rel-item { display: flex; align-items: center; gap: 6px; padding: 4px 0; font-size: var(--font-size-sm); }
 .dp-rel-icon { color: var(--text-tertiary); }
 .dp-rel-name { color: var(--text); }

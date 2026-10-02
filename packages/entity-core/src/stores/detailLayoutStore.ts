@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 
 /**
  * 详情布局的用户覆写（按实体类型）。详细见 docs/details/注释/packages/plugin-sdk/实体详情表单.md
@@ -16,8 +16,16 @@ export interface DetailLayoutOverride {
 
 export const useDetailLayoutStore = defineStore('detailLayout', () => {
   const STORAGE_KEY = 'worldsea_detail_layouts'
+  /** 新建自定义字段的默认作用域。放本 store 而非 settingsStore——后者已在 arch 冻结线上方，
+   *  再加键会让门禁点「增长」；而它本身就是详情面的偏好。 */
+  const FIELD_SCOPE_KEY = 'worldsea_custom_field_scope'
 
   const overrides = ref<Record<string, DetailLayoutOverride>>({})
+  const fieldScopeDefault = ref<'entity' | 'type'>(
+    localStorage.getItem(FIELD_SCOPE_KEY) === 'type' ? 'type' : 'entity',
+  )
+
+  watch(fieldScopeDefault, v => localStorage.setItem(FIELD_SCOPE_KEY, v))
 
   function load() {
     try {
@@ -49,5 +57,5 @@ export const useDetailLayoutStore = defineStore('detailLayout', () => {
 
   load()
 
-  return { overrides, get, patch, clear }
+  return { overrides, fieldScopeDefault, get, patch, clear }
 })
