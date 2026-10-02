@@ -44,7 +44,7 @@
           </div>
           <div class="set-hint">在实体详情里「＋ 添加字段」时的默认作用域；当场可改，已有字段可在详情里「共享 / 仅本实体」互转（值不动）。</div>
           <div class="set-row"><span>手机预览形态</span><select v-model="store.phonePreviewMode" class="set-select"><option value="dock">右栏页</option><option value="popup">弹窗</option></select></div>
-          <div class="set-hint">正文写作芽的「手机预览」展示方式：右栏页停靠在窗口右侧（默认），弹窗为居中浮窗。</div>
+          <div class="set-hint">正文写作芽的「手机预览」展示方式：右栏页停靠在编辑区右侧、宽度可拖拽（默认），弹窗为居中浮窗。</div>
           <div v-if="panelWidths.length > 0" class="set-panel-widths">
             <div v-for="pw in panelWidths" :key="pw.panelId" class="spw-row"><span class="spw-label">{{ panelLabel(pw.panelId) }}</span><span class="spw-value">{{ pw.width }}px</span><button class="spw-reset" @click="onResetPanelWidth(pw.panelId)">↺</button></div>
             <button class="set-btn" @click="resetAllWidths">重置所有面板宽度</button>

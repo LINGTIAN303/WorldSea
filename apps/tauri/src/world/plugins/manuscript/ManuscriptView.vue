@@ -150,15 +150,18 @@
       </div>
 
       <WsEmpty v-else preset="no-data" title="选择一个章节开始写作" />
-    </div>
 
-    <PhonePreview
-      :visible="showPreview"
-      :html="previewHTML"
-      :title="current?.name || ''"
-      :mode="settingsStore.phonePreviewMode"
-      @close="showPreview = false"
-    />
+      <!-- 真右栏：dock 模式经 Teleport disabled 原地渲染为 .ms-body 布局流内的整列（编辑区让位）；
+           popup 模式 Teleport 到 body 居中浮窗 -->
+      <PhonePreview
+        v-if="current"
+        :visible="showPreview"
+        :html="previewHTML"
+        :title="current?.name || ''"
+        :mode="settingsStore.phonePreviewMode"
+        @close="showPreview = false"
+      />
+    </div>
 
     <ExportDialog
       v-if="showExport"

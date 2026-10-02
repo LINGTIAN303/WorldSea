@@ -1,7 +1,8 @@
 <template>
-  <Teleport to="body">
-    <!-- 无遮罩层（2026-10-02 裁定）：dock=右栏页（默认，不遮挡工作区）；popup=居中浮窗 -->
-    <div v-if="visible" class="pp-layer" :class="isDock ? 'pp-layer--dock' : 'pp-layer--popup'">
+  <!-- dock=真右栏：Teleport disabled 原地渲染进 .ms-body 布局流（编辑区 flex:1 自动让位）；
+       popup=Teleport 到 body 居中浮窗 -->
+  <Teleport to="body" :disabled="isDock">
+    <div v-if="visible" class="pp-layer" :class="isDock ? 'pp-layer--dock' : 'pp-layer--popup'" :style="isDock ? { width: dockWidth + 'px' } : undefined">
       <div
         class="pp-frame"
         :style="frameStyle"
@@ -62,8 +63,9 @@
           </div>
         </div>
 
-        <div v-if="presetSize === 'custom'" class="pp-resize-handle" @mousedown.stop="onResizeStart"></div>
+        <div v-if="!isDock && presetSize === 'custom'" class="pp-resize-handle" @mousedown.stop="onResizeStart"></div>
       </div>
+      <div v-if="isDock" class="pp-dock-handle" title="拖拽调整宽度" @mousedown.stop.prevent="onDockResizeStart"></div>
     </div>
   </Teleport>
 </template>
@@ -99,6 +101,33 @@ const localFontFamily = ref('')
 const frameW = ref(393)
 const frameH = ref(852)
 
+// ── 真右栏弹性宽度（2026-10-02）：类 DevTools 设备仿真——高度随列撑满，宽度拖拽可调；
+//    预设只定宽；持久化到 localStorage（视图级几何，不入 settingsStore）──
+const DOCK_WIDTH_KEY = 'worldsea_phone_preview_col_width'
+const DOCK_WIDTH_MIN = 280
+const DOCK_WIDTH_MAX = 720
+const dockWidth = ref(Math.min(DOCK_WIDTH_MAX, Math.max(DOCK_WIDTH_MIN, Number(localStorage.getItem(DOCK_WIDTH_KEY)) || 393)))
+
+function persistDockWidth() {
+  try { localStorage.setItem(DOCK_WIDTH_KEY, String(dockWidth.value)) } catch { /* 私有模式等存储不可用则跳过 */ }
+}
+
+function onDockResizeStart(e: MouseEvent) {
+  const startX = e.clientX
+  const startW = dockWidth.value
+  const onMove = (ev: MouseEvent) => {
+    dockWidth.value = Math.min(DOCK_WIDTH_MAX, Math.max(DOCK_WIDTH_MIN, startW + (startX - ev.clientX)))
+  }
+  const onUp = () => {
+    document.removeEventListener('mousemove', onMove)
+    document.removeEventListener('mouseup', onUp)
+    presetSize.value = 'custom'
+    persistDockWidth()
+  }
+  document.addEventListener('mousemove', onMove)
+  document.addEventListener('mouseup', onUp)
+}
+
 const PRESETS: Record<string, { w: number; h: number }> = {
   iphone15: { w: 393, h: 852 },
   iphonese: { w: 375, h: 667 },
@@ -108,17 +137,20 @@ const PRESETS: Record<string, { w: number; h: number }> = {
 
 function applyPreset() {
   const p = PRESETS[presetSize.value]
-  if (p) {
+  if (!p) return
+  if (isDock.value) {
+    // 真右栏高度随列撑满（设备 H 无意义），预设只定宽
+    dockWidth.value = p.w
+    persistDockWidth()
+  } else {
     frameW.value = p.w
     frameH.value = p.h
   }
 }
 
-const frameStyle = computed(() => ({
-  width: frameW.value + 'px',
-  height: frameH.value + 'px',
-  maxHeight: isDock.value ? 'calc(100vh - 24px)' : '90vh',
-}))
+const frameStyle = computed(() => isDock.value
+  ? { width: '100%', height: '100%' }
+  : { width: frameW.value + 'px', height: frameH.value + 'px', maxHeight: '90vh' })
 
 const themeClass = computed(() => `pp-theme-${themeMode.value}`)
 const modeClass = computed(() => `pp-mode-${previewMode.value}`)
@@ -187,18 +219,26 @@ function onResizeStart(e: MouseEvent) {
 </script>
 
 <style scoped>
-/* 层容器均不拦截指针/不加暗色遮罩：dock=右侧整列；popup=居中（遮罩已按 2026-10-02 裁定移除） */
+/* dock=真右栏：布局流内整列（Teleport disabled 原地渲染进 .ms-body），编辑区 flex:1 自动让位 */
 .pp-layer--dock {
-  position: fixed; top: 0; right: 0; bottom: 0;
-  display: flex; align-items: center; justify-content: center;
-  padding: 12px; pointer-events: none; z-index: 300;
+  position: relative; height: 100%;
+  display: flex; flex-direction: column;
+  flex-shrink: 0; background: var(--card-bg);
+  border-left: 1px solid var(--border-light);
 }
+.pp-layer--dock .pp-frame { flex: 1; min-height: 0; border-radius: 0; box-shadow: none; }
+/* 左缘拖拽手柄：弹性宽度（类 DevTools 设备仿真），宽度持久化到 localStorage */
+.pp-dock-handle {
+  position: absolute; left: -3px; top: 0; bottom: 0; width: 6px;
+  cursor: col-resize; z-index: 1;
+}
+.pp-dock-handle:hover { background: var(--primary-soft, rgba(79, 70, 229, 0.12)); }
+/* popup=居中浮窗（无遮罩，Teleport 到 body） */
 .pp-layer--popup {
   position: fixed; inset: 0;
   display: flex; align-items: center; justify-content: center;
   pointer-events: none; z-index: 300;
 }
-.pp-layer--dock .pp-frame,
 .pp-layer--popup .pp-frame { pointer-events: auto; }
 .pp-frame {
   background: var(--modal-bg); border-radius: var(--radius-xl);

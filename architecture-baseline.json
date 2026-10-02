@@ -30,7 +30,7 @@
     "apps/tauri/src/world/plugins/drawing/DrawingView.vue": 775,
     "apps/tauri/src/world/plugins/graph/GlobalGraph.vue": 594,
     "apps/tauri/src/world/plugins/manuscript/components/ChapterList.vue": 571,
-    "apps/tauri/src/world/plugins/manuscript/ManuscriptView.vue": 681,
+    "apps/tauri/src/world/plugins/manuscript/ManuscriptView.vue": 684,
     "apps/tauri/src/world/plugins/mindmap/MindmapView.vue": 1105,
     "apps/tauri/src/world/plugins/notebook/components/FolderTree.vue": 437,
     "apps/tauri/src/world/plugins/notebook/NotebookView.vue": 621,
