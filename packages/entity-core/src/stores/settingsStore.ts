@@ -229,19 +229,12 @@ function deriveKeyStoreId(baseUrl: string): string {
  * 已退役（2026-09 快捷键系统整顿）：默认键位以各注册处 register() 声明为准，
  * 目录元数据见 ui-kit settings/utils.ts 的 SHORTCUT_CATALOG。 */
 
-const STORAGE_KEY_VOICE_LANG = 'worldsea_voice_lang'
-const STORAGE_KEY_VOICE_CONTINUOUS = 'worldsea_voice_continuous'
-
 export const useSettingsStore = defineStore('settings', () => {
   const { currentThemeId, setTheme: setThemeFromEngine } = useTheme()
   const sprouts = ref<SproutToggle[]>(loadSprouts())
   // 芽分组：用户自建的激活范围方案（项目级持久化，模式同 sprouts）
   const sproutGroups = ref<SproutGroup[]>(loadSproutGroups())
   const theme = computed(() => currentThemeId.value)
-
-  // 语音输入设置（Web Speech API）：识别语言 + 连续识别
-  const voiceLang = persistedRef(STORAGE_KEY_VOICE_LANG, 'zh-CN')
-  const voiceContinuous = persistedRef(STORAGE_KEY_VOICE_CONTINUOUS, false)
 
   const undoHistoryLimit = persistedRef(STORAGE_KEY_UNDO_LIMIT, 20)
   const multiStepRedo = persistedRef(STORAGE_KEY_MULTI_STEP_REDO, true)
@@ -402,6 +395,5 @@ export const useSettingsStore = defineStore('settings', () => {
            groupChatMaxAgents, groupChatDefaultStrategy, groupChatGlobalRpm, groupChatGlobalConcurrent,
             reduceMotion, animations, ANIMATION_GROUPS,
             sidebarPosition, detailPanelPosition,
-            timelineDragEnabled, timelineDefaultMode, timelineDefaultGroup, timelineCompactMode,
-           voiceLang, voiceContinuous }
+            timelineDragEnabled, timelineDefaultMode, timelineDefaultGroup, timelineCompactMode }
 })

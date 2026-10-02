@@ -20,7 +20,7 @@ import {
   Skull, LayoutList, ClipboardList, Coffee, Wrench, Loader, Coins, PenLine,
   Moon, Hand, Type, Flower, Leaf, FlaskConical, Gem, Droplet, Construction, PawPrint, Sun,
   HardDrive, GitCompare, Activity, StickyNote, Paperclip, Glasses,
-  ArrowLeftRight, ListChecks, SkipForward, Square, Bot, VolumeOff, Volume2,
+  ArrowLeftRight, ListChecks, SkipForward, Square, Bot, VolumeOff,
   PanelLeft, PanelLeftOpen, PanelLeftClose,
   PanelRight, PanelRightOpen, PanelRightClose,
   FolderTree, Files,
@@ -243,7 +243,6 @@ const LUCIDE_MAP: Record<string, Component> = {
   square: Square,
   bot: Bot,
   'volume-off': VolumeOff,
-  'volume-on': Volume2,
   // 思维导图 Toolbar 专用（2026-09-13）：缩放/对齐/分布/导出
   'zoom-in': ZoomIn,
   'zoom-out': ZoomOut,
