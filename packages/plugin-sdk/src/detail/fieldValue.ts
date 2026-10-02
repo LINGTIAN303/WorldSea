@@ -16,6 +16,36 @@ export function stripHtml(s: string): string {
     .replace(/&quot;/g, '"')
 }
 
+/**
+ * 只读展示的 markdown 去语法（**去语法留内容**）。详细见
+ * docs/details/注释/packages/plugin-sdk/实体详情内容形态.md §6.1
+ *
+ * 分工是刻意的：段落式走真渲染（要排版），编辑态显示源文（改完落回去不能被吃掉标记），
+ * 其余只读面（分组式行 / 表格式值 / 摘要牌与摘录 / 时间轴节点）要的是**一眼读得清的文本**。
+ * 规则保守：不动数字标号，不碰词内的 `*` 与 `_`（CommonMark 本身也不把词内下划线当强调）。
+ */
+export function stripMarkdownSyntax(s: string): string {
+  if (!s) return s
+  if (!/[#>*~`_!\[\]]/.test(s)) return s
+  return s
+    .replace(/^#{1,6}[ \t]+/gm, '')
+    .replace(/^>[ \t]?/gm, '')
+    .replace(/^([ \t]*)[-*+][ \t]+/gm, '$1· ')
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/\[([^\]]*)\]\[[^\]]*\]/g, '$1')
+    .replace(/\*\*(\S(?:[^*\n]*\S)?)\*\*/g, '$1')
+    .replace(/__(\S(?:[^_\n]*\S)?)__/g, '$1')
+    .replace(/~~(\S(?:[^~\n]*\S)?)~~/g, '$1')
+    .replace(/\*(\S(?:[^*\n]*\S)?)\*/g, '$1')
+    .replace(/`([^`\n]+)`/g, '$1')
+}
+
+/** 只读面的纯文本形态：先剥历史富文本标签，再去 markdown 语法 */
+export function toPlainText(s: string): string {
+  return stripMarkdownSyntax(stripHtml(s))
+}
+
 /** 数组型字段的读入形态：兼容历史的逗号串与单值（数据未定型，不能假设一定是数组） */
 export function toArrayValue(value: unknown): string[] {
   if (Array.isArray(value)) return value.map(v => String(v)).filter(s => s !== '')
@@ -41,7 +71,7 @@ export function toDisplayText(value: unknown, type: NormalizedFieldType): string
   }
   if (value === null || value === undefined || value === '') return '—'
   if (typeof value === 'boolean') return value ? '是' : '否'
-  return stripHtml(String(value))
+  return toPlainText(String(value))
 }
 
 /** 新增自定义字段时的落库默认值（裁定 ⑪：数组型字段落数组） */

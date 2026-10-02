@@ -2,7 +2,10 @@ import { renderFullMarkdown, sanitizeMarkdownHtml } from '@worldsea/shared-ui/ma
 import { normalizeFieldType } from './fieldType'
 
 /**
- * 段落式正文的富文本输出。详细见 docs/details/注释/packages/plugin-sdk/实体详情内容形态.md §六
+ * 段落式正文的富文本输出。详细见 docs/details/注释/packages/plugin-sdk/实体详情内容形态.md §6.2
+ *
+ * 只读面里**只有段落式**走真渲染；分组/表格/摘要/时间轴走 `fieldValue.toDisplayText` 的
+ * 「去语法留内容」（§6.1）——别把 v-html 复制到那些面上。
  *
  * 复用主窗口同一内核（`@worldsea/shared-ui/markdown/stream`：marked + **DOMPurify**），
  * 不再在详情面造第二套 markdown 实现；导入走 `/markdown/stream` 子路径而不是包根，

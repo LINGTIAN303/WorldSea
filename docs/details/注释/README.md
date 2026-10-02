@@ -126,7 +126,7 @@
 | src/components/EntityFormModal.vue · entity/use{DynamicForm,EntityFormSave,FieldPresets}.ts · BatchEditModal.vue · timeline/components/EventDetailFields.vue | [实体详情表单.md](packages/plugin-sdk/实体详情表单.md) §九§十 | 四套字段控件归一为 `FieldControl` 一套（`DetailField.vue` 与 `useEntityRefSearch.ts` 已删）；`formData` 泛化 unknown（不再 `String()` 抹平数组）；**entityRef 落库统一存 id**（守卫 6 例 + 反证双向报红）；`useFieldPresets` 的第二处「不认识就当天」白名单拆除；`richtext` 升独立类型保富文本；批量编辑单条改行内控件（2026-10-02 批次 1a 余下段） |
 | src/detail/（contentForms / formValues / useFieldSource / DetailFieldRow / forms/）· EntityDetailForm.vue | [实体详情内容形态.md](packages/plugin-sdk/实体详情内容形态.md) | **L2 内容形态**五式（分组式唯一 inline，表格/段落/摘要/时间轴为 derived）：注册表沿用大纲白板范式但**只留 configSchema 一份默认值**、形态件在仓内注册不开放芽自注册；`fieldFamily` 单点归类（`date` 类型**或**约定时间 key）；派生型编辑态回落分组式（保住 1a 的写路径单轨），高亮仍留用户所选；`DetailFieldRow` 共用 ⇒ 形态之间只差编排不差控件；只读三口径（entityRef 解名/失败说实话、image 报「已配图」、空值不进摘要但如实报数）；`contentConfig` 与 `contentForm` 同键同优先序落盘；段落式复用主窗口 markdown 内核（marked+DOMPurify，
 走 `@worldsea/shared-ui/markdown/stream` 子路径避开 Prism），芽声明默认经 GEV/SchemaRenderer 的
-`detailLayout` prop 进入三级合并（首批样例 characters→段落式、items→摘要式）（2026-10-02 批次 1b-1） |
+`detailLayout` prop 进入三级合并（首批样例 characters→段落式、items→摘要式）；**只读面分工**＝段落式真渲染，其余四式走 `stripMarkdownSyntax` 去语法留内容（收敛点 `toDisplayText`，编辑态仍显示源文）（2026-10-02 批次 1b-1） |
 
 > ~~src/agent-descriptor.ts~~（pluginSdkDescriptor）已于 2026-09-27 E8 随 Agent 工具目录退场。
 
