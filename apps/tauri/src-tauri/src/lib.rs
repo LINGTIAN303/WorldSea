@@ -24,8 +24,6 @@ mod entity_commands;
 mod tray;
 // 系统层集成：通知 / 开机自启命令
 mod system;
-// 音视频转录（candle-whisper 语音转文字）
-mod whisper;
 
 // B2 壳接入（2026-09-23）：spawn dsh host + 就绪探测 + 主窗口导航到 dsh 界面 + 退出回收
 mod dsh_shell;
@@ -236,8 +234,6 @@ pub fn run() {
             system::cmd_notify,
             system::cmd_autostart_is_enabled,
             system::cmd_autostart_set_enabled,
-            // 音视频转录（candle-whisper 语音转文字）
-            whisper::transcribe_media,
             // 安全存储（cmd_secure_store/load/delete）：API Key 落应用数据目录 SQLite
             secure_store::cmd_secure_store,
             secure_store::cmd_secure_load,

@@ -6,6 +6,7 @@
 > - **packages 删除**：agent-runtime（模型注册表五件打捞至 ui-kit `src/model-registry/`）、agent-core、governor-core、shared-ui/src/agent、shared-composables/src/agent；七包 agent-descriptor.ts 退役；Companion（陪伴模式）LLM 调用辅助打捞至 `shared-composables/src/companion/llm.ts`；
 > - 打捞件：ui-kit model-registry（providers 五件 + smart-fetch，产品设置「视频」页消费）、`win_job.rs`（LSP Job Object，自 agent-commands::job）、companion/llm.ts；
 > - **2026-10-02 附注**：打捞件 model-registry（1,674 行）与 companion/llm.ts 已随陪伴模式整体退役清退（前者经全仓复核零外部消费、用户裁定 agent-runtime 冻结项不再需要；后者见 §六.1 已结注）；`win_job.rs` 仍在产品 LSP 面在用，保留。
+> - **2026-10-02 附注（whisper）**：产品 Rust 面 `whisper.rs`（570 行，candle-whisper 音视频转录）随之整体退役——设置「语音」Tab 退役时确认前端与 dsh 语音输入（SenseVoice 自有推理，零引用 `transcribe_media`）均无调用；candle-core/candle-nn/candle-transformers/ureq/tokenizers/symphonia 及孤儿依赖 anyhow 自 Cargo 移除，上句「产品面保留」中的 whisper 一项自此销账。
 > - 门禁：vue-tsc 0 · vitest 59 文件/761 全绿 · cargo check 干净 · lib 测试 99/0 · 断链 0。
 > 历史留档（2026-09-23 冻结登记与 §四候选评估）见下文与 git。
 > 背景（2026-09-23 拍板）：dsh（deepseek-harness）以**迁文件**方式整体接管 Agent 面；壳仍用 Tauri；dsh 界面 100% 保留。准备方案见 [2026-09-23-dsh接管Agent面-大重构准备.md](../../plans/2026-09-23-dsh接管Agent面-大重构准备.md)；仓内 dsh 树的装构起口径见 [dsh 运行手册](dsh-运行手册.md)。
@@ -74,7 +75,7 @@
 | `bridge_tool_specs.json` | — | — | 前端工具规格（生成物） |
 | `lib.rs`（Agent 装配段） | 639 | — | 部分冻结（装配与工具链注入中的 Agent 段） |
 
-**宿主/产品面（不冻结）**：`entity_commands.rs`(1,222)、`whisper.rs`(570)、`fs_commands.rs`(370)、`office_commands.rs`(350)、`lsp_commands.rs`(314)、`tray.rs`(207)、`secure_store.rs`(156)、`algo_commands.rs`(144)、`fs_watch_commands.rs`(115)、`project_commands.rs`(56)、`system.rs`(36)、`main.rs`(5)。
+**宿主/产品面（不冻结）**：`entity_commands.rs`(1,222)、`fs_commands.rs`(370)、`office_commands.rs`(350)、`lsp_commands.rs`(314)、`tray.rs`(207)、`secure_store.rs`(156)、`algo_commands.rs`(144)、`fs_watch_commands.rs`(115)、`project_commands.rs`(56)、`system.rs`(36)、`main.rs`(5)。（~~`whisper.rs`(570)~~ 已于 2026-10-02 随语音设置退役删除，见头部附注）
 > 注：`entity_commands.rs` 内含 `entity_read_tools` / `fs_entity_tools`（供 Agent 消费的工具源），冻结时只需摘掉「Agent 消费」这一侧，产品 CRUD 侧不动。
 
 ### 2.3 `packages/`（Agent 面，全冻结）
