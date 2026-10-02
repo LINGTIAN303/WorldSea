@@ -41,19 +41,15 @@ export function useBatchDelete() {
 
     const names = Array.from(ids).map(id => entities.find(e => e.id === id)?.name || '(未知)').join('、')
 
-    const confirm1 = await confirm({
+    // 单弹窗两段式确认（2026-10-02）：原「确认 + 二次确认」两连弹合并——两段警示文案并入
+    // 一条描述，确认键第一击武装（变「再次确认删除」）、第二击才执行，取消/ESC 随时退出
+    const ok = await confirm({
       type: 'danger',
       title: `批量删除 ${entityLabel}`,
-      description: `确定删除以下 ${ids.size} 个${entityLabel}？\n\n${names}\n\n此操作将同时清除相关关系数据。`,
+      description: `确定删除以下 ${ids.size} 个${entityLabel}？\n\n${names}\n\n⚠️ 将同时清除相关关系数据，此操作不可撤销。`,
+      armedConfirmText: '再次确认删除',
     })
-    if (!confirm1) return false
-
-    const confirm2 = await confirm({
-      type: 'danger',
-      title: '二次确认',
-      description: `⚠️ 即将永久删除 ${ids.size} 个${entityLabel}，此操作不可撤销。\n\n确认继续？`,
-    })
-    if (!confirm2) return false
+    if (!ok) return false
 
     try {
       for (const id of ids) {

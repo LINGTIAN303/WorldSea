@@ -39,6 +39,12 @@ interface ConfirmOptions {
    * （`confirm()` 本身不返回复选框态——请用 `confirmWithCheckbox`）。
    */
   checkbox?: { label: string; defaultChecked?: boolean }
+  /**
+   * 二段式确认键的「武装态」文案（如「再次确认删除」）。提供后确认键需连点两次：
+   * 第一次点击仅武装（文案切换为此值，约 3 秒无操作自动解除），第二次才真正确认。
+   * 用于把「确认 + 二次确认」两连弹合并为单弹窗（如批量删除，2026-10-02）。
+   */
+  armedConfirmText?: string
 }
 
 /** `confirmWithCheckbox` 结果：`ok` = 主键（含附加动作）；`checked` = 复选框最终态 */
@@ -63,6 +69,8 @@ interface ConfirmState {
   checkboxLabel: string
   /** 复选框勾选态（`confirmWithCheckbox` 读回；弹窗内双向绑定） */
   checkboxChecked: boolean
+  /** 二段式确认键武装态文案（空 = 普通单段确认键，见 `ConfirmOptions.armedConfirmText`） */
+  armedConfirmText: string
   resolve: ((value: boolean | ConfirmChoice) => void) | null
 }
 
@@ -79,6 +87,7 @@ const state = ref<ConfirmState>({
   withChoice: false,
   checkboxLabel: '',
   checkboxChecked: false,
+  armedConfirmText: '',
   resolve: null,
 })
 
@@ -108,6 +117,7 @@ export function useConfirm() {
         withChoice: options.withChoice === true,
         checkboxLabel: options.checkbox?.label || '',
         checkboxChecked: options.checkbox?.defaultChecked ?? true,
+        armedConfirmText: options.armedConfirmText || '',
         resolve,
       }
     })

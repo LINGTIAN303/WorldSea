@@ -42,7 +42,11 @@
               size="sm"
               @click="runExtraAction(a)"
             >{{ a.label }}</TuiButton>
-            <TuiButton :variant="state.type === 'danger' ? 'danger' : 'primary'" size="sm" @click="doConfirm">{{ state.confirmText }}</TuiButton>
+            <TuiButton
+              :variant="state.type === 'danger' ? 'danger' : 'primary'"
+              size="sm"
+              @click="onConfirmClick"
+            >{{ armed && state.armedConfirmText ? state.armedConfirmText : state.confirmText }}</TuiButton>
           </div>
         </div>
       </div>
@@ -60,6 +64,31 @@ import { TuiButton, WsIcon } from '@worldsea/ui-kit'
 
 const { state, doConfirm, doCancel, doNeutral } = useConfirm()
 const confirmRef = ref<HTMLElement | null>(null)
+
+// ── 二段式确认键（state.armedConfirmText 提供时启用，2026-10-02）──
+// 第一击仅「武装」（文案切为武装态），第二击才真正确认——把「确认 + 二次确认」两连弹
+// 合并为单弹窗。武装态约 3 秒无操作自动解除，防误触；弹窗每次打开/关闭都重置。
+const ARMED_RESET_MS = 3000
+const armed = ref(false)
+let armTimer: ReturnType<typeof setTimeout> | null = null
+
+function disarm() {
+  armed.value = false
+  if (armTimer) {
+    clearTimeout(armTimer)
+    armTimer = null
+  }
+}
+
+function onConfirmClick() {
+  if (state.value.armedConfirmText && !armed.value) {
+    armed.value = true
+    armTimer = setTimeout(disarm, ARMED_RESET_MS)
+    return
+  }
+  disarm()
+  doConfirm()
+}
 
 /** bottom 模式停靠输入栏（宽度跟随 + 底边对齐；center 模式不受影响） */
 const { dockedStyle } = useDockPanelRect(
@@ -94,6 +123,7 @@ const { activate, deactivate } = useFocusTrap(confirmRef, {
 })
 
 watch(() => state.value.show, (v) => {
+  disarm()
   if (v) nextTick(() => activate())
   else deactivate()
 })
