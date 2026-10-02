@@ -189,6 +189,7 @@ import PhonePreview from './components/PhonePreview.vue'
 import ExportDialog from './components/ExportDialog.vue'
 import BookInfoDialog from './components/BookInfoDialog.vue'
 import { useChapterEditor } from './composables/useChapterEditor'
+import { plainTextToEditorHtml } from '@/composables/plainTextToEditorHtml'
 import { useChapterSnapshots } from './composables/useChapterSnapshots'
 import type { Entity } from '@worldsea/entity-core'
 // 「章节 ↔ 大纲节点」关联的唯一写入入口（新建章节归属节点时用，保证双侧一致）
@@ -435,7 +436,8 @@ async function saveSnapshot() {
 async function restoreSnap(idx: number) {
   const content = await restoreSnapshot(idx)
   if (content && editor.value) {
-    editor.value.commands.setContent(content, { emitUpdate: false })
+    // 快照恒为 HTML（getHTML 存档），归一只兜底旧纯文本快照；含 < 时原样通过零变化
+    editor.value.commands.setContent(plainTextToEditorHtml(content), { emitUpdate: false })
   }
 }
 

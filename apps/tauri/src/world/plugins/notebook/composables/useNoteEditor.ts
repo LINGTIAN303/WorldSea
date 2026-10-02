@@ -7,6 +7,7 @@ import Image from '@tiptap/extension-image'
 import SlashCommandExtension, { SLASH_COMMANDS } from './slashCommandExtension'
 import type { SlashCommandItem } from './slashCommandExtension'
 import { pickImageFiles, insertImageFilesInto } from '@/composables/imageInsert'
+import { plainTextToEditorHtml } from '@/composables/plainTextToEditorHtml'
 import { useEntityStore } from '@worldsea/entity-core'
 import { entitySchemaRegistry } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
@@ -255,7 +256,8 @@ export function useNoteEditor(currentNote: Ref<Entity | null>, onContentChange?:
       persistContent(html)
     }
     if (entity && editor.value) {
-      const content = (entity.properties.content as string) || ''
+      // 纯文本归一：JSON 外部写入的 \n 在 HTML 语境会被折叠成空格，加载边界拆成 <p> 段
+      const content = plainTextToEditorHtml((entity.properties.content as string) || '')
       editor.value.commands.setContent(content, { emitUpdate: false })
       wordCount.value = editor.value.getText().length
     } else if (editor.value) {
