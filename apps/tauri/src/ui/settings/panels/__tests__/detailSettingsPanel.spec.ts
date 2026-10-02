@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import 'fake-indexeddb/auto'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia, type Pinia } from 'pinia'
-import { entitySchemaRegistry, fieldRegistry, useDetailLayoutStore } from '@worldsea/entity-core'
+import { entitySchemaRegistry, fieldRegistry, useDetailLayoutStore, useFieldOrderStore } from '@worldsea/entity-core'
 
 import DetailSettingsPanel from '../DetailSettingsPanel.vue'
 
@@ -55,23 +55,19 @@ beforeEach(() => {
   entitySchemaRegistry.register({ typeKey: 'item', label: '道具', icon: 'item', fields: [] } as never)
 })
 
-function heads(w: VueWrapper): string[] {
-  return w.findAll('.sc-head').map(h => h.text())
-}
-
 describe('面板骨架', () => {
-  it('三张卡各有分节标题（左列 rail 靠 .sc-head 取文本）', () => {
+  it('五张卡各有分节标题（左列 rail 靠 .sc-head 取首个 span 文本）', () => {
     const w = mountPanel()
-    expect(heads(w)).toHaveLength(3)
-    expect(heads(w)[0]).toContain('内容形态')
-    expect(heads(w)[1]).toContain('字段顺序与可见性')
-    expect(heads(w)[2]).toContain('形态配置')
-    expect(w.find('.ds-type').text()).toBe('角色')
+    const heads = w.findAll('.sc-head').map(h => h.find('span').text())
+    expect(heads).toEqual(['内容形态', '字段顺序与可见性', '形态配置', '分组管理', '命名预设'])
+    expect(w.findAll('.sc-head')[0].text()).toContain('角色')
   })
 
   it('搜索模式只留命中关键字的卡（flat 平铺由 CardDeck 承担）', () => {
-    const w = mountPanel('时间轴')
-    expect(w.findAll('.set-card').filter(c => c.isVisible()).length).toBe(1)
+    const visible = (q: string) => mountPanel(q).findAll('.set-card').filter(c => c.isVisible()).length
+    expect(visible('时间轴')).toBe(1)
+    expect(visible('分组管理')).toBe(1)
+    expect(visible('命名预设')).toBe(1)
   })
 })
 
@@ -91,7 +87,7 @@ describe('内容形态（卡一）', () => {
   })
 
   it('未覆写时不给「恢复芽默认」按钮（免得是个假动作）', () => {
-    expect(mountPanel().find('.set-btn').exists()).toBe(false)
+    expect(mountPanel().findAll('.set-card')[0].find('.set-btn').exists()).toBe(false)
   })
 
   it('有覆写后按钮出现，确认即清空该类型覆写', async () => {
@@ -117,7 +113,7 @@ describe('内容形态（卡一）', () => {
 
 describe('字段顺序与可见性（卡二）', () => {
   function fieldRows(w: VueWrapper) {
-    return w.findAll('.ds-field')
+    return w.findAll('.set-card')[1].findAll('.ds-field')
   }
 
   it('按该类型注册字段成行，标题也在内但由详情面自行不占行', () => {
@@ -179,5 +175,131 @@ describe('形态配置（卡三）', () => {
     const num = w.findAll('.set-card')[2].find('input[type=number]')
     await num.setValue('')
     expect(overrideOf().contentConfig).toEqual({ maxChips: 14 })
+  })
+})
+
+describe('分组管理（卡四）', () => {
+  function card(w: VueWrapper) {
+    return w.findAll('.set-card')[3]
+  }
+  /** 保存按钮（草稿态才解禁） */
+  function saveBtn(w: VueWrapper) {
+    return card(w).findAll('.set-btn').find(b => b.text() === '保存分组')!
+  }
+
+  it('新建分组只改草稿，点「保存分组」才落盘（空组即时写会被归一丢掉，按钮像坏了一样）', async () => {
+    const w = mountPanel()
+    await card(w).findAll('.set-btn')[0].trigger('click')
+    expect(saveBtn(w).attributes('disabled')).toBeUndefined()
+    expect(overrideOf().groups).toBeUndefined()
+    await saveBtn(w).trigger('click')
+    expect(overrideOf().groups).toHaveLength(1)
+    expect((overrideOf().groups as { label: string }[])[0].label).toBe('分组 1')
+  })
+
+  it('字段归属下拉把字段挂进组，且一个字段只属一个组', async () => {
+    const w = mountPanel()
+    await card(w).findAll('.set-btn')[0].trigger('click')
+    await card(w).findAll('.set-btn')[0].trigger('click')
+    const selects = card(w).findAll('select')
+    // 标题不占详情行、隐藏字段不分组 → 只有「年龄 / 出身」两个可挂
+    expect(selects).toHaveLength(2)
+    await selects[0].setValue('g1')
+    await selects[0].setValue('g2')
+    await saveBtn(w).trigger('click')
+    const groups = overrideOf().groups as { key: string; fieldKeys: string[] }[]
+    expect(groups.map(g => g.key)).toEqual(['g1', 'g2'])
+    expect(groups[0].fieldKeys).toEqual([])
+    expect(groups[1].fieldKeys).toEqual(['age'])
+  })
+
+  it('改名与删组都进草稿，保存后如实落盘', async () => {
+    const w = mountPanel()
+    await card(w).findAll('.set-btn')[0].trigger('click')
+    await card(w).find('input[aria-label="分组名"]').setValue('少年时期')
+    await saveBtn(w).trigger('click')
+    expect((overrideOf().groups as { label: string }[])[0].label).toBe('少年时期')
+
+    await card(w).find('button[aria-label="删除分组"]').trigger('click')
+    await saveBtn(w).trigger('click')
+    expect(overrideOf().groups).toHaveLength(0)
+  })
+
+  it('放弃修改回到已保存的分组', async () => {
+    const w = mountPanel()
+    await card(w).findAll('.set-btn')[0].trigger('click')
+    await card(w).findAll('.set-btn').find(b => b.text() === '保存分组')!.trigger('click')
+    await card(w).findAll('.set-btn')[0].trigger('click')
+    const discard = card(w).findAll('.set-btn').find(b => b.text() === '放弃修改')!
+    await discard.trigger('click')
+    expect(card(w).findAll('input[aria-label="分组名"]')).toHaveLength(1)
+  })
+
+  it('删掉一个组再新建，不会撞出同 key 同名（组数不等于序号）', async () => {
+    const w = mountPanel()
+    const addBtn = () => card(w).findAll('.set-btn')[0]
+    await addBtn().trigger('click')
+    await addBtn().trigger('click')
+    await card(w).findAll('button[aria-label="删除分组"]')[0].trigger('click')
+    await saveBtn(w).trigger('click')
+    await addBtn().trigger('click')
+    const names = card(w).findAll('input[aria-label="分组名"]').map(i => (i.element as HTMLInputElement).value)
+    expect(names).toEqual(['分组 2', '分组 1'])
+  })
+
+  it('隐藏字段不参与分组', () => {
+    // 先写覆写再挂载：挂载之后再 patch 不会同步反映到 DOM（要等 nextTick 重算）
+    useDetailLayoutStore().patch('character', { hidden: ['age'] })
+    const w = mountPanel()
+    expect(card(w).findAll('select')).toHaveLength(1)
+    expect(card(w).text()).toContain('出身')
+  })
+})
+
+describe('命名预设（卡五）', () => {
+  function card(w: VueWrapper) {
+    return w.findAll('.set-card')[4]
+  }
+
+  it('无预设时如实说没有，而不是空列表', () => {
+    expect(card(mountPanel()).text()).toContain('该类型还没有预设')
+  })
+
+  it('「存当前顺序」把该类型字段键存成一份新预设', async () => {
+    const w = mountPanel()
+    await card(w).find('input[aria-label="新预设名"]').setValue('设定资料')
+    await card(w).findAll('.set-btn')[0].trigger('click')
+    const orders = useFieldOrderStore().orders.character.presets['设定资料']
+    expect(orders.order).toEqual(['title', 'age', 'origin'])
+    expect(card(w).text()).toContain('设定资料')
+  })
+
+  it('应用预设切 active 并重排 registry 基准序，字段不增不减', async () => {
+    const store2 = useFieldOrderStore()
+    store2.savePreset('character', '重序', ['origin', 'age', 'title'])
+    const w = mountPanel()
+    const apply = card(w).findAll('.ds-btn-wide').find(b => b.text() === '应用')!
+    await apply.trigger('click')
+    expect(useFieldOrderStore().getActivePreset('character')).toBe('重序')
+    expect(fieldRegistry.getFields('character').map(f => f.key)).toEqual(['origin', 'age', 'title'])
+  })
+
+  it('删预设走确认；取消则留着', async () => {
+    useFieldOrderStore().savePreset('character', '重序', ['origin', 'age', 'title'])
+    confirmMock.mockResolvedValueOnce(false as never)
+    const w = mountPanel()
+    await card(w).find('button[aria-label="删除预设"]').trigger('click')
+    await new Promise(r => setTimeout(r, 0))
+    expect(useFieldOrderStore().getPresetNames('character')).toContain('重序')
+
+    await card(w).find('button[aria-label="删除预设"]').trigger('click')
+    await new Promise(r => setTimeout(r, 0))
+    expect(useFieldOrderStore().getPresetNames('character')).not.toContain('重序')
+  })
+
+  it('有预设时，顺序卡的提示说明基准序来自哪一档', () => {
+    useFieldOrderStore().savePreset('character', '重序', ['origin', 'age', 'title'])
+    const w = mountPanel()
+    expect(w.findAll('.set-card')[1].text()).toContain('当前基准序来自预设「默认」')
   })
 })

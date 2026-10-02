@@ -172,7 +172,6 @@ export const PANEL_LABELS: Record<string, string> = {
   'modal-batch-edit': '批量编辑',
   'modal-global-search': '全局搜索',
   'modal-version-history': '版本历史',
-  'modal-layout-manager': '布局管理',
   'modal-template-manager': '模板管理',
   'modal-doc-export': '文档导出',
   'modal-undo-history': '撤销历史',

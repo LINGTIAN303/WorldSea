@@ -17,10 +17,11 @@
 - `SYSTEM_KEYS` + `fieldRegistry` 合并生成 `sortedFields`（`void fieldRegistry.version.value` 保持 registry 版本响应式追踪）
 - `resolvedEntityType`、`activePreset`、`presetOptions`、`isFullWidth`
 - 拖拽排序（`onDragStart/onDragOver/onDragLeave/onDrop` → `fieldRegistry.setOrder`）
-- 预设管理（`saveCurrentPreset/applyCurrentPreset/deleteCurrentPreset`）
+- 预设**只留切换**：`watch(activePreset)` → `fieldOrderStore.loadPreset`（2026-10-03 起，
+  增删改搬到设置「实体详情」Tab 的「命名预设」卡；同一份数据不留两个 CRUD 面）
 - 添加/删除字段（`confirmAddField/cancelAddField/removeField`）
 
-依赖注入：`fields/entityType/entity` 用 getter 闭包（保持 props 响应式）；`fieldOrderStore`、`dialog` 实例由组件传入。
+依赖注入：`fields/entityType/entity` 用 getter 闭包（保持 props 响应式）；`fieldOrderStore` 实例由组件传入（`dialog` 随预设 CRUD 一起摘掉）。
 
 **关键设计——惰性 getFormData**：`confirmAddField`/`removeField` 需要写 `formData`，而 `useDynamicForm`（产出 `formData`）依赖 `sortedFields`（本 composable 产出），存在调用环。解法：调用顺序 presets → form，`formData` 通过 `getFormData: () => form.formData` 闭包**延迟求值**（仅在用户点击时执行，此时 `form` 已初始化），运行时无 TDZ 问题。
 

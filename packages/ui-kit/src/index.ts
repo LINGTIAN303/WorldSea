@@ -49,7 +49,6 @@ export { default as ColorPickerDialog } from './components/editor/ColorPickerDia
 export { default as DialogContainer } from './components/layout/DialogContainer.vue'
 export { default as Toast } from './components/feedback/Toast.vue'
 export { default as Sidebar } from './components/layout/Sidebar.vue'
-export { default as LayoutManager } from './components/layout/LayoutManager.vue'
 export { default as ViewContainer } from './components/layout/ViewContainer.vue'
 export { default as ViewToolbar } from './components/layout/ViewToolbar.vue'
 export { default as ViewToolbarFilter } from './components/layout/ViewToolbarFilter.vue'

@@ -4,7 +4,12 @@ import { fieldRegistry, type RegisteredField } from '../core/FieldRegistry'
 
 interface PresetData {
   order: string[]
-  customFields: RegisteredField[]
+  /**
+   * 旧结构里的字段定义快照。**已不再写入也不再消费**（保留键名只为读旧 localStorage 不炸）：
+   * 应用预设时据此补字段会「复活」用户后来主动删掉的字段，不补又会静默丢字段——
+   * 两头都是意外。字段本身是**类型级真值**（`fieldRegistry`），预设只决定顺序。
+   */
+  customFields?: RegisteredField[]
 }
 
 export const useFieldOrderStore = defineStore('fieldOrder', () => {
@@ -32,9 +37,9 @@ export const useFieldOrderStore = defineStore('fieldOrder', () => {
 
   function setFieldOrder(entityType: string, fieldKeys: string[]) {
     if (!orders.value[entityType]) {
-      orders.value[entityType] = { active: '默认', presets: { '默认': { order: fieldKeys, customFields: [] } } }
+      orders.value[entityType] = { active: '默认', presets: { '默认': { order: fieldKeys } } }
     } else {
-      orders.value[entityType].presets[orders.value[entityType].active] = { order: fieldKeys, customFields: [] }
+      orders.value[entityType].presets[orders.value[entityType].active] = { order: fieldKeys }
     }
     save()
   }
@@ -43,26 +48,34 @@ export const useFieldOrderStore = defineStore('fieldOrder', () => {
     if (!orders.value[entityType]) {
       orders.value[entityType] = { active: '默认', presets: {} }
     }
-    const customFields = fieldRegistry.getFields(entityType).filter(f => f.source !== 'builtin')
-    orders.value[entityType].presets[presetName] = { order: fieldKeys, customFields }
+    orders.value[entityType].presets[presetName] = { order: fieldKeys }
     save()
   }
 
+  /**
+   * 应用预设＝**只重排，不增删字段**（2026-10-03 裁定「分轴」的落地口径）。
+   *
+   * 原实现先 `fieldRegistry.resetToBuiltin(entityType)` 再只放回预设里存的字段快照，
+   * 于是「存过预设之后新增的自定义字段」会在点一下「使用」时凭空消失；
+   * 而 registry 的字段集与顺序正是详情面可用字段的来源，弹窗里这个动作会连带改掉详情的结构。
+   * 反过来「按快照补字段」也不成立：用户后来主动删掉的字段会被复活。
+   * 两头都是意外，所以把轴分干净：**字段是类型级真值（`fieldRegistry`），预设只是一份命名的顺序档**；
+   * 预设引用到已不存在的 key 就跳过，registry 里预设没见过的新字段补在末尾而不是被吞。
+   */
   function loadPreset(entityType: string, presetName: string) {
     if (!orders.value[entityType]) return
     const preset = orders.value[entityType].presets[presetName]
-    if (preset) {
-      orders.value[entityType].active = presetName
-      fieldRegistry.resetToBuiltin(entityType)
-      for (const f of preset.customFields || []) {
-        fieldRegistry.addUserField(entityType, f)
-      }
-      const order = preset.order || (Array.isArray(preset) ? preset : [])
-      if (order.length > 0) {
-        fieldRegistry.setOrder(entityType, order)
-      }
-      save()
-    }
+    if (!preset) return
+    orders.value[entityType].active = presetName
+    applyBaseOrder(entityType, preset.order || (Array.isArray(preset) ? preset : []))
+    save()
+  }
+
+  /** 把预设的基准序写进 registry，预设里不存在的现有字段补在末尾（不静默消失） */
+  function applyBaseOrder(entityType: string, order: string[]) {
+    if (!order.length) return
+    const live = fieldRegistry.getFields(entityType).map(f => f.key)
+    fieldRegistry.setOrder(entityType, [...order.filter(k => live.includes(k)), ...live.filter(k => !order.includes(k))])
   }
 
   function deletePreset(entityType: string, presetName: string) {
@@ -102,7 +115,7 @@ export const useFieldOrderStore = defineStore('fieldOrder', () => {
     const defaultOrder = orders.value[entityType].presets['默认']
     if (defaultOrder) {
       orders.value[entityType].active = '默认'
-      fieldRegistry.setOrder(entityType, defaultOrder.order || [])
+      applyBaseOrder(entityType, defaultOrder.order || [])
     } else {
       delete orders.value[entityType]
       fieldRegistry.resetToBuiltin(entityType)

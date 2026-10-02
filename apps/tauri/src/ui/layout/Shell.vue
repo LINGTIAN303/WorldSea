@@ -16,7 +16,6 @@
     <TemplateManager :show="templateOpen" @close="templateOpen = false" />
     <VersionHistory :show="versionOpen" @close="versionOpen = false" />
     <DocExport :show="docOpen" @close="docOpen = false" />
-    <LayoutManager :show="layoutMgrOpen" @close="layoutMgrOpen = false" />
     <ShortcutHelpModal :show="shortcutHelpOpen" @close="shortcutHelpOpen = false" />
     <UndoHistoryPanel :show="undoHistoryOpen" @close="undoHistoryOpen = false" @redo="onRedoFromHistory" />
     <TrashPanel :show="trashOpen" @close="trashOpen = false" />
@@ -45,7 +44,6 @@ import { BatchEditModal } from '@worldsea/plugin-sdk'
 const TemplateManager = defineAsyncComponent(() => import('@worldsea/ui-kit').then(m => m.TemplateManager))
 const VersionHistory = defineAsyncComponent(() => import('@worldsea/ui-kit').then(m => m.VersionHistory))
 const DocExport = defineAsyncComponent(() => import('@worldsea/ui-kit').then(m => m.DocExport))
-const LayoutManager = defineAsyncComponent(() => import('@worldsea/ui-kit').then(m => m.LayoutManager))
 const ShortcutHelpModal = defineAsyncComponent(() => import('@worldsea/ui-kit').then(m => m.ShortcutHelpModal))
 const UndoHistoryPanel = defineAsyncComponent(() => import('@worldsea/ui-kit').then(m => m.UndoHistoryPanel))
 import { useShortcuts, useUndoRedo, useGlobalEvents } from '@worldsea/ui-kit'
@@ -60,7 +58,6 @@ const batchEditOpen = ref(false)
 const templateOpen = ref(false)
 const versionOpen = ref(false)
 const docOpen = ref(false)
-const layoutMgrOpen = ref(false)
 const shortcutHelpOpen = ref(false)
 const undoHistoryOpen = ref(false)
 
@@ -88,7 +85,6 @@ function onOpenBatchEdit() { batchEditOpen.value = true }
 function onOpenTemplate() { templateOpen.value = true }
 function onOpenVersion() { versionOpen.value = true }
 function onOpenDocExport() { docOpen.value = true }
-function onOpenLayoutMgr() { layoutMgrOpen.value = true }
 function onOpenTrash() { trashOpen.value = true }
 function onOpenArtifacts() { artifactsOpen.value = true }
 function onOpenConsistency() { consistencyOpen.value = true }
@@ -137,7 +133,6 @@ onGlobalEvent('ws-open-batch-edit', onOpenBatchEdit)
 onGlobalEvent('ws-open-template', onOpenTemplate)
 onGlobalEvent('ws-open-version', onOpenVersion)
 onGlobalEvent('ws-open-doc-export', onOpenDocExport)
-onGlobalEvent('ws-open-layout-mgr', onOpenLayoutMgr)
 // P3-W4 续：恢复业务弹窗全局事件
 onGlobalEvent('ws-open-trash', onOpenTrash)
 onGlobalEvent('ws-open-artifacts', onOpenArtifacts)

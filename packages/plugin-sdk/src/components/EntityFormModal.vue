@@ -8,9 +8,7 @@
       <div class="efm-preset-bar">
         <span class="efm-preset-label">布局：</span>
         <CustomDropdown v-model="activePreset" :options="presetOptions" />
-        <button class="efm-preset-btn efm-preset-save" @click="saveCurrentPreset" title="保存当前布局"><WsIcon name="check" size="xs" /> 保存</button>
-        <button class="efm-preset-btn efm-preset-apply" @click="applyCurrentPreset" title="应用此布局"><WsIcon name="arrow-up" size="xs" /> 使用</button>
-        <button class="efm-preset-btn efm-preset-delete" v-if="activePreset !== '默认'" @click="deleteCurrentPreset" title="删除此布局"><WsIcon name="delete" size="xs" /></button>
+        <span class="efm-preset-hint">切换即按该预设重排字段；新建或删除预设请到设置「实体详情」</span>
       </div>
       <div class="efm-body">
         <div
@@ -73,7 +71,7 @@
 </template>
 
 <script setup lang="ts">
-import { useDialog, useResizable } from '../composables'
+import { useResizable } from '../composables'
 import { ref, watch, nextTick, onBeforeUnmount } from 'vue'
 import { WsIcon, useModalShortcuts } from '@worldsea/ui-kit'
 import CustomDropdown from './CustomDropdown.vue'
@@ -134,7 +132,6 @@ const emit = defineEmits<{
 useModalShortcuts(() => props.modelValue, { id: 'entity-form.close', onEscape: () => close() })
 
 const fieldOrderStore = useFieldOrderStore()
-const dialog = useDialog()
 const entityStore = useEntityStore()
 
 // ── 字段与预设 ─────────────────────────────────────────────────────────
@@ -143,13 +140,11 @@ const presets = useFieldPresets({
   entityType: () => props.entityType,
   entity: () => props.entity,
   fieldOrderStore,
-  dialog,
   getFormData: () => form.formData,
 })
 const {
   sortedFields, resolvedEntityType, activePreset, presetOptions, isFullWidth,
   dragOverIdx, onDragStart, onDragOver, onDragLeave, onDrop,
-  saveCurrentPreset, applyCurrentPreset, deleteCurrentPreset,
   showAddField, newFieldKey, newFieldLabel, newFieldType, newFieldOptions,
   confirmAddField, cancelAddField, removeField,
 } = presets
@@ -263,21 +258,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   color: var(--text-secondary);
   white-space: nowrap;
 }
-.efm-preset-btn {
+.efm-preset-hint {
   font-size: var(--font-size-xs);
-  padding: 3px 8px;
-  border-radius: 4px;
-  border: 1px solid var(--border);
-  background: var(--input-bg, var(--color-bg-surface));
-  cursor: pointer;
-  transition: background 0.12s;
-}
-.efm-preset-btn:hover {
-  background: var(--hover-bg, var(--color-bg-hover));
-}
-.efm-preset-save {
-  color: var(--accent, var(--color-primary));
-  border-color: var(--accent, var(--color-primary));
+  color: var(--text-tertiary, var(--color-text-tertiary));
 }
 .efm-body {
   display: grid;

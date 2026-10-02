@@ -1,8 +1,7 @@
-// 字段与预设 composable：字段合并（SYSTEM_KEYS + fieldRegistry）、预设管理、拖拽排序、字段增删。
-// 详细说明见 docs/details/注释/packages/plugin-sdk/entity-form-modal.md
+// 字段与预设 composable：字段合并（SYSTEM_KEYS + fieldRegistry）、预设切换、拖拽排序、字段增删。
+// 预设的增删改在设置「实体详情」Tab，此处只留切换。详细说明见 docs/details/注释/packages/plugin-sdk/entity-form-modal.md
 import { ref, computed, watch } from 'vue'
 import { fieldRegistry, useFieldOrderStore, type Entity } from '@worldsea/entity-core'
-import { useDialog } from '../../composables'
 import { toastSuccess, toastWarn } from '@worldsea/ui-kit'
 import type { FormFieldDef } from '../types'
 
@@ -11,7 +10,6 @@ export interface UseFieldPresetsOptions {
   entityType: () => string
   entity: () => Entity | null
   fieldOrderStore: ReturnType<typeof useFieldOrderStore>
-  dialog: ReturnType<typeof useDialog>
   /** 惰性获取 formData（useFieldPresets 先于 useDynamicForm 调用，运行时才求值） */
   getFormData: () => { value: Record<string, unknown> }
 }
@@ -99,27 +97,9 @@ export function useFieldPresets(options: UseFieldPresetsOptions) {
   }
 
   // ── 预设管理 ──────────────────────────────────────────────
-  async function saveCurrentPreset() {
-    const name = await options.dialog.prompt('输入预设名称', '保存预设', '新预设')
-    if (!name) return
-    const keys = sortedFields.value.filter(f => !SYSTEM_KEYS.has(f.key)).map(f => f.key)
-    options.fieldOrderStore.savePreset(resolvedEntityType.value, name, keys)
-    fieldRegistry.setOrder(resolvedEntityType.value, keys)
-    activePreset.value = name
-    toastSuccess(`已保存预设「${name}」`)
-  }
-
-  function applyCurrentPreset() {
-    const preset = activePreset.value
-    options.fieldOrderStore.loadPreset(resolvedEntityType.value, preset)
-    toastSuccess(`已应用预设「${preset}」`)
-  }
-
-  function deleteCurrentPreset() {
-    if (activePreset.value === '默认') return
-    options.fieldOrderStore.deletePreset(resolvedEntityType.value, activePreset.value)
-    activePreset.value = options.fieldOrderStore.getActivePreset(resolvedEntityType.value)
-  }
+  // 增删改（另存/删除）已搬到设置「实体详情」Tab 的「命名预设」卡，弹窗侧只留**切换**：
+  // 同一份数据不该有两个 CRUD 面（1a 刚把四套字段控件收成一套，这是同型问题）。
+  // 切换由上面 `watch(activePreset)` → `loadPreset` 完成，且已是「并入不抹除」语义。
 
   // ── 添加/删除字段 ─────────────────────────────────────────
   const showAddField = ref(false)
@@ -173,9 +153,6 @@ export function useFieldPresets(options: UseFieldPresetsOptions) {
     onDragOver,
     onDragLeave,
     onDrop,
-    saveCurrentPreset,
-    applyCurrentPreset,
-    deleteCurrentPreset,
     showAddField,
     newFieldKey,
     newFieldLabel,

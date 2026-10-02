@@ -42,11 +42,6 @@
             <span class="menu-item-label">最近修改</span>
             <span class="menu-item-shortcut"></span>
           </button>
-          <button class="menu-item" role="menuitem" @click="openLayoutMgr">
-            <WsIcon name="module-builder" size="sm" class="menu-item-icon" />
-            <span class="menu-item-label">布局管理</span>
-            <span class="menu-item-shortcut"></span>
-          </button>
           <button class="menu-item" role="menuitem" @click="openConsistency">
             <WsIcon name="shield" size="sm" class="menu-item-icon" />
             <span class="menu-item-label">一致性检查</span>
@@ -189,7 +184,6 @@ onMounted(() => {
 
 function openSearch() { closeMenu(); window.dispatchEvent(new CustomEvent('ws-open-search')) }
 function openVersion() { closeMenu(); window.dispatchEvent(new CustomEvent('ws-open-version')) }
-function openLayoutMgr() { closeMenu(); window.dispatchEvent(new CustomEvent('ws-open-layout-mgr')) }
 function openConsistency() { closeMenu(); window.dispatchEvent(new CustomEvent('ws-open-consistency')) }
 function openArtifacts() { closeMenu(); window.dispatchEvent(new CustomEvent('ws-open-artifacts')) }
 function openThemeEditor() { closeMenu(); window.dispatchEvent(new CustomEvent('ws-open-theme-editor')) }
