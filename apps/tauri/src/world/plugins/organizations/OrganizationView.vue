@@ -12,8 +12,8 @@
     id-prefix="org"
     @select-entity="onSelectEntity"
   >
-    <!-- Tree list view via list slot -->
-    <template #list="{ entities, selectedIds: batchIds, toggleSelect: batchToggle, select: gevSelect, batchMode }">
+    <!-- Tree list view via list slot（卡片模式不提供槽 → GEV 默认 EntityCard 网格浮现，2026-10-02） -->
+    <template v-if="viewMode === 'tree'" #list="{ entities, selectedIds: batchIds, toggleSelect: batchToggle, select: gevSelect, batchMode }">
       <div class="org-tree" :class="{ 'is-empty': entities.length === 0 }">
         <OrgTreeNode
           v-for="node in buildTree(entities)"
@@ -31,6 +31,16 @@
           <template #icon><WsIcon name="organization" size="xl" /></template>
         </WsEmpty>
       </div>
+    </template>
+
+    <!-- Toolbar: view mode toggle buttons -->
+    <template #toolbar-extra>
+      <button class="btn-view" :class="{ active: viewMode === 'cards' }" @click="viewMode = 'cards'" title="卡片视图">
+        <WsIcon name="grid" size="sm" />
+      </button>
+      <button class="btn-view" :class="{ active: viewMode === 'tree' }" @click="viewMode = 'tree'" title="树形视图">
+        <WsIcon name="tree" size="sm" />
+      </button>
     </template>
 
     <!-- Members tab -->
@@ -93,6 +103,9 @@ import { orgFields, orgIconOf } from './organizationConfig'
 
 const entityStore = useEntityStore()
 const relationStore = useRelationStore()
+
+// ── View mode（2026-10-02：默认卡片——GEV 默认 EntityCard 网格；树形可切，同 regions 先例）──
+const viewMode = ref<string>('cards')
 
 const selectedOrgId = ref<string | null>(null)
 const parentCandidate = ref<Entity | null>(null)
@@ -222,6 +235,11 @@ async function removeSubOrg(childId: string, parentId: string) {
 </script>
 
 <style scoped>
+/* 视图切换按钮（同 regions 先例样式） */
+.btn-view { width: 36px; height: 36px; border: 1px solid var(--border-color); border-radius: var(--radius-xs); cursor: pointer; font-size: var(--font-size-base); background: var(--card-bg); color: var(--text-secondary); display: inline-flex; align-items: center; justify-content: center; }
+.btn-view:hover { color: var(--text-color); border-color: var(--border-strong, var(--border-color)); }
+.btn-view.active { border-color: var(--primary); background: var(--primary-light); color: var(--primary); }
+
 .org-tree { flex: 1; overflow-y: auto; min-width: 250px; }
 /* 空实体状态：组织树空提示垂直+水平居中 */
 .org-tree.is-empty { display: flex; align-items: center; justify-content: center; }
