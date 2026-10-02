@@ -124,6 +124,7 @@
             @remove-field="onRemoveField"
             @promote-field="onPromoteField"
             @demote-field="onDemoteField"
+            @change-form="setContentForm"
             @enter-edit="startEdit"
             @save="saveEdit()"
             @cancel="cancelEdit"
@@ -324,7 +325,7 @@ const entityLevelFields = computed<DetailFieldMeta[]>(() =>
 
 const detailFieldMetas = computed(() => mergeScopedFields(typeLevelFields.value, entityLevelFields.value))
 
-const { layout: detailLayout } = useDetailLayout(
+const { layout: detailLayout, setContentForm } = useDetailLayout(
   () => props.entityType,
   () => detailFieldMetas.value.map(f => f.key),
 )

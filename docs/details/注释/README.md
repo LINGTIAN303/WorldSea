@@ -111,7 +111,7 @@
 | src/components/EntityFormModal.vue（2026-08-06 script 拆分） | [entity-form-modal.md](packages/plugin-sdk/entity-form-modal.md) | 实体表单弹窗：模板 + 编排，五类逻辑拆为 4 个 composable（行为不变） |
 | src/components/entity/useFieldPresets.ts | [entity-form-modal.md](packages/plugin-sdk/entity-form-modal.md) | 字段合并（SYSTEM_KEYS + fieldRegistry）、预设管理、拖拽排序、字段增删 |
 | src/components/entity/useDynamicForm.ts | [entity-form-modal.md](packages/plugin-sdk/entity-form-modal.md) | formData 状态与初始化、输入事件（name/text 事件总线）〔ghost 防抖已于 E6 随 Smart Fill 退场〕 |
-| src/components/entity/useEntityRefSearch.ts | [entity-form-modal.md](packages/plugin-sdk/entity-form-modal.md) | entityRef 类型字段的搜索下拉状态与交互 |
+| src/components/entity/useEntityRefSearch.ts（**已随 1a 退役**，件已删） | [entity-form-modal.md](packages/plugin-sdk/entity-form-modal.md) | entityRef 类型字段的搜索下拉状态与交互（现由 `detail/EntityRefControl.vue` 承担） |
 | src/components/entity/useEntityFormSave.ts | [entity-form-modal.md](packages/plugin-sdk/entity-form-modal.md) | save 校验/收集（properties/tags/entityRef/autoLink/封面）、实体引用关系同步 |
 | src/components/GenericEntityView.vue | [实体视图滚动链.md](packages/plugin-sdk/实体视图滚动链.md) | 实体卡片网格滚动链：定高容器下 auto 隐式行 / 列向 flex 子项的自动最小尺寸因卡片 overflow:hidden 归零 → 压扁且不出滚动条；`grid-auto-rows:min-content` + `has-custom-list>*{flex-shrink:0}` 修复（2026-10-01） |
 | src/composables/useBatchDelete.ts | [批量选择态.md](packages/plugin-sdk/批量选择态.md) | 批量态状态机（进出清空选中 / 清空≠退出 / 删除后留态）；常驻复选框退役，改显式批量态 + 点击路由（2026-10-01） |
@@ -124,6 +124,7 @@
 | src/detail/fieldScope.ts · src/components/EntityCard.vue | [实体详情表单.md](packages/plugin-sdk/实体详情表单.md) | 自定义字段**两级作用域**（走查改判）：默认 `entity` 落该实体 `properties.__fieldDefs`（导出保真、随实体删）、可选 `type` 落 `fieldRegistry`；合并＝类型级在前 + 同 key 以类型级为准 + 查重跨两层；默认作用域是设置项（落 `detailLayoutStore` 避免撑爆已冻结的 settingsStore）+ 添加时当场可改 + 字段行「共享/仅本实体」互转（值不动）。同轮卡片外移 `EntityCard`（翻转态自持），GEV 854→735 行（减压而非动基线）（2026-10-02） |
 | src/components/UniversalRelationPanel.vue · EntityRelationSelector.vue · AutoLinkSuggestions.vue | [实体详情关系区.md](packages/plugin-sdk/实体详情关系区.md) | 关系区**事实清单**（用户裁定本轮不动结构）：三套 UI 并存 + URP 内嵌 ERS 两次 + 四芽绕行单挂 ERS；三条写口语义分叉（`createBidirectional` 双向 vs `storage.putRelation` 单向且绕 store vs `deleteWithConfirm` 只覆盖 URP 视图内的边）；留给裁定的三问（2026-10-02） |
 | src/components/EntityFormModal.vue · entity/use{DynamicForm,EntityFormSave,FieldPresets}.ts · BatchEditModal.vue · timeline/components/EventDetailFields.vue | [实体详情表单.md](packages/plugin-sdk/实体详情表单.md) §九§十 | 四套字段控件归一为 `FieldControl` 一套（`DetailField.vue` 与 `useEntityRefSearch.ts` 已删）；`formData` 泛化 unknown（不再 `String()` 抹平数组）；**entityRef 落库统一存 id**（守卫 6 例 + 反证双向报红）；`useFieldPresets` 的第二处「不认识就当天」白名单拆除；`richtext` 升独立类型保富文本；批量编辑单条改行内控件（2026-10-02 批次 1a 余下段） |
+| src/detail/（contentForms / formValues / useFieldSource / DetailFieldRow / forms/）· EntityDetailForm.vue | [实体详情内容形态.md](packages/plugin-sdk/实体详情内容形态.md) | **L2 内容形态**五式（分组式唯一 inline，表格/段落/摘要/时间轴为 derived）：注册表沿用大纲白板范式但**只留 configSchema 一份默认值**、形态件在仓内注册不开放芽自注册；`fieldFamily` 单点归类（`date` 类型**或**约定时间 key）；派生型编辑态回落分组式（保住 1a 的写路径单轨），高亮仍留用户所选；`DetailFieldRow` 共用 ⇒ 形态之间只差编排不差控件；只读三口径（entityRef 解名/失败说实话、image 报「已配图」、空值不进摘要但如实报数）；`contentConfig` 与 `contentForm` 同键同优先序落盘（2026-10-02 批次 1b-1） |
 
 > ~~src/agent-descriptor.ts~~（pluginSdkDescriptor）已于 2026-09-27 E8 随 Agent 工具目录退场。
 

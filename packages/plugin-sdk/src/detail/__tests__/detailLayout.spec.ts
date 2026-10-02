@@ -52,7 +52,14 @@ describe('resolveLayout —— 芽默认 ⊕ 用户覆写 ⊕ 即时态', () => 
       order: FIELDS,
       hidden: [],
       contentForm: DEFAULT_CONTENT_FORM,
+      contentConfig: {},
     })
+  })
+
+  it('形态配置也走同一优先序（即时态 > 用户覆写 > 芽默认）', () => {
+    const layout = resolveLayout(FIELDS, { contentConfig: { maxChips: 5 } }, { contentConfig: { maxChips: 9 } })
+    expect(layout.contentConfig).toEqual({ maxChips: 9 })
+    expect(resolveLayout(FIELDS, { contentConfig: { maxChips: 5 } }).contentConfig).toEqual({ maxChips: 5 })
   })
 
   it('后一层整表覆盖前一层', () => {

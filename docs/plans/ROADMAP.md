@@ -71,7 +71,8 @@
 ### 7. 18 个实体类插件的实体详情优化
 - **简述**：优化 18 个实体类芽的实体详情视图（详情内容件 + 各插件 View）
 - **涉及模块**：`apps/tauri/src/world/plugins/*/`（apparel/buildings/characters/combat_stats/concepts/conflict/culture/items/languages/magic/organizations/plants/regions/species/timeline/weapons）、`packages/plugin-sdk/src/detail/`（2026-10-02 新建）、`packages/plugin-sdk/src/components/GenericEntityView.vue`
-- **状态**：执行中（2026-10-02 立项并裁定八项，施工切三批 1a 地基 → 1b 内容形态 → 2 载体形态）
+- **状态**：执行中（2026-10-02 立项并裁定八项，施工切三批 1a 地基 → 1b 内容形态 → 2 载体形态；
+  **1a 全段真机走查通过**，**1b-1 L2 五式已落**，余 1b-2 设置 Tab 与批次 2）
 - **优先级**：—
 - **备注**：设计规范已定（统一字段控件注册表 + 三级合并布局层 + 两级形态模型），详见
   [实体详情表单地基与形态批计划](2026-10-02-实体详情表单地基与形态批计划.md)。

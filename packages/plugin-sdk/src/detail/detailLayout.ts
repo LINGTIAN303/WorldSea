@@ -20,6 +20,8 @@ export interface DetailLayout {
   hidden: string[]
   /** L2 内容形态 id（批次 1b 起有实效） */
   contentForm: string
+  /** L2 形态的配置：只按当前形态的 configSchema 取用，缺键由注册表兜默认值 */
+  contentConfig: Record<string, unknown>
 }
 
 /** 布局层的局部声明——三级来源都只给得出这几项 */
@@ -87,5 +89,7 @@ export function resolveLayout(
     hidden: hiddenSrc.filter(k => available.includes(k)),
     contentForm: liveState?.contentForm ?? userOverride?.contentForm
       ?? sproutDefault?.contentForm ?? DEFAULT_CONTENT_FORM,
+    contentConfig: liveState?.contentConfig ?? userOverride?.contentConfig
+      ?? sproutDefault?.contentConfig ?? {},
   }
 }

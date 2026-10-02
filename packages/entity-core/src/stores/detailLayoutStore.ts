@@ -12,6 +12,8 @@ export interface DetailLayoutOverride {
   hidden?: string[]
   groups?: { key: string; label: string; fieldKeys: string[] }[]
   contentForm?: string
+  /** 当前形态的配置项（表格式无键；段落式/摘要式/时间轴式各有几个开关） */
+  contentConfig?: Record<string, unknown>
 }
 
 export const useDetailLayoutStore = defineStore('detailLayout', () => {

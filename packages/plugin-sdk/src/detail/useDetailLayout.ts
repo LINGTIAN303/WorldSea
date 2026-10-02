@@ -48,6 +48,11 @@ export function useDetailLayout(
     store.patch(type(), { contentForm: form })
   }
 
+  /** 形态配置整表覆写（键由该形态的 configSchema 决定，缺键走注册表默认值） */
+  function setContentConfig(config: Record<string, unknown>) {
+    store.patch(type(), { contentConfig: config })
+  }
+
   /** 恢复到芽声明的默认布局 */
   function reset() {
     liveState.value = {}
@@ -63,6 +68,7 @@ export function useDetailLayout(
     toggleHidden,
     setGroups,
     setContentForm,
+    setContentConfig,
     reset,
     defaultContentForm: DEFAULT_CONTENT_FORM,
   }
