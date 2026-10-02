@@ -328,7 +328,7 @@ const CATEGORY_KEYWORDS: Record<string, string> = {
   appearance: '主题 外观 深色 浅色 宇宙 极光 锻造 水墨 棱镜 编辑器 高亮 脉冲 动画 淡化 扩散 透明度 theme highlight 字体 字体库 字体分层 导入 变体',
   plugins: '芽 扩展 模块 启用 禁用 内置 本地 远程 sprout 分组 全选',
   editor: '编辑 撤销 重做 历史 大纲 内嵌 光标 平滑 undo redo outline caret smooth',
-  layout: '布局 面板 思维导图 中心节点 字段 预设 宽度 panel mindmap field 时间线 timeline 拖拽 泳道 甘特图 紧凑 分组',
+  layout: '布局 面板 思维导图 中心节点 字段 预设 宽度 panel mindmap field 时间线 timeline 拖拽 泳道 甘特图 紧凑 分组 手机预览 phone preview',
   relations: '关系 自动 创建 实体 引用 图谱 选择器 relation auto create',
   shortcuts: '快捷键 键盘 快捷 绑定 shortcut keyboard',
   storage: '存储 清理 孤立 文件 诊断 缓存 空间 配额 storage cleanup orphan diagnostic',

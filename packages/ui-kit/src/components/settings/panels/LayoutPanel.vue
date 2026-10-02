@@ -2,7 +2,7 @@
   <CardDeck :count="4" :flat="!!searchQuery" @change="(i) => emit('card-change', i)" ref="deckRef">
     <template #card="{ idx, cls }">
       <div class="set-card deck-card" :class="cls" :data-index="idx"
-        v-show="idx === 0 ? match('思维导图 mindmap 中心 节点') : idx === 1 ? match('面板 panel 布局 宽度 侧边栏 位置 左右 sidebar 实体 详情 panel detail position') : idx === 2 ? match('字段 field 预设 布局 重置') : match('时间线 timeline 拖拽 泳道 甘特图 紧凑 分组')">
+        v-show="idx === 0 ? match('思维导图 mindmap 中心 节点') : idx === 1 ? match('面板 panel 布局 宽度 侧边栏 位置 左右 sidebar 实体 详情 panel detail position 手机预览 phone preview') : idx === 2 ? match('字段 field 预设 布局 重置') : match('时间线 timeline 拖拽 泳道 甘特图 紧凑 分组')">
         <!-- 思维导图 -->
         <template v-if="idx === 0">
           <div class="sc-head">思维导图</div>
@@ -43,6 +43,8 @@
             </div>
           </div>
           <div class="set-hint">在实体详情里「＋ 添加字段」时的默认作用域；当场可改，已有字段可在详情里「共享 / 仅本实体」互转（值不动）。</div>
+          <div class="set-row"><span>手机预览形态</span><select v-model="store.phonePreviewMode" class="set-select"><option value="dock">右栏页</option><option value="popup">弹窗</option></select></div>
+          <div class="set-hint">正文写作芽的「手机预览」展示方式：右栏页停靠在窗口右侧（默认），弹窗为居中浮窗。</div>
           <div v-if="panelWidths.length > 0" class="set-panel-widths">
             <div v-for="pw in panelWidths" :key="pw.panelId" class="spw-row"><span class="spw-label">{{ panelLabel(pw.panelId) }}</span><span class="spw-value">{{ pw.width }}px</span><button class="spw-reset" @click="onResetPanelWidth(pw.panelId)">↺</button></div>
             <button class="set-btn" @click="resetAllWidths">重置所有面板宽度</button>

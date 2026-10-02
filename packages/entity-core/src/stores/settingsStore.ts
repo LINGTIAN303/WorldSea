@@ -73,6 +73,7 @@ const STORAGE_KEY_VISION_SUB_AGENT_MODEL = 'worldsea_vision_sub_agent_model'
 const STORAGE_KEY_OUTLINE_INLINE_EDIT = 'worldsea_outline_inline_edit'
 const STORAGE_KEY_SIDEBAR_POSITION = 'worldsea_sidebar_position'
 const STORAGE_KEY_DETAIL_PANEL_POSITION = 'worldsea_detail_panel_position'
+const STORAGE_KEY_PHONE_PREVIEW_MODE = 'worldsea_phone_preview_mode'
 const STORAGE_KEY_TIMELINE_DRAG_ENABLED = 'worldsea_timeline_drag_enabled'
 const STORAGE_KEY_TIMELINE_DEFAULT_MODE = 'worldsea_timeline_default_mode'
 const STORAGE_KEY_TIMELINE_DEFAULT_GROUP = 'worldsea_timeline_default_group'
@@ -282,6 +283,8 @@ export const useSettingsStore = defineStore('settings', () => {
 
   const sidebarPosition = persistedRef(STORAGE_KEY_SIDEBAR_POSITION, 'left')
   const detailPanelPosition = persistedRef(STORAGE_KEY_DETAIL_PANEL_POSITION, 'right')
+  // 正文芽手机预览形态（2026-10-02）：右栏页为默认，弹窗为设置可选项
+  const phonePreviewMode = persistedRef(STORAGE_KEY_PHONE_PREVIEW_MODE, 'dock' as string)
   const timelineDragEnabled = persistedRef(STORAGE_KEY_TIMELINE_DRAG_ENABLED, false)
   const timelineDefaultMode = persistedRef(STORAGE_KEY_TIMELINE_DEFAULT_MODE, 'vertical' as string)
   const timelineDefaultGroup = persistedRef(STORAGE_KEY_TIMELINE_DEFAULT_GROUP, 'none' as string)
@@ -394,6 +397,6 @@ export const useSettingsStore = defineStore('settings', () => {
            outlineInlineEdit,
            groupChatMaxAgents, groupChatDefaultStrategy, groupChatGlobalRpm, groupChatGlobalConcurrent,
             reduceMotion, animations, ANIMATION_GROUPS,
-            sidebarPosition, detailPanelPosition,
+            sidebarPosition, detailPanelPosition, phonePreviewMode,
             timelineDragEnabled, timelineDefaultMode, timelineDefaultGroup, timelineCompactMode }
 })

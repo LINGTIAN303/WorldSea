@@ -66,15 +66,19 @@
       <WsEmpty v-else-if="groupedChapters.length === 0" preset="no-result" title="没有匹配的章节" />
     </div>
 
-    <div v-if="ctxMenu.show" ref="ctxMenuRef" class="cl-ctx-menu" :style="{ left: ctxMenu.x + 'px', top: ctxMenu.y + 'px' }" role="menu" tabindex="-1" @keydown="onCtxMenuKeydown">
-      <div class="cl-ctx-item" role="menuitem" tabindex="0" @click="ctxRename" @keydown.enter.prevent="ctxRename"><WsIcon name="edit" size="xs" /> 重命名</div>
-      <div class="cl-ctx-item" role="menuitem" tabindex="0" @click="ctxCycleStatus" @keydown.enter.prevent="ctxCycleStatus"><WsIcon name="delete" size="xs" /> 切换状态</div>
-      <div class="cl-ctx-item" role="menuitem" tabindex="0" @click="ctxSetVolume" @keydown.enter.prevent="ctxSetVolume"><WsIcon name="folder" size="xs" /> 修改所属卷</div>
-      <div class="cl-ctx-item" role="menuitem" tabindex="0" @click="ctxLinkOutline" @keydown.enter.prevent="ctxLinkOutline"><WsIcon name="link" size="xs" /> 关联大纲节点</div>
-      <div class="cl-ctx-item" role="menuitem" tabindex="0" @click="ctxMoveToBook" @keydown.enter.prevent="ctxMoveToBook"><WsIcon name="book" size="xs" /> 移动到书籍</div>
-      <div class="cl-ctx-divider"></div>
-      <div class="cl-ctx-item cl-ctx-danger" role="menuitem" tabindex="0" @click="ctxDelete" @keydown.enter.prevent="ctxDelete"><WsIcon name="delete" size="xs" /> 删除</div>
-    </div>
+    <!-- Teleport 到 body：.view-container 的 contain:layout 会劫持 position:fixed 的包含块，
+         菜单 clientX/Y 被按容器原点解释导致偏移；挂到 body 后 fixed 回归视口坐标（同 FolderTree 先例） -->
+    <Teleport to="body">
+      <div v-if="ctxMenu.show" ref="ctxMenuRef" class="cl-ctx-menu" :style="{ left: ctxMenu.x + 'px', top: ctxMenu.y + 'px' }" role="menu" tabindex="-1" @keydown="onCtxMenuKeydown">
+        <div class="cl-ctx-item" role="menuitem" tabindex="0" @click="ctxRename" @keydown.enter.prevent="ctxRename"><WsIcon name="edit" size="xs" /> 重命名</div>
+        <div class="cl-ctx-item" role="menuitem" tabindex="0" @click="ctxCycleStatus" @keydown.enter.prevent="ctxCycleStatus"><WsIcon name="delete" size="xs" /> 切换状态</div>
+        <div class="cl-ctx-item" role="menuitem" tabindex="0" @click="ctxSetVolume" @keydown.enter.prevent="ctxSetVolume"><WsIcon name="folder" size="xs" /> 修改所属卷</div>
+        <div class="cl-ctx-item" role="menuitem" tabindex="0" @click="ctxLinkOutline" @keydown.enter.prevent="ctxLinkOutline"><WsIcon name="link" size="xs" /> 关联大纲节点</div>
+        <div class="cl-ctx-item" role="menuitem" tabindex="0" @click="ctxMoveToBook" @keydown.enter.prevent="ctxMoveToBook"><WsIcon name="book" size="xs" /> 移动到书籍</div>
+        <div class="cl-ctx-divider"></div>
+        <div class="cl-ctx-item cl-ctx-danger" role="menuitem" tabindex="0" @click="ctxDelete" @keydown.enter.prevent="ctxDelete"><WsIcon name="delete" size="xs" /> 删除</div>
+      </div>
+    </Teleport>
 
     <div v-if="showRenameInput" class="cl-modal-overlay" @click.self="showRenameInput = false">
       <div class="cl-modal-sm">
@@ -321,6 +325,14 @@ function onContext(e: MouseEvent, entity: Entity) {
   ctxMenu.entity = entity
   ctxMenu.show = true
   document.addEventListener('click', closeCtx, { once: true })
+  // 视口边缘收敛：菜单渲染后按实际尺寸夹回视口内（右键在屏幕右/下边缘时防溢出）
+  nextTick(() => {
+    const el = ctxMenuRef.value
+    if (!el) return
+    const { offsetWidth: w, offsetHeight: h } = el
+    if (ctxMenu.x + w > window.innerWidth) ctxMenu.x = Math.max(4, window.innerWidth - w - 4)
+    if (ctxMenu.y + h > window.innerHeight) ctxMenu.y = Math.max(4, window.innerHeight - h - 4)
+  })
 }
 
 function closeCtx() {

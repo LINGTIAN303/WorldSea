@@ -124,7 +124,7 @@
             <CustomDropdown v-model="editStatus" :options="statusOptions" @update:modelValue="saveMeta" />
             <button class="ms-action-btn" title="快照" @click="saveSnapshot"><WsIcon name="image" size="sm" /></button>
             <button class="ms-action-btn" :class="{ active: showHistory }" title="历史" @click="showHistory = !showHistory"><WsIcon name="manuscript" size="sm" /></button>
-            <button class="ms-action-btn" title="手机预览" @click="showPreview = true"><WsIcon name="keyboard" size="sm" /></button>
+            <button class="ms-action-btn" title="手机预览" @click="showPreview = true"><WsIcon name="smartphone" size="sm" /></button>
             <button class="ms-action-btn" title="导出" @click="showExport = true"><WsIcon name="item" size="sm" /></button>
           </div>
         </div>
@@ -156,6 +156,7 @@
       :visible="showPreview"
       :html="previewHTML"
       :title="current?.name || ''"
+      :mode="settingsStore.phonePreviewMode"
       @close="showPreview = false"
     />
 
@@ -180,7 +181,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import draggable from 'vuedraggable'
-import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
+import { useEntityStore, useRelationStore, useSettingsStore } from '@worldsea/entity-core'
 import { useDuplicateNameCheck, CustomDropdown, CreateButton } from '@worldsea/plugin-sdk'
 import { TuiButton, WsIcon, WsEmpty, useConfirm  } from '@worldsea/ui-kit'
 import ChapterEditor from './components/ChapterEditor.vue'
@@ -197,6 +198,7 @@ import { linkChapterToNode } from '@/entity/chapterLink'
 
 const es = useEntityStore()
 const rs = useRelationStore()
+const settingsStore = useSettingsStore()
 const { checkAndConfirmName } = useDuplicateNameCheck()
 const { confirm } = useConfirm()
 

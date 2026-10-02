@@ -1,6 +1,7 @@
 <template>
   <Teleport to="body">
-    <div v-if="visible" class="pp-overlay" @click.self="$emit('close')">
+    <!-- 无遮罩层（2026-10-02 裁定）：dock=右栏页（默认，不遮挡工作区）；popup=居中浮窗 -->
+    <div v-if="visible" class="pp-layer" :class="isDock ? 'pp-layer--dock' : 'pp-layer--popup'">
       <div
         class="pp-frame"
         :style="frameStyle"
@@ -66,7 +67,6 @@
     </div>
   </Teleport>
 </template>
-
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { WsIcon } from '@worldsea/ui-kit'
@@ -78,12 +78,16 @@ const props = defineProps<{
   visible: boolean
   html: string
   title: string
+  /** 展示形态（设置「手机预览形态」）：dock=右栏页（默认）｜popup=弹窗 */
+  mode?: string
 }>()
 
 defineEmits<{ close: [] }>()
 
 const fontStore = useFontStore()
 const { contentPresets } = useFontPresets()
+
+const isDock = computed(() => props.mode !== 'popup')
 
 const presetSize = ref('iphone15')
 const previewMode = ref('webnovel')
@@ -113,7 +117,7 @@ function applyPreset() {
 const frameStyle = computed(() => ({
   width: frameW.value + 'px',
   height: frameH.value + 'px',
-  maxHeight: '90vh',
+  maxHeight: isDock.value ? 'calc(100vh - 24px)' : '90vh',
 }))
 
 const themeClass = computed(() => `pp-theme-${themeMode.value}`)
@@ -141,6 +145,8 @@ const sanitizedHTML = computed(() => {
 
 let dragStart = { x: 0, y: 0, fx: 0, fy: 0 }
 function onFrameMouseDown(e: MouseEvent) {
+  // 右栏页为停靠态，不提供拖拽（弹窗模式保留）
+  if (isDock.value) return
   const target = e.target as HTMLElement
   if (target.closest('.pp-titlebar') && !target.closest('select') && !target.closest('button')) {
     dragStart = { x: e.clientX, y: e.clientY, fx: 0, fy: 0 }
@@ -181,10 +187,19 @@ function onResizeStart(e: MouseEvent) {
 </script>
 
 <style scoped>
-.pp-overlay {
-  position: fixed; inset: 0; background: var(--overlay);
-  display: flex; align-items: center; justify-content: center; z-index: 300;
+/* 层容器均不拦截指针/不加暗色遮罩：dock=右侧整列；popup=居中（遮罩已按 2026-10-02 裁定移除） */
+.pp-layer--dock {
+  position: fixed; top: 0; right: 0; bottom: 0;
+  display: flex; align-items: center; justify-content: center;
+  padding: 12px; pointer-events: none; z-index: 300;
 }
+.pp-layer--popup {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none; z-index: 300;
+}
+.pp-layer--dock .pp-frame,
+.pp-layer--popup .pp-frame { pointer-events: auto; }
 .pp-frame {
   background: var(--modal-bg); border-radius: var(--radius-xl);
   box-shadow: 0 8px 32px rgba(0,0,0,0.25); display: flex;
@@ -194,8 +209,9 @@ function onResizeStart(e: MouseEvent) {
   flex-shrink: 0;
   display: flex; align-items: center; justify-content: space-between;
   padding: 8px 12px; background: var(--menubar-bg);
-  border-bottom: 1px solid var(--border-light); cursor: move; user-select: none;
+  border-bottom: 1px solid var(--border-light); user-select: none;
 }
+.pp-layer--popup .pp-titlebar { cursor: move; }
 .pp-title { font-weight: var(--font-weight-semibold); font-size: var(--font-size-sm); }
 .pp-controls { display: flex; align-items: center; gap: 6px; }
 .pp-select-sm {
