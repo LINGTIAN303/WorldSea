@@ -43,7 +43,6 @@
             <EditorPanel v-if="cat.id === 'editor'" :search-query="searchQuery" @dirty="onDirty" />
             <LayoutPanel v-if="cat.id === 'layout'" :search-query="searchQuery" @dirty="onDirty" />
             <RelationsPanel v-if="cat.id === 'relations'" :search-query="searchQuery" @dirty="onDirty" />
-            <CompanionPanel v-if="cat.id === 'video'" :search-query="searchQuery" @dirty="onDirty" />
             <ShortcutsPanel v-if="cat.id === 'shortcuts'" :search-query="searchQuery" @dirty="onDirty" />
             <VoicePanel v-if="cat.id === 'voice'" :search-query="searchQuery" @dirty="onDirty" />
             <AccessibilityPanel v-if="cat.id === 'accessibility'" :search-query="searchQuery" />
@@ -60,7 +59,6 @@
           <EditorPanel v-else-if="activeSection === 'editor'" ref="editorRef" @dirty="onDirty" @card-change="onPanelCardChange" />
           <LayoutPanel v-else-if="activeSection === 'layout'" ref="layoutRef" @dirty="onDirty" @card-change="onPanelCardChange" />
           <RelationsPanel v-else-if="activeSection === 'relations'" ref="relationsRef" @dirty="onDirty" @card-change="onPanelCardChange" />
-          <CompanionPanel v-else-if="activeSection === 'video'" ref="companionRef" @dirty="onDirty" @card-change="onPanelCardChange" />
           <ShortcutsPanel v-else-if="activeSection === 'shortcuts'" ref="shortcutsRef" @dirty="onDirty" @card-change="onPanelCardChange" />
           <VoicePanel v-else-if="activeSection === 'voice'" ref="voiceRef" @dirty="onDirty" @card-change="onPanelCardChange" />
           <AccessibilityPanel v-else-if="activeSection === 'accessibility'" ref="accessibilityRef" @card-change="onPanelCardChange" />
@@ -90,7 +88,6 @@ import SproutsPanel from './panels/SproutsPanel.vue'
 import EditorPanel from './panels/EditorPanel.vue'
 import LayoutPanel from './panels/LayoutPanel.vue'
 import RelationsPanel from './panels/RelationsPanel.vue'
-import CompanionPanel from './panels/CompanionPanel.vue'
 import ShortcutsPanel from './panels/ShortcutsPanel.vue'
 import VoicePanel from './panels/VoicePanel.vue'
 import AccessibilityPanel from './panels/AccessibilityPanel.vue'
@@ -136,7 +133,6 @@ const categories = [
   { id: 'editor', icon: 'cat-editor', label: '编辑' },
   { id: 'layout', icon: 'cat-layout', label: '布局' },
   { id: 'relations', icon: 'cat-relations', label: '关系' },
-  { id: 'video', icon: 'cat-video', label: '陪伴模式' },
   { id: 'shortcuts', icon: 'cat-shortcuts', label: '快捷键' },
   { id: 'voice', icon: 'volume-on', label: '语音' },
   { id: 'storage', icon: 'cat-storage', label: '存储' },
@@ -226,7 +222,6 @@ const pluginsRef = ref<InstanceType<typeof SproutsPanel> | null>(null)
 const editorRef = ref<InstanceType<typeof EditorPanel> | null>(null)
 const layoutRef = ref<InstanceType<typeof LayoutPanel> | null>(null)
 const relationsRef = ref<InstanceType<typeof RelationsPanel> | null>(null)
-const companionRef = ref<InstanceType<typeof CompanionPanel> | null>(null)
 const shortcutsRef = ref<InstanceType<typeof ShortcutsPanel> | null>(null)
 const voiceRef = ref<InstanceType<typeof VoicePanel> | null>(null)
 const storageRef = ref<InstanceType<typeof StorageManagementTab> | null>(null)
@@ -238,7 +233,6 @@ const panelRefs: Record<string, { value: any }> = {
   editor: editorRef,
   layout: layoutRef,
   relations: relationsRef,
-  video: companionRef,
   shortcuts: shortcutsRef,
   voice: voiceRef,
   storage: storageRef,
@@ -342,7 +336,6 @@ const CATEGORY_KEYWORDS: Record<string, string> = {
   editor: '编辑 撤销 重做 历史 大纲 内嵌 光标 平滑 undo redo outline caret smooth',
   layout: '布局 面板 思维导图 中心节点 字段 预设 宽度 panel mindmap field 时间线 timeline 拖拽 泳道 甘特图 紧凑 分组',
   relations: '关系 自动 创建 实体 引用 图谱 选择器 relation auto create',
-  video: '陪伴模式 video 通知 弹窗 人格 角色 附体 persona 概率 运气 场景 停驻 断句 字数 模型 独立 供应商 空间 静默',
   shortcuts: '快捷键 键盘 快捷 绑定 shortcut keyboard',
   voice: '语音 识别 输入 麦克风 连续 语言 voice',
   storage: '存储 清理 孤立 文件 诊断 缓存 空间 配额 storage cleanup orphan diagnostic',

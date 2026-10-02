@@ -10,12 +10,7 @@
     "./entity": "./src/entity/index.ts",
     "./entity/useEntityMiniPanel": "./src/entity/useEntityMiniPanel.ts",
     "./ui": "./src/ui/index.ts",
-    "./ui/usePanelDrag": "./src/ui/usePanelDrag.ts",
-    "./companion": "./src/companion/index.ts",
-    "./companion/scene": "./src/companion/scene.ts",
-    "./companion/trigger": "./src/companion/trigger.ts",
-    "./companion/personaPrompt": "./src/companion/personaPrompt.ts",
-    "./companion/useCompanionMode": "./src/companion/useCompanionMode.ts"
+    "./ui/usePanelDrag": "./src/ui/usePanelDrag.ts"
   },
   "scripts": {
     "typecheck": "vue-tsc --noEmit --declaration false --declarationMap false",

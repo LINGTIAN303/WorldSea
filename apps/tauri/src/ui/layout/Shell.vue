@@ -26,12 +26,11 @@
     <ThemeEditor :show="themeEditorOpen" @close="themeEditorOpen = false" />
     <CustomRelationTypeDialog :show="customRelTypeOpen" @close="customRelTypeOpen = false" />
     <EntityTemplateDialog :show="entityTemplateOpen" @close="entityTemplateOpen = false" />
-    <CompanionNotification :notifications="companionNotifications" :session-memory="companionSessionMemory" @dismiss="dismissNotification" @pin="pinNotification" @unpin="unpinNotification" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, defineAsyncComponent, onMounted, onUnmounted, watch } from 'vue'
+import { ref, defineAsyncComponent, onMounted, onUnmounted } from 'vue'
 import TitleBar from './TitleBar.vue'
 import Sidebar from './sidebar/SidebarV2.vue'
 import { visibleViewsInSidebarOrder } from './sidebar/viewOrder'
@@ -54,8 +53,6 @@ import { usePluginStore, useDirtyTracker, useEntityStore, useRelationStore, enti
 import { useFileSystemProject } from '@worldsea/entity-core/composables'
 // D2-b2：useProjectSwitcher 引用已随「打开目录建项目」入口退役移除（项目切换在 ProjectSwitcher 下拉）
 import { switchShell } from '@/composables/shellSwitch'
-import CompanionNotification from '../companion/CompanionNotification.vue'
-import { useCompanionMode } from '@worldsea/shared-composables/companion/useCompanionMode'
 
 const searchOpen = ref(false)
 const importExportOpen = ref(false)
@@ -105,7 +102,6 @@ function onOpenEntityTemplate() { entityTemplateOpen.value = true }
 const pluginStore = usePluginStore()
 const uiStore = useUIStore()
 const settingsStore = useSettingsStore()
-const { notifications: companionNotifications, dismissNotification, pinNotification, unpinNotification, notifyViewSwitch, sessionMemory: companionSessionMemory } = useCompanionMode()
 
 onMounted(() => {
   // 注册 beforeunload 防丢失提醒
@@ -197,12 +193,6 @@ onMounted(() => {
   }
   register({ id: 'view.switch.next', keys: ['ctrl', 'down'], description: '切换到下一个视图', scope: 'global', handler: () => switchViewBy(1), preventDefault: true })
   register({ id: 'view.switch.prev', keys: ['ctrl', 'up'], description: '切换到上一个视图', scope: 'global', handler: () => switchViewBy(-1), preventDefault: true })
-})
-
-watch(() => uiStore.currentView, (newView, oldView) => {
-  if (newView && newView !== oldView) {
-    notifyViewSwitch(newView)
-  }
 })
 
 async function onRedoFromHistory(indices: number[]) {

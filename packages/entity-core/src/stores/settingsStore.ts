@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, watch, computed, type Ref } from 'vue'
 import { useTheme } from '../composables/useTheme'
-import { watchDebounced } from '@worldsea/perf-kit/render'
 import {
   loadStoredSproutToggles,
   saveSproutToggles,
@@ -72,26 +71,6 @@ const STORAGE_KEY_AGENT_BACKEND = 'worldsea_agent_backend'
 const STORAGE_KEY_VISION_SUB_AGENT_PROVIDER = 'worldsea_vision_sub_agent_provider'
 const STORAGE_KEY_VISION_SUB_AGENT_MODEL = 'worldsea_vision_sub_agent_model'
 const STORAGE_KEY_OUTLINE_INLINE_EDIT = 'worldsea_outline_inline_edit'
-const STORAGE_KEY_COMPANION_MODE_ENABLED = 'worldsea_companion_mode_enabled'
-const STORAGE_KEY_COMPANION_MODE_DURATION = 'worldsea_companion_mode_duration'
-const STORAGE_KEY_COMPANION_MODE_PERSONA_TRANSITION = 'worldsea_companion_mode_persona_transition'
-const STORAGE_KEY_COMPANION_MODE_DEBOUNCE = 'worldsea_companion_mode_debounce'
-const STORAGE_KEY_COMPANION_MODE_TIMEOUT = 'worldsea_companion_mode_timeout'
-const STORAGE_KEY_COMPANION_MODE_MAX_FAILURES = 'worldsea_companion_mode_max_failures'
-const STORAGE_KEY_COMPANION_MODE_CROSS_PLUGIN = 'worldsea_companion_mode_cross_plugin'
-const STORAGE_KEY_COMPANION_MODE_PERSONA_SWITCH_CHANCE = 'worldsea_companion_mode_persona_switch_chance'
-const STORAGE_KEY_COMPANION_MODE_PAUSE_THRESHOLD = 'worldsea_companion_mode_pause_threshold'
-const STORAGE_KEY_COMPANION_MODE_SENTENCE_TRIGGER = 'worldsea_companion_mode_sentence_trigger'
-const STORAGE_KEY_COMPANION_MODE_CHAR_THRESHOLD = 'worldsea_companion_mode_char_threshold'
-const STORAGE_KEY_COMPANION_MODE_LUCK_ENABLED = 'worldsea_companion_mode_luck_enabled'
-const STORAGE_KEY_COMPANION_MODE_LUCK_RESET_MINUTES = 'worldsea_companion_mode_luck_reset_minutes'
-const STORAGE_KEY_COMPANION_MODE_LUCK_RESET_OPS = 'worldsea_companion_mode_luck_reset_ops'
-const STORAGE_KEY_COMPANION_MODE_POSITION_CONTEXT = 'worldsea_companion_mode_position_context'
-const STORAGE_KEY_COMPANION_MODE_CLICK_PIN = 'worldsea_companion_mode_click_pin'
-const STORAGE_KEY_COMPANION_MODE_SCENE_PROBS = 'worldsea_companion_mode_scene_probs'
-const STORAGE_KEY_COMPANION_MODE_CUSTOM_MODEL = 'worldsea_companion_mode_custom_model'
-const STORAGE_KEY_COMPANION_MODE_PROVIDER_KEY = 'worldsea_companion_mode_provider_key'
-const STORAGE_KEY_COMPANION_MODE_MODEL_ID = 'worldsea_companion_mode_model_id'
 const STORAGE_KEY_SIDEBAR_POSITION = 'worldsea_sidebar_position'
 const STORAGE_KEY_DETAIL_PANEL_POSITION = 'worldsea_detail_panel_position'
 const STORAGE_KEY_TIMELINE_DRAG_ENABLED = 'worldsea_timeline_drag_enabled'
@@ -298,27 +277,6 @@ export const useSettingsStore = defineStore('settings', () => {
   const visionSubAgentProvider = persistedRef(STORAGE_KEY_VISION_SUB_AGENT_PROVIDER, '')
   const visionSubAgentModel = persistedRef(STORAGE_KEY_VISION_SUB_AGENT_MODEL, '')
   const outlineInlineEdit = persistedRef(STORAGE_KEY_OUTLINE_INLINE_EDIT, true)
-  const companionModeEnabled = persistedRef(STORAGE_KEY_COMPANION_MODE_ENABLED, false)
-  const companionModeDuration = persistedRef(STORAGE_KEY_COMPANION_MODE_DURATION, 5)
-  const companionModePersonaTransition = persistedRef(STORAGE_KEY_COMPANION_MODE_PERSONA_TRANSITION, true)
-  const companionModeDebounce = persistedRef(STORAGE_KEY_COMPANION_MODE_DEBOUNCE, 5)
-  const companionModeTimeout = persistedRef(STORAGE_KEY_COMPANION_MODE_TIMEOUT, 3)
-  const companionModeMaxFailures = persistedRef(STORAGE_KEY_COMPANION_MODE_MAX_FAILURES, 3)
-  const companionModeCrossPlugin = persistedRef(STORAGE_KEY_COMPANION_MODE_CROSS_PLUGIN, false)
-  const companionModePersonaSwitchChance = persistedRef(STORAGE_KEY_COMPANION_MODE_PERSONA_SWITCH_CHANCE, 30)
-  const companionModePauseThreshold = persistedRef(STORAGE_KEY_COMPANION_MODE_PAUSE_THRESHOLD, 2)
-  const companionModeSentenceTrigger = persistedRef(STORAGE_KEY_COMPANION_MODE_SENTENCE_TRIGGER, true)
-  const companionModeCharThreshold = persistedRef(STORAGE_KEY_COMPANION_MODE_CHAR_THRESHOLD, 20)
-  const companionModeLuckEnabled = persistedRef(STORAGE_KEY_COMPANION_MODE_LUCK_ENABLED, true)
-  const companionModeLuckResetMinutes = persistedRef(STORAGE_KEY_COMPANION_MODE_LUCK_RESET_MINUTES, 5)
-  const companionModeLuckResetOps = persistedRef(STORAGE_KEY_COMPANION_MODE_LUCK_RESET_OPS, 10)
-  const companionModePositionContext = persistedRef(STORAGE_KEY_COMPANION_MODE_POSITION_CONTEXT, true)
-  const companionModeClickPin = persistedRef(STORAGE_KEY_COMPANION_MODE_CLICK_PIN, true)
-
-  const companionModeCustomModel = persistedRef(STORAGE_KEY_COMPANION_MODE_CUSTOM_MODEL, false)
-  const companionModeProviderKey = persistedRef(STORAGE_KEY_COMPANION_MODE_PROVIDER_KEY, '')
-  const companionModeModelId = persistedRef(STORAGE_KEY_COMPANION_MODE_MODEL_ID, '')
-
   const groupChatMaxAgents = persistedRef(STORAGE_KEY_GROUP_CHAT_MAX_AGENTS, 5)
   const groupChatDefaultStrategy = persistedRef(STORAGE_KEY_GROUP_CHAT_DEFAULT_STRATEGY, 'speaking-desire')
   const groupChatGlobalRpm = persistedRef(STORAGE_KEY_GROUP_CHAT_GLOBAL_RPM, 60)
@@ -329,29 +287,6 @@ export const useSettingsStore = defineStore('settings', () => {
   const animations = ref<Record<string, boolean>>(loadAnimations())
   watch(animations, (v) => { localStorage.setItem(STORAGE_KEY_ANIMATIONS, JSON.stringify(v)) }, { deep: true })
 
-  const DEFAULT_SCENE_PROBS: Record<string, number> = {
-    entity_create: 80,
-    entity_delete: 90,
-    field_short: 50,
-    field_long: 40,
-    name_input: 60,
-    relation_create: 30,
-    relation_delete: 40,
-    view_switch: 20,
-    batch_edit: 25,
-  }
-
-  function loadSceneProbs(): Record<string, number> {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY_COMPANION_MODE_SCENE_PROBS)
-      return raw ? { ...DEFAULT_SCENE_PROBS, ...JSON.parse(raw) } : { ...DEFAULT_SCENE_PROBS }
-    } catch {
-      return { ...DEFAULT_SCENE_PROBS }
-    }
-  }
-
-  const companionModeSceneProbs = ref<Record<string, number>>(loadSceneProbs())
-
   const sidebarPosition = persistedRef(STORAGE_KEY_SIDEBAR_POSITION, 'left')
   const detailPanelPosition = persistedRef(STORAGE_KEY_DETAIL_PANEL_POSITION, 'right')
   const timelineDragEnabled = persistedRef(STORAGE_KEY_TIMELINE_DRAG_ENABLED, false)
@@ -360,7 +295,6 @@ export const useSettingsStore = defineStore('settings', () => {
   const timelineCompactMode = persistedRef(STORAGE_KEY_TIMELINE_COMPACT_MODE, false)
 
   watch(customProviders, v => saveCustomProviders(v))
-  watchDebounced(() => companionModeSceneProbs.value, () => localStorage.setItem(STORAGE_KEY_COMPANION_MODE_SCENE_PROBS, JSON.stringify(companionModeSceneProbs.value)), { debounce: 200, deep: true })
 
   function toggleSprout(id: string) {
     const p = sprouts.value.find(p => p.id === id)
@@ -465,17 +399,9 @@ export const useSettingsStore = defineStore('settings', () => {
            customProviders, addCustomProvider, removeCustomProvider, getCustomKeyStoreId,
            visionSubAgentProvider, visionSubAgentModel,
            outlineInlineEdit,
-           companionModeEnabled, companionModeDuration, companionModePersonaTransition,
-           companionModeDebounce, companionModeTimeout, companionModeMaxFailures,
-           companionModeCrossPlugin, companionModePersonaSwitchChance,
-           companionModePauseThreshold, companionModeSentenceTrigger, companionModeCharThreshold,
-           companionModeLuckEnabled, companionModeLuckResetMinutes, companionModeLuckResetOps,
-           companionModePositionContext, companionModeClickPin, companionModeSceneProbs,
-           companionModeCustomModel, companionModeProviderKey, companionModeModelId,
            groupChatMaxAgents, groupChatDefaultStrategy, groupChatGlobalRpm, groupChatGlobalConcurrent,
             reduceMotion, animations, ANIMATION_GROUPS,
             sidebarPosition, detailPanelPosition,
             timelineDragEnabled, timelineDefaultMode, timelineDefaultGroup, timelineCompactMode,
-           voiceLang, voiceContinuous,
-           DEFAULT_SCENE_PROBS }
+           voiceLang, voiceContinuous }
 })

@@ -31,13 +31,10 @@ export {
   weightLabel,
   sourceLabel,
   formatSize,
-  SCENE_PROB_ITEMS,
 } from './components/settings/utils'
 export type {
   ShortcutItem,
   FontLayerConfig,
-  SceneProbItem,
-  CompanionProviderEntry,
 } from './components/settings/utils'
 
 // ----------------------------------------------------------------------------

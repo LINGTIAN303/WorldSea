@@ -65,7 +65,6 @@
     "packages/plugin-sdk/src/components/ImageField.vue": 402,
     "packages/plugin-sdk/src/components/SmartFieldAdder.vue": 503,
     "packages/plugin-sdk/src/components/UniversalRelationPanel.vue": 924,
-    "packages/shared-composables/src/companion/useCompanionMode.ts": 747,
     "packages/shared-ui/src/markdown/markdownStream.ts": 432,
     "packages/ui-kit/src/components/data/ImportExportModal.vue": 516,
     "packages/ui-kit/src/components/entity/RegionMap.vue": 644,

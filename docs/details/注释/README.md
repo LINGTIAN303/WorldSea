@@ -70,9 +70,9 @@
 | 代码文件 | 详细注释文档 | 摘要 |
 |---|---|---|
 | src/entity/useEntityMiniPanel.ts | [useEntityMiniPanel.md](packages/shared-composables/entity/useEntityMiniPanel.md) | 实体卡片小窗状态管理（模块级单例） |
-| src/companion/llm.ts（2026-09-27 E8 打捞） | — | 陪伴模式 LLM 调用辅助（resolveEndpoint/buildLLMBody/extractTitle，自 agent/useTitleGen.ts 打捞；短注释未立文档） |
 
 > src/agent/**（useAgent / long-task / useTitleGen 等）已于 2026-09-27 E8 整体退场。
+> src/companion/**（含 2026-09-27 E8 打捞的 llm.ts）已于 2026-10-02 随陪伴模式整体退役。
 
 ### packages/entity-core（packages/entity-core）
 

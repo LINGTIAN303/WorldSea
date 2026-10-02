@@ -191,7 +191,7 @@
 
 ## 六、未定项（待替换完成后裁定，不在本期）
 
-1. `packages/shared-composables/src/companion/`（5 / 1,312）的 Agent 面归属未查清，暂不列冻结。
+1. `packages/shared-composables/src/companion/`（5 / 1,312）的 Agent 面归属未查清，暂不列冻结。——**已结（2026-10-02）**：陪伴模式整体退役，该目录（含打捞件 llm.ts）、设置「视频」页、CompanionNotification 与 settingsStore 陪伴字段全部删除，未定项自然消解。
 2. 产品域 UI（`sprouts/**` 等 5.6 万行）与产品侧 Rust 命令面（`entity_commands` 等 4,184 行）在新架构中的落位——**2026-09-23 已裁：本期不动、不查、不删（仅登记）**，另行立项。
 3. 其余 Agent 主题文档的最终去向（保留 / 作废 / 改注记）。
 4. 冻结面内资产的物理删除时机（建议：接管验收通过后统一处置，见准备方案 B3）。

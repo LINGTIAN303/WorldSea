@@ -126,28 +126,3 @@ export function formatSize(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
-/** 陪伴模式场景概率项 */
-export interface SceneProbItem {
-  id: string
-  label: string
-  defaultVal: number
-}
-
-export const SCENE_PROB_ITEMS: SceneProbItem[] = [
-  { id: 'entity_create', label: '实体创建', defaultVal: 80 },
-  { id: 'entity_delete', label: '实体删除', defaultVal: 90 },
-  { id: 'field_short', label: '短文本编辑', defaultVal: 50 },
-  { id: 'field_long', label: '长文本编辑', defaultVal: 40 },
-  { id: 'name_input', label: '名称输入', defaultVal: 60 },
-  { id: 'relation_create', label: '关系创建', defaultVal: 30 },
-  { id: 'relation_delete', label: '关系删除', defaultVal: 40 },
-  { id: 'view_switch', label: '视图切换', defaultVal: 20 },
-  { id: 'batch_edit', label: '批量编辑', defaultVal: 25 },
-]
-
-/** 陪伴模式供应商条目 */
-export interface CompanionProviderEntry {
-  key: string
-  label: string
-  type: 'cloud' | 'local' | 'custom'
-}
