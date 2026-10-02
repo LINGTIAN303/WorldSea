@@ -8,7 +8,8 @@
 > **2026-09-27 E8 冻结面收口**：旧 Agent 面（crates/agent-\* 九目录、src-tauri agent 命令族、
 > packages/{agent-runtime, agent-core, governor-core}、shared-ui/agent、shared-composables/agent、
 > ui-kit 工具面板等）已物理删除，对应注释文档同步删除（git 历史可找回）；
-> 模型注册表与 smart-fetch 五份随模块打捞至 `packages/ui-kit/model-registry/`。
+> 模型注册表与 smart-fetch 五份随模块打捞至 `packages/ui-kit/model-registry/`
+> **（该打捞件已于 2026-10-02 随唯一消费者「陪伴模式」整体退役而清退，五份注释文档随删）**。
 
 ## 模块清单
 
@@ -37,11 +38,6 @@
 
 | 代码文件 | 详细注释文档 | 摘要 |
 |---|---|---|
-| src/model-registry/model-registry.ts | [providers-model-registry.md](packages/ui-kit/model-registry/providers-model-registry.md) | 模型注册表：静态元数据（打捞自 agent-runtime，2026-09-27 E8） |
-| src/model-registry/provider-registry.ts | [providers-provider-registry.md](packages/ui-kit/model-registry/providers-provider-registry.md) | 供应商统一注册表：单一数据源 + 声明式 + 可扩展 |
-| src/model-registry/model-fetcher.ts | [providers-model-fetcher.md](packages/ui-kit/model-registry/providers-model-fetcher.md) | 动态模型拉取服务（/v1/models + 24h 缓存） |
-| src/model-registry/key-store.ts | [providers-key-store.md](packages/ui-kit/model-registry/providers-key-store.md) | API Key 加密存储：Keyring 优先 + AES-GCM 降级 |
-| src/model-registry/smart-fetch.ts | [utils-smart-fetch.md](packages/ui-kit/model-registry/utils-smart-fetch.md) | 统一网络请求：Tauri plugin:http 绕过 CORS / Web fetch |
 | src/components/entity/map/useAdjoin.ts | [useAdjoin.md](packages/ui-kit/components/entity/map/useAdjoin.md) | 接壤模式 composable（borders 关系 + 合并逻辑） |
 | src/components/entity/map/useBorderErase.ts | [useBorderErase.md](packages/ui-kit/components/entity/map/useBorderErase.md) | 抹除/移动边境线 composable（偏移/重划模式） |
 | src/components/entity/map/useDrawing.ts | [useDrawing.md](packages/ui-kit/components/entity/map/useDrawing.md) | 绘制模式 composable（手绘 + Alt 边境线） |

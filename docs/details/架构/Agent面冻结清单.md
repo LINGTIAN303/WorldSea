@@ -5,6 +5,7 @@
 > - **src-tauri agent 命令族删除**（commands.rs 106 命令 + mcp/search/web_fetch/net_egress/skills_store/semantic/plan/tool_catalog/frontend_tool_bridge/http_bridge），lib.rs 装配段收口（`AgentCommandService`/MCP Hub/HTTP 桥/LoopControl/长任务库全摘），产品面保留（entity/fs/algo/whisper/lsp/secure_store/dsh 系/托盘系）；
 > - **packages 删除**：agent-runtime（模型注册表五件打捞至 ui-kit `src/model-registry/`）、agent-core、governor-core、shared-ui/src/agent、shared-composables/src/agent；七包 agent-descriptor.ts 退役；Companion（陪伴模式）LLM 调用辅助打捞至 `shared-composables/src/companion/llm.ts`；
 > - 打捞件：ui-kit model-registry（providers 五件 + smart-fetch，产品设置「视频」页消费）、`win_job.rs`（LSP Job Object，自 agent-commands::job）、companion/llm.ts；
+> - **2026-10-02 附注**：打捞件 model-registry（1,674 行）与 companion/llm.ts 已随陪伴模式整体退役清退（前者经全仓复核零外部消费、用户裁定 agent-runtime 冻结项不再需要；后者见 §六.1 已结注）；`win_job.rs` 仍在产品 LSP 面在用，保留。
 > - 门禁：vue-tsc 0 · vitest 59 文件/761 全绿 · cargo check 干净 · lib 测试 99/0 · 断链 0。
 > 历史留档（2026-09-23 冻结登记与 §四候选评估）见下文与 git。
 > 背景（2026-09-23 拍板）：dsh（deepseek-harness）以**迁文件**方式整体接管 Agent 面；壳仍用 Tauri；dsh 界面 100% 保留。准备方案见 [2026-09-23-dsh接管Agent面-大重构准备.md](../../plans/2026-09-23-dsh接管Agent面-大重构准备.md)；仓内 dsh 树的装构起口径见 [dsh 运行手册](dsh-运行手册.md)。

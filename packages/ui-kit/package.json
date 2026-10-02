@@ -8,8 +8,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./components/*": "./src/components/*",
-    "./composables/*": "./src/composables/*.ts",
-    "./model-registry": "./src/model-registry/index.ts"
+    "./composables/*": "./src/composables/*.ts"
   },
   "scripts": {
     "build": "vite build",
