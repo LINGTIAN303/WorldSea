@@ -26,7 +26,7 @@
       <div class="toolbar-actions">
         <slot name="toolbar-extra" />
         <!-- 分页只管 GEV 默认卡片网格；插槽消费方经 paginate-slot 显式开启（其自绘列表里树等形态不能分页） -->
-        <EntityPager v-if="totalPages > 1 && (!hasListSlot || paginateSlot)" :page="page" :total="totalPages" @prev="pagePrev" @next="pageNext" />
+        <EntityPager v-if="totalPages > 1 && (!hasListSlot() || paginateSlot)" :page="page" :total="totalPages" @prev="pagePrev" @next="pageNext" />
         <TuiButton variant="secondary" size="sm" :active="selecting" :title="selecting ? '退出批量选择（Esc）' : '进入批量选择'" @click="toggleSelectMode">批量选择</TuiButton>
         <template v-if="selectedIds.size > 0">
           <TuiButton variant="danger-ghost" size="sm" title="删除选中" data-ws-tip-keys="Del" @click="onBatchDel">删除 ({{ selectedIds.size }})</TuiButton>
@@ -41,7 +41,7 @@
       <slot name="toolbar-create-extra" />
     </Teleport>
 
-    <div class="entity-grid" :class="{ 'is-empty': !hasListSlot && filteredList.length === 0, 'has-custom-list': hasListSlot }">
+    <div class="entity-grid" :class="{ 'is-empty': !hasListSlot() && filteredList.length === 0, 'has-custom-list': hasListSlot() }">
       <slot
         name="list"
         :entities="filteredList"
@@ -253,7 +253,10 @@ const props = withDefaults(defineProps<{
 const entityStore = useEntityStore()
 const relationStore = useRelationStore()
 const slots = useSlots()
-const hasListSlot = computed(() => !!slots['list'])
+// hasListSlot 只在渲染期消费（class 绑定 / pager v-if）：context.slots 是非响应式对象
+// （父组件重渲染时原地改写），computed 读取它会缓存过期值——条件槽（v-if 模板槽）增删后
+// 布局类与分页判定全部失真。改为渲染期求值，随父组件触发的重渲染保持新鲜（2026-10-02）。
+const hasListSlot = () => !!slots['list']
 const { checkAndConfirmName } = useDuplicateNameCheck()
 const { confirm } = useConfirm()
 const { register, unregister } = useShortcuts()
