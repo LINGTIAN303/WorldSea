@@ -1,6 +1,5 @@
 export { default as EntityFormModal } from './EntityFormModal.vue'
 export type { FormFieldDef, RelationTabDef, CardFieldDef, CustomTabDef, FilterDef } from './types'
-export { default as DetailField } from './DetailField.vue'
 export { default as CreateButton } from './CreateButton.vue'
 export { default as EntityPager } from './EntityPager.vue'
 export { default as CustomDropdown } from './CustomDropdown.vue'

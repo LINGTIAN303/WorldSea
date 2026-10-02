@@ -9,6 +9,7 @@ import type { NormalizedFieldType } from './fieldType'
 export type ControlKind =
   | 'text'
   | 'textarea'
+  | 'richtext'
   | 'number'
   | 'checkbox'
   | 'date'
@@ -32,6 +33,7 @@ export interface ControlSpec {
 const SPEC = {
   text: { kind: 'text', fullWidth: false, editable: true },
   textarea: { kind: 'textarea', fullWidth: true, editable: true },
+  richtext: { kind: 'richtext', fullWidth: true, editable: true },
   number: { kind: 'number', fullWidth: false, editable: true },
   boolean: { kind: 'checkbox', fullWidth: false, editable: true },
   date: { kind: 'date', fullWidth: false, editable: true },

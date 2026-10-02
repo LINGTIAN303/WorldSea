@@ -12,8 +12,16 @@
   </button>
   <span v-else-if="!editing" class="erf-empty">—</span>
 
-  <!-- 编辑态：搜索选中，可就地新建 -->
+  <!-- 编辑态：先回显当前目标（否则用户只看到一个空搜索框，不知道现在选的是谁），再给搜索选中 -->
   <div v-else class="erf-editor">
+    <div v-if="target || dangling" class="erf-current">
+      <template v-if="target">
+        <WsIcon :name="iconFor(target.type)" size="xs" />
+        <span class="erf-current-name">{{ target.name }}</span>
+      </template>
+      <span v-else class="erf-dangling">引用已失效（{{ modelValue }}）</span>
+      <button type="button" class="erf-clear" aria-label="清除引用" @click="clear">×</button>
+    </div>
     <input
       v-model="query"
       class="field-input"
@@ -35,7 +43,6 @@
         <button type="button" @mousedown.prevent="createAndPick">+ 创建「{{ query.trim() }}」</button>
       </div>
     </div>
-    <span v-if="dangling" class="erf-dangling">引用已失效（{{ modelValue }}）</span>
   </div>
 </template>
 
@@ -92,6 +99,11 @@ function pick(id: string) {
   query.value = ''
 }
 
+function clear() {
+  emit('update:modelValue', '')
+  query.value = ''
+}
+
 function onBlur() {
   setTimeout(() => { open.value = false }, 150)
 }
@@ -139,7 +151,18 @@ function jumpToEntity(e: Entity) {
   background: var(--accent-soft, #eef2ff); color: var(--accent, #4f46e5);
   border: none; border-top: 1px dashed var(--border, #d1d5db); font-size: var(--font-size-sm);
 }
-.erf-dangling { display: block; margin-top: 2px; font-size: var(--font-size-xs); color: var(--danger, #d97706); }
+.erf-dangling { font-size: var(--font-size-xs); color: var(--danger, #d97706); }
+.erf-current {
+  display: flex; align-items: center; gap: 4px; margin-bottom: 4px; padding: 2px 6px;
+  border: 1px solid var(--border, #d1d5db); border-radius: var(--radius-xs, 4px);
+  background: var(--bg-muted, #f4f4f5); font-size: var(--font-size-xs); color: var(--text-secondary);
+}
+.erf-current-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.erf-clear {
+  background: none; border: none; cursor: pointer; padding: 0 2px;
+  color: var(--text-tertiary, #9ca3af); font-size: var(--font-size-sm); line-height: 1;
+}
+.erf-clear:hover { color: var(--danger, #d97706); }
 .field-input {
   width: 100%; padding: 6px 8px; box-sizing: border-box;
   border: 1px solid var(--border, #d1d5db); border-radius: var(--radius-sm, 4px);

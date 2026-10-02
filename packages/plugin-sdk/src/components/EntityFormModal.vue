@@ -25,43 +25,20 @@
           @drop="onDrop(i)"
         >
           <label><WsIcon name="grip" size="xs" class="efm-drag-handle" /> {{ field.label }}<span v-if="field.required" class="efm-required">*</span><button v-if="field.source && field.source !== 'builtin'" class="efm-field-del" @click="removeField(field.key)" title="删除此字段">✕</button></label>
-          <div v-if="field.type === 'text'" class="efm-input-wrap">
-            <input v-model="formData[field.key]" :placeholder="field.placeholder" :aria-label="field.label" @input="onFieldInput(field)" />
-          </div>
-          <div v-else-if="field.type === 'textarea'" class="efm-input-wrap">
-            <textarea v-model="formData[field.key]" :rows="field.rows || 3" :placeholder="field.placeholder" :aria-label="field.label" @input="onFieldInput(field)"></textarea>
-          </div>
-          <div v-else-if="field.type === 'richtext'" class="efm-richtext-wrap">
-            <RichTextEditor v-model="formData[field.key]" />
-          </div>
-          <CustomDropdown v-else-if="field.type === 'select'" :model-value="formData[field.key]" @update:model-value="formData[field.key] = $event" :options="[{ value: '', label: '—' }, ...(field.options || [])]" />
-          <input v-else-if="field.type === 'tags'" v-model="formData[field.key]" placeholder="逗号分隔" :aria-label="field.label" />
-          <input v-else-if="field.type === 'color'" type="color" v-model="formData[field.key]" :aria-label="field.label" />
-          <input v-else-if="field.type === 'number'" type="number" v-model="formData[field.key]" :aria-label="field.label" />
-          <input v-else-if="field.type === 'boolean'" type="checkbox" v-model="formData[field.key]" :aria-label="field.label" />
-          <input v-else-if="field.type === 'date'" type="date" v-model="formData[field.key]" :aria-label="field.label" />
-          <div v-else-if="field.type === 'entityRef'" class="efm-eref">
-            <input v-model="formData[field.key]" :placeholder="field.placeholder || '搜索实体...'" :aria-label="field.label"
-              @focus="openEntityRef(field)" @input="onEntityRefSearch(field)" />
-            <div v-if="activeEntityRef === field.key && entityRefResults.length > 0" class="efm-eref-dropdown">
-              <div v-for="item in entityRefResults" :key="item.id" class="efm-eref-opt"
-                @click="selectEntityRef(field, item.name)">
-                <WsIcon class="efm-eref-icon" :name="item.iconName" size="xs" />
-                <span class="efm-eref-name">{{ item.name }}</span>
-                <span class="efm-eref-type">{{ item.typeLabel }}</span>
-              </div>
-            </div>
-          </div>
-          <ImageField
-            v-else-if="field.type === 'image'"
+          <FieldControl
             :value="formData[field.key]"
+            :raw-type="field.type"
+            :label="field.label"
             :editing="true"
+            :options="field.options"
+            :placeholder="field.placeholder"
+            :ref-type="field.refType"
             :entity-id="entity?.id"
-            :cover-position="entity?.coverPosition"
-            :cover-zoom="entity?.coverZoom"
-          @update:value="formData[field.key] = String($event)"
-          @update:cover-position="formData._coverPosition = $event"
-          @update:cover-zoom="formData._coverZoom = String($event)"
+            :cover-position="String(formData._coverPosition ?? '')"
+            :cover-zoom="Number(formData._coverZoom) || 1"
+            @update:value="val => { formData[field.key] = val; onFieldInput(field) }"
+            @update:cover-position="val => formData._coverPosition = val"
+            @update:cover-zoom="val => formData._coverZoom = val"
           />
         </div>
         <div class="efm-add-field">
@@ -98,16 +75,15 @@
 <script setup lang="ts">
 import { useDialog, useResizable } from '../composables'
 import { ref, watch, nextTick, onBeforeUnmount } from 'vue'
-import { RichTextEditor, WsIcon, useModalShortcuts } from '@worldsea/ui-kit'
+import { WsIcon, useModalShortcuts } from '@worldsea/ui-kit'
 import CustomDropdown from './CustomDropdown.vue'
-import ImageField from './ImageField.vue'
+import FieldControl from '../detail/FieldControl.vue'
 import { useFieldOrderStore, useEntityStore } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
 
 import type { FormFieldDef } from './types'
 import { useFieldPresets } from './entity/useFieldPresets'
 import { useDynamicForm } from './entity/useDynamicForm'
-import { useEntityRefSearch } from './entity/useEntityRefSearch'
 import { useEntityFormSave } from './entity/useEntityFormSave'
 
 const modalResizable = useResizable({ panelId: 'modal-entity-form', defaultWidth: 560, minWidth: 320, side: 'right' })
@@ -185,12 +161,6 @@ const form = useDynamicForm({
   resolvedEntityType,
 })
 const { formData, nameError, initFormData, onFieldInput } = form
-
-// ── 实体引用搜索 ───────────────────────────────────────────────────────
-const { activeEntityRef, entityRefResults, openEntityRef, onEntityRefSearch, selectEntityRef } = useEntityRefSearch({
-  formData,
-  entityStore,
-})
 
 // ── 保存 ────────────────────────────────────────────────────────────────
 const { save, syncEntityRefAfterCreate } = useEntityFormSave({
@@ -356,25 +326,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 }
 .efm-field-del { background: none; border: none; color: var(--danger, var(--color-danger)); font-size: var(--font-size-xs); cursor: pointer; padding: 0 2px; margin-left: 4px; opacity: 0.3; transition: opacity 0.15s; }
 .efm-field-del:hover { opacity: 1; }
-/* Input wrap（与输入控件同宽，供绝对定位装饰） */
-.efm-input-wrap {
-  position: relative;
-}
-.efm-input-wrap .sf-ghost-text {
-  position: absolute;
-  top: 0;
-  left: 0;
-  padding: 7px 10px;
-  font-size: var(--font-size-base);
-  font-family: inherit;
-  line-height: normal;
-  pointer-events: none;
-  max-width: 100%;
-  overflow: hidden;
-}
-.efm-richtext-wrap {
-  position: relative;
-}
 .efm-footer-spacer {
   flex: 1;
 }
@@ -451,25 +402,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 .efm-adder-ok:hover { background: var(--accent); color: var(--color-text-inverse); }
 .efm-adder-cancel { padding: 4px 12px; background: var(--bg-tertiary); color: var(--text-secondary); border: 1px solid var(--border); border-radius: 4px; font-size: var(--font-size-sm); cursor: pointer; }
 
-.efm-eref { position: relative; }
-.efm-eref input {
-  padding: 6px 10px; border: 1px solid var(--border-color); border-radius: var(--radius-sm);
-  font-size: var(--font-size-sm); background: var(--input-bg); color: var(--text); width: 100%; box-sizing: border-box;
-}
-.efm-eref-dropdown {
-  position: absolute; top: 100%; left: 0; right: 0; z-index: 10;
-  background: var(--modal-bg); border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm); max-height: 160px; overflow-y: auto;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15); margin-top: 2px;
-}
-.efm-eref-opt {
-  display: flex; align-items: center; gap: 6px; padding: 5px 8px;
-  cursor: pointer; font-size: var(--font-size-sm); transition: background 0.1s;
-}
-.efm-eref-opt:hover { background: var(--hover-bg); }
-.efm-eref-icon { font-size: var(--font-size-base); }
-.efm-eref-name { flex: 1; color: var(--text); }
-.efm-eref-type { font-size: var(--font-size-xs); color: var(--text-tertiary); background: var(--tag-bg); padding: 1px 4px; border-radius: 3px; }
 .resize-handle-right {
   position: absolute;
   right: 0;

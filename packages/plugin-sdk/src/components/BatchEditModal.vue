@@ -27,13 +27,36 @@
       </div>
 
       <div class="be-list">
-        <div v-for="e in filtered" :key="e.id" class="be-item" :class="{ selected: selected.has(e.id) }">
-          <input type="checkbox" :checked="selected.has(e.id)" @change="toggle(e.id)" />
-          <WsIcon class="be-icon" :name="typeIcon(e.type)" size="sm" />
-          <span class="be-name">{{ e.name }}</span>
-          <span class="be-type">{{ entitySchemaRegistry.getLabel(e.type) }}</span>
-          <span class="be-tags">{{ (e.tags || []).join(', ') }}</span>
-          <button class="be-edit-btn" @click="editEntity(e)"><WsIcon name="edit" size="xs" /></button>
+        <div v-for="e in filtered" :key="e.id" class="be-row">
+          <div class="be-item" :class="{ selected: selected.has(e.id) }">
+            <input type="checkbox" :checked="selected.has(e.id)" @change="toggle(e.id)" />
+            <WsIcon class="be-icon" :name="typeIcon(e.type)" size="sm" />
+            <span class="be-name">{{ e.name }}</span>
+            <span class="be-type">{{ entitySchemaRegistry.getLabel(e.type) }}</span>
+            <span class="be-tags">{{ (e.tags || []).join(', ') }}</span>
+            <button class="be-edit-btn" :aria-expanded="editingId === e.id" @click="toggleEdit(e)">
+              <WsIcon :name="editingId === e.id ? 'x' : 'edit'" size="xs" />
+            </button>
+          </div>
+          <!-- 单条编辑走行内控件（与详情同一套），不再用逐条文本框问答 -->
+          <div v-if="editingId === e.id" class="be-inline-edit">
+            <div class="be-field">
+              <span class="be-field-label">名称</span>
+              <FieldControl :value="editDraft.name" raw-type="text" label="名称" :editing="true" @update:value="editDraft.name = String($event ?? '')" />
+            </div>
+            <div class="be-field">
+              <span class="be-field-label">描述</span>
+              <FieldControl :value="editDraft.description" raw-type="textarea" label="描述" :editing="true" @update:value="editDraft.description = String($event ?? '')" />
+            </div>
+            <div class="be-field">
+              <span class="be-field-label">标签</span>
+              <FieldControl :value="editDraft.tags" raw-type="tags" label="标签" :editing="true" @update:value="editDraft.tags = toTagList($event)" />
+            </div>
+            <div class="be-inline-actions">
+              <button class="be-btn primary" @click="saveEdit(e)">保存</button>
+              <button class="be-btn" @click="editingId = null">取消</button>
+            </div>
+          </div>
         </div>
         <div v-if="filtered.length === 0" class="be-empty">无匹配实体</div>
       </div>
@@ -96,11 +119,12 @@
 </template>
 
 <script setup lang="ts">
-import { useDialog, useUndoRedo, useResizable } from '../composables'
+import { useUndoRedo, useResizable } from '../composables'
 import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
 import { useEntityStore, useRelationStore, entitySchemaRegistry } from '@worldsea/entity-core'
 import { getEventBus } from '@worldsea/entity-core'
-import { WsIcon, useModalShortcuts } from '@worldsea/ui-kit'
+import { WsIcon, useModalShortcuts, toastSuccess } from '@worldsea/ui-kit'
+import FieldControl from '../detail/FieldControl.vue'
 import type { Entity } from '@worldsea/entity-core'
 
 const modalResizable = useResizable({ panelId: 'modal-batch-edit', defaultWidth: 700, minWidth: 400, side: 'right' })
@@ -160,7 +184,6 @@ watch(() => props.show, (v) => {
 
 const entityStore = useEntityStore()
 const relationStore = useRelationStore()
-const { prompt } = useDialog()
 const { beginTransaction, commitTransaction } = useUndoRedo()
 const allTypes = computed(() => entitySchemaRegistry.getAll())
 
@@ -203,11 +226,30 @@ function toggleAll() {
   else selected.value.clear()
 }
 
-async function editEntity(e: Entity) {
-  const newName = await prompt('输入新名称', '编辑名称', e.name)
-  if (newName && newName !== e.name) entityStore.update(e.id, { name: newName })
-  const newDesc = await prompt('输入新描述', '编辑描述', e.description || '')
-  if (newDesc !== null && newDesc !== e.description) entityStore.update(e.id, { description: newDesc })
+const editingId = ref<string | null>(null)
+const editDraft = ref<{ name: string; description: string; tags: string[] }>({ name: '', description: '', tags: [] })
+
+/** FieldControl 的 tags 控件可能回传逗号串（用户在输入框里一次粘贴多个） */
+function toTagList(val: unknown): string[] {
+  if (Array.isArray(val)) return val.map(String)
+  return String(val ?? '').split(',').map(s => s.trim()).filter(Boolean)
+}
+
+function toggleEdit(e: Entity) {
+  if (editingId.value === e.id) {
+    editingId.value = null
+    return
+  }
+  editingId.value = e.id
+  editDraft.value = { name: e.name, description: e.description || '', tags: [...(e.tags || [])] }
+}
+
+async function saveEdit(e: Entity) {
+  const name = editDraft.value.name.trim()
+  if (!name) return
+  await entityStore.update(e.id, { name, description: editDraft.value.description, tags: editDraft.value.tags })
+  editingId.value = null
+  toastSuccess(`已更新「${name}」`)
 }
 
 function batchDelete() {
@@ -301,7 +343,9 @@ function close() { showDeleteConfirm.value = false; pendingDeleteIds.value = [];
 .be-btn.danger:hover { background: color-mix(in srgb, var(--danger) 10%, transparent); }
 .be-btn:disabled { opacity: 0.4; cursor: default; }
 .be-list { flex: 1; overflow-y: auto; min-height: 200px; }
-.be-item { display: flex; align-items: center; gap: 8px; padding: 8px 20px; border-bottom: 1px solid var(--border); font-size: var(--font-size-sm); transition: background 0.1s; }
+/* 一行实体 + 可展开的行内编辑区（编辑按钮不再弹逐条问答） */
+.be-row { border-bottom: 1px solid var(--border); }
+.be-item { display: flex; align-items: center; gap: 8px; padding: 8px 20px; font-size: var(--font-size-sm); transition: background 0.1s; }
 .be-item:hover { background: var(--hover-bg, #f8f8f8); }
 .be-item.selected { background: var(--primary-light); }
 .be-item input[type=checkbox] { flex-shrink: 0; }
@@ -311,6 +355,15 @@ function close() { showDeleteConfirm.value = false; pendingDeleteIds.value = [];
 .be-tags { font-size: var(--font-size-sm); color: var(--text-secondary, #888); max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .be-edit-btn { background: none; border: none; cursor: pointer; padding: 2px 6px; border-radius: 4px; opacity: 0; transition: opacity 0.15s; font-size: var(--font-size-base); }
 .be-item:hover .be-edit-btn { opacity: 1; }
+/* 展开编辑时按钮要常驻可见（否则收起入口藏在 hover 里） */
+.be-row:has(.be-inline-edit) .be-edit-btn { opacity: 1; }
+.be-inline-edit {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 10px 20px 14px; background: var(--bg-muted, #fafafa);
+}
+.be-field { display: flex; flex-direction: column; gap: 2px; }
+.be-field-label { font-size: var(--font-size-xs); color: var(--text-secondary); }
+.be-inline-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .be-empty { text-align: center; padding: 40px; color: var(--text-tertiary, var(--color-text-tertiary)); }
 .be-dialog-overlay { position: fixed; inset: 0; z-index: calc(var(--z-overlay) + 1); background: rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center; }
 .be-dialog { width: 420px; background: var(--content-bg); border-radius: 12px; padding: 24px; box-shadow: 0 8px 30px rgba(0,0,0,0.12); }

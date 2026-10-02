@@ -13,7 +13,7 @@ export interface UseFieldPresetsOptions {
   fieldOrderStore: ReturnType<typeof useFieldOrderStore>
   dialog: ReturnType<typeof useDialog>
   /** 惰性获取 formData（useFieldPresets 先于 useDynamicForm 调用，运行时才求值） */
-  getFormData: () => { value: Record<string, string> }
+  getFormData: () => { value: Record<string, unknown> }
 }
 
 export function useFieldPresets(options: UseFieldPresetsOptions) {
@@ -35,7 +35,9 @@ export function useFieldPresets(options: UseFieldPresetsOptions) {
       propertyFields.push({
         key: f.key,
         label: fromProps?.label ?? f.label,
-        type: (['text', 'textarea', 'richtext', 'select', 'tags', 'color', 'number', 'boolean', 'date', 'entityRef'].includes(fromProps?.type ?? f.fieldType) ? (fromProps?.type ?? f.fieldType) : 'text') as FormFieldDef['type'],
+        /** 原样透传 fieldType：归一是控件层 normalizeFieldType 的唯一职责，此处不再设白名单
+         *  （白名单会把 multiSelect/image/formula 静默降级成 text，正是抽屉那套的同型缺陷）*/
+        type: (fromProps?.type ?? f.fieldType) as FormFieldDef['type'],
         required: fromProps?.required ?? f.required,
         placeholder: fromProps?.placeholder ?? f.placeholder,
         options: fromProps?.options ?? f.options?.map(o => typeof o === 'string' ? { value: o, label: o } : o as any),

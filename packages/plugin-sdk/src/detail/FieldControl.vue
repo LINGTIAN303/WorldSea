@@ -93,6 +93,11 @@
       :aria-label="label"
       @input="emit('update:value', ($event.target as HTMLTextAreaElement).value)"
     />
+    <RichTextEditor
+      v-else-if="kind === 'richtext'"
+      :model-value="stringValue"
+      @update:model-value="val => emit('update:value', val)"
+    />
     <input
       v-else
       ref="inputRef"
@@ -113,6 +118,7 @@
  * 详细见 docs/details/注释/packages/plugin-sdk/实体详情表单.md
  */
 import { computed, ref } from 'vue'
+import { RichTextEditor } from '@worldsea/ui-kit'
 import ImageField from '../components/ImageField.vue'
 import EntityRefControl from './EntityRefControl.vue'
 import { controlSpecFor, nativeInputType } from './fieldControlMap'

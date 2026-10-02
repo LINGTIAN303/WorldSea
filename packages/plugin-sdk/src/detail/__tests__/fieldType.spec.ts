@@ -21,8 +21,12 @@ describe('normalizeFieldType —— 命名漂移的唯一吸收点', () => {
     expect(normalizeFieldType('entity-ref')).toBe('entityRef')
     expect(normalizeFieldType('entity-refs')).toBe('entityRef')
     expect(normalizeFieldType('text-long')).toBe('textarea')
-    expect(normalizeFieldType('richtext')).toBe('textarea')
-    expect(normalizeFieldType('richText')).toBe('textarea')
+  })
+
+  it('richtext 保持独立类型（并轨时不能把弹窗的富文本编辑降级成 textarea）', () => {
+    expect(normalizeFieldType('richtext')).toBe('richtext')
+    expect(normalizeFieldType('richText')).toBe('richtext')
+    expect(controlSpecFor(normalizeFieldType('richtext')).kind).toBe('richtext')
   })
 
   it('大小写与空白不影响结果', () => {

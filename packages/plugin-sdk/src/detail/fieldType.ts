@@ -6,6 +6,7 @@
 export type NormalizedFieldType =
   | 'text'
   | 'textarea'
+  | 'richtext'
   | 'number'
   | 'boolean'
   | 'date'
@@ -24,6 +25,7 @@ export type NormalizedFieldType =
 export const NORMALIZED_FIELD_TYPES = [
   'text',
   'textarea',
+  'richtext',
   'number',
   'boolean',
   'date',
@@ -41,8 +43,10 @@ export const NORMALIZED_FIELD_TYPES = [
 
 /** 各来源的历史写法 → 归一名（漂移的唯一定义处） */
 const FIELD_TYPE_ALIASES: Record<string, NormalizedFieldType> = {
+  // 规范名（Rust schema/types.rs camelCase）自映射
   text: 'text',
   textarea: 'textarea',
+  richtext: 'richtext',
   number: 'number',
   boolean: 'boolean',
   date: 'date',
@@ -61,7 +65,6 @@ const FIELD_TYPE_ALIASES: Record<string, NormalizedFieldType> = {
   'entity-ref': 'entityRef',
   'entity-refs': 'entityRef',
   'text-long': 'textarea',
-  richtext: 'textarea',
 }
 
 /** 缺省类型：空值/未声明按 text 走，与 Rust 侧默认一致 */

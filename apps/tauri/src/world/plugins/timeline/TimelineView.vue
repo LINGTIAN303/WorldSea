@@ -64,16 +64,13 @@
       @tab-change="detailActiveTab = $event"
     >
       <template #info>
-        <div class="detail-fields">
-          <DetailField v-if="isEditing" label="名称" :value="String(editForm._name ?? selectedEvent?.name ?? '')" :editing="true" type="text"
-            @update:value="editForm._name = $event" @commit="saveEdit" />
-          <template v-for="(val, key) in visibleFields" :key="key">
-            <DetailField :label="fieldLabel(key)" :value="val" :editing="isEditing" type="text"
-              @update:value="editForm[key] = $event" @commit="saveEdit" />
-          </template>
-        </div>
-        <DetailField label="描述" :value="selectedEvent?.description" :editing="isEditing" type="textarea"
-          @update:value="editForm._description = $event" @commit="saveEdit" />
+        <EventDetailFields
+          :event="selectedEvent"
+          :schema-fields="eventSchema?.fields ?? []"
+          :editing="isEditing"
+          :draft="editForm"
+          @update:field="(k, v) => editForm[k] = v"
+        />
         <div v-if="involved.length > 0" class="detail-section">
           <h4>涉及实体</h4>
           <div v-for="e in involved" :key="e.id" class="involved-item">{{ e.name }}</div>
@@ -122,7 +119,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
-import { CustomDropdown, EntityFormModal, CreateButton, EntityDetailPanel, DetailField, DynamicFieldsAdder, UniversalRelationPanel, EntityRelationSelector, EntityPager, useDuplicateNameCheck, useShortcuts, useBatchDelete, useConfirm, useEntityEdit, useEntityPaging, type FormFieldDef } from '@worldsea/plugin-sdk'
+import { CustomDropdown, EntityFormModal, CreateButton, EntityDetailPanel, DynamicFieldsAdder, UniversalRelationPanel, EntityRelationSelector, EntityPager, useDuplicateNameCheck, useShortcuts, useBatchDelete, useConfirm, useEntityEdit, useEntityPaging, type FormFieldDef } from '@worldsea/plugin-sdk'
 import { toastSuccess, toastWithUndo, useUndoRedo } from '@worldsea/ui-kit'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { TuiButton } from '@worldsea/ui-kit'
@@ -130,6 +127,7 @@ import { TuiButton } from '@worldsea/ui-kit'
 import TimelineChart from './components/TimelineChart.vue'
 import ConflictDetector from './components/ConflictDetector.vue'
 import CausalGraph from './components/CausalGraph.vue'
+import EventDetailFields from './components/EventDetailFields.vue'
 import { useEventTree } from './composables/useEventTree'
 import { useTimelineSort } from './composables/useTimelineSort'
 import { useConflictDetection } from './composables/useConflictDetection'
@@ -333,18 +331,6 @@ const { isEditing, editForm, startEdit, cancelEdit, saveEdit } = useEntityEdit(s
 const eventSchema = computed(() => entitySchemaRegistry.get('event'))
 
 const involved = computed(() => (selectedEvent.value ? involvedEntities(selectedEvent.value.id) : []))
-
-/** 展示字段（沿用原面板行为：location 不在详情列表显示） */
-const visibleFields = computed(() => {
-  if (!selectedEvent.value) return {}
-  const { location, ...rest } = selectedEvent.value.properties as Record<string, unknown>
-  return rest
-})
-
-function fieldLabel(key: string): string {
-  const field = eventSchema.value?.fields.find(f => f.key === key)
-  return field?.label || key
-}
 
 /** header 图标按重要度：关键=旗标、重要=星标、其余=书签 */
 const importanceIcon = computed(() => {

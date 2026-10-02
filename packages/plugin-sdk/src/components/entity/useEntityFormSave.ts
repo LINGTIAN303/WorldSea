@@ -2,6 +2,7 @@
 // autoLink 过滤逻辑仅出现在 save 内部，合并于此。详细说明见 docs/details/注释/packages/plugin-sdk/entity-form-modal.md
 import type { Ref } from 'vue'
 import { storage, useEntityStore, type Entity } from '@worldsea/entity-core'
+import { toArrayValue } from '../../detail/fieldValue'
 import type { FormFieldDef } from '../types'
 
 export interface EntityFormSavePayload {
@@ -18,7 +19,7 @@ export interface EntityFormSavePayload {
 export type EntityFormSaveEmitter = (event: 'save', data: EntityFormSavePayload) => void
 
 export interface UseEntityFormSaveOptions {
-  formData: Ref<Record<string, string>>
+  formData: Ref<Record<string, unknown>>
   nameError: Ref<string>
   sortedFields: Ref<FormFieldDef[]>
   entityStore: ReturnType<typeof useEntityStore>
@@ -29,7 +30,8 @@ export interface UseEntityFormSaveOptions {
 export function useEntityFormSave(options: UseEntityFormSaveOptions) {
   function save() {
     const nameField = options.sortedFields.value.find(f => f.key === 'name')
-    if (nameField?.required && !options.formData.value.name?.trim()) {
+    const name = String(options.formData.value.name ?? '')
+    if (nameField?.required && !name.trim()) {
       options.nameError.value = `${nameField.label}不能为空`
       return
     }
@@ -41,8 +43,7 @@ export function useEntityFormSave(options: UseEntityFormSaveOptions) {
       properties[field.key] = options.formData.value[field.key] ?? ''
     }
 
-    const tagsStr = options.formData.value.tags ?? ''
-    const tags = tagsStr.split(',').map(t => t.trim()).filter(Boolean)
+    const tags = toArrayValue(options.formData.value.tags)
 
     const entityRefFields = options.sortedFields.value.filter(f => f.type === 'entityRef' && f.relationType)
 
@@ -53,12 +54,12 @@ export function useEntityFormSave(options: UseEntityFormSaveOptions) {
 
     const autoLinkFields = options.sortedFields.value.filter((f: any) => f.autoLink)
 
-    const coverPosition = options.formData.value._coverPosition
+    const coverPosition = options.formData.value._coverPosition as string | undefined
     const coverZoom = options.formData.value._coverZoom ? Number(options.formData.value._coverZoom) : undefined
 
     options.emit('save', {
-      name: options.formData.value.name ?? '',
-      description: options.formData.value.description ?? '',
+      name,
+      description: String(options.formData.value.description ?? ''),
       properties,
       tags,
       _entityRefFields: entityRefFields.length > 0 ? entityRefFields : undefined,
@@ -71,10 +72,9 @@ export function useEntityFormSave(options: UseEntityFormSaveOptions) {
   async function syncEntityRefRelations(entityId: string, fields: FormFieldDef[]) {
     const now = new Date().toISOString()
     for (const field of fields) {
-      const targetName = (options.formData.value[field.key] || '').trim()
-      const targetEntity = options.entityStore.entities.find(
-        e => e.name.toLowerCase() === targetName.toLowerCase() && (!field.refType || e.type === field.refType)
-      )
+      // 值即目标实体 id（统一口径）：改名不断链，也不必靠名称碰运气匹配
+      const targetId = String(options.formData.value[field.key] ?? '').trim()
+      const targetEntity = targetId ? options.entityStore.entityMap.get(targetId) : undefined
 
       const existingRels = (await storage.getRelationsByEntity(entityId)).filter(r =>
         r.type === field.relationType
