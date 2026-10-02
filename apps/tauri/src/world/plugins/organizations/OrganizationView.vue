@@ -89,7 +89,7 @@ import { WsEmpty } from '@worldsea/ui-kit'
 import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
 import OrgTreeNode from './OrgTreeNode.vue'
-import { orgFields } from './organizationConfig'
+import { orgFields, orgIconOf } from './organizationConfig'
 
 const entityStore = useEntityStore()
 const relationStore = useRelationStore()
@@ -122,13 +122,8 @@ const cardFooterFields: CardFieldDef[] = [
 /* ─── Icon function ─── */
 
 function orgIconFn(org: Entity): string {
-  const t = org.properties.orgType as string
-  const icons: Record<string, string> = {
-    '王国': 'crown', '帝国': 'building', '部落': 'camp', '教会': 'church',
-    '公会': 'wrench', '佣兵团': 'sword', '学派': 'scroll', '家族': 'home',
-    '商团': 'coin', '联盟': 'handshake',
-  }
-  return icons[t] || 'organization'
+  // 委托单一来源（organizationConfig.orgTypeIconMap），原内联副本已分叉故收敛
+  return orgIconOf(org)
 }
 
 /* ─── Tree building ─── */

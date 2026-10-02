@@ -7,6 +7,20 @@ export const orgTypeFilterOptions = [
   ...orgTypes.map(t => ({ value: t, label: t })),
 ]
 
+/** 组织类型 → 图标（单一来源：OrgTreeNode / OrganizationView 共用；2026-10-02 收敛两份已分叉的副本）。
+ *  含表单选项之外的历史遗留值（教会/佣兵团/学派/家族/商团/联盟），兜底 organization。 */
+export const orgTypeIconMap: Record<string, string> = {
+  '王国': 'crown', '帝国': 'building', '共和国': 'building', '部落': 'camp',
+  '公会': 'wrench', '教团': 'church', '教会': 'church', '商会': 'coin',
+  '帮派': 'sword', '军事组织': 'sword', '秘密组织': 'scroll', '佣兵团': 'sword',
+  '学派': 'scroll', '家族': 'home', '商团': 'coin', '联盟': 'handshake',
+}
+
+export function orgIconOf(entity: { properties?: Record<string, unknown> }): string {
+  const t = entity.properties?.orgType as string
+  return orgTypeIconMap[t] || 'organization'
+}
+
 export const orgFields: FormFieldDef[] = [
   { key: 'name', label: '名称', type: 'text', required: true, placeholder: '势力名称' },
   { key: 'description', label: '描述', type: 'textarea', placeholder: '简要描述' },

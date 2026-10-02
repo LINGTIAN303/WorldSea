@@ -24,6 +24,7 @@
 <script setup lang="ts">
 import { GenericTreeView, type TreeNodeData } from '@worldsea/ui-kit'
 import { WsIcon } from '@worldsea/ui-kit'
+import { orgIconOf } from './organizationConfig'
 
 const props = defineProps<{
   node: TreeNodeData
@@ -40,13 +41,8 @@ defineEmits<{
 }>()
 
 function orgIcon(entity: any): string {
-  const t = entity.properties.orgType as string
-  const icons: Record<string, string> = {
-    '王国': 'crown', '帝国': 'building', '共和国': 'building', '部落': 'camp',
-    '公会': 'wrench', '教团': 'church', '商会': 'coin', '帮派': 'sword',
-    '军事组织': 'sword', '秘密组织': 'scroll',
-  }
-  return icons[t] || 'organization'
+  // 委托单一来源（organizationConfig.orgTypeIconMap），原内联副本已分叉故收敛
+  return orgIconOf(entity)
 }
 </script>
 
