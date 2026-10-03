@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { DEFAULT_CARRIER, activeCarrier, allCarriers, getCarrier } from '../carriers'
+import { DEFAULT_CARRIER, activeCarrier, allCarriers, carrierPanelId, getCarrier, resolveCarrier } from '../carriers'
 
 /**
  * L1 载体注册表守卫。详细见 docs/details/注释/packages/plugin-sdk/实体详情内容形态.md §十
@@ -28,5 +28,20 @@ describe('载体注册表', () => {
   it('未注册的 id 回落缺省载体（芽写错或载体被撤，详情不能点不开）', () => {
     expect(activeCarrier('no-such-carrier').carrier).toBe(DEFAULT_CARRIER)
     expect(activeCarrier('column').carrier).toBe('column')
+  })
+
+  it('优先序解析只有一处：覆写 > 芽声明 > 缺省', () => {
+    expect(resolveCarrier('drawer', 'column')).toBe('drawer')
+    expect(resolveCarrier(undefined, 'column')).toBe('column')
+    expect(resolveCarrier(undefined, undefined)).toBe(DEFAULT_CARRIER)
+    // 空串（设置里清成未设）不该把芽声明顶掉
+    expect(resolveCarrier('', 'column')).toBe('column')
+  })
+
+  it('宽度键分载体，抽屉沿用历史键名', () => {
+    expect(carrierPanelId('drawer', 'character')).toBe('detail-character')
+    expect(carrierPanelId('column', 'character')).toBe('detail-column-character')
+    // 未注册 id 解析后仍该有自己的键，不许和抽屉撞车
+    expect(carrierPanelId('nope', 'character')).toBe('detail-nope-character')
   })
 })

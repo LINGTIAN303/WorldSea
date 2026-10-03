@@ -1,5 +1,5 @@
 <template>
-  <div class="timeline-view">
+  <div class="timeline-view" :class="{ 'timeline-view--split': splitCarrierOpen }">
     <!-- 工具栏上移 R3 统一工具条（搜索→标题旁，筛选→收束条，动作→动作区，新建→新建区），套用 BuildingSectionView 模式 -->
     <Teleport to="#view-toolbar-search">
       <input v-model="searchQuery" placeholder="搜索事件..." class="search-input" />
@@ -48,8 +48,10 @@
       @toggle-select="toggleSelect"
     />
 
-    <!-- 事件详情：复用通用 EntityDetailPanel（此前私有 EventDetailPanel 令牌/结构与全局不一致，2026-09-13 收敛） -->
-    <EntityDetailPanel
+    <!-- 事件详情：容器走载体注册表（此前直挂 EntityDetailPanel＝时间线拿不到别的载体），
+         内容侧仍复用通用件——私有 EventDetailPanel 早在 2026-09-13 收敛过，令牌/结构与全局一致 -->
+    <component
+      :is="carrierDef.component"
       :visible="!!selectedEvent"
       :entity="selectedEvent"
       :icon="importanceIcon"
@@ -58,7 +60,8 @@
       :tabs="detailTabs"
       :show-edit="!!selectedEvent"
       :editing="isEditing"
-      panel-id="detail-event"
+      :panel-id="detailPanelId"
+      entity-type="event"
       @close="selectedEvent = null"
       @edit="isEditing ? cancelEdit() : startEdit()"
       @tab-change="detailActiveTab = $event"
@@ -95,7 +98,7 @@
       <template #default>
         <UniversalRelationPanel v-if="selectedEvent?.id" :entity-id="selectedEvent.id" entity-type="event" :inline-visible="detailActiveTab === 'info'" storage-scope="event" />
       </template>
-    </EntityDetailPanel>
+    </component>
 
     <ConflictDetector
       :show="showConflicts"
@@ -117,9 +120,9 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
-import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
+import { useEntityStore, useRelationStore, useDetailLayoutStore } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
-import { CustomDropdown, EntityFormModal, CreateButton, EntityDetailPanel, DynamicFieldsAdder, UniversalRelationPanel, EntityRelationSelector, EntityPager, useDuplicateNameCheck, useShortcuts, useBatchDelete, useConfirm, useEntityEdit, useEntityPaging, type FormFieldDef } from '@worldsea/plugin-sdk'
+import { CustomDropdown, EntityFormModal, CreateButton, DynamicFieldsAdder, UniversalRelationPanel, EntityRelationSelector, EntityPager, useDuplicateNameCheck, useShortcuts, useBatchDelete, useConfirm, useEntityEdit, useEntityPaging, activeCarrier, carrierPanelId, resolveCarrier, type FormFieldDef } from '@worldsea/plugin-sdk'
 import { toastSuccess, toastWithUndo, useUndoRedo } from '@worldsea/ui-kit'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { TuiButton } from '@worldsea/ui-kit'
@@ -151,6 +154,11 @@ const loading = ref(false)
 const showForm = ref(false)
 const showConflicts = ref(false)
 const selectedEvent = ref<Entity | null>(null)
+// 载体走与 GEV 同一套解析（用户按类型覆写 > 缺省抽屉）；时间线没有芽声明这一层
+const detailPrefs = useDetailLayoutStore()
+const carrierDef = computed(() => activeCarrier(resolveCarrier(detailPrefs.carriers.event)))
+const detailPanelId = computed(() => carrierPanelId(carrierDef.value.carrier, 'event'))
+const splitCarrierOpen = computed(() => carrierDef.value.mode === 'split' && !!selectedEvent.value)
 const editingEvent = ref<Entity | null>(null)
 const formModalRef = ref<InstanceType<typeof EntityFormModal> | null>(null)
 
@@ -410,6 +418,10 @@ onBeforeUnmount(() => { for (const id of TIMELINE_SHORTCUT_IDS) unregister(id) }
 
 <style scoped>
 .timeline-view { padding: 20px; height: 100%; display: flex; flex-direction: column; }
+/* 栏式载体：详情与时间线同排分栏。分栏柱靠负 margin 出血到窗口边（本件根容器自带 20px padding） */
+.timeline-view--split { flex-direction: row; padding-right: 0; }
+.timeline-view--split .timeline-chart { min-width: 0; }
+.timeline-view--split :deep(.detail-column) { margin-top: -20px; margin-bottom: -20px; height: auto; }
 /* R3 单行适配：上移后控件基线样式（scoped，仅作用于本视图 teleport 内容） */
 .search-input {
   padding: 4px 10px; font-size: var(--font-size-sm);

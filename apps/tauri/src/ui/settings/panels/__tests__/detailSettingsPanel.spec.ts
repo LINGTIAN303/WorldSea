@@ -104,19 +104,28 @@ describe('承载形态（卡六）', () => {
     expect(store.overrides.character.hidden).toEqual(['age'])
   })
 
-  it('遮罩行为是全局一条：高亮缺省穿透，切拦截写 backdropMode 不写 carriers', async () => {
+  it('遮罩行为是两层：全局一行 + 本类型一行（覆写只写 backdropOverrides，不动全局默认）', async () => {
     const w = mountPanel()
-    const chips = card(w).findAll('.set-chip-group')[1].findAll('.set-chip')
-    expect(chips.map(c => c.text())).toEqual(['穿透', '拦截'])
-    expect(chips[0].classes()).toContain('on')
+    const groups = card(w).findAll('.set-chip-group')
+    const global = groups[1].findAll('.set-chip')
+    const perType = groups[2].findAll('.set-chip')
+    expect(global.map(c => c.text())).toEqual(['穿透', '拦截'])
+    expect(perType.map(c => c.text())).toEqual(['跟随全局', '穿透', '拦截'])
+    expect(perType[0].classes()).toContain('on')
 
-    await chips[1].trigger('click')
+    await perType[2].trigger('click')
     await nextTick()
     const store = useDetailLayoutStore()
-    expect(store.backdropMode).toBe('blocking')
-    expect(localStorage.getItem('worldsea_detail_backdrop')).toBe('blocking')
-    // 全局档：不许顺手写进按类型的载体覆写里
-    expect(store.carriers.character).toBeUndefined()
+    expect(store.backdropOverrides.character).toBe('blocking')
+    // 全局默认没被"顺手"改掉：其它类型仍按穿透
+    expect(store.backdropMode).toBe('passthrough')
+    expect(store.backdropFor('item')).toBe('passthrough')
+    expect(store.backdropFor('character')).toBe('blocking')
+
+    await perType[0].trigger('click')
+    await nextTick()
+    expect(store.backdropOverrides.character).toBeUndefined()
+    expect(store.backdropFor('character')).toBe('passthrough')
   })
 })
 

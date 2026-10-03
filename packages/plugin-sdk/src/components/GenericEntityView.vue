@@ -93,6 +93,7 @@
       :show-edit="true"
       :editing="isEditing"
       :panel-id="detailPanelId"
+      :entity-type="entityType"
       @close="selectedEntity = null"
       @edit="isEditing ? cancelEdit() : startEdit()"
     >
@@ -190,7 +191,7 @@ import EntityPager from './EntityPager.vue'
 import EntityCard from './EntityCard.vue'
 import AutoLinkSuggestions from './AutoLinkSuggestions.vue'
 import EntityDetailForm from '../detail/EntityDetailForm.vue'
-import { DEFAULT_CARRIER, activeCarrier } from '../detail/carriers'
+import { activeCarrier, carrierPanelId, resolveCarrier } from '../detail/carriers'
 import type { DetailFieldMeta } from '../detail/fieldMeta'
 import type { LayoutSource } from '../detail/detailLayout'
 import { useDetailLayout } from '../detail/useDetailLayout'
@@ -336,14 +337,11 @@ const entityLevelFields = computed<DetailFieldMeta[]>(() =>
 const detailFieldMetas = computed(() => mergeScopedFields(typeLevelFields.value, entityLevelFields.value))
 
 const detailPrefs = useDetailLayoutStore()
-/** 载体优先序：用户按类型的覆写 > 芽声明 > 缺省抽屉（与 L2 布局同构，只是分键存放） */
-const carrierId = computed(() => detailPrefs.carriers[props.entityType] || props.detailCarrier || DEFAULT_CARRIER)
+/** 载体优先序：用户按类型的覆写 > 芽声明 > 缺省抽屉（解析单点在 `resolveCarrier`，时间线共用） */
+const carrierId = computed(() => resolveCarrier(detailPrefs.carriers[props.entityType], props.detailCarrier))
 const carrierDef = computed(() => activeCarrier(carrierId.value))
-/** 宽度按「载体 + 类型」分别记：同一类型下抽屉与分栏各拖各的，互不覆盖。
- *  抽屉沿用既有键名（`PANEL_LABELS` 里的中文标签继续认得出），其余载体带载体名前缀。 */
-const detailPanelId = computed(() => carrierDef.value.carrier === DEFAULT_CARRIER
-  ? `detail-${props.entityType}`
-  : `detail-${carrierDef.value.carrier}-${props.entityType}`)
+/** 宽度按「载体 + 类型」分别记：同一类型下抽屉与分栏各拖各的，互不覆盖（键规则在 `carrierPanelId`） */
+const detailPanelId = computed(() => carrierPanelId(carrierDef.value.carrier, props.entityType))
 /** 只有 split 型载体（栏式整页）要把根容器改成分栏；抽屉仍是浮层，布局一点不动 */
 const splitCarrierOpen = computed(() => carrierDef.value.mode === 'split' && !!selectedEntity.value)
 

@@ -73,6 +73,8 @@ const props = withDefaults(defineProps<{
   defaultWidth?: number
   panelId?: string
   resizeSide?: 'left' | 'right'
+  /** 遮罩档位按实体类型解析（覆写 > 全局），所以调用方要报类型；空串＝只吃全局默认 */
+  entityType?: string
 }>(), {
   icon: '',
   title: '',
@@ -86,6 +88,7 @@ const props = withDefaults(defineProps<{
   defaultWidth: 380,
   panelId: 'detail-default',
   resizeSide: 'left',
+  entityType: '',
 })
 
 const emit = defineEmits<{
@@ -96,10 +99,10 @@ const emit = defineEmits<{
 }>()
 
 // 遮罩默认**穿透**（开着抽屉仍能直接点列表）——原样式就是 `pointer-events:none`，
-// 但模板上挂着 `@click="close"`，等于一个永不触发的死处理器。现把它做成可配置：
-// 设置里切到「拦截并点击关闭」才吃点击，默认行为与批次 2 之前一致。
+// 但模板上挂着 `@click="close"`，等于一个永不触发的死处理器。现做成两层可配置：
+// 全局默认 + 按类型覆写，档位由 `backdropFor()` 单点解析（调用方只报实体类型，不自己拼默认值）。
 const detailPrefs = useDetailLayoutStore()
-const backdropBlocking = computed(() => detailPrefs.backdropMode === 'blocking')
+const backdropBlocking = computed(() => detailPrefs.backdropFor(props.entityType) === 'blocking')
 
 function onBackdropClick() {
   if (backdropBlocking.value) emit('close')

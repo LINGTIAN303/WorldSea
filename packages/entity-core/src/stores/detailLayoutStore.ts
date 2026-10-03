@@ -40,6 +40,11 @@ export const useDetailLayoutStore = defineStore('detailLayout', () => {
     localStorage.getItem(BACKDROP_KEY) === 'blocking' ? 'blocking' : 'passthrough',
   )
 
+  /** 按类型的遮罩覆写（只存"用户明确选过的"，未存的类型走全局默认）。
+   *  与载体覆写同构：两层各有各的键，清掉覆写＝回到全局，不该顺手把全局也改了。 */
+  const BACKDROP_TYPE_KEY = 'worldsea_detail_backdrop_types'
+  const backdropOverrides = ref<Record<string, 'passthrough' | 'blocking'>>({})
+
   watch(fieldScopeDefault, v => localStorage.setItem(FIELD_SCOPE_KEY, v))
   watch(backdropMode, v => localStorage.setItem(BACKDROP_KEY, v))
 
@@ -49,9 +54,12 @@ export const useDetailLayoutStore = defineStore('detailLayout', () => {
       if (raw) overrides.value = JSON.parse(raw)
       const carrierRaw = localStorage.getItem(CARRIER_KEY)
       if (carrierRaw) carriers.value = JSON.parse(carrierRaw)
+      const backdropRaw = localStorage.getItem(BACKDROP_TYPE_KEY)
+      if (backdropRaw) backdropOverrides.value = JSON.parse(backdropRaw)
     } catch {
       overrides.value = {}
       carriers.value = {}
+      backdropOverrides.value = {}
     }
   }
 
@@ -71,6 +79,23 @@ export const useDetailLayoutStore = defineStore('detailLayout', () => {
     localStorage.setItem(CARRIER_KEY, JSON.stringify(next))
   }
 
+  /** 遮罩档位的**唯一解析口**：类型覆写 > 全局默认。读的一方不许自己拼 `??`，否则又是两条真值路径 */
+  function backdropFor(entityType: string): 'passthrough' | 'blocking' {
+    return backdropOverrides.value[entityType] ?? backdropMode.value
+  }
+
+  function setBackdropOverride(entityType: string, mode: 'passthrough' | 'blocking') {
+    backdropOverrides.value = { ...backdropOverrides.value, [entityType]: mode }
+    localStorage.setItem(BACKDROP_TYPE_KEY, JSON.stringify(backdropOverrides.value))
+  }
+
+  function clearBackdropOverride(entityType: string) {
+    const next = { ...backdropOverrides.value }
+    delete next[entityType]
+    backdropOverrides.value = next
+    localStorage.setItem(BACKDROP_TYPE_KEY, JSON.stringify(next))
+  }
+
   function get(entityType: string): DetailLayoutOverride | undefined {
     return overrides.value[entityType]
   }
@@ -88,5 +113,9 @@ export const useDetailLayoutStore = defineStore('detailLayout', () => {
 
   load()
 
-  return { overrides, carriers, fieldScopeDefault, backdropMode, get, patch, clear, setCarrier, clearCarrier }
+  return {
+    overrides, carriers, fieldScopeDefault, backdropMode, backdropOverrides,
+    get, patch, clear, setCarrier, clearCarrier,
+    backdropFor, setBackdropOverride, clearBackdropOverride,
+  }
 })

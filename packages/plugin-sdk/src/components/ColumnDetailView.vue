@@ -64,6 +64,8 @@ const props = withDefaults(defineProps<{
   maxWidth?: number
   defaultWidth?: number
   panelId?: string
+  /** 与抽屉同名的属性（载体契约对齐才有 `<component :is>` 分发）；分栏在流内、无遮罩，本件不消费它 */
+  entityType?: string
 }>(), {
   icon: '',
   title: '',

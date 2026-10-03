@@ -117,8 +117,8 @@
             载体与编排是两级：换容器不动你在「内容形态」里选的编排。
             {{ carrierHint }}
           </div>
-          <!-- 遮罩行为是全局一条：它管「抽屉这类浮层拦不拦点击」，与实体类型无关 -->
-          <div class="set-row"><span>遮罩行为（全局）</span>
+          <!-- 遮罩行为两层：全局默认 + 本类型覆写（只存明确选过的，清掉即回到全局） -->
+          <div class="set-row"><span>遮罩行为（全局默认）</span>
             <div class="set-chip-group">
               <button v-for="b in backdropModes" :key="b.value" type="button" class="set-chip"
                 :class="{ on: store.backdropMode === b.value }" :title="b.description"
@@ -126,6 +126,21 @@
                 <WsIcon :name="b.icon" size="xs" /><span>{{ b.label }}</span>
               </button>
             </div>
+          </div>
+          <div class="set-row"><span>本类型遮罩</span>
+            <div class="set-chip-group">
+              <button type="button" class="set-chip" :class="{ on: !backdropSet }"
+                title="跟随全局默认" @click="clearBackdropType">跟随全局</button>
+              <button v-for="b in backdropModes" :key="b.value" type="button" class="set-chip"
+                :class="{ on: backdropSet && backdropTypeValue === b.value }" :title="b.description"
+                @click="store.setBackdropOverride(activeType, b.value)">
+                <WsIcon :name="b.icon" size="xs" /><span>{{ b.label }}</span>
+              </button>
+            </div>
+          </div>
+          <div class="set-hint">
+            遮罩只管浮层载体（抽屉）拦不拦点击；「拦截」＝点空白处关闭抽屉，「穿透」＝抽屉开着仍能直接点列表。
+            分栏载体在流内、没有遮罩，这两档对它无作用。
           </div>
           <div v-if="carrierSet" class="set-btn-row">
             <button class="set-btn" type="button" @click="clearCarrier">回到芽声明（当前未设＝右栏抽屉）</button>
@@ -303,6 +318,8 @@ const backdropModes = [
 ]
 
 const carrierSet = computed(() => !!store.carriers[activeType.value])
+const backdropSet = computed(() => !!store.backdropOverrides[activeType.value])
+const backdropTypeValue = computed(() => store.backdropOverrides[activeType.value])
 const carrierValue = computed(() => store.carriers[activeType.value] ?? DEFAULT_CARRIER)
 const carrierHint = computed(() => carrierSet.value
   ? `当前显示的是设置里选的那一种；清掉即回到芽声明（没声明就是「${DEFAULT_LABEL}」）。`
@@ -314,6 +331,10 @@ function pickCarrier(carrier: string) {
 
 function clearCarrier() {
   store.clearCarrier(activeType.value)
+}
+
+function clearBackdropType() {
+  store.clearBackdropOverride(activeType.value)
 }
 
 function onGroupsCommit(groups: DetailGroup[]) {

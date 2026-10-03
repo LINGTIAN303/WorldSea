@@ -53,10 +53,26 @@ describe('芽声明的详情载体', () => {
   })
 
   it('自绘详情/无实体列表面的芽不许声明（声明了也不生效，只会误导读代码的人）', () => {
+    // timeline 已从"直挂抽屉"改成吃注册表，但它没有 `detailCarrier` prop——
+    // 载体只能由用户在设置里按类型覆写，所以仍列在"不许声明"里
     const unreachable = ['custom', 'drawing', 'graph', 'manuscript', 'mindmap', 'notebook', 'timeline']
     const declaredSprouts = collectDeclarations().map(d => d.sprout)
     for (const s of unreachable) {
       expect(declaredSprouts, `${s} 不经 GenericEntityView/SchemaRenderer`).not.toContain(s)
     }
+  })
+
+  it('没有哪个芽视图直挂抽屉组件（容器必须经载体注册表，否则该芽换不了载体）', () => {
+    const direct: string[] = []
+    for (const dir of readdirSync(PLUGINS)) {
+      const full = join(PLUGINS, dir)
+      if (!statSync(full).isDirectory()) continue
+      for (const file of readdirSync(full)) {
+        if (!file.endsWith('.vue')) continue
+        const src = readFileSync(join(full, file), 'utf8')
+        if (/<EntityDetailPanel[\s>]/.test(src)) direct.push(`${dir}/${file}`)
+      }
+    }
+    expect(direct).toEqual([])
   })
 })

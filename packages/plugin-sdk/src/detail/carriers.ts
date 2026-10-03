@@ -50,6 +50,22 @@ export function activeCarrier(carrier: string): CarrierDefinition {
   return registry.get(carrier) ?? registry.get(DEFAULT_CARRIER)!
 }
 
+/**
+ * 载体优先序的**唯一解析口**：用户按类型的覆写 > 芽声明 > 缺省抽屉。
+ * GEV 与时间线两个调用点必须同序，所以不在各自组件里拼 `||`——拼第二次就是第二条真值路径。
+ */
+export function resolveCarrier(storedOverride?: string, declared?: string): string {
+  return storedOverride || declared || DEFAULT_CARRIER
+}
+
+/**
+ * 宽度持久化键：按「载体 + 实体类型」分键，同一类型下抽屉与分栏各记各的。
+ * 缺省抽屉沿用历史键名（`PANEL_LABELS` 里的中文标签继续认得出），其余载体带载体名前缀。
+ */
+export function carrierPanelId(carrier: string, entityType: string): string {
+  return carrier === DEFAULT_CARRIER ? `detail-${entityType}` : `detail-${carrier}-${entityType}`
+}
+
 const BUILT_IN_CARRIERS: CarrierDefinition[] = [
   {
     carrier: 'drawer',

@@ -63,6 +63,35 @@ describe('抽屉遮罩', () => {
     expect(useDetailLayoutStore().backdropMode).toBe('blocking')
   })
 
+  it('按类型覆写压过全局默认（两层只有一处解析：backdropFor）', async () => {
+    const store = useDetailLayoutStore()
+    store.backdropMode = 'blocking'
+    store.setBackdropOverride('concept', 'passthrough')
+    const w = mountPanel({ entityType: 'concept' })
+    await nextTick()
+    expect(backdrop(w).classes()).not.toContain('is-blocking')
+
+    // 同一条全局默认下，别的类型仍吃拦截
+    const other = mountPanel({ entityType: 'item' })
+    await nextTick()
+    expect(backdrop(other).classes()).toContain('is-blocking')
+  })
+
+  it('清掉类型覆写＝回到全局，不该顺手把全局也改掉', async () => {
+    const store = useDetailLayoutStore()
+    store.setBackdropOverride('concept', 'blocking')
+    const w = mountPanel({ entityType: 'concept' })
+    await nextTick()
+    expect(backdrop(w).classes()).toContain('is-blocking')
+
+    store.clearBackdropOverride('concept')
+    await nextTick()
+    expect(backdrop(w).classes()).not.toContain('is-blocking')
+    expect(store.backdropMode).toBe('passthrough')
+    expect(store.backdropOverrides.concept).toBeUndefined()
+    expect(JSON.parse(localStorage.getItem('worldsea_detail_backdrop_types') || '{}')).toEqual({})
+  })
+
   it('抽屉关着时不渲染遮罩（穿透档也不该留一层挡列表）', () => {
     const w = mountPanel({ visible: false, entity: null })
     expect(w.find('.detail-backdrop').exists()).toBe(false)
