@@ -1,5 +1,5 @@
 <template>
-  <div class="gev-root">
+  <div class="gev-root" :class="{ 'gev-root--split': splitCarrierOpen }">
     <!-- 工具栏按控件类型分发到 R3 统一工具条各落点（搜索→标题旁，筛选→收束条，动作→动作区，新建→新建区） -->
     <!-- 搜索框 → 标题右侧（#view-toolbar-search） -->
     <Teleport to="#view-toolbar-search">
@@ -80,7 +80,9 @@
       </slot>
     </div>
 
-    <EntityDetailPanel
+    <!-- L1 载体：抽屉/栏式整页…同一套属性与槽，靠注册表换容器（契约见 detail/useDetailChrome） -->
+    <component
+      :is="carrierDef.component"
       ref="detailPanelRef"
       :visible="!!selectedEntity"
       :entity="selectedEntity"
@@ -158,7 +160,7 @@
           <UniversalRelationPanel v-if="entity" :entity-id="entity.id" :entity-type="entityType" :storage-scope="entityType" />
         </slot>
       </template>
-    </EntityDetailPanel>
+    </component>
 
     <EntityFormModal
       v-model="showForm"
@@ -175,13 +177,12 @@
 import { toastSuccess, toastWarn, toastWithUndo } from '@worldsea/ui-kit'
 import { useEntityEdit, useBatchDelete, useDuplicateNameCheck, useShortcuts, useConfirm, useHighlight, useEntityPaging } from '../composables'
 import { ref, computed, onMounted, onBeforeUnmount, reactive, useSlots, watch } from 'vue'
-import { useEntityStore, useRelationStore, entitySchemaRegistry, fieldRegistry } from '@worldsea/entity-core'
+import { useEntityStore, useRelationStore, entitySchemaRegistry, fieldRegistry, useDetailLayoutStore } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
 import CustomDropdown from './CustomDropdown.vue'
 import CreateButton from './CreateButton.vue'
 import UniversalRelationPanel from './UniversalRelationPanel.vue'
 import EntityFormModal from './EntityFormModal.vue'
-import EntityDetailPanel from './EntityDetailPanel.vue'
 import EntityRelationSelector from './EntityRelationSelector.vue'
 import type { FormFieldDef, RelationTabDef, CardFieldDef, CustomTabDef, FilterDef } from './types'
 import { TuiButton, WsIcon, WsEmpty } from '@worldsea/ui-kit'
@@ -189,6 +190,7 @@ import EntityPager from './EntityPager.vue'
 import EntityCard from './EntityCard.vue'
 import AutoLinkSuggestions from './AutoLinkSuggestions.vue'
 import EntityDetailForm from '../detail/EntityDetailForm.vue'
+import { DEFAULT_CARRIER, activeCarrier } from '../detail/carriers'
 import type { DetailFieldMeta } from '../detail/fieldMeta'
 import type { LayoutSource } from '../detail/detailLayout'
 import { useDetailLayout } from '../detail/useDetailLayout'
@@ -234,6 +236,8 @@ const props = withDefaults(defineProps<{
   paginateSlot?: boolean
   /** 芽声明的详情默认（顺序/分组/可见性/内容形态）；用户按类型的覆写与抽屉即时态都在它之上 */
   detailLayout?: LayoutSource
+  /** 芽声明的 L1 载体 id（缺省＝右栏抽屉）；用户在设置里设过该类型则以覆写为准 */
+  detailCarrier?: string
 }>(), {
   filterOptions: () => [{ value: '', label: '全部' }],
   filterDefs: () => [],
@@ -275,7 +279,7 @@ const typeFilter = ref('')
 const selectedEntity = ref<Entity | null>(null)
 const showForm = ref(false)
 const editingEntity = ref<Entity | null>(null)
-const detailPanelRef = ref<InstanceType<typeof EntityDetailPanel> | null>(null)
+const detailPanelRef = ref<{ switchTab: (tabId: string) => void } | null>(null)
 
 const { isEditing, editForm, startEdit, cancelEdit, saveEdit } = useEntityEdit(selectedEntity)
 const { selectedIds, selecting, toggleSelect, clearSelection, toggleSelectMode, batchDelete } = useBatchDelete()
@@ -330,6 +334,13 @@ const entityLevelFields = computed<DetailFieldMeta[]>(() =>
 )
 
 const detailFieldMetas = computed(() => mergeScopedFields(typeLevelFields.value, entityLevelFields.value))
+
+const detailPrefs = useDetailLayoutStore()
+/** 载体优先序：用户按类型的覆写 > 芽声明 > 缺省抽屉（与 L2 布局同构，只是分键存放） */
+const carrierId = computed(() => detailPrefs.carriers[props.entityType] || props.detailCarrier || DEFAULT_CARRIER)
+const carrierDef = computed(() => activeCarrier(carrierId.value))
+/** 只有 split 型载体（栏式整页）要把根容器改成分栏；抽屉仍是浮层，布局一点不动 */
+const splitCarrierOpen = computed(() => carrierDef.value.mode === 'split' && !!selectedEntity.value)
 
 const { layout: detailLayout, setContentForm } = useDetailLayout(
   () => props.entityType,
@@ -682,6 +693,10 @@ defineExpose({
 
 <style scoped>
 .gev-root { display: flex; flex-direction: column; height: 100%; padding: 20px; }
+/* 栏式整页：详情与列表同排分栏。子件根元素带本组件的 scope 属性，所以 :deep 只是保险 */
+.gev-root--split { flex-direction: row; padding-right: 0; }
+.gev-root--split .entity-grid { min-width: 0; }
+.gev-root--split :deep(.detail-column) { margin-top: -20px; margin-bottom: -20px; height: auto; }
 /* 筛选条内控件：横向排列（收束在向右伸展的筛选条内，超宽滚轮左右移动） */
 .toolbar-filters {
   display: flex;

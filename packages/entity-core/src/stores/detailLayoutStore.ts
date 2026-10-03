@@ -18,11 +18,16 @@ export interface DetailLayoutOverride {
 
 export const useDetailLayoutStore = defineStore('detailLayout', () => {
   const STORAGE_KEY = 'worldsea_detail_layouts'
+  /** L1 载体形态按实体类型记，与 L2 布局覆写**分键**：换容器与换编排是两件事，
+   *  同键存放会让「恢复芽默认」连载体一起清掉（那是两个决定）。 */
+  const CARRIER_KEY = 'worldsea_detail_carriers'
   /** 新建自定义字段的默认作用域。放本 store 而非 settingsStore——后者已在 arch 冻结线上方，
    *  再加键会让门禁点「增长」；而它本身就是详情面的偏好。 */
   const FIELD_SCOPE_KEY = 'worldsea_custom_field_scope'
 
   const overrides = ref<Record<string, DetailLayoutOverride>>({})
+  /** 实体类型 → 载体 id（未设＝用缺省抽屉） */
+  const carriers = ref<Record<string, string>>({})
   const fieldScopeDefault = ref<'entity' | 'type'>(
     localStorage.getItem(FIELD_SCOPE_KEY) === 'type' ? 'type' : 'entity',
   )
@@ -33,13 +38,28 @@ export const useDetailLayoutStore = defineStore('detailLayout', () => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY)
       if (raw) overrides.value = JSON.parse(raw)
+      const carrierRaw = localStorage.getItem(CARRIER_KEY)
+      if (carrierRaw) carriers.value = JSON.parse(carrierRaw)
     } catch {
       overrides.value = {}
+      carriers.value = {}
     }
   }
 
   function save() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(overrides.value))
+  }
+
+  function setCarrier(entityType: string, carrier: string) {
+    carriers.value = { ...carriers.value, [entityType]: carrier }
+    localStorage.setItem(CARRIER_KEY, JSON.stringify(carriers.value))
+  }
+
+  function clearCarrier(entityType: string) {
+    const next = { ...carriers.value }
+    delete next[entityType]
+    carriers.value = next
+    localStorage.setItem(CARRIER_KEY, JSON.stringify(next))
   }
 
   function get(entityType: string): DetailLayoutOverride | undefined {
@@ -59,5 +79,5 @@ export const useDetailLayoutStore = defineStore('detailLayout', () => {
 
   load()
 
-  return { overrides, fieldScopeDefault, get, patch, clear }
+  return { overrides, carriers, fieldScopeDefault, get, patch, clear, setCarrier, clearCarrier }
 })

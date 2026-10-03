@@ -1,5 +1,5 @@
 <template>
-  <CardDeck :count="5" :flat="!!searchQuery" ref="deckRef" @change="(i) => emit('card-change', i)">
+  <CardDeck :count="6" :flat="!!searchQuery" ref="deckRef" @change="(i) => emit('card-change', i)">
     <template #card="{ idx, cls }">
       <div class="set-card deck-card ds-panel" :class="cls" :data-index="idx" v-show="match(CARD_KEYS[idx] ?? '')">
 
@@ -79,7 +79,7 @@
         </template>
 
         <!-- ⑤ 命名预设（字段基准序的多套档） -->
-        <template v-else>
+        <template v-else-if="idx === 4">
           <div class="sc-head"><span>命名预设</span><span class="ds-type">{{ typeLabel }}</span></div>
           <div v-for="name in presetNames" :key="name" class="set-row ds-field">
             <span class="ds-label" :class="{ 'is-active': name === activePreset }">{{ name }}</span>
@@ -99,6 +99,26 @@
           <div class="set-hint">
             预设**只管字段的基准序**：字段本身是类型级的（在详情里增删、在上一卡分组），
             应用预设不会加字段也不会删字段。详情面若设过顺序覆写，覆写排在基准序之上。
+          </div>
+        </template>
+
+        <!-- ⑥ 承载形态（L1：详情装在哪种容器里） -->
+        <template v-else>
+          <div class="sc-head"><span>承载形态</span><span class="ds-type">{{ typeLabel }}</span></div>
+          <div class="set-row"><span>详情容器</span>
+            <div class="set-chip-group">
+              <button v-for="c in carrierDefs" :key="c.carrier" type="button" class="set-chip"
+                :class="{ on: c.carrier === carrierValue }" :title="c.description" @click="pickCarrier(c.carrier)">
+                <WsIcon :name="c.icon" size="xs" /><span>{{ c.label }}</span>
+              </button>
+            </div>
+          </div>
+          <div class="set-hint">
+            载体与编排是两级：换容器不动你在「内容形态」里选的编排。
+            {{ carrierHint }}
+          </div>
+          <div v-if="carrierSet" class="set-btn-row">
+            <button class="set-btn" type="button" @click="clearCarrier">回到芽声明（当前未设＝右栏抽屉）</button>
           </div>
         </template>
       </div>
@@ -122,8 +142,11 @@ import { CardDeck, WsIcon, matchKeywords, toastSuccess, useConfirm } from '@worl
 import DetailGroupsCard from './DetailGroupsCard.vue'
 import '../detail-settings.css'
 import {
+  DEFAULT_CARRIER,
   OTHER_GROUP,
+  allCarriers,
   allContentForms,
+  activeCarrier,
   getContentForm,
   resolveContentConfig,
   useDetailLayout,
@@ -141,6 +164,7 @@ const CARD_KEYS = [
   '实体 详情 形态 配置 属性数 摘录 描述 创建时间 config',
   '实体 详情 分组 分组管理 组名 归属 未分组 group',
   '实体 详情 预设 命名预设 基准序 另存为 preset',
+  '实体 详情 载体 承载形态 抽屉 栏式 分栏 carrier column drawer',
 ]
 
 const props = defineProps<{ searchQuery?: string }>()
@@ -150,6 +174,9 @@ const deckRef = ref<InstanceType<typeof CardDeck> | null>(null)
 defineExpose({ goToCard: (i: number) => deckRef.value?.goToCard(i) })
 
 const forms = allContentForms()
+const carrierDefs = allCarriers()
+/** 缺省载体的中文名从注册表取，不在这里再写一遍字面量 */
+const DEFAULT_LABEL = activeCarrier(DEFAULT_CARRIER).label
 const store = useDetailLayoutStore()
 
 /** 可配置的类型＝已注册字段的类型 ∪ 已有覆写的类型（后者保证「设过就能找到并清掉」） */
@@ -248,6 +275,25 @@ const groupSeed = computed<DetailGroup[]>(() => {
   const src = stored?.length ? stored : layout.value.groups.filter(g => g.key !== OTHER_GROUP_KEY)
   return src.map(g => ({ ...g, fieldKeys: [...g.fieldKeys] }))
 })
+
+/**
+ * 载体：设置面只管**用户覆写**这一层。
+ * 芽声明的那一层拿不到（载体不像布局有落盘的合并源，它由各芽视图当 prop 传进来），
+ * 所以这里不谎报「芽声明的是什么」，只说清未设时的行为。
+ */
+const carrierSet = computed(() => !!store.carriers[activeType.value])
+const carrierValue = computed(() => store.carriers[activeType.value] ?? DEFAULT_CARRIER)
+const carrierHint = computed(() => carrierSet.value
+  ? `当前显示的是设置里选的那一种；清掉即回到芽声明（没声明就是「${DEFAULT_LABEL}」）。`
+  : `未设置＝按芽声明，芽没声明则是「${DEFAULT_LABEL}」（观感与本批改动前完全一致）。`)
+
+function pickCarrier(carrier: string) {
+  store.setCarrier(activeType.value, carrier)
+}
+
+function clearCarrier() {
+  store.clearCarrier(activeType.value)
+}
 
 function onGroupsCommit(groups: DetailGroup[]) {
   setGroups(groups)

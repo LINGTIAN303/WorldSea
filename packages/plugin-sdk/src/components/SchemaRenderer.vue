@@ -23,6 +23,7 @@
     :hide-create-button="hideCreateButton"
     :facet-on-create="facetOnCreate"
     :detail-layout="detailLayout"
+    :detail-carrier="detailCarrier"
   >
     <template #toolbar-extra>
       <slot name="toolbar-extra" />
@@ -87,6 +88,8 @@ const props = withDefaults(defineProps<{
   schemaLoader?: (typeKey: string) => Promise<EntityTypeSchema | null>
   /** 芽声明的详情默认（顺序/分组/可见性/内容形态），原样下传 GenericEntityView */
   detailLayout?: LayoutSource
+  /** 芽声明的 L1 载体 id，原样下传 */
+  detailCarrier?: string
 }>(), {
   detailTabs: () => [],
   customTabs: () => [],

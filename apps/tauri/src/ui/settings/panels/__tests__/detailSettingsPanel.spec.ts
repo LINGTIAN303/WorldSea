@@ -56,10 +56,10 @@ beforeEach(() => {
 })
 
 describe('面板骨架', () => {
-  it('五张卡各有分节标题（左列 rail 靠 .sc-head 取首个 span 文本）', () => {
+  it('六张卡各有分节标题（左列 rail 靠 .sc-head 取首个 span 文本）', () => {
     const w = mountPanel()
     const heads = w.findAll('.sc-head').map(h => h.find('span').text())
-    expect(heads).toEqual(['内容形态', '字段顺序与可见性', '形态配置', '分组管理', '命名预设'])
+    expect(heads).toEqual(['内容形态', '字段顺序与可见性', '形态配置', '分组管理', '命名预设', '承载形态'])
     expect(w.findAll('.sc-head')[0].text()).toContain('角色')
   })
 
@@ -71,17 +71,50 @@ describe('面板骨架', () => {
   })
 })
 
+describe('承载形态（卡六）', () => {
+  function card(w: VueWrapper) {
+    return w.findAll('.set-card')[5]
+  }
+
+  it('未设置时高亮缺省抽屉，且不给「回到芽声明」按钮', () => {
+    const chips = card(mountPanel()).findAll('.set-chip')
+    expect(chips.map(c => c.text())).toEqual(['右栏抽屉', '栏式整页'])
+    expect(chips[0].classes()).toContain('on')
+    expect(card(mountPanel()).find('.set-btn').exists()).toBe(false)
+  })
+
+  it('选「栏式整页」写进 carriers（与布局覆写分键，不清掉别的覆写）', async () => {
+    const w = mountPanel()
+    useDetailLayoutStore().patch('character', { contentForm: 'summary' })
+    await card(w).findAll('.set-chip')[1].trigger('click')
+    expect(useDetailLayoutStore().carriers.character).toBe('column')
+    expect(useDetailLayoutStore().overrides.character.contentForm).toBe('summary')
+    expect(card(w).find('.set-btn').exists()).toBe(true)
+  })
+
+  it('「回到芽声明」只清载体，不动布局覆写', async () => {
+    const store = useDetailLayoutStore()
+    store.setCarrier('character', 'column')
+    store.patch('character', { hidden: ['age'] })
+    const w = mountPanel()
+    await card(w).find('.set-btn').trigger('click')
+    expect(store.carriers.character).toBeUndefined()
+    expect(store.overrides.character.hidden).toEqual(['age'])
+  })
+})
+
 describe('内容形态（卡一）', () => {
   it('五个形态都成按钮，当前形态高亮', () => {
     const w = mountPanel()
-    const chips = w.findAll('.set-chip')
+    // 第六卡（承载形态）也用 .set-chip，这里必须按卡取，不然数到别家按钮上
+    const chips = w.findAll('.set-card')[0].findAll('.set-chip')
     expect(chips.map(c => c.text())).toEqual(['分组式', '表格式', '段落式', '摘要式', '时间轴式'])
     expect(chips[0].classes()).toContain('on')
   })
 
   it('点形态只写 overrides[type].contentForm，并落盘', async () => {
     const w = mountPanel()
-    await w.findAll('.set-chip')[2].trigger('click')
+    await w.findAll('.set-card')[0].findAll('.set-chip')[2].trigger('click')
     expect(overrideOf().contentForm).toBe('narrative')
     expect(JSON.parse(localStorage.getItem('worldsea_detail_layouts') || '{}').character.contentForm).toBe('narrative')
   })
@@ -92,7 +125,7 @@ describe('内容形态（卡一）', () => {
 
   it('有覆写后按钮出现，确认即清空该类型覆写', async () => {
     const w = mountPanel()
-    await w.findAll('.set-chip')[1].trigger('click')
+    await w.findAll('.set-card')[0].findAll('.set-chip')[1].trigger('click')
     const btn = w.find('.set-btn')
     expect(btn.exists()).toBe(true)
     await btn.trigger('click')
@@ -104,7 +137,7 @@ describe('内容形态（卡一）', () => {
   it('取消确认则覆写原样留着', async () => {
     confirmMock.mockResolvedValueOnce(false as never)
     const w = mountPanel()
-    await w.findAll('.set-chip')[1].trigger('click')
+    await w.findAll('.set-card')[0].findAll('.set-chip')[1].trigger('click')
     await w.find('.set-btn').trigger('click')
     await new Promise(r => setTimeout(r, 0))
     expect(overrideOf().contentForm).toBe('table')
@@ -146,7 +179,7 @@ describe('字段顺序与可见性（卡二）', () => {
     const w = mountPanel()
     await w.find('select').setValue('item')
     expect(w.find('.ds-type').text()).toBe('道具')
-    await w.findAll('.set-chip')[3].trigger('click')
+    await w.findAll('.set-card')[0].findAll('.set-chip')[3].trigger('click')
     expect(overrideOf('item').contentForm).toBe('summary')
     expect(overrideOf('character').contentForm).toBeUndefined()
   })
@@ -160,7 +193,7 @@ describe('形态配置（卡三）', () => {
 
   it('摘要式按 configSchema 自动渲染开关与数字，写入 contentConfig', async () => {
     const w = mountPanel()
-    await w.findAll('.set-chip')[3].trigger('click')
+    await w.findAll('.set-card')[0].findAll('.set-chip')[3].trigger('click')
     const rows = w.findAll('.set-card')[2].findAll('.set-row')
     expect(rows.map(r => r.find('span').text())).toEqual(['最多属性数', '显示正文摘录'])
     await rows[0].find('input[type=number]').setValue('6')
@@ -171,7 +204,7 @@ describe('形态配置（卡三）', () => {
 
   it('数字框清空时回落默认值，不落 0', async () => {
     const w = mountPanel()
-    await w.findAll('.set-chip')[3].trigger('click')
+    await w.findAll('.set-card')[0].findAll('.set-chip')[3].trigger('click')
     const num = w.findAll('.set-card')[2].find('input[type=number]')
     await num.setValue('')
     expect(overrideOf().contentConfig).toEqual({ maxChips: 14 })

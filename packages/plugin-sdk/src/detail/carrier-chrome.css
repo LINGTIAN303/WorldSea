@@ -1,0 +1,111 @@
+/**
+ * 详情载体（L1）的共用外壳样式：抽屉与栏式整页**共用一份**。
+ * 详细见 docs/details/注释/packages/plugin-sdk/实体详情内容形态.md §十
+ *
+ * 全部规则挂在 `.dp-shell` 之下（两个载体各自带这个类）：
+ * 这是全局 CSS（一旦 import 就全局生效），不加前缀会染到别处同名类；
+ * 各载体**独有**的部分（抽屉的 fixed 定位/遮罩/滑入动效、栏式的在流内宽度）留在各自的 scoped 块里。
+ */
+
+.dp-shell .resize-handle-left {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  cursor: col-resize;
+  z-index: 10;
+}
+.dp-shell .resize-handle-left:hover {
+  background: var(--color-primary);
+  opacity: 0.5;
+}
+
+.dp-shell .dp-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+}
+
+.dp-shell .dp-title-area { flex: 1; min-width: 0; }
+.dp-shell .dp-title-area h3 {
+  margin: 0;
+  font-size: var(--text-base-font-size);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dp-shell .dp-subtitle {
+  font-size: var(--text-xs-font-size);
+  color: var(--color-text-secondary);
+}
+
+.dp-shell .detail-edit-toggle {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+}
+.dp-shell .detail-edit-toggle:hover {
+  color: var(--color-primary);
+  background: var(--color-bg-hover);
+}
+
+.dp-shell .detail-close {
+  background: none;
+  border: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  margin-left: 4px;
+  display: flex;
+  align-items: center;
+}
+.dp-shell .detail-close:hover {
+  color: var(--color-danger);
+  background: var(--color-bg-hover);
+}
+
+.dp-shell .dp-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--color-border);
+  padding: 0 8px;
+  overflow-x: auto;
+}
+.dp-shell .dp-tab {
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font-size: var(--text-sm-font-size);
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.dp-shell .dp-tab:hover {
+  color: var(--color-text-primary);
+  background: var(--color-bg-hover);
+}
+.dp-shell .dp-tab.active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+}
+
+.dp-shell .dp-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}

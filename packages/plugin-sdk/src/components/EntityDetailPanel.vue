@@ -2,10 +2,10 @@
   <Transition name="slide">
     <div
       v-if="visible"
-      class="detail-panel"
+      class="detail-panel dp-shell"
       :style="{ width: panelWidth + 'px' }"
     >
-      <div class="resize-handle-left" @mousedown="resizable.onResizeStart" />
+      <div class="resize-handle-left" @mousedown="onResizeStart" />
 
       <div class="dp-header">
         <slot name="header" :entity="entity" :editing="editing">
@@ -47,15 +47,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { computed } from 'vue'
 import { WsIcon } from '@worldsea/ui-kit'
-import { useResizable } from '../composables'
-
-export interface DetailTab {
-  id: string
-  label: string
-  icon?: string
-}
+import { useDetailChrome, type DetailTab } from '../detail/useDetailChrome'
+import '../detail/carrier-chrome.css'
 
 const props = withDefaults(defineProps<{
   visible: boolean
@@ -95,34 +90,25 @@ const emit = defineEmits<{
 }>()
 
 const resizeSide = computed(() => props.resizeSide || 'left')
-const resizable = useResizable({
-  panelId: props.panelId,
-  defaultWidth: props.defaultWidth,
-  minWidth: props.minWidth,
-  maxWidth: props.maxWidth || undefined,
-  sideRef: resizeSide,
-})
 
-const panelWidth = computed(() => resizable.width.value)
+const { activeTab, switchTab, panelWidth, onResizeStart } = useDetailChrome(
+  {
+    panelId: props.panelId,
+    defaultWidth: props.defaultWidth,
+    minWidth: props.minWidth,
+    maxWidth: props.maxWidth,
+    defaultTab: props.defaultTab,
+    tabs: props.tabs,
+    resizeSide: resizeSide.value,
+  },
+  tabId => emit('tab-change', tabId),
+)
 
-const activeTab = ref(props.defaultTab || (props.tabs.length > 0 ? props.tabs[0].id : ''))
-
-watch(() => props.defaultTab, (val) => {
-  if (val) activeTab.value = val
-})
-
-function switchTab(tabId: string) {
-  activeTab.value = tabId
-  emit('tab-change', tabId)
-}
-
-defineExpose({
-  switchTab,
-  activeTab,
-})
+defineExpose({ switchTab, activeTab })
 </script>
 
 <style scoped>
+/* 载体独有的样式；表头/标签页/关闭等内容壳见 detail/carrier-chrome.css */
 .detail-panel {
   position: fixed;
   top: 0;
@@ -136,133 +122,16 @@ defineExpose({
   flex-direction: column;
   overflow: hidden;
 }
-
 .detail-backdrop {
   position: fixed;
   inset: 0;
   z-index: 99;
   pointer-events: none;
 }
-
-.resize-handle-left {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 4px;
-  cursor: col-resize;
-  z-index: 10;
-}
-
-.resize-handle-left:hover {
-  background: var(--color-primary);
-  opacity: 0.5;
-}
-
-.dp-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-bg-elevated);
-}
-
-.dp-title-area {
-  flex: 1;
-  min-width: 0;
-}
-
-.dp-title-area h3 {
-  margin: 0;
-  font-size: var(--text-base-font-size);
-  color: var(--color-text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.dp-subtitle {
-  font-size: var(--text-xs-font-size);
-  color: var(--color-text-secondary);
-}
-
-.detail-edit-toggle {
-  margin-left: auto;
-  background: none;
-  border: none;
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-}
-
-.detail-edit-toggle:hover {
-  color: var(--color-primary);
-  background: var(--color-bg-hover);
-}
-
-.detail-close {
-  background: none;
-  border: none;
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  margin-left: 4px;
-  display: flex;
-  align-items: center;
-}
-
-.detail-close:hover {
-  color: var(--color-danger);
-  background: var(--color-bg-hover);
-}
-
-.dp-tabs {
-  display: flex;
-  border-bottom: 1px solid var(--color-border);
-  padding: 0 8px;
-  overflow-x: auto;
-}
-
-.dp-tab {
-  padding: 8px 12px;
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  font-size: var(--text-sm-font-size);
-  white-space: nowrap;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.dp-tab:hover {
-  color: var(--color-text-primary);
-  background: var(--color-bg-hover);
-}
-
-.dp-tab.active {
-  color: var(--color-primary);
-  border-bottom-color: var(--color-primary);
-}
-
-.dp-content {
-  flex: 1;
-  overflow-y: auto;
-  padding: 16px;
-}
-
 .slide-enter-active,
 .slide-leave-active {
   transition: transform 0.25s ease;
 }
-
 .slide-enter-from,
 .slide-leave-to {
   transform: translateX(100%);
