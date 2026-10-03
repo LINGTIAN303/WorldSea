@@ -14,7 +14,7 @@ import ColumnDetailView from '../ColumnDetailView.vue'
  * docs/details/注释/packages/plugin-sdk/实体详情内容形态.md §十
  *
  * 最要紧的是第一例：**未声明未覆写时必须还是右栏抽屉、根容器不加分栏类**——
- * 「缺省零变化」是这一批对 27 个芽的唯一承诺，写歪了就是全库观感事故。
+ * 「缺省零变化」是这一批对 26 个芽的唯一承诺，写歪了就是全库观感事故。
  */
 
 let pinia: Pinia
@@ -106,5 +106,16 @@ describe('载体分发', () => {
     overridden.unmount()
     const w = await select(mountView({ detailCarrier: 'column' }))
     expect(w.findComponent(ColumnDetailView).exists()).toBe(true)
+  })
+
+  it('抽屉与栏式的宽度键分开（同键＝拖一个把另一个也改了）', async () => {
+    // 走查项「与抽屉宽度各记各的」的实际凭据：宽度存进 `worldsea_panel_width_${panelId}`，
+    // 两载体若同键，这个承诺就是假的
+    const drawer = await select(mountView())
+    expect(drawer.findComponent(EntityDetailPanel).props('panelId')).toBe('detail-concept')
+    drawer.unmount()
+
+    const column = await select(mountView({ detailCarrier: 'column' }))
+    expect(column.findComponent(ColumnDetailView).props('panelId')).toBe('detail-column-concept')
   })
 })

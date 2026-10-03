@@ -92,7 +92,7 @@
       :tabs="resolvedTabs"
       :show-edit="true"
       :editing="isEditing"
-      :panel-id="`detail-${entityType}`"
+      :panel-id="detailPanelId"
       @close="selectedEntity = null"
       @edit="isEditing ? cancelEdit() : startEdit()"
     >
@@ -339,6 +339,11 @@ const detailPrefs = useDetailLayoutStore()
 /** 载体优先序：用户按类型的覆写 > 芽声明 > 缺省抽屉（与 L2 布局同构，只是分键存放） */
 const carrierId = computed(() => detailPrefs.carriers[props.entityType] || props.detailCarrier || DEFAULT_CARRIER)
 const carrierDef = computed(() => activeCarrier(carrierId.value))
+/** 宽度按「载体 + 类型」分别记：同一类型下抽屉与分栏各拖各的，互不覆盖。
+ *  抽屉沿用既有键名（`PANEL_LABELS` 里的中文标签继续认得出），其余载体带载体名前缀。 */
+const detailPanelId = computed(() => carrierDef.value.carrier === DEFAULT_CARRIER
+  ? `detail-${props.entityType}`
+  : `detail-${carrierDef.value.carrier}-${props.entityType}`)
 /** 只有 split 型载体（栏式整页）要把根容器改成分栏；抽屉仍是浮层，布局一点不动 */
 const splitCarrierOpen = computed(() => carrierDef.value.mode === 'split' && !!selectedEntity.value)
 

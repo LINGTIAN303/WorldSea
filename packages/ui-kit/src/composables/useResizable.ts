@@ -45,11 +45,17 @@ export function useResizable(options: ResizableOptions & { sideRef?: Ref<'left' 
 
   let startX = 0
   let startWidth = 0
+  /** 拖动期间锁定的上界：`window.innerWidth` 每次读都可能触发一次布局，不该挪进 move 里 */
+  let dragMaxWidth = 0
+  /** 一帧只落一次宽度：mousemove 可到 100Hz+，而每次写入都带动一次重排 */
+  let pendingClientX = 0
+  let rafId = 0
 
   function onResizeStart(e: MouseEvent) {
     isResizing.value = true
     startX = e.clientX
     startWidth = width.value
+    dragMaxWidth = options.maxWidth || Math.round(window.innerWidth * 0.8)
     document.addEventListener('mousemove', onResizeMove)
     document.addEventListener('mouseup', onResizeEnd)
     e.preventDefault()
@@ -57,18 +63,28 @@ export function useResizable(options: ResizableOptions & { sideRef?: Ref<'left' 
     document.body.style.userSelect = 'none'
   }
 
+  function applyWidth(clientX: number) {
+    const dx = clientX - startX
+    const raw = effectiveSide.value === 'left' ? startWidth - dx : startWidth + dx
+    width.value = Math.max(minWidth, Math.min(raw, dragMaxWidth))
+  }
+
+  function flushPending() {
+    if (!rafId) return
+    cancelAnimationFrame(rafId)
+    rafId = 0
+    applyWidth(pendingClientX)
+  }
+
   function onResizeMove(e: MouseEvent) {
     if (!isResizing.value) return
-    const dx = e.clientX - startX
-    let newWidth: number
-    if (effectiveSide.value === 'left') {
-      newWidth = startWidth - dx
-    } else {
-      newWidth = startWidth + dx
+    pendingClientX = e.clientX
+    if (!rafId) {
+      rafId = requestAnimationFrame(() => {
+        rafId = 0
+        applyWidth(pendingClientX)
+      })
     }
-    const currentMax = options.maxWidth || Math.round(window.innerWidth * 0.8)
-    newWidth = Math.max(minWidth, Math.min(newWidth, currentMax))
-    width.value = newWidth
   }
 
   function onResizeEnd() {
@@ -78,6 +94,8 @@ export function useResizable(options: ResizableOptions & { sideRef?: Ref<'left' 
     document.removeEventListener('mouseup', onResizeEnd)
     document.body.style.cursor = ''
     document.body.style.userSelect = ''
+    // 末次移动可能还压在帧队列里：先落地再存，否则存下的是旧宽度
+    flushPending()
     saveWidth(panelId, width.value)
   }
 
@@ -105,6 +123,9 @@ export function useResizable(options: ResizableOptions & { sideRef?: Ref<'left' 
   onBeforeUnmount(() => {
     document.removeEventListener('mousemove', onResizeMove)
     document.removeEventListener('mouseup', onResizeEnd)
+    // 卸载时若还压着一帧，取消它：否则那一帧会在组件销毁后仍去写已无人观察的 ref
+    if (rafId) cancelAnimationFrame(rafId)
+    rafId = 0
     window.removeEventListener(EVENT_RESET, onExternalReset)
     window.removeEventListener(EVENT_RESET_ALL, onExternalResetAll)
   })
