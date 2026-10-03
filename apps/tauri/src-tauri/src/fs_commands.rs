@@ -265,6 +265,43 @@ pub async fn cmd_fs_copy(src: String, dest: String) -> Result<(), String> {
     Ok(())
 }
 
+/// 递归复制目录（D 项项目备份用；目标父目录自动创建；返回复制文件数与字节数）
+fn copy_dir_recursive(src: &Path, dest: &Path) -> std::io::Result<(u64, u64)> {
+    fs::create_dir_all(dest)?;
+    let mut files = 0u64;
+    let mut bytes = 0u64;
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let meta = entry.metadata()?;
+        if meta.is_dir() {
+            let (f, b) = copy_dir_recursive(&entry.path(), &dest.join(entry.file_name()))?;
+            files += f;
+            bytes += b;
+        } else if meta.is_file() {
+            bytes += fs::copy(entry.path(), dest.join(entry.file_name()))?;
+            files += 1;
+        }
+    }
+    Ok((files, bytes))
+}
+
+/// 递归复制目录（项目备份；源须为目录且目标不得已存在；返回复制量）
+#[tauri::command]
+pub async fn cmd_fs_copy_dir(src: String, dest: String) -> Result<FsUsage, String> {
+    let sp = Path::new(&src);
+    if !sp.is_dir() {
+        return Err(format!("源目录不存在或不是目录: {}", src));
+    }
+    ensure_write_allowed(Path::new(&src))?;
+    ensure_write_allowed(Path::new(&dest))?;
+    let dp = Path::new(&dest);
+    if dp.exists() {
+        return Err(format!("目标目录已存在: {}", dest));
+    }
+    let (file_count, total_size) = copy_dir_recursive(sp, dp).map_err(|e| e.to_string())?;
+    Ok(FsUsage { file_count, total_size, entries: Vec::new() })
+}
+
 /// 目录占用分项（存储概览「磁盘占用」；只读，无写守卫）
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]

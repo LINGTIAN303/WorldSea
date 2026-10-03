@@ -184,6 +184,7 @@ pub fn run() {
             fs_commands::cmd_fs_stat,
             fs_commands::cmd_fs_mkdir,
             fs_commands::cmd_fs_copy,
+            fs_commands::cmd_fs_copy_dir,
             fs_commands::cmd_fs_rename,
             fs_commands::cmd_fs_search,
             fs_commands::cmd_fs_usage,

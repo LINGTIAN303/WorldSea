@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, computed, ref } from 'vue'
-import { TuiButton, WsIcon } from '@worldsea/ui-kit'
+import { TuiButton, WsIcon, useConfirm } from '@worldsea/ui-kit'
 import { CardDeck } from '@worldsea/ui-kit'
 import TuiCheckbox from '@/components/ui/TuiCheckbox.vue'
 import { useStorageStats } from '@worldsea/entity-core/composables'
@@ -66,6 +66,59 @@ const composition = computed(() => {
     .map(([type, count]) => ({ type, label: entitySchemaRegistry.getLabel(type) || type, count }))
     .sort((a, b) => b.count - a.count)
 })
+
+// ── 项目备份（D 项，2026-10-02 立项）：复制数据目录 → <项目>/worlddata-backups/backup-<时间戳>，
+//    保留最近 KEEP_BACKUPS 份滚动清理（backup-<定宽时间戳> 名字典序 = 时间序）──
+const KEEP_BACKUPS = 5
+const backingUp = ref(false)
+
+async function onBackupProject(): Promise<void> {
+  const dir = projectDir.value
+  if (!dir || backingUp.value) return
+  const sep = dir.includes('\\') ? '\\' : '/'
+  const trimmed = dir.replace(/[\\/]+$/, '')
+  const parent = trimmed.slice(0, Math.max(trimmed.lastIndexOf('\\'), trimmed.lastIndexOf('/')))
+  if (!parent) {
+    toast.toastError('无法确定备份位置')
+    return
+  }
+  const d = new Date()
+  const p2 = (n: number) => String(n).padStart(2, '0')
+  const ts = `${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}-${p2(d.getHours())}${p2(d.getMinutes())}${p2(d.getSeconds())}`
+  const backupRoot = `${parent}${sep}worlddata-backups`
+  const dest = `${backupRoot}${sep}backup-${ts}`
+
+  const { confirm } = useConfirm()
+  const ok = await confirm({
+    type: 'info',
+    title: '备份项目',
+    description: `将复制数据目录到：\n${dest}\n（约 ${usage.value ? formatSize(usage.value.totalSize) : '未知体积'}，保留最近 ${KEEP_BACKUPS} 份）`,
+    confirmText: '开始备份',
+  })
+  if (!ok) return
+
+  backingUp.value = true
+  try {
+    const r = await invoke<FsUsage>('cmd_fs_copy_dir', { src: dir, dest })
+    // 滚动清理：超出保留份数时删最旧（删除失败不影响备份结果）
+    try {
+      const list = await invoke<{ name: string; path: string; isDir: boolean }[]>('cmd_fs_list', { path: backupRoot, recursive: false })
+      const backups = list.filter(e => e.isDir && e.name.startsWith('backup-')).map(e => e.name).sort()
+      while (backups.length > KEEP_BACKUPS) {
+        const oldest = backups.shift()!
+        await invoke('cmd_fs_delete', { path: `${backupRoot}${sep}${oldest}` })
+      }
+    } catch (cleanErr) {
+      console.warn('[Storage] 备份滚动清理失败:', cleanErr)
+    }
+    toast.toastSuccess(`备份完成：${r.fileCount} 个文件 / ${formatSize(r.totalSize)}`)
+  } catch (err) {
+    console.warn('[Storage] 项目备份失败:', err)
+    toast.toastError('备份失败：' + String((err as Error)?.message ?? err))
+  } finally {
+    backingUp.value = false
+  }
+}
 
 // ── 叠放翻卡：复用通用 CardDeck（count=3，三个功能分区为三张卡；左列标题点击 → goToCard） ──
 const emit = defineEmits<{ 'card-change': [index: number] }>()
@@ -170,6 +223,7 @@ onMounted(async () => {
           <div class="sm-dir-row">
             <WsIcon name="folder" size="xs" />
             <span class="sm-dir-path" :title="projectDir || ''">{{ projectDir || '（未打开文件项目）' }}</span>
+            <TuiButton size="sm" variant="secondary" :disabled="!projectDir || backingUp" @click="onBackupProject">{{ backingUp ? '备份中…' : '备份项目' }}</TuiButton>
             <TuiButton size="sm" variant="ghost" :disabled="!projectDir" @click="openProjectDir">打开文件夹</TuiButton>
           </div>
           <div class="sm-stats-grid">
