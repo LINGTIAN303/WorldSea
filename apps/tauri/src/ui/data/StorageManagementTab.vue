@@ -26,19 +26,24 @@ interface FsUsage { fileCount: number; totalSize: number; entries: FsUsageEntry[
 
 const projectDir = ref<string | null>(null)
 const usage = ref<FsUsage | null>(null)
+const usageError = ref(false)
 
 async function refreshUsage(): Promise<void> {
   projectDir.value = getFileStorageBackend()?.projectDir ?? null
   const dir = projectDir.value
   if (!dir) {
     usage.value = null
+    usageError.value = false
     return
   }
   try {
     usage.value = await invoke<FsUsage>('cmd_fs_usage', { dir })
+    usageError.value = false
   } catch (err) {
+    // 典型场景：Rust 侧未重建（cmd_fs_usage 为新命令，运行中的旧二进制没有）——面板显式提示而非静默回落
     console.warn('[Storage] 目录占用统计失败:', err)
     usage.value = null
+    usageError.value = true
   }
 }
 
@@ -199,6 +204,9 @@ onMounted(async () => {
               <span class="sm-usage-count">{{ en.fileCount }} 文件</span>
               <span class="sm-usage-size">{{ formatSize(en.size) }}</span>
             </div>
+          </div>
+          <div v-if="usageError" class="sm-usage-note sm-usage-warn">
+            目录占用统计不可用——统计命令未在当前运行的应用中生效（Rust 侧有更新时需重新构建应用）。
           </div>
           <div v-if="usage" class="sm-usage-note">
             实体/关系/文件均以 JSON 落盘（图片等二进制转 base64，实际略大于原始体积）；应用设置存于内部，不在此目录。
@@ -376,6 +384,7 @@ onMounted(async () => {
   font-size: var(--text-caption-font-size);
   color: var(--color-text-tertiary);
 }
+.sm-usage-warn { color: var(--color-warning); }
 .sm-orphan-hint {
   display: flex;
   align-items: center;

@@ -24,7 +24,7 @@
     "apps/tauri/src/components/files/FileTreeBrowser.vue": 966,
     "apps/tauri/src/ui/boot/SplashScreen.vue": 436,
     "apps/tauri/src/ui/entity/CustomRelationTypeDialog.vue": 404,
-    "apps/tauri/src/ui/data/StorageManagementTab.vue": 431,
+    "apps/tauri/src/ui/data/StorageManagementTab.vue": 440,
     "apps/tauri/src/ui/layout/sidebar/SidebarV2.vue": 541,
     "apps/tauri/src/ui/settings/SettingsDialog.vue": 485,
     "apps/tauri/src/world/plugins/characters/CharacterList.vue": 471,
