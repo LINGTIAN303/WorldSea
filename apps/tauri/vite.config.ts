@@ -186,6 +186,9 @@ export default defineConfig({
   },
   build: {
     emptyOutDir: true,
+    // 输出直落 workspace-dist（壳运行时从磁盘伺服的目录，2026-10-04 修正）：
+    // 此前缺省写 dist/，与伺服目录错位 → 「构建成功但应用里没生效」；产物不入库（.gitignore 已覆盖）
+    outDir: 'workspace-dist',
     rollupOptions: {
       output: {
         manualChunks(id) {
