@@ -73,7 +73,8 @@
 - **涉及模块**：`apps/tauri/src/world/plugins/*/`（apparel/buildings/characters/combat_stats/concepts/conflict/culture/items/languages/magic/organizations/plants/regions/species/timeline/weapons）、`packages/plugin-sdk/src/detail/`（2026-10-02 新建）、`packages/plugin-sdk/src/components/GenericEntityView.vue`
 - **状态**：执行中（2026-10-02 立项并裁定八项，施工切三批 1a 地基 → 1b 内容形态 → 2 载体形态；
   **1a / 1b-1 / 1b-2（含两笔留白）/ 批次 2 第一刀 均已真机走查通过**（末一项 2026-10-04），
-  余批次 2 另三式与芽→载体分配表落地）
+  **批次 2 第二刀已落待走查**＝档 B 九枚芽默认栏式 + 遮罩可配置一档；余批次 2 另三式。
+  关联立项：[AutoLink 刷新开销](2026-10-04-AutoLink刷新开销立项.md)（待启动））
 - **优先级**：—
 - **备注**：设计规范已定（统一字段控件注册表 + 三级合并布局层 + 两级形态模型），详见
   [实体详情表单地基与形态批计划](2026-10-02-实体详情表单地基与形态批计划.md)。
