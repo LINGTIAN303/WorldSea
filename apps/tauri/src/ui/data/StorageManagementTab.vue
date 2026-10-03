@@ -26,24 +26,25 @@ interface FsUsage { fileCount: number; totalSize: number; entries: FsUsageEntry[
 
 const projectDir = ref<string | null>(null)
 const usage = ref<FsUsage | null>(null)
-const usageError = ref(false)
+const usageError = ref('')
 
 async function refreshUsage(): Promise<void> {
   projectDir.value = getFileStorageBackend()?.projectDir ?? null
   const dir = projectDir.value
   if (!dir) {
     usage.value = null
-    usageError.value = false
+    usageError.value = ''
     return
   }
   try {
     usage.value = await invoke<FsUsage>('cmd_fs_usage', { dir })
-    usageError.value = false
+    usageError.value = ''
   } catch (err) {
-    // 典型场景：Rust 侧未重建（cmd_fs_usage 为新命令，运行中的旧二进制没有）——面板显式提示而非静默回落
-    console.warn('[Storage] 目录占用统计失败:', err)
+    // 典型场景：Rust 侧未重建（cmd_fs_usage 为新命令，运行中的旧二进制没有）——错误文本透出到面板，便于定位
+    const msg = String((err as Error)?.message ?? err ?? '未知错误')
+    console.warn('[Storage] 目录占用统计失败:', msg)
     usage.value = null
-    usageError.value = true
+    usageError.value = msg.slice(0, 160)
   }
 }
 
@@ -205,8 +206,8 @@ onMounted(async () => {
               <span class="sm-usage-size">{{ formatSize(en.size) }}</span>
             </div>
           </div>
-          <div v-if="usageError" class="sm-usage-note sm-usage-warn">
-            目录占用统计不可用——统计命令未在当前运行的应用中生效（Rust 侧有更新时需重新构建应用）。
+          <div v-if="usageError" class="sm-usage-note sm-usage-warn" :title="usageError">
+            目录占用统计不可用：{{ usageError }}（若提示命令不存在，说明运行中的应用未包含 Rust 侧更新，需重新构建）
           </div>
           <div v-if="usage" class="sm-usage-note">
             实体/关系/文件均以 JSON 落盘（图片等二进制转 base64，实际略大于原始体积）；应用设置存于内部，不在此目录。
