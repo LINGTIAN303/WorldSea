@@ -186,6 +186,7 @@ pub fn run() {
             fs_commands::cmd_fs_copy,
             fs_commands::cmd_fs_rename,
             fs_commands::cmd_fs_search,
+            fs_commands::cmd_fs_usage,
             // 文档格式预览（2026-09-14）：本机 Office 转换 —— 探测 + ppt/pptx → PDF（带缓存）
             office_commands::cmd_office_available,
             office_commands::cmd_pptx_to_pdf,

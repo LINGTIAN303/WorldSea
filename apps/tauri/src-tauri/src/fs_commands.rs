@@ -265,6 +265,85 @@ pub async fn cmd_fs_copy(src: String, dest: String) -> Result<(), String> {
     Ok(())
 }
 
+/// 目录占用分项（存储概览「磁盘占用」；只读，无写守卫）
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FsUsageEntry {
+    pub name: String,
+    pub file_count: u64,
+    pub size: u64,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FsUsage {
+    pub file_count: u64,
+    pub total_size: u64,
+    pub entries: Vec<FsUsageEntry>,
+}
+
+/// 递归统计目录内文件总大小与文件数
+fn walk_usage(dir: &Path) -> std::io::Result<(u64, u64)> {
+    let mut size = 0u64;
+    let mut count = 0u64;
+    for entry in fs::read_dir(dir)? {
+        let entry = entry?;
+        let meta = entry.metadata()?;
+        if meta.is_dir() {
+            let (s, c) = walk_usage(&entry.path())?;
+            size += s;
+            count += c;
+        } else if meta.is_file() {
+            size += meta.len();
+            count += 1;
+        }
+    }
+    Ok((size, count))
+}
+
+/// 目录占用统计：总大小/文件数 + 一级子目录分项（按大小降序；根目录散落文件归入「(根目录文件)」项）
+#[tauri::command]
+pub async fn cmd_fs_usage(dir: String) -> Result<FsUsage, String> {
+    let root = Path::new(&dir);
+    if !root.is_dir() {
+        return Err(format!("目录不存在或不是目录: {}", dir));
+    }
+    let mut entries: Vec<FsUsageEntry> = Vec::new();
+    let mut total_size = 0u64;
+    let mut total_count = 0u64;
+    let mut loose_size = 0u64;
+    let mut loose_count = 0u64;
+    let rd = fs::read_dir(root).map_err(|e| e.to_string())?;
+    for entry in rd {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let meta = entry.metadata().map_err(|e| e.to_string())?;
+        if meta.is_dir() {
+            let (s, c) = walk_usage(&entry.path()).map_err(|e| e.to_string())?;
+            entries.push(FsUsageEntry {
+                name: entry.file_name().to_string_lossy().into_owned(),
+                file_count: c,
+                size: s,
+            });
+            total_size += s;
+            total_count += c;
+        } else if meta.is_file() {
+            loose_size += meta.len();
+            loose_count += 1;
+        }
+    }
+    if loose_count > 0 {
+        entries.push(FsUsageEntry {
+            name: "(根目录文件)".to_string(),
+            file_count: loose_count,
+            size: loose_size,
+        });
+        total_size += loose_size;
+        total_count += loose_count;
+    }
+    entries.sort_by(|a, b| b.size.cmp(&a.size));
+    Ok(FsUsage { file_count: total_count, total_size, entries })
+}
+
 /// 重命名/移动文件或目录（同盘移动为原子操作）
 #[tauri::command]
 pub async fn cmd_fs_rename(src: String, dest: String) -> Result<(), String> {

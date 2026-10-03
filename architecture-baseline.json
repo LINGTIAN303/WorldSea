@@ -18,6 +18,7 @@
     "worldsea-core/src/validate/entity.rs": 504,
     "worldsea-core/src/wasm_export.rs": 1211,
     "apps/tauri/src-tauri/src/entity_commands.rs": 587,
+    "apps/tauri/src-tauri/src/fs_commands.rs": 455,
     "apps/tauri/src/components/files/CodeEditor.vue": 475,
     "apps/tauri/src/components/files/FilePreview.vue": 958,
     "apps/tauri/src/components/files/FileTreeBrowser.vue": 966,

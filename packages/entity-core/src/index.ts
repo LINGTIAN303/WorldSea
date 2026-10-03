@@ -5,6 +5,7 @@ export {
   db,
   isTauri,
   getStorageBackend,
+  getFileStorageBackend,
   storage,
   getProjectManager,
   migrateIfNeeded,

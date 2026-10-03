@@ -5,17 +5,61 @@ import { CardDeck } from '@worldsea/ui-kit'
 import TuiCheckbox from '@/components/ui/TuiCheckbox.vue'
 import { useStorageStats } from '@worldsea/entity-core/composables'
 import { useOrphanCleanup } from '@worldsea/entity-core/composables'
+import { useEntityStore, getFileStorageBackend, entitySchemaRegistry } from '@worldsea/entity-core'
 import { useToast } from '../../composables/useToast'
 import { useSystemBridge } from '@/composables/useSystemBridge'
+import { invoke } from '@/composables/transport'
 
 const toast = useToast()
 const { autostartEnabled, setAutostart } = useSystemBridge()
 const autostartOn = ref(false)
+const entityStore = useEntityStore()
 const { stats, isScanning: statsScanning, refresh, scanOrphanCount } = useStorageStats()
 const {
   orphans, selectedIds, isScanning: orphanScanning, isCleaning,
   scanProgress, scan, cleanSelected, cleanAll, selectAll, deselectAll, toggleSelect,
 } = useOrphanCleanup()
+
+// ── 项目目录 + 磁盘占用（cmd_fs_usage 递归真值，2026-10-02）──
+interface FsUsageEntry { name: string; fileCount: number; size: number }
+interface FsUsage { fileCount: number; totalSize: number; entries: FsUsageEntry[] }
+
+const projectDir = ref<string | null>(null)
+const usage = ref<FsUsage | null>(null)
+
+async function refreshUsage(): Promise<void> {
+  projectDir.value = getFileStorageBackend()?.projectDir ?? null
+  const dir = projectDir.value
+  if (!dir) {
+    usage.value = null
+    return
+  }
+  try {
+    usage.value = await invoke<FsUsage>('cmd_fs_usage', { dir })
+  } catch (err) {
+    console.warn('[Storage] 目录占用统计失败:', err)
+    usage.value = null
+  }
+}
+
+async function openProjectDir(): Promise<void> {
+  if (!projectDir.value) return
+  try {
+    await invoke('cmd_open_in_explorer', { path: projectDir.value })
+  } catch (err) {
+    console.warn('[Storage] 打开项目文件夹失败:', err)
+    toast.toastError('打开项目文件夹失败')
+  }
+}
+
+// ── 数据构成：按芽类型的实体数细分（纯前端 groupBy）──
+const composition = computed(() => {
+  const counts = new Map<string, number>()
+  for (const e of entityStore.entities) counts.set(e.type, (counts.get(e.type) || 0) + 1)
+  return [...counts.entries()]
+    .map(([type, count]) => ({ type, label: entitySchemaRegistry.getLabel(type) || type, count }))
+    .sort((a, b) => b.count - a.count)
+})
 
 // ── 叠放翻卡：复用通用 CardDeck（count=3，三个功能分区为三张卡；左列标题点击 → goToCard） ──
 const emit = defineEmits<{ 'card-change': [index: number] }>()
@@ -46,6 +90,7 @@ function formatSize(bytes: number): string {
 async function onRefreshStats(): Promise<void> {
   await refresh()
   await scanOrphanCount()
+  await refreshUsage()
 }
 
 async function onScanOrphans(): Promise<void> {
@@ -83,6 +128,7 @@ onMounted(async () => {
   autostartOn.value = await autostartEnabled()
   refresh()
   scanOrphanCount()
+  refreshUsage()
 })
 </script>
 
@@ -113,10 +159,15 @@ onMounted(async () => {
               刷新统计
             </TuiButton>
           </div>
+          <div class="sm-dir-row">
+            <WsIcon name="folder" size="xs" />
+            <span class="sm-dir-path" :title="projectDir || ''">{{ projectDir || '（未打开文件项目）' }}</span>
+            <TuiButton size="sm" variant="ghost" :disabled="!projectDir" @click="openProjectDir">打开文件夹</TuiButton>
+          </div>
           <div class="sm-stats-grid">
             <div class="sm-stat-item">
-              <span class="sm-stat-value">{{ stats.totalUsageMB.toFixed(1) }} MB</span>
-              <span class="sm-stat-label">数据占用（估算）</span>
+              <span class="sm-stat-value">{{ usage ? formatSize(usage.totalSize) : stats.totalUsageMB.toFixed(1) + ' MB' }}</span>
+              <span class="sm-stat-label">{{ usage ? '磁盘占用' : '数据占用（估算）' }}</span>
             </div>
             <div class="sm-stat-item">
               <span class="sm-stat-value">{{ stats.entityCount }}</span>
@@ -138,6 +189,10 @@ onMounted(async () => {
               <span class="sm-stat-value">{{ stats.kvCount }}</span>
               <span class="sm-stat-label">键值项</span>
             </div>
+          </div>
+          <div v-if="composition.length" class="sm-comp-row">
+            <span v-for="c in composition.slice(0, 8)" :key="c.type" class="sm-comp-chip">{{ c.label }} × {{ c.count }}</span>
+            <span v-if="composition.length > 8" class="sm-comp-chip">其他 × {{ composition.length - 8 }}</span>
           </div>
           <div class="sm-orphan-hint" v-if="stats.orphanFileCount !== null && stats.orphanFileCount > 0">
             <WsIcon name="warning" size="xs" />
@@ -243,6 +298,40 @@ onMounted(async () => {
 .sm-consistency-row > span {
   flex: 1;
   min-width: 0;
+}
+.sm-dir-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+  padding: 6px 8px;
+  background: var(--color-bg-hover);
+  border-radius: var(--radius-md);
+  font-size: var(--text-body-sm-font-size);
+}
+.sm-dir-path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl; /* 长路径省略号保留末段（离文件名近的一端） */
+  text-align: left;
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono, monospace);
+}
+.sm-comp-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.sm-comp-chip {
+  padding: 3px 10px;
+  background: var(--color-bg-hover);
+  border-radius: var(--radius-pill, 999px);
+  font-size: var(--text-caption-font-size);
+  color: var(--color-text-secondary);
 }
 .sm-orphan-hint {
   display: flex;
