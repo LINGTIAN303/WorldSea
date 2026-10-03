@@ -43,12 +43,18 @@
     </div>
   </Transition>
 
-  <div v-if="visible" class="detail-backdrop" @click="$emit('close')" />
+  <div
+    v-if="visible"
+    class="detail-backdrop"
+    :class="{ 'is-blocking': backdropBlocking }"
+    @click="onBackdropClick"
+  />
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
 import { WsIcon } from '@worldsea/ui-kit'
+import { useDetailLayoutStore } from '@worldsea/entity-core'
 import { useDetailChrome, type DetailTab } from '../detail/useDetailChrome'
 import '../detail/carrier-chrome.css'
 
@@ -89,6 +95,16 @@ const emit = defineEmits<{
   'tab-change': [tabId: string]
 }>()
 
+// 遮罩默认**穿透**（开着抽屉仍能直接点列表）——原样式就是 `pointer-events:none`，
+// 但模板上挂着 `@click="close"`，等于一个永不触发的死处理器。现把它做成可配置：
+// 设置里切到「拦截并点击关闭」才吃点击，默认行为与批次 2 之前一致。
+const detailPrefs = useDetailLayoutStore()
+const backdropBlocking = computed(() => detailPrefs.backdropMode === 'blocking')
+
+function onBackdropClick() {
+  if (backdropBlocking.value) emit('close')
+}
+
 const resizeSide = computed(() => props.resizeSide || 'left')
 
 const { activeTab, switchTab, panelWidth, onResizeStart } = useDetailChrome(
@@ -127,6 +143,10 @@ defineExpose({ switchTab, activeTab })
   inset: 0;
   z-index: 99;
   pointer-events: none;
+}
+/* 拦截模式：只有这一档才吃点击（外观不变——这块遮罩本来就只挡事件不挡视线） */
+.detail-backdrop.is-blocking {
+  pointer-events: auto;
 }
 .slide-enter-active,
 .slide-leave-active {

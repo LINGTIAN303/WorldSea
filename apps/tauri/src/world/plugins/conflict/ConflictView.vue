@@ -1,6 +1,7 @@
 <template>
   <GenericEntityView
     entityType="conflict"
+    detail-carrier="column"
     :form-fields="fields"
     :filter-defs="filterDefs"
     cardSubtitle="conflictType"

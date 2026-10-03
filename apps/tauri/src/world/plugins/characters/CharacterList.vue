@@ -7,7 +7,7 @@
       :filter-defs="filterDefs"
       :sort-options="sortOptions"
       :custom-tabs="customTabs"
-      :detail-layout="DETAIL_LAYOUT"
+      :detail-layout="DETAIL_LAYOUT" detail-carrier="column"
       entity-label="角色"
       id-prefix="chr"
       :icon-fn="() => 'character'"

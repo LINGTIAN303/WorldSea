@@ -3,7 +3,7 @@
     <div v-if="viewMode === 'tree'" class="spv-tree">
       <EvolutionTreeView @back="viewMode = 'list'" />
     </div>
-    <SchemaRenderer v-else type-key="species" :detail-tabs="speciesTabs" :schema-loader="loadEntityTypeSchema">
+    <SchemaRenderer v-else type-key="species" detail-carrier="column" :detail-tabs="speciesTabs" :schema-loader="loadEntityTypeSchema">
       <template #toolbar-extra>
         <button class="sv-evo-btn" @click="viewMode = 'tree'" title="进化树视图">
           <WsIcon name="family-tree" :size="14" :stroke-width="1.5" />

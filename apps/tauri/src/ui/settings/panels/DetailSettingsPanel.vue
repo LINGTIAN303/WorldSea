@@ -117,6 +117,16 @@
             载体与编排是两级：换容器不动你在「内容形态」里选的编排。
             {{ carrierHint }}
           </div>
+          <!-- 遮罩行为是全局一条：它管「抽屉这类浮层拦不拦点击」，与实体类型无关 -->
+          <div class="set-row"><span>遮罩行为（全局）</span>
+            <div class="set-chip-group">
+              <button v-for="b in backdropModes" :key="b.value" type="button" class="set-chip"
+                :class="{ on: store.backdropMode === b.value }" :title="b.description"
+                @click="store.backdropMode = b.value">
+                <WsIcon :name="b.icon" size="xs" /><span>{{ b.label }}</span>
+              </button>
+            </div>
+          </div>
           <div v-if="carrierSet" class="set-btn-row">
             <button class="set-btn" type="button" @click="clearCarrier">回到芽声明（当前未设＝右栏抽屉）</button>
           </div>
@@ -164,7 +174,7 @@ const CARD_KEYS = [
   '实体 详情 形态 配置 属性数 摘录 描述 创建时间 config',
   '实体 详情 分组 分组管理 组名 归属 未分组 group',
   '实体 详情 预设 命名预设 基准序 另存为 preset',
-  '实体 详情 载体 承载形态 抽屉 栏式 分栏 carrier column drawer',
+  '实体 详情 载体 承载形态 抽屉 栏式 分栏 遮罩 穿透 拦截 backdrop carrier column drawer',
 ]
 
 const props = defineProps<{ searchQuery?: string }>()
@@ -281,6 +291,17 @@ const groupSeed = computed<DetailGroup[]>(() => {
  * 芽声明的那一层拿不到（载体不像布局有落盘的合并源，它由各芽视图当 prop 传进来），
  * 所以这里不谎报「芽声明的是什么」，只说清未设时的行为。
  */
+/**
+ * 遮罩行为（全局）：抽屉这类浮层原本**不拦点击**（`.detail-backdrop` 带 `pointer-events:none`），
+ * 所以"点空白关抽屉"以前是不存在的。这里把它做成一档可选行为，缺省仍是穿透。
+ */
+const backdropModes = [
+  { value: 'passthrough' as const, label: '穿透', icon: 'move',
+    description: '抽屉开着仍能直接点列表与卡片（缺省，与批次 2 之前一致）' },
+  { value: 'blocking' as const, label: '拦截', icon: 'shield',
+    description: '遮罩拦住列表点击，点空白处关闭抽屉' },
+]
+
 const carrierSet = computed(() => !!store.carriers[activeType.value])
 const carrierValue = computed(() => store.carriers[activeType.value] ?? DEFAULT_CARRIER)
 const carrierHint = computed(() => carrierSet.value

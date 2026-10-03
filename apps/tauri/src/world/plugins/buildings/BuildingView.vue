@@ -3,7 +3,7 @@
     <div v-if="viewMode === 'section'" class="bv-section">
       <BuildingSectionView @back="viewMode = 'list'" />
     </div>
-    <SchemaRenderer v-else type-key="building" :detail-tabs="buildingTabs" :schema-loader="loadEntityTypeSchema">
+    <SchemaRenderer v-else type-key="building" detail-carrier="column" :detail-tabs="buildingTabs" :schema-loader="loadEntityTypeSchema">
       <template #toolbar-extra>
         <button class="bv-sec-btn" @click="viewMode = 'section'" title="剖面分层视图">
           <WsIcon name="grid" :size="14" :stroke-width="1.5" />

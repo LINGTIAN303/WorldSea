@@ -3,7 +3,7 @@
     <div v-if="viewMode === 'calendar'" class="cv-calendar">
       <FestivalCalendarView @back="viewMode = 'list'" />
     </div>
-    <SchemaRenderer v-else type-key="culture" :detail-tabs="cultureTabs" :schema-loader="loadEntityTypeSchema">
+    <SchemaRenderer v-else type-key="culture" detail-carrier="column" :detail-tabs="cultureTabs" :schema-loader="loadEntityTypeSchema">
       <template #toolbar-extra>
         <button class="cv-cal-btn" @click="viewMode = 'calendar'" title="节日历环视图">
           <WsIcon name="calendar" :size="14" :stroke-width="1.5" />

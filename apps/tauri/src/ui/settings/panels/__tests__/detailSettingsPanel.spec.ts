@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { nextTick } from 'vue'
 import 'fake-indexeddb/auto'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia, type Pinia } from 'pinia'
@@ -77,7 +78,8 @@ describe('承载形态（卡六）', () => {
   }
 
   it('未设置时高亮缺省抽屉，且不给「回到芽声明」按钮', () => {
-    const chips = card(mountPanel()).findAll('.set-chip')
+    // 容器与遮罩两档按钮同在第六卡，按 chip-group 取，别把遮罩数进来
+    const chips = card(mountPanel()).findAll('.set-chip-group')[0].findAll('.set-chip')
     expect(chips.map(c => c.text())).toEqual(['右栏抽屉', '栏式整页'])
     expect(chips[0].classes()).toContain('on')
     expect(card(mountPanel()).find('.set-btn').exists()).toBe(false)
@@ -100,6 +102,21 @@ describe('承载形态（卡六）', () => {
     await card(w).find('.set-btn').trigger('click')
     expect(store.carriers.character).toBeUndefined()
     expect(store.overrides.character.hidden).toEqual(['age'])
+  })
+
+  it('遮罩行为是全局一条：高亮缺省穿透，切拦截写 backdropMode 不写 carriers', async () => {
+    const w = mountPanel()
+    const chips = card(w).findAll('.set-chip-group')[1].findAll('.set-chip')
+    expect(chips.map(c => c.text())).toEqual(['穿透', '拦截'])
+    expect(chips[0].classes()).toContain('on')
+
+    await chips[1].trigger('click')
+    await nextTick()
+    const store = useDetailLayoutStore()
+    expect(store.backdropMode).toBe('blocking')
+    expect(localStorage.getItem('worldsea_detail_backdrop')).toBe('blocking')
+    // 全局档：不许顺手写进按类型的载体覆写里
+    expect(store.carriers.character).toBeUndefined()
   })
 })
 

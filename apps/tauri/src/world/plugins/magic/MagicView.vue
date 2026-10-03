@@ -3,7 +3,7 @@
     <div v-if="viewMode === 'tree'" class="mv-tree">
       <SkillTreeView @back="viewMode = 'list'" />
     </div>
-    <SchemaRenderer v-else type-key="magic" :additional-filter="levelFn" :detail-tabs="magicTabs" :schema-loader="loadEntityTypeSchema">
+    <SchemaRenderer v-else type-key="magic" detail-carrier="column" :additional-filter="levelFn" :detail-tabs="magicTabs" :schema-loader="loadEntityTypeSchema">
       <template #toolbar-extra>
         <CustomDropdown v-model="levelFilter" :options="levelFilterOpts" />
         <button class="mv-tree-btn" @click="viewMode = 'tree'" title="技能树视图">

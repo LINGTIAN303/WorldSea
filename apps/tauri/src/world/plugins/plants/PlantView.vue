@@ -3,7 +3,7 @@
     <div v-if="viewMode === 'recipe'" class="pv-recipe">
       <RecipeTreeView @back="viewMode = 'list'" />
     </div>
-    <SchemaRenderer v-else type-key="plant" :detail-tabs="plantTabs" :schema-loader="loadEntityTypeSchema">
+    <SchemaRenderer v-else type-key="plant" detail-carrier="column" :detail-tabs="plantTabs" :schema-loader="loadEntityTypeSchema">
       <template #toolbar-extra>
         <button class="pv-recipe-btn" @click="viewMode = 'recipe'" title="配方树视图">
           <WsIcon name="family-tree" :size="14" :stroke-width="1.5" />

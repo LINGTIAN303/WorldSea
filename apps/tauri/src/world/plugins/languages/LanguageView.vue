@@ -3,7 +3,7 @@
     <div v-if="viewMode === 'tree'" class="lv-tree">
       <LanguageFamilyTreeView @back="viewMode = 'list'" />
     </div>
-    <SchemaRenderer v-else type-key="language" :detail-tabs="languageTabs" :schema-loader="loadEntityTypeSchema">
+    <SchemaRenderer v-else type-key="language" detail-carrier="column" :detail-tabs="languageTabs" :schema-loader="loadEntityTypeSchema">
       <template #toolbar-extra>
         <button class="lv-tree-btn" @click="viewMode = 'tree'" title="语系树视图">
           <WsIcon name="family-tree" :size="14" :stroke-width="1.5" />

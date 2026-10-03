@@ -3,7 +3,7 @@
     <div v-if="viewMode === 'staircase'" class="csv-staircase">
       <RealmStaircaseView @back="viewMode = 'list'" />
     </div>
-    <SchemaRenderer v-else type-key="combat_stat" :schema-loader="loadEntityTypeSchema">
+    <SchemaRenderer v-else type-key="combat_stat" detail-carrier="column" :schema-loader="loadEntityTypeSchema">
       <template #toolbar-extra>
         <button class="csv-stair-btn" @click="viewMode = 'staircase'" title="境界阶梯/雷达图视图">
           <WsIcon name="chart" :size="14" :stroke-width="1.5" />
