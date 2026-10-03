@@ -37,7 +37,7 @@ commands.allow = [
     "cmd_delete_file", "cmd_delete_relation", "cmd_delete_relations_by_entity",
     "cmd_font_read_file", "cmd_font_scan_system", "cmd_fs_delete", "cmd_fs_list",
     "cmd_fs_mkdir", "cmd_fs_read", "cmd_fs_rename", "cmd_fs_search",
-    "cmd_fs_stat", "cmd_fs_watch_start", "cmd_fs_watch_stop", "cmd_fs_write",
+    "cmd_fs_stat", "cmd_fs_usage", "cmd_fs_watch_start", "cmd_fs_watch_stop", "cmd_fs_write",
     "cmd_get_all_entities", "cmd_get_all_files", "cmd_get_all_relations", "cmd_get_entities_by_type",
     "cmd_get_entity", "cmd_get_file", "cmd_get_file_by_path", "cmd_get_file_content",
     "cmd_get_files_by_entity", "cmd_get_relations_by_entity", "cmd_import_entities", "cmd_import_relations",
