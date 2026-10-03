@@ -1,60 +1,44 @@
 <template>
   <Transition name="slide">
-    <div
-      v-if="visible"
-      class="detail-panel dp-shell"
-      :style="{ width: panelWidth + 'px' }"
-    >
+    <div v-if="visible" class="detail-panel dp-shell" :style="{ width: panelWidth + 'px' }">
       <div class="resize-handle-left" @mousedown="onResizeStart" />
 
-      <div class="dp-header">
-        <slot name="header" :entity="entity" :editing="editing">
-          <WsIcon v-if="icon" :name="icon" size="sm" />
-          <div class="dp-title-area">
-            <h3>{{ title }}</h3>
-            <span v-if="subtitle" class="dp-subtitle">{{ subtitle }}</span>
-          </div>
-        </slot>
-        <button v-if="showEdit" class="detail-edit-toggle" @click="$emit('edit')">
-          <WsIcon name="edit" size="sm" />
-        </button>
-        <button class="detail-close" @click="$emit('close')">
-          <WsIcon name="x" size="sm" />
-        </button>
-      </div>
-
-      <div v-if="tabs.length > 1" class="dp-tabs">
-        <button
-          v-for="tab in tabs"
-          :key="tab.id"
-          class="dp-tab"
-          :class="{ active: activeTab === tab.id }"
-          @click="switchTab(tab.id)"
-        >
-          <WsIcon v-if="tab.icon" :name="tab.icon" size="xs" />
-          {{ tab.label }}
-        </button>
-      </div>
-
-      <div class="dp-content">
-        <slot :name="activeTab" :entity="entity" :editing="editing" />
-        <slot name="default" :entity="entity" :editing="editing" />
-      </div>
+      <DetailShell
+        :entity="entity"
+        :editing="editing"
+        :icon="icon"
+        :title="title"
+        :subtitle="subtitle"
+        :tabs="tabs"
+        :show-edit="showEdit"
+        :active-tab="activeTab"
+        @close="emit('close')"
+        @edit="emit('edit')"
+        @tab-change="switchTab"
+      >
+        <template #header="s"><slot name="header" v-bind="s" /></template>
+        <template #default="s">
+          <slot :name="activeTab" :entity="s.entity" :editing="s.editing" />
+          <slot name="default" :entity="s.entity" :editing="s.editing" />
+        </template>
+      </DetailShell>
     </div>
   </Transition>
 
-  <div
-    v-if="visible"
-    class="detail-backdrop"
-    :class="{ 'is-blocking': backdropBlocking }"
-    @click="onBackdropClick"
-  />
+  <DetailBackdrop :visible="visible" :entity-type="entityType" @close="emit('close')" />
 </template>
 
 <script setup lang="ts">
+/**
+ * L1 载体·右栏抽屉（缺省）。详细见 docs/details/注释/packages/plugin-sdk/实体详情内容形态.md §十
+ *
+ * 本件只剩「容器该有的样子」：贴右浮层、滑入动效、拖宽、遮罩档位。
+ * 表头/标签页/正文在 `DetailShell`，穿透或拦截在 `DetailBackdrop`——各载体共用一份，
+ * 免得加一种载体抄一遍（1a 之前的四套字段控件正是这么长出来的）。
+ */
 import { computed } from 'vue'
-import { WsIcon } from '@worldsea/ui-kit'
-import { useDetailLayoutStore } from '@worldsea/entity-core'
+import DetailShell from './DetailShell.vue'
+import DetailBackdrop from './DetailBackdrop.vue'
 import { useDetailChrome, type DetailTab } from '../detail/useDetailChrome'
 import '../detail/carrier-chrome.css'
 
@@ -73,7 +57,7 @@ const props = withDefaults(defineProps<{
   defaultWidth?: number
   panelId?: string
   resizeSide?: 'left' | 'right'
-  /** 遮罩档位按实体类型解析（覆写 > 全局），所以调用方要报类型；空串＝只吃全局默认 */
+  /** 遮罩档位按实体类型解析（覆写 > 全局），调用方报类型即可，不自己拼默认值 */
   entityType?: string
 }>(), {
   icon: '',
@@ -98,16 +82,6 @@ const emit = defineEmits<{
   'tab-change': [tabId: string]
 }>()
 
-// 遮罩默认**穿透**（开着抽屉仍能直接点列表）——原样式就是 `pointer-events:none`，
-// 但模板上挂着 `@click="close"`，等于一个永不触发的死处理器。现做成两层可配置：
-// 全局默认 + 按类型覆写，档位由 `backdropFor()` 单点解析（调用方只报实体类型，不自己拼默认值）。
-const detailPrefs = useDetailLayoutStore()
-const backdropBlocking = computed(() => detailPrefs.backdropFor(props.entityType) === 'blocking')
-
-function onBackdropClick() {
-  if (backdropBlocking.value) emit('close')
-}
-
 const resizeSide = computed(() => props.resizeSide || 'left')
 
 const { activeTab, switchTab, panelWidth, onResizeStart } = useDetailChrome(
@@ -127,7 +101,7 @@ defineExpose({ switchTab, activeTab })
 </script>
 
 <style scoped>
-/* 载体独有的样式；表头/标签页/关闭等内容壳见 detail/carrier-chrome.css */
+/* 载体独有的部分：浮在列表之上、贴右边。共用外壳见 detail/carrier-chrome.css */
 .detail-panel {
   position: fixed;
   top: 0;
@@ -140,16 +114,6 @@ defineExpose({ switchTab, activeTab })
   display: flex;
   flex-direction: column;
   overflow: hidden;
-}
-.detail-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 99;
-  pointer-events: none;
-}
-/* 拦截模式：只有这一档才吃点击（外观不变——这块遮罩本来就只挡事件不挡视线） */
-.detail-backdrop.is-blocking {
-  pointer-events: auto;
 }
 .slide-enter-active,
 .slide-leave-active {

@@ -8,6 +8,9 @@ import { useEntityStore, useDetailLayoutStore, type Entity } from '@worldsea/ent
 import GenericEntityView from '../GenericEntityView.vue'
 import EntityDetailPanel from '../EntityDetailPanel.vue'
 import ColumnDetailView from '../ColumnDetailView.vue'
+import ModalDetailView from '../ModalDetailView.vue'
+import ImmersiveDetailView from '../ImmersiveDetailView.vue'
+import FloatingDetailView from '../FloatingDetailView.vue'
 
 /**
  * L1 载体分发的挂载守卫。详细见
@@ -117,5 +120,32 @@ describe('载体分发', () => {
 
     const column = await select(mountView({ detailCarrier: 'column' }))
     expect(column.findComponent(ColumnDetailView).props('panelId')).toBe('detail-column-concept')
+  })
+
+  it('居中弹层是浮层：换组件但不改列表布局', async () => {
+    const w = await select(mountView({ detailCarrier: 'modal' }))
+    expect(w.findComponent(ModalDetailView).exists()).toBe(true)
+    expect(w.findComponent(EntityDetailPanel).exists()).toBe(false)
+    expect(rootClass(w)).not.toContain('gev-root--split')
+    expect(rootClass(w)).not.toContain('gev-root--immersive')
+    expect(w.findComponent(ModalDetailView).props('panelId')).toBe('detail-modal-concept')
+  })
+
+  it('浮层小窗也是浮层，且同样不拦列表（没遮罩档位之外的布局改动）', async () => {
+    const w = await select(mountView({ detailCarrier: 'floating' }))
+    expect(w.findComponent(FloatingDetailView).exists()).toBe(true)
+    expect(rootClass(w)).not.toContain('gev-root--split')
+    expect(rootClass(w)).not.toContain('gev-root--immersive')
+  })
+
+  it('沉浸页盖住内容区：加 immersive 类、不加 split 类，没选中时也不加', async () => {
+    const w = await select(mountView({ detailCarrier: 'immersive' }))
+    expect(w.findComponent(ImmersiveDetailView).exists()).toBe(true)
+    expect(rootClass(w)).toContain('gev-root--immersive')
+    expect(rootClass(w)).not.toContain('gev-root--split')
+    w.unmount()
+
+    const idle = mountView({ detailCarrier: 'immersive' })
+    expect(rootClass(idle)).not.toContain('gev-root--immersive')
   })
 })

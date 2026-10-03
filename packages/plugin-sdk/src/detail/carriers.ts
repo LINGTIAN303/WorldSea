@@ -1,6 +1,9 @@
 import type { Component } from 'vue'
 import EntityDetailPanel from '../components/EntityDetailPanel.vue'
 import ColumnDetailView from '../components/ColumnDetailView.vue'
+import ModalDetailView from '../components/ModalDetailView.vue'
+import ImmersiveDetailView from '../components/ImmersiveDetailView.vue'
+import FloatingDetailView from '../components/FloatingDetailView.vue'
 
 /**
  * L1 载体形态注册表：详情**装在哪个容器里、占多大空间、怎么进出**。
@@ -11,8 +14,8 @@ import ColumnDetailView from '../components/ColumnDetailView.vue'
  * 否则每加一种载体，GEV 的详情段就要重写一遍（1a 之前的四套字段控件正是这么长出来的）。
  */
 
-/** overlay＝压在列表上的浮层（带遮罩）；split＝与列表同排分栏（不遮列表） */
-export type CarrierMode = 'overlay' | 'split'
+/** overlay＝压在列表上的浮层；split＝与列表同排分栏；immersive＝盖住整块内容区 */
+export type CarrierMode = 'overlay' | 'split' | 'immersive'
 
 export interface CarrierDefinition {
   /** 载体 id，存进 `worldsea_detail_carriers` */
@@ -82,6 +85,30 @@ const BUILT_IN_CARRIERS: CarrierDefinition[] = [
     mode: 'split',
     description: '与列表同排分栏，不遮列表；适合边翻列表边读详情',
     component: ColumnDetailView,
+  },
+  {
+    carrier: 'modal',
+    label: '居中弹层',
+    icon: 'square',
+    mode: 'overlay',
+    description: '屏幕居中的弹层，读一条实体时最聚焦；遮罩档位与抽屉共用',
+    component: ModalDetailView,
+  },
+  {
+    carrier: 'immersive',
+    label: '沉浸页',
+    icon: 'expand',
+    mode: 'immersive',
+    description: '详情铺满整个内容区（列表盖在下面），长文通读用',
+    component: ImmersiveDetailView,
+  },
+  {
+    carrier: 'floating',
+    label: '浮层小窗',
+    icon: 'move',
+    mode: 'overlay',
+    description: '可拖动的小窗，不拦列表点击；对照着改几处时用',
+    component: FloatingDetailView,
   },
 ]
 

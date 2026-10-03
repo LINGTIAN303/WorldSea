@@ -2,53 +2,39 @@
   <aside v-if="visible" class="dp-shell detail-column" :style="{ width: panelWidth + 'px' }">
     <div class="resize-handle-left" @mousedown="onResizeStart" />
 
-    <div class="dp-header">
-      <slot name="header" :entity="entity" :editing="editing">
-        <WsIcon v-if="icon" :name="icon" size="sm" />
-        <div class="dp-title-area">
-          <h3>{{ title }}</h3>
-          <span v-if="subtitle" class="dp-subtitle">{{ subtitle }}</span>
-        </div>
-      </slot>
-      <button v-if="showEdit" class="detail-edit-toggle" @click="emit('edit')">
-        <WsIcon name="edit" size="sm" />
-      </button>
-      <button class="detail-close" @click="emit('close')">
-        <WsIcon name="x" size="sm" />
-      </button>
-    </div>
-
-    <div v-if="tabs.length > 1" class="dp-tabs">
-      <button
-        v-for="tab in tabs"
-        :key="tab.id"
-        class="dp-tab"
-        :class="{ active: activeTab === tab.id }"
-        @click="switchTab(tab.id)"
-      >
-        <WsIcon v-if="tab.icon" :name="tab.icon" size="xs" />
-        {{ tab.label }}
-      </button>
-    </div>
-
-    <div class="dp-content">
-      <slot :name="activeTab" :entity="entity" :editing="editing" />
-      <slot name="default" :entity="entity" :editing="editing" />
-    </div>
+    <DetailShell
+      :entity="entity"
+      :editing="editing"
+      :icon="icon"
+      :title="title"
+      :subtitle="subtitle"
+      :tabs="tabs"
+      :show-edit="showEdit"
+      :active-tab="activeTab"
+      @close="emit('close')"
+      @edit="emit('edit')"
+      @tab-change="switchTab"
+    >
+      <template #header="s"><slot name="header" v-bind="s" /></template>
+      <template #default="s">
+        <slot :name="activeTab" :entity="s.entity" :editing="s.editing" />
+        <slot name="default" :entity="s.entity" :editing="s.editing" />
+      </template>
+    </DetailShell>
   </aside>
 </template>
 
 <script setup lang="ts">
 /**
- * L1 载体·栏式整页：详情与列表**同排分栏**，不是压在列表上的浮层。
- * 详细见 docs/details/注释/packages/plugin-sdk/实体详情内容形态.md §十
+ * L1 载体·栏式整页：详情与列表**同排分栏**，不是压在列表上的浮层。详细见
+ * docs/details/注释/packages/plugin-sdk/实体详情内容形态.md §十
  *
- * 与抽屉（`EntityDetailPanel`）的差别只有一处——容器：
- * 属性、事件、槽名、暴露面**逐一对齐**，GEV 才能用同一个 `<component :is>` 分发；
- * 外壳逻辑走 `useDetailChrome`、外壳样式走 `carrier-chrome.css`，两边都不再各写一份。
+ * 与抽屉的差别只有一处——容器：在流内占一格、无遮罩、不改根容器就看不到它。
+ * 属性/事件/槽名/暴露面逐一对齐，GEV 才敢用一个 `<component :is>` 分发。
  */
-import { WsIcon } from '@worldsea/ui-kit'
+import DetailShell from './DetailShell.vue'
 import { useDetailChrome, type DetailTab } from '../detail/useDetailChrome'
+import '../detail/carrier-chrome.css'
 
 const props = withDefaults(defineProps<{
   visible: boolean
@@ -64,7 +50,7 @@ const props = withDefaults(defineProps<{
   maxWidth?: number
   defaultWidth?: number
   panelId?: string
-  /** 与抽屉同名的属性（载体契约对齐才有 `<component :is>` 分发）；分栏在流内、无遮罩，本件不消费它 */
+  /** 与抽屉同名的属性（载体契约对齐才有 `<component :is>` 分发）；分栏在流内、无遮罩，本件不消费 */
   entityType?: string
 }>(), {
   icon: '',
@@ -78,6 +64,7 @@ const props = withDefaults(defineProps<{
   maxWidth: 0,
   defaultWidth: 560,
   panelId: 'detail-column-default',
+  entityType: '',
 })
 
 const emit = defineEmits<{
@@ -103,7 +90,7 @@ defineExpose({ switchTab, activeTab })
 </script>
 
 <style scoped>
-/* 载体独有的部分：在流内、随分栏父容器占位；共用外壳见 carrier-chrome.css */
+/* 载体独有的部分：在流内、随分栏父容器占位 */
 .detail-column {
   position: relative;
   flex: 0 0 auto;

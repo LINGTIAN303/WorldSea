@@ -1,5 +1,5 @@
 <template>
-  <div class="gev-root" :class="{ 'gev-root--split': splitCarrierOpen }">
+  <div class="gev-root" :class="{ 'gev-root--split': splitCarrierOpen, 'gev-root--immersive': immersiveCarrierOpen }">
     <!-- 工具栏按控件类型分发到 R3 统一工具条各落点（搜索→标题旁，筛选→收束条，动作→动作区，新建→新建区） -->
     <!-- 搜索框 → 标题右侧（#view-toolbar-search） -->
     <Teleport to="#view-toolbar-search">
@@ -342,8 +342,10 @@ const carrierId = computed(() => resolveCarrier(detailPrefs.carriers[props.entit
 const carrierDef = computed(() => activeCarrier(carrierId.value))
 /** 宽度按「载体 + 类型」分别记：同一类型下抽屉与分栏各拖各的，互不覆盖（键规则在 `carrierPanelId`） */
 const detailPanelId = computed(() => carrierPanelId(carrierDef.value.carrier, props.entityType))
-/** 只有 split 型载体（栏式整页）要把根容器改成分栏；抽屉仍是浮层，布局一点不动 */
+/** 只有 split 型载体（栏式整页）要把根容器改成分栏；抽屉/弹层是浮层，布局一点不动 */
 const splitCarrierOpen = computed(() => carrierDef.value.mode === 'split' && !!selectedEntity.value)
+/** immersive 型（沉浸页）盖住整块内容区——列表还在 DOM 里，只是被压在下面 */
+const immersiveCarrierOpen = computed(() => carrierDef.value.mode === 'immersive' && !!selectedEntity.value)
 
 const { layout: detailLayout, setContentForm } = useDetailLayout(
   () => props.entityType,
@@ -695,7 +697,8 @@ defineExpose({
 </script>
 
 <style scoped>
-.gev-root { display: flex; flex-direction: column; height: 100%; padding: 20px; }
+/* `position:relative` 是给沉浸页载体当定位父级的——它盖的是"这一块内容区"，不是整个窗口 */
+.gev-root { position: relative; display: flex; flex-direction: column; height: 100%; padding: 20px; }
 /* 栏式整页：详情与列表同排分栏。子件根元素带本组件的 scope 属性，所以 :deep 只是保险 */
 .gev-root--split { flex-direction: row; padding-right: 0; }
 .gev-root--split .entity-grid { min-width: 0; }

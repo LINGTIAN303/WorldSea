@@ -11,7 +11,8 @@ export { default as SchemaRenderer } from './SchemaRenderer.vue'
 export { default as GenericEntityView } from './GenericEntityView.vue'
 export { default as EmptyState } from './EmptyState.vue'
 export { default as LoadingSkeleton } from './LoadingSkeleton.vue'
-export { default as EntityDetailPanel } from './EntityDetailPanel.vue'
+// 载体不再单独对外导出：换容器只走 `detail/carriers` 注册表（`<component :is>` 分发）。
+// 留一个具名导出＝留一条"绕过注册表直挂抽屉"的路，静态守卫拦不到包外的用法。
 export type { DetailTab } from '../detail/useDetailChrome'
 export { default as ImageField } from './ImageField.vue'
 export { default as ImageLightbox } from './ImageLightbox.vue'

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { DEFAULT_CARRIER, activeCarrier, allCarriers, carrierPanelId, getCarrier, resolveCarrier } from '../carriers'
+import { hasLucideIcon } from '@worldsea/ui-kit/components/lucideMap'
 
 /**
  * L1 载体注册表守卫。详细见 docs/details/注释/packages/plugin-sdk/实体详情内容形态.md §十
@@ -9,11 +10,14 @@ import { DEFAULT_CARRIER, activeCarrier, allCarriers, carrierPanelId, getCarrier
  */
 
 describe('载体注册表', () => {
-  it('内建两种载体，缺省是右栏抽屉（未声明零变化）', () => {
-    expect(allCarriers().map(c => c.carrier)).toEqual(['drawer', 'column'])
+  it('内建五种载体，缺省是右栏抽屉（未声明零变化）', () => {
+    expect(allCarriers().map(c => c.carrier)).toEqual(['drawer', 'column', 'modal', 'immersive', 'floating'])
     expect(DEFAULT_CARRIER).toBe('drawer')
     expect(getCarrier('drawer')?.mode).toBe('overlay')
     expect(getCarrier('column')?.mode).toBe('split')
+    expect(getCarrier('modal')?.mode).toBe('overlay')
+    expect(getCarrier('immersive')?.mode).toBe('immersive')
+    expect(getCarrier('floating')?.mode).toBe('overlay')
   })
 
   it('每种载体都有可辨识的标签、图标与一句话说明，且带组件', () => {
@@ -22,6 +26,12 @@ describe('载体注册表', () => {
       expect(def.icon, def.carrier).not.toBe('')
       expect(def.description, def.carrier).not.toBe('')
       expect(def.component, def.carrier).toBeTruthy()
+    }
+  })
+
+  it('图标名必须在 lucideMap 里（不在就静默渲成空，设置面少一枚看不见的按钮）', () => {
+    for (const def of allCarriers()) {
+      expect(hasLucideIcon(def.icon), `${def.carrier} 的图标 ${def.icon}`).toBe(true)
     }
   })
 

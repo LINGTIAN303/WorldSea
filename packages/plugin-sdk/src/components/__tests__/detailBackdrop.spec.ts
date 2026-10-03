@@ -25,7 +25,8 @@ function mountPanel(props: Record<string, unknown> = {}) {
   return wrapper
 }
 
-const backdrop = (w: VueWrapper) => w.find('.detail-backdrop')
+// 遮罩自 2026-10-04 起是各 overlay 载体共用的 `DetailBackdrop.vue`，类名 `.dp-backdrop`
+const backdrop = (w: VueWrapper) => w.find('.dp-backdrop')
 
 beforeEach(() => {
   // 遮罩档落 localStorage：不清的话上一例写的 blocking 会让本例的"缺省穿透"假绿
@@ -94,6 +95,6 @@ describe('抽屉遮罩', () => {
 
   it('抽屉关着时不渲染遮罩（穿透档也不该留一层挡列表）', () => {
     const w = mountPanel({ visible: false, entity: null })
-    expect(w.find('.detail-backdrop').exists()).toBe(false)
+    expect(backdrop(w).exists()).toBe(false)
   })
 })

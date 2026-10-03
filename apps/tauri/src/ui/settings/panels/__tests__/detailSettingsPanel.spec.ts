@@ -80,7 +80,8 @@ describe('承载形态（卡六）', () => {
   it('未设置时高亮缺省抽屉，且不给「回到芽声明」按钮', () => {
     // 容器与遮罩两档按钮同在第六卡，按 chip-group 取，别把遮罩数进来
     const chips = card(mountPanel()).findAll('.set-chip-group')[0].findAll('.set-chip')
-    expect(chips.map(c => c.text())).toEqual(['右栏抽屉', '栏式整页'])
+    // 设置面按注册表自动渲染：载体加一种，这里就多一枚按钮，不用改面板
+    expect(chips.map(c => c.text())).toEqual(['右栏抽屉', '栏式整页', '居中弹层', '沉浸页', '浮层小窗'])
     expect(chips[0].classes()).toContain('on')
     expect(card(mountPanel()).find('.set-btn').exists()).toBe(false)
   })

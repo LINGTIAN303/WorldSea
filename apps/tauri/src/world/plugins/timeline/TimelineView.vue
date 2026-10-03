@@ -1,5 +1,5 @@
 <template>
-  <div class="timeline-view" :class="{ 'timeline-view--split': splitCarrierOpen }">
+  <div class="timeline-view" :class="{ 'timeline-view--split': splitCarrierOpen, 'timeline-view--immersive': immersiveOpen }">
     <!-- 工具栏上移 R3 统一工具条（搜索→标题旁，筛选→收束条，动作→动作区，新建→新建区），套用 BuildingSectionView 模式 -->
     <Teleport to="#view-toolbar-search">
       <input v-model="searchQuery" placeholder="搜索事件..." class="search-input" />
@@ -159,6 +159,7 @@ const detailPrefs = useDetailLayoutStore()
 const carrierDef = computed(() => activeCarrier(resolveCarrier(detailPrefs.carriers.event)))
 const detailPanelId = computed(() => carrierPanelId(carrierDef.value.carrier, 'event'))
 const splitCarrierOpen = computed(() => carrierDef.value.mode === 'split' && !!selectedEvent.value)
+const immersiveOpen = computed(() => carrierDef.value.mode === 'immersive' && !!selectedEvent.value)
 const editingEvent = ref<Entity | null>(null)
 const formModalRef = ref<InstanceType<typeof EntityFormModal> | null>(null)
 
@@ -417,7 +418,9 @@ onBeforeUnmount(() => { for (const id of TIMELINE_SHORTCUT_IDS) unregister(id) }
 </script>
 
 <style scoped>
-.timeline-view { padding: 20px; height: 100%; display: flex; flex-direction: column; }
+.timeline-view { position: relative; padding: 20px; height: 100%; display: flex; flex-direction: column; }
+/* 沉浸页：详情盖住整块时间线区域（定位父级就是本件根容器） */
+.timeline-view--immersive { padding: 0; }
 /* 栏式载体：详情与时间线同排分栏。分栏柱靠负 margin 出血到窗口边（本件根容器自带 20px padding） */
 .timeline-view--split { flex-direction: row; padding-right: 0; }
 .timeline-view--split .timeline-chart { min-width: 0; }
