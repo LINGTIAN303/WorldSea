@@ -1,3 +1,4 @@
+<script setup lang="ts">
 import { onMounted, computed, ref } from 'vue'
 import { TuiButton, WsIcon } from '@worldsea/ui-kit'
 import { CardDeck } from '@worldsea/ui-kit'
