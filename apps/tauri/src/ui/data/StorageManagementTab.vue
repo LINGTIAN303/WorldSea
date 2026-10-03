@@ -100,11 +100,13 @@ async function onScanOrphans(): Promise<void> {
 async function onCleanSelected(): Promise<void> {
   await cleanSelected(Array.from(selectedIds.value))
   await refresh()
+  await refreshUsage()
 }
 
 async function onCleanAll(): Promise<void> {
   await cleanAll()
   await refresh()
+  await refreshUsage()
 }
 
 /** 跳转一致性检查（2026-10-02 裁定：原「数据诊断」卡退役，体检统一归一致性检查面板） */
@@ -165,9 +167,13 @@ onMounted(async () => {
             <TuiButton size="sm" variant="ghost" :disabled="!projectDir" @click="openProjectDir">打开文件夹</TuiButton>
           </div>
           <div class="sm-stats-grid">
-            <div class="sm-stat-item">
+            <div class="sm-stat-item" :title="usage ? 'worlddata 数据目录逻辑大小（与资源管理器「大小」口径一致）' : undefined">
               <span class="sm-stat-value">{{ usage ? formatSize(usage.totalSize) : stats.totalUsageMB.toFixed(1) + ' MB' }}</span>
-              <span class="sm-stat-label">{{ usage ? '磁盘占用' : '数据占用（估算）' }}</span>
+              <span class="sm-stat-label">{{ usage ? '数据目录占用' : '数据占用（估算）' }}</span>
+            </div>
+            <div class="sm-stat-item" title="文件原始字节；落盘为 base64 JSON，略大于此值">
+              <span class="sm-stat-value">{{ stats.fileTotalMB.toFixed(1) }} MB</span>
+              <span class="sm-stat-label">文件体积（原始）</span>
             </div>
             <div class="sm-stat-item">
               <span class="sm-stat-value">{{ stats.entityCount }}</span>
@@ -182,13 +188,20 @@ onMounted(async () => {
               <span class="sm-stat-label">文件</span>
             </div>
             <div class="sm-stat-item">
-              <span class="sm-stat-value">{{ stats.fileTotalMB.toFixed(1) }} MB</span>
-              <span class="sm-stat-label">文件体积</span>
-            </div>
-            <div class="sm-stat-item">
               <span class="sm-stat-value">{{ stats.kvCount }}</span>
               <span class="sm-stat-label">键值项</span>
             </div>
+          </div>
+          <!-- 磁盘占用分项：让总数可核对（entities/relations/.worldsea/… 各占多少） -->
+          <div v-if="usage && usage.entries.length" class="sm-usage-list">
+            <div v-for="en in usage.entries" :key="en.name" class="sm-usage-item">
+              <span class="sm-usage-name" :title="en.name">{{ en.name }}</span>
+              <span class="sm-usage-count">{{ en.fileCount }} 文件</span>
+              <span class="sm-usage-size">{{ formatSize(en.size) }}</span>
+            </div>
+          </div>
+          <div v-if="usage" class="sm-usage-note">
+            实体/关系/文件均以 JSON 落盘（图片等二进制转 base64，实际略大于原始体积）；应用设置存于内部，不在此目录。
           </div>
           <div v-if="composition.length" class="sm-comp-row">
             <span v-for="c in composition.slice(0, 8)" :key="c.type" class="sm-comp-chip">{{ c.label }} × {{ c.count }}</span>
@@ -332,6 +345,36 @@ onMounted(async () => {
   border-radius: var(--radius-pill, 999px);
   font-size: var(--text-caption-font-size);
   color: var(--color-text-secondary);
+}
+.sm-usage-list {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sm-usage-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-caption-font-size);
+}
+.sm-usage-item:hover { background: var(--color-bg-hover); }
+.sm-usage-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-secondary);
+}
+.sm-usage-count { color: var(--color-text-tertiary); }
+.sm-usage-size { color: var(--color-text-primary); font-variant-numeric: tabular-nums; }
+.sm-usage-note {
+  margin-top: 6px;
+  font-size: var(--text-caption-font-size);
+  color: var(--color-text-tertiary);
 }
 .sm-orphan-hint {
   display: flex;
