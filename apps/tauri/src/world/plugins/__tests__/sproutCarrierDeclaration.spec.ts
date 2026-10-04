@@ -1,15 +1,17 @@
 import { describe, it, expect } from 'vitest'
-import { readFileSync, readdirSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import { readFileSync, readdirSync } from 'node:fs'
+import { join, relative } from 'node:path'
 import { getCarrier } from '@worldsea/plugin-sdk'
 
 /**
  * 「芽 → 载体」分配表的静态守卫。背景见
- * docs/plans/2026-10-02-实体详情表单地基与形态批计划.md §七之七
+ * docs/plans/2026-10-02-实体详情表单地基与形态批计划.md §七之七 与 §七之十
  *
- * 分配表是**产品决定**，散在 9 个视图文件里当属性写。没有守卫的话，
+ * 分配表是**产品决定**，散在各芽视图文件里当属性写。没有守卫的话，
  * 一次顺手重构就能悄悄改掉某枚芽的默认容器，而这条变化只有真机打开详情才看得见。
- * 这里锁两件事：**声明集合恰好是那 9 枚**、**每一枚的 id 都在注册表里**。
+ *
+ * 遍历必须**递归**：`outline/board/BoardView.vue` 这类入口在子目录里，
+ * 早先只 `readdirSync` 走一层＝整个 outline 芽静默逃逸，子目录里的直挂也照样漏。
  */
 
 const PLUGINS = join(__dirname, '..')
@@ -20,17 +22,33 @@ const COLUMN_SPROUTS = [
   'languages', 'magic', 'plants', 'species',
 ]
 
-function collectDeclarations(): { sprout: string; carrier: string }[] {
-  const out: { sprout: string; carrier: string }[] = []
-  for (const dir of readdirSync(PLUGINS)) {
-    const full = join(PLUGINS, dir)
-    if (!statSync(full).isDirectory()) continue
-    for (const file of readdirSync(full)) {
-      if (!file.endsWith('.vue')) continue
-      const src = readFileSync(join(full, file), 'utf8')
-      for (const m of src.matchAll(/detail-carrier="([\w-]+)"/g)) {
-        out.push({ sprout: dir, carrier: m[1] })
-      }
+interface SproutFile { sprout: string; file: string; src: string }
+
+function walk(dir: string, sprout: string, base: string, out: SproutFile[]): void {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name)
+    if (entry.isDirectory()) walk(full, sprout, base, out)
+    else if (entry.name.endsWith('.vue')) {
+      // 路径统一成 `/`：Windows 下 `relative()` 给反斜杠，断言与报告都会因此变得难读（也曾让这条守卫假失败）
+      out.push({ sprout, file: relative(base, full).replace(/\\/g, '/'), src: readFileSync(full, 'utf8') })
+    }
+  }
+}
+
+function allSproutFiles(): SproutFile[] {
+  const out: SproutFile[] = []
+  for (const entry of readdirSync(PLUGINS, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue
+    walk(join(PLUGINS, entry.name), entry.name, PLUGINS, out)
+  }
+  return out
+}
+
+function collectDeclarations(): { sprout: string; carrier: string; file: string }[] {
+  const out: { sprout: string; carrier: string; file: string }[] = []
+  for (const f of allSproutFiles()) {
+    for (const m of f.src.matchAll(/detail-carrier="([\w-]+)"/g)) {
+      out.push({ sprout: f.sprout, carrier: m[1], file: f.file })
     }
   }
   return out
@@ -38,8 +56,7 @@ function collectDeclarations(): { sprout: string; carrier: string }[] {
 
 describe('芽声明的详情载体', () => {
   it('声明集合恰为档 B 的 9 枚芽（多一枚少一枚都是改产品决定）', () => {
-    const declared = collectDeclarations()
-    expect(declared.map(d => d.sprout).sort()).toEqual([...COLUMN_SPROUTS].sort())
+    expect(collectDeclarations().map(d => d.sprout).sort()).toEqual([...COLUMN_SPROUTS].sort())
   })
 
   it('只声明栏式整页；其余芽沿用缺省抽屉（缺省零变化仍是默认）', () => {
@@ -48,12 +65,12 @@ describe('芽声明的详情载体', () => {
 
   it('声明的 id 必须在注册表里（写错的回落是兜底，不是可以带着的错）', () => {
     for (const d of collectDeclarations()) {
-      expect(getCarrier(d.carrier), `${d.sprout} 写了未注册的载体 ${d.carrier}`).toBeTruthy()
+      expect(getCarrier(d.carrier), `${d.file} 写了未注册的载体 ${d.carrier}`).toBeTruthy()
     }
   })
 
   it('自绘详情/无实体列表面的芽不许声明（声明了也不生效，只会误导读代码的人）', () => {
-    // timeline 已从"直挂抽屉"改成吃注册表，但它没有 `detailCarrier` prop——
+    // timeline 已改吃注册表，但它没有 `detailCarrier` prop——
     // 载体只能由用户在设置里按类型覆写，所以仍列在"不许声明"里
     const unreachable = ['custom', 'drawing', 'graph', 'manuscript', 'mindmap', 'notebook', 'timeline']
     const declaredSprouts = collectDeclarations().map(d => d.sprout)
@@ -63,16 +80,15 @@ describe('芽声明的详情载体', () => {
   })
 
   it('没有哪个芽视图直挂抽屉组件（容器必须经载体注册表，否则该芽换不了载体）', () => {
-    const direct: string[] = []
-    for (const dir of readdirSync(PLUGINS)) {
-      const full = join(PLUGINS, dir)
-      if (!statSync(full).isDirectory()) continue
-      for (const file of readdirSync(full)) {
-        if (!file.endsWith('.vue')) continue
-        const src = readFileSync(join(full, file), 'utf8')
-        if (/<EntityDetailPanel[\s>]/.test(src)) direct.push(`${dir}/${file}`)
-      }
-    }
+    const direct = allSproutFiles()
+      .filter(f => /<EntityDetailPanel[\s>]/.test(f.src))
+      .map(f => f.file)
     expect(direct).toEqual([])
+  })
+
+  it('守卫自身扫得到子目录（outline 入口在 board 下，不再静默逃逸）', () => {
+    const files = allSproutFiles().map(f => f.file)
+    expect(files).toContain('outline/board/BoardView.vue')
+    expect(files.some(f => f.includes('components/'))).toBe(true)
   })
 })

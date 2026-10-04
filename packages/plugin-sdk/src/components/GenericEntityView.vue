@@ -178,7 +178,7 @@
 import { toastSuccess, toastWarn, toastWithUndo } from '@worldsea/ui-kit'
 import { useEntityEdit, useBatchDelete, useDuplicateNameCheck, useShortcuts, useConfirm, useHighlight, useEntityPaging } from '../composables'
 import { ref, computed, onMounted, onBeforeUnmount, reactive, useSlots, watch } from 'vue'
-import { useEntityStore, useRelationStore, entitySchemaRegistry, fieldRegistry, useDetailLayoutStore } from '@worldsea/entity-core'
+import { useEntityStore, useRelationStore, entitySchemaRegistry, fieldRegistry } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
 import CustomDropdown from './CustomDropdown.vue'
 import CreateButton from './CreateButton.vue'
@@ -191,7 +191,7 @@ import EntityPager from './EntityPager.vue'
 import EntityCard from './EntityCard.vue'
 import AutoLinkSuggestions from './AutoLinkSuggestions.vue'
 import EntityDetailForm from '../detail/EntityDetailForm.vue'
-import { activeCarrier, carrierPanelId, resolveCarrier } from '../detail/carriers'
+import { useDetailCarrier } from '../detail/useDetailCarrier'
 import type { DetailFieldMeta } from '../detail/fieldMeta'
 import type { LayoutSource } from '../detail/detailLayout'
 import { useDetailLayout } from '../detail/useDetailLayout'
@@ -336,16 +336,13 @@ const entityLevelFields = computed<DetailFieldMeta[]>(() =>
 
 const detailFieldMetas = computed(() => mergeScopedFields(typeLevelFields.value, entityLevelFields.value))
 
-const detailPrefs = useDetailLayoutStore()
-/** 载体优先序：用户按类型的覆写 > 芽声明 > 缺省抽屉（解析单点在 `resolveCarrier`，时间线共用） */
-const carrierId = computed(() => resolveCarrier(detailPrefs.carriers[props.entityType], props.detailCarrier))
-const carrierDef = computed(() => activeCarrier(carrierId.value))
-/** 宽度按「载体 + 类型」分别记：同一类型下抽屉与分栏各拖各的，互不覆盖（键规则在 `carrierPanelId`） */
-const detailPanelId = computed(() => carrierPanelId(carrierDef.value.carrier, props.entityType))
-/** 只有 split 型载体（栏式整页）要把根容器改成分栏；抽屉/弹层是浮层，布局一点不动 */
-const splitCarrierOpen = computed(() => carrierDef.value.mode === 'split' && !!selectedEntity.value)
-/** immersive 型（沉浸页）盖住整块内容区——列表还在 DOM 里，只是被压在下面 */
-const immersiveCarrierOpen = computed(() => carrierDef.value.mode === 'immersive' && !!selectedEntity.value)
+// 载体解析走单点 `useDetailCarrier`（优先序、宽度键、mode 判断都在那里），本件只补「有没有选中实体」
+const { carrierDef, detailPanelId, isSplit, isImmersive } = useDetailCarrier(
+  () => props.entityType,
+  () => props.detailCarrier,
+)
+const splitCarrierOpen = computed(() => isSplit.value && !!selectedEntity.value)
+const immersiveCarrierOpen = computed(() => isImmersive.value && !!selectedEntity.value)
 
 const { layout: detailLayout, setContentForm } = useDetailLayout(
   () => props.entityType,

@@ -120,9 +120,9 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
-import { useEntityStore, useRelationStore, useDetailLayoutStore } from '@worldsea/entity-core'
+import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
-import { CustomDropdown, EntityFormModal, CreateButton, DynamicFieldsAdder, UniversalRelationPanel, EntityRelationSelector, EntityPager, useDuplicateNameCheck, useShortcuts, useBatchDelete, useConfirm, useEntityEdit, useEntityPaging, activeCarrier, carrierPanelId, resolveCarrier, type FormFieldDef } from '@worldsea/plugin-sdk'
+import { CustomDropdown, EntityFormModal, CreateButton, DynamicFieldsAdder, UniversalRelationPanel, EntityRelationSelector, EntityPager, useDuplicateNameCheck, useShortcuts, useBatchDelete, useConfirm, useEntityEdit, useEntityPaging, useDetailCarrier, type FormFieldDef } from '@worldsea/plugin-sdk'
 import { toastSuccess, toastWithUndo, useUndoRedo } from '@worldsea/ui-kit'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { TuiButton } from '@worldsea/ui-kit'
@@ -155,11 +155,9 @@ const showForm = ref(false)
 const showConflicts = ref(false)
 const selectedEvent = ref<Entity | null>(null)
 // 载体走与 GEV 同一套解析（用户按类型覆写 > 缺省抽屉）；时间线没有芽声明这一层
-const detailPrefs = useDetailLayoutStore()
-const carrierDef = computed(() => activeCarrier(resolveCarrier(detailPrefs.carriers.event)))
-const detailPanelId = computed(() => carrierPanelId(carrierDef.value.carrier, 'event'))
-const splitCarrierOpen = computed(() => carrierDef.value.mode === 'split' && !!selectedEvent.value)
-const immersiveOpen = computed(() => carrierDef.value.mode === 'immersive' && !!selectedEvent.value)
+const { carrierDef, detailPanelId, isSplit, isImmersive } = useDetailCarrier(() => 'event')
+const splitCarrierOpen = computed(() => isSplit.value && !!selectedEvent.value)
+const immersiveOpen = computed(() => isImmersive.value && !!selectedEvent.value)
 const editingEvent = ref<Entity | null>(null)
 const formModalRef = ref<InstanceType<typeof EntityFormModal> | null>(null)
 
