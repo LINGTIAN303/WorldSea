@@ -9,6 +9,7 @@ import { getCarrier } from '@worldsea/plugin-sdk'
  *
  * 分配表是**产品决定**，散在各芽视图文件里当属性写。没有守卫的话，
  * 一次顺手重构就能悄悄改掉某枚芽的默认容器，而这条变化只有真机打开详情才看得见。
+ * 这里锁的是：**声明集合恰好是那 10 枚**、**每一枚的 id 都在注册表里**、**不许直挂抽屉**。
  *
  * 遍历必须**递归**：`outline/board/BoardView.vue` 这类入口在子目录里，
  * 早先只 `readdirSync` 走一层＝整个 outline 芽静默逃逸，子目录里的直挂也照样漏。
@@ -16,10 +17,11 @@ import { getCarrier } from '@worldsea/plugin-sdk'
 
 const PLUGINS = join(__dirname, '..')
 
-/** 档 B 均衡：长文本 ≥4 或已定段落式的 9 枚（判据见 §七之七） */
+/** 档 B 均衡 9 枚（判据见 §七之七）+ 战术棋盘 1 枚：它原本就是常驻右栏，
+ *  接载体时缺省必须还是分栏，否则"接入"会顺手把观感改成浮层抽屉（§七之十） */
 const COLUMN_SPROUTS = [
   'buildings', 'characters', 'combat_stats', 'conflict', 'culture',
-  'languages', 'magic', 'plants', 'species',
+  'languages', 'magic', 'plants', 'species', 'tactical-board',
 ]
 
 interface SproutFile { sprout: string; file: string; src: string }

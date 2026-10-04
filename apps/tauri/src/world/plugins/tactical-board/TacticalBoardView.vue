@@ -50,18 +50,14 @@
         </div>
       </div>
 
-      <div class="tb-sidebar">
-        <UnitPanel
-          :unit="selectedUnitDetail"
-          :showActions="battlePhase === 'battle' && isCurrentUnitSelected && !aiUnitActive"
-          :showDeployActions="battlePhase === 'deployment' && !!selectedUnitDetail"
-          :disabled="!!actionState"
-          @move="beginMoveAction"
-          @attack="beginAttackAction"
-          @wait="waitAction"
-          @remove="removeSelectedUnit"
-        />
+      <!-- 单位详情：装哪种容器由载体注册表决定（dock 内解析），分栏时它就站在画布右边 -->
+      <UnitDetailDock :unit="selectedUnitDetail" :disabled="!!actionState" detail-carrier="column"
+        :showActions="battlePhase === 'battle' && isCurrentUnitSelected && !aiUnitActive"
+        :showDeployActions="battlePhase === 'deployment' && !!selectedUnitDetail"
+        @close="selectedCell = null" @move="beginMoveAction" @attack="beginAttackAction"
+        @wait="waitAction" @remove="removeSelectedUnit" />
 
+      <div class="tb-sidebar">
         <div class="tb-panel" v-if="hoveredInfo">
           <div class="tb-panel-title">格子信息</div>
           <div class="tb-panel-row"><span class="tb-label">坐标</span><span>{{ hoveredInfo.coord }}</span></div>
@@ -144,7 +140,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useEntityStore } from '@worldsea/entity-core'
 import { WsEmpty } from '@worldsea/ui-kit'
 import BoardCanvas from './components/BoardCanvas.vue'
-import UnitPanel from './components/UnitPanel.vue'
+import UnitDetailDock from './components/UnitDetailDock.vue'
 import BattleLog from './components/BattleLog.vue'
 import AIControl from './components/AIControl.vue'
 import AwarenessPanel from './components/AwarenessPanel.vue'
@@ -606,6 +602,7 @@ onMounted(async () => {
   flex: 1;
   display: flex;
   min-height: 0;
+  position: relative; /* 沉浸页载体的定位父级 */
 }
 
 .tb-canvas-area {
