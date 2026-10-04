@@ -9,6 +9,7 @@ import { useEntityStore, getFileStorageBackend, entitySchemaRegistry } from '@wo
 import { useToast } from '../../composables/useToast'
 import { useSystemBridge } from '@/composables/useSystemBridge'
 import { invoke } from '@/composables/transport'
+import KvViewerDialog from './KvViewerDialog.vue'
 
 const toast = useToast()
 const { autostartEnabled, setAutostart } = useSystemBridge()
@@ -119,6 +120,9 @@ async function onBackupProject(): Promise<void> {
     backingUp.value = false
   }
 }
+
+// ── E 项：键值项只读浏览器（2026-10-02 存储审计裁定）——入口挂「键值项」统计块 ──
+const kvViewerOpen = ref(false)
 
 // ── 叠放翻卡：复用通用 CardDeck（count=3，三个功能分区为三张卡；左列标题点击 → goToCard） ──
 const emit = defineEmits<{ 'card-change': [index: number] }>()
@@ -247,7 +251,14 @@ onMounted(async () => {
               <span class="sm-stat-value">{{ stats.fileCount }}</span>
               <span class="sm-stat-label">文件</span>
             </div>
-            <div class="sm-stat-item">
+            <div
+              class="sm-stat-item sm-stat-click"
+              title="查看键值存储内容（只读）"
+              role="button"
+              tabindex="0"
+              @click="kvViewerOpen = true"
+              @keydown.enter="kvViewerOpen = true"
+            >
               <span class="sm-stat-value">{{ stats.kvCount }}</span>
               <span class="sm-stat-label">键值项</span>
             </div>
@@ -314,6 +325,9 @@ onMounted(async () => {
         </div>
       </template>
     </CardDeck>
+
+    <!-- E 项：键值项只读浏览器 -->
+    <KvViewerDialog :show="kvViewerOpen" @close="kvViewerOpen = false" />
   </div>
 </template>
 
@@ -349,6 +363,14 @@ onMounted(async () => {
   padding: 8px;
   background: var(--color-bg-hover);
   border-radius: var(--radius-md);
+}
+/* E 项入口：键值项统计块可点击打开只读浏览器 */
+.sm-stat-click {
+  cursor: pointer;
+}
+.sm-stat-click:hover {
+  background: var(--color-bg-active, var(--color-bg-hover));
+  outline: 1px solid var(--border);
 }
 .sm-stat-value {
   font-size: var(--text-heading-font-size);
