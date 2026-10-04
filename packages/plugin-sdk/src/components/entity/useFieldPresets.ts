@@ -15,7 +15,10 @@ export interface UseFieldPresetsOptions {
 }
 
 export function useFieldPresets(options: UseFieldPresetsOptions) {
-  const SYSTEM_KEYS = new Set(['name', 'description', 'tags'])
+  // 系统承载字段：真值落在实体顶层而非 properties（name/description/tags）。
+  // `title` 是 V2 trait 方言中实体名的 key（identifiable trait 给 title/description），
+  // 与 name 同义——翻译真源统一在 detail/fieldAccessor.ts 的 TOP_LEVEL_FIELD（抽屉侧同源）。
+  const SYSTEM_KEYS = new Set(['name', 'title', 'description', 'tags'])
 
   const resolvedEntityType = computed(() => options.entityType() || options.entity()?.type || '')
 

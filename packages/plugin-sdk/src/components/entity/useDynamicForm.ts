@@ -22,7 +22,8 @@ export function useDynamicForm(options: UseDynamicFormOptions) {
   function initFormData() {
     const data: FormValues = {}
     for (const field of options.sortedFields.value) {
-      if (field.key === 'name') {
+      if (field.key === 'name' || field.key === 'title') {
+        // V2 方言：identifiable 的 title 即实体名（翻译真源 detail/fieldAccessor.ts），读实体顶层 name
         data[field.key] = options.entity()?.name ?? ''
       } else if (field.key === 'description') {
         data[field.key] = options.entity()?.description ?? ''
@@ -43,7 +44,7 @@ export function useDynamicForm(options: UseDynamicFormOptions) {
 
   function onFieldInput(field: FormFieldDef) {
     const entityId = options.entity()?.id
-    if (field.key === 'name') {
+    if (field.key === 'name' || field.key === 'title') {
       const text = String(formData.value[field.key] ?? '')
       getEventBus().emit('name:input', { entityId, text })
     }

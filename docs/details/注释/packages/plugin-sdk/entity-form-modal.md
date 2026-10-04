@@ -14,7 +14,9 @@
 ### 1. useFieldPresets.ts（src/components/entity/useFieldPresets.ts）
 
 字段与预设：
-- `SYSTEM_KEYS` + `fieldRegistry` 合并生成 `sortedFields`（`void fieldRegistry.version.value` 保持 registry 版本响应式追踪）
+- `SYSTEM_KEYS` + `fieldRegistry` 合并生成 `sortedFields`（`void fieldRegistry.version.value` 保持 registry 版本响应式追踪；
+  2026-10-05 起 `SYSTEM_KEYS` 纳入 `title`——V2 trait 方言中 identifiable 的 title 即实体名，
+  翻译真源与抽屉侧 `detail/fieldAccessor.TOP_LEVEL_FIELD` 同源，旧 schema 自带 name 字段的芽不受影响）
 - `resolvedEntityType`、`activePreset`、`presetOptions`、`isFullWidth`
 - 拖拽排序（`onDragStart/onDragOver/onDragLeave/onDrop` → `fieldRegistry.setOrder`）
 - 预设**只留切换**：`watch(activePreset)` → `fieldOrderStore.loadPreset`（2026-10-03 起，
@@ -29,8 +31,8 @@
 
 动态表单：
 - `formData` / `nameError` / `prevFieldValues`
-- `initFormData()`：从 `props.entity` 回填 name/description/tags/properties + `_coverPosition`/`_coverZoom`
-- `onFieldInput()`：name 字段发 `name:input` 事件总线消息；Smart Fill 字段发 ghost 接续预览请求（500ms 防抖，`_ghostDebounceTimer` 为 composable 闭包内私有变量，每实例独立）
+- `initFormData()`：从 `props.entity` 回填 name/title（V2 方言：两者都读实体顶层 `name`，绝不读 `properties.title` 死值）/description/tags/properties + `_coverPosition`/`_coverZoom`
+- `onFieldInput()`：name/title 字段发 `name:input` 事件总线消息；Smart Fill 字段发 ghost 接续预览请求（500ms 防抖，`_ghostDebounceTimer` 为 composable 闭包内私有变量，每实例独立）
 - 深度 watch `formData`：textarea/richtext 字段按增量发 `text:input` 事件总线消息
 
 依赖注入：`entity` getter、`sortedFields`、`resolvedEntityType`、`isSmartFillField` 函数、`ghostVisible` ref（后两者来自组件的 Smart Fill 基础状态）。
@@ -43,7 +45,7 @@
 ### 4. useEntityFormSave.ts（src/components/entity/useEntityFormSave.ts）
 
 保存：
-- `save()`：name 必填校验（写 `nameError`）→ 收集 properties（排除 name/description/tags）→ tags 逗号解析 → entityRef 字段收集 → 调用 `syncEntityRefRelations` → autoLink 字段收集 → 封面参数 → `emit('save', ...)`
+- `save()`：name/title 必填校验（name 优先 title 兜底，写 `nameError`；2026-10-05 起修复 V2 芽无 name 字段导致的「空名静默失败」）→ 收集 properties（排除 name/title/description/tags）→ tags 逗号解析 → entityRef 字段收集 → 调用 `syncEntityRefRelations` → autoLink 字段收集 → 封面参数 → `emit('save', ...)`
 - `syncEntityRefRelations()`：按 entityRef 字段的 relationType 比对目标实体，增删关系（幂等：已有关系跳过，目标消失则删除）
 - `syncEntityRefAfterCreate()`：创建后补同步关系（组件 `defineExpose` 暴露给外部调用）
 

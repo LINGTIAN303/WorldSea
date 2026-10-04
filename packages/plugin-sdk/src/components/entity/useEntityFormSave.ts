@@ -29,8 +29,10 @@ export interface UseEntityFormSaveOptions {
 
 export function useEntityFormSave(options: UseEntityFormSaveOptions) {
   function save() {
-    const nameField = options.sortedFields.value.find(f => f.key === 'name')
-    const name = String(options.formData.value.name ?? '')
+    // V2 方言：identifiable 的 title 即实体名（翻译真源 detail/fieldAccessor.ts）；
+    // 旧 schema（orchestration 等）自带 name 字段，name 优先、title 兜底
+    const nameField = options.sortedFields.value.find(f => f.key === 'name' || f.key === 'title')
+    const name = String(options.formData.value.name ?? options.formData.value.title ?? '')
     if (nameField?.required && !name.trim()) {
       options.nameError.value = `${nameField.label}不能为空`
       return
@@ -39,7 +41,7 @@ export function useEntityFormSave(options: UseEntityFormSaveOptions) {
 
     const properties: Record<string, any> = {}
     for (const field of options.sortedFields.value) {
-      if (field.key === 'name' || field.key === 'description' || field.key === 'tags') continue
+      if (field.key === 'name' || field.key === 'title' || field.key === 'description' || field.key === 'tags') continue
       properties[field.key] = options.formData.value[field.key] ?? ''
     }
 
