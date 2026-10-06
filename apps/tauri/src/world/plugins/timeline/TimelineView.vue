@@ -86,6 +86,7 @@
           <TuiButton variant="primary" size="sm" @click="saveEdit()">保存</TuiButton>
         </div>
       </template>
+      <template #cover><EntityCoverPanel v-if="selectedEvent" :entity="selectedEvent" /></template>
       <template #causal>
         <CausalGraph
           :event="selectedEvent"
@@ -122,7 +123,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
-import { CustomDropdown, EntityFormModal, CreateButton, DynamicFieldsAdder, UniversalRelationPanel, EntityRelationSelector, EntityPager, useDuplicateNameCheck, useShortcuts, useBatchDelete, useConfirm, useEntityEdit, useEntityPaging, useDetailCarrier, type FormFieldDef } from '@worldsea/plugin-sdk'
+import { CustomDropdown, EntityCoverPanel, EntityFormModal, CreateButton, DynamicFieldsAdder, UniversalRelationPanel, EntityRelationSelector, EntityPager, useDuplicateNameCheck, useShortcuts, useBatchDelete, useConfirm, useEntityEdit, useEntityPaging, useDetailCarrier, type FormFieldDef } from '@worldsea/plugin-sdk'
 import { toastSuccess, toastWithUndo, useUndoRedo } from '@worldsea/ui-kit'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { TuiButton } from '@worldsea/ui-kit'
@@ -331,6 +332,7 @@ const customFieldDefs = ref<any[]>([])
 
 const detailTabs = [
   { id: 'info', icon: 'outline', label: '详情' },
+  { id: 'cover', icon: 'image', label: '封面' },
   { id: 'causal', icon: 'link', label: '因果链' },
 ]
 

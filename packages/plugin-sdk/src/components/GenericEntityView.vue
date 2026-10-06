@@ -432,8 +432,12 @@ function onRemoveField(key: string) {
 
 const relationTabs = computed(() => props.detailTabs || [])
 
-/** 封面 Tab：schema 声明 coverImage（visual trait）的类型才有；内容件 EntityCoverPanel 即时持久化顶层字段 */
-const hasCoverTab = computed(() => props.formFields.some(f => f.key === 'coverImage'))
+/** 封面 Tab：schema 声明 coverImage（visual trait）的类型才有——与 hasImageField/coverFieldKey 同走 schema 口径，
+ *  手写字段清单的直连芽（characters/items 等）也自动获得；内容件 EntityCoverPanel 即时持久化顶层字段 */
+const hasCoverTab = computed(() => {
+  const schema = entitySchemaRegistry.get(props.entityType)
+  return !!schema?.fields.some(f => f.key === 'coverImage')
+})
 
 const resolvedTabs = computed(() => {
   const tabs = [{ id: 'info', label: '信息', icon: 'outline' }]
