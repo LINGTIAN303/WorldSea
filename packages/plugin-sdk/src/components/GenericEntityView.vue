@@ -140,6 +140,10 @@
         </slot>
       </template>
 
+      <template #cover="{ entity }">
+        <EntityCoverPanel v-if="entity" :entity="entity" />
+      </template>
+
       <template v-for="ct in customTabs" :key="ct.id" #[ct.id]="{ entity }">
         <slot :name="`tab-${ct.id}`" :entity="entity" :editing="isEditing" />
       </template>
@@ -184,6 +188,7 @@ import CustomDropdown from './CustomDropdown.vue'
 import CreateButton from './CreateButton.vue'
 import UniversalRelationPanel from './UniversalRelationPanel.vue'
 import EntityFormModal from './EntityFormModal.vue'
+import EntityCoverPanel from './EntityCoverPanel.vue'
 import EntityRelationSelector from './EntityRelationSelector.vue'
 import type { FormFieldDef, RelationTabDef, CardFieldDef, CustomTabDef, FilterDef } from './types'
 import { TuiButton, WsIcon, WsEmpty } from '@worldsea/ui-kit'
@@ -427,8 +432,12 @@ function onRemoveField(key: string) {
 
 const relationTabs = computed(() => props.detailTabs || [])
 
+/** 封面 Tab：schema 声明 coverImage（visual trait）的类型才有；内容件 EntityCoverPanel 即时持久化顶层字段 */
+const hasCoverTab = computed(() => props.formFields.some(f => f.key === 'coverImage'))
+
 const resolvedTabs = computed(() => {
   const tabs = [{ id: 'info', label: '信息', icon: 'outline' }]
+  if (hasCoverTab.value) tabs.push({ id: 'cover', label: '封面', icon: 'image' })
   for (const ct of props.customTabs || []) {
     tabs.push({ id: ct.id, label: ct.label, icon: ct.icon || '' })
   }
@@ -571,9 +580,11 @@ async function onFormSave(data: { name: string; description: string; properties:
   if (editingId) {
     savedEntityId = editingId
     const updateData: Record<string, unknown> = {
-      name: data.name, description: data.description,
+      description: data.description,
       properties: data.properties, tags: data.tags,
     }
+    // 表单无 name/title 字段时 data.name 为空串——此时不带 name 键，防止抹掉既有名（方言守卫，2026-10-05）
+    if (data.name) updateData.name = data.name
     if (data._coverPosition) updateData.coverPosition = data._coverPosition
     if (data._coverZoom) updateData.coverZoom = data._coverZoom
     await entityStore.update(editingId, updateData)

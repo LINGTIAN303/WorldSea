@@ -19,6 +19,9 @@ export function useFieldPresets(options: UseFieldPresetsOptions) {
   // `title` 是 V2 trait 方言中实体名的 key（identifiable trait 给 title/description），
   // 与 name 同义——翻译真源统一在 detail/fieldAccessor.ts 的 TOP_LEVEL_FIELD（抽屉侧同源）。
   const SYSTEM_KEYS = new Set(['name', 'title', 'description', 'tags'])
+  // 弹窗不承载的字段：封面图已升级为详情「封面」Tab（顶层字段，EntityCoverPanel 即时持久化），
+  // 不再作为表单字段——旧路径写 properties.coverImage 是死值（2026-10-05）
+  const MODAL_EXCLUDED_KEYS = new Set(['coverImage'])
 
   const resolvedEntityType = computed(() => options.entityType() || options.entity()?.type || '')
 
@@ -53,7 +56,7 @@ export function useFieldPresets(options: UseFieldPresetsOptions) {
       if (SYSTEM_KEYS.has(f.key) || seenKeys.has(f.key)) continue
       propertyFields.push({ ...f, source: 'builtin' })
     }
-    return [...systemFields, ...propertyFields]
+    return [...systemFields, ...propertyFields].filter(f => !MODAL_EXCLUDED_KEYS.has(f.key))
   })
 
   const activePreset = ref('默认')

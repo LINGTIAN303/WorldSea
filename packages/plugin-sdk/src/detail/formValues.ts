@@ -30,7 +30,7 @@ export function fieldFamily(field: DetailFieldMeta): FieldFamily {
   return 'short'
 }
 
-/** 按 order 取「可见字段 + 其元信息」，隐藏项与标题字段（标题栏已承载）都不出现 */
+/** 按 order 取「可见字段 + 其元信息」，隐藏项、标题字段（标题栏已承载）与封面字段（「封面」Tab 承载）都不出现 */
 export function orderedVisibleFields(
   fields: DetailFieldMeta[],
   layout: { order: string[]; hidden: string[] },
@@ -38,13 +38,13 @@ export function orderedVisibleFields(
   const byKey = new Map(fields.map(f => [f.key, f]))
   const out: DetailFieldMeta[] = []
   for (const key of layout.order) {
-    if (layout.hidden.includes(key) || key === 'title') continue
+    if (layout.hidden.includes(key) || key === 'title' || key === 'coverImage') continue
     const f = byKey.get(key)
     if (f) out.push(f)
   }
   // 新增字段还没进 order 时也不能凭空消失
   for (const f of fields) {
-    if (!layout.order.includes(f.key) && !layout.hidden.includes(f.key) && f.key !== 'title') out.push(f)
+    if (!layout.order.includes(f.key) && !layout.hidden.includes(f.key) && f.key !== 'title' && f.key !== 'coverImage') out.push(f)
   }
   return out
 }

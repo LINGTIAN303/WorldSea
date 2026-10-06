@@ -48,9 +48,11 @@ describe('useFieldPresets —— title 进系统字段区', () => {
     expect(keys[0]).toBe('title')
     expect(keys).toContain('description')
     expect(keys).toContain('tags')
+    // 封面图已升级为详情「封面」Tab——弹窗不再渲染，也不落 properties（死值路径关闭）
+    expect(keys).not.toContain('coverImage')
     // 属性区（有 source 标记的行）只剩真正的 properties 字段
     expect(api.sortedFields.value.filter(f => f.source).map(f => f.key))
-      .toEqual(['coverImage', 'condition', 'buildingType'])
+      .toEqual(['condition', 'buildingType'])
   })
 })
 
@@ -85,7 +87,8 @@ describe('useEntityFormSave —— title 上抛为 name', () => {
     const save = useEntityFormSave({
       formData: ref(formData),
       nameError: ref(''),
-      sortedFields: ref(V2_FIELDS),
+      // 真实管线里 save 收到的是弹窗过滤后的字段表（coverImage 已由 useFieldPresets 剔除）
+      sortedFields: ref(V2_FIELDS.filter(f => f.key !== 'coverImage')),
       entityStore: useEntityStore(),
       entity: () => null,
       emit: ((_ev, data) => { emitted.push(data) }) as never,
@@ -102,7 +105,7 @@ describe('useEntityFormSave —— title 上抛为 name', () => {
     expect(emitted).toHaveLength(1)
     expect(emitted[0].name).toBe('黑鸦堡')
     expect(emitted[0].tags).toEqual(['主城'])
-    expect(Object.keys(emitted[0].properties).sort()).toEqual(['buildingType', 'condition', 'coverImage'])
+    expect(Object.keys(emitted[0].properties).sort()).toEqual(['buildingType', 'condition'])
   })
 
   it('title 必填为空 → nameError 且不 emit（不再静默产出空名实体）', () => {

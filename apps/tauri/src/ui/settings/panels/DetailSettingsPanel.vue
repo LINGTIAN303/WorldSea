@@ -287,9 +287,9 @@ async function restoreSproutDefault() {
 
 // ── ④ 分组：草稿在 DetailGroupsCard，本件只给种子与落盘 ───────
 // 这卡唯独不即时落盘：`normalizeGroups` 会把空组丢掉，即时写会让「新建分组」点完立刻消失，像按钮坏了。
-/** 可分组的字段＝非标题、未隐藏 */
+/** 可分组的字段＝非标题（标题栏承载）、非封面（「封面」Tab 承载）、未隐藏 */
 const groupables = computed(() => fieldMetas.value
-  .filter(f => f.key !== 'title' && !layout.value.hidden.includes(f.key)))
+  .filter(f => f.key !== 'title' && f.key !== 'coverImage' && !layout.value.hidden.includes(f.key)))
 
 /**
  * 草稿种子：存过的原样拿回（含空组）；没存过则从解析结果起，但**要剔掉合成的「其它」组**——

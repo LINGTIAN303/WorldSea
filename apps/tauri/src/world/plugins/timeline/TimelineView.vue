@@ -292,11 +292,12 @@ async function onFormSave(data: { name: string; description: string; properties:
   const now = new Date().toISOString()
   if (editingEvent.value) {
     const updateData: Record<string, unknown> = {
-      name: data.name,
       description: data.description,
       properties: data.properties,
       tags: data.tags,
     }
+    // 表单无 name/title 字段时 data.name 为空串——不带 name 键，防止抹掉既有名（方言守卫，2026-10-05）
+    if (data.name) updateData.name = data.name
     if (data._coverPosition) updateData.coverPosition = data._coverPosition
     if (data._coverZoom) updateData.coverZoom = data._coverZoom
     await entityStore.update(editingEvent.value.id, updateData)

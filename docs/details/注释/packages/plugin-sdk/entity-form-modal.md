@@ -17,6 +17,9 @@
 - `SYSTEM_KEYS` + `fieldRegistry` 合并生成 `sortedFields`（`void fieldRegistry.version.value` 保持 registry 版本响应式追踪；
   2026-10-05 起 `SYSTEM_KEYS` 纳入 `title`——V2 trait 方言中 identifiable 的 title 即实体名，
   翻译真源与抽屉侧 `detail/fieldAccessor.TOP_LEVEL_FIELD` 同源，旧 schema 自带 name 字段的芽不受影响）
+- **`MODAL_EXCLUDED_KEYS = {coverImage}`**（2026-10-05）：封面图升级为详情「封面」Tab
+  （`components/EntityCoverPanel.vue` 即时持久化顶层字段），弹窗不再渲染、不落 properties；
+  save 的 `_coverPosition/_coverZoom` 管线保留（值来自实体顶层回填，往返无害）
 - `resolvedEntityType`、`activePreset`、`presetOptions`、`isFullWidth`
 - 拖拽排序（`onDragStart/onDragOver/onDragLeave/onDrop` → `fieldRegistry.setOrder`）
 - 预设**只留切换**：`watch(activePreset)` → `fieldOrderStore.loadPreset`（2026-10-03 起，
