@@ -180,7 +180,7 @@
 
 <script setup lang="ts">
 import { toastSuccess, toastWarn, toastWithUndo } from '@worldsea/ui-kit'
-import { useEntityEdit, useBatchDelete, useDuplicateNameCheck, useShortcuts, useConfirm, useHighlight, useEntityPaging } from '../composables'
+import { useEntityEdit, useBatchDelete, useDuplicateNameCheck, useShortcuts, useConfirm, useHighlight, useEntityPaging, useSelectedFollow } from '../composables'
 import { ref, computed, onMounted, onBeforeUnmount, reactive, useSlots, watch } from 'vue'
 import { useEntityStore, useRelationStore, entitySchemaRegistry, fieldRegistry } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
@@ -286,6 +286,9 @@ const selectedEntity = ref<Entity | null>(null)
 const showForm = ref(false)
 const editingEntity = ref<Entity | null>(null)
 const detailPanelRef = ref<{ switchTab: (tabId: string) => void } | null>(null)
+
+// 选中实体跟随 store（updateById 按引用替换后，详情面板不能挂旧对象）
+useSelectedFollow(selectedEntity, () => entityStore.entityMap)
 
 const { isEditing, editForm, startEdit, cancelEdit, saveEdit } = useEntityEdit(selectedEntity)
 const { selectedIds, selecting, toggleSelect, clearSelection, toggleSelectMode, batchDelete } = useBatchDelete()

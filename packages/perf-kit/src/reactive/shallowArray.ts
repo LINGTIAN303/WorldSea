@@ -45,7 +45,10 @@ export function useShallowArray<T extends Record<string, any>>(
   function updateById(id: T[keyof T], changes: Partial<T>) {
     const idx = items.value.findIndex((e) => (e as any)[keyField] === id)
     if (idx !== -1) {
-      Object.assign(items.value[idx], changes)
+      // 浅响应的正确语义是**按引用替换**：shallowRef 不代理对象属性，原地 Object.assign
+      // 对 Vue 不可见（triggerRef 只能让 v-for 重跑，props 同引用会被子组件跳过——
+      // 卡片封面等属性级更新全部失灵）。替换成本一次对象展开，可忽略。
+      items.value[idx] = { ...items.value[idx], ...changes }
       triggerRef(items)
     }
   }

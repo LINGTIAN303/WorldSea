@@ -20,3 +20,4 @@ export { useConsistencyChecker, type ConsistencyIssue, type ConsistencyCategory 
 export { useUndoRedo, isUndoing } from '@worldsea/entity-core/composables'
 export { useHighlight, type HighlightOptions } from './useHighlight'
 export { useErrorHandler, type ErrorCategory } from './useErrorHandler'
+export { useSelectedFollow } from './useSelectedFollow'

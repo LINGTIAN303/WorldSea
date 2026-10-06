@@ -42,3 +42,25 @@ const coverStyle = computed(() => {
   }
 })
 </script>
+
+<style scoped>
+/* 尺寸约束必须写在组件自身（scoped）：img 在本组件内部，父组件 EntityCard 的 scoped
+   样式打不到子组件元素（仅根节点带父 scope）——历史样式因此全部失效，图片按原始尺寸渲染。
+   高度 110px 与 EntityCard.vue 既有 .card-cover 设计值一致。 */
+.card-cover-wrap {
+  position: relative;
+  overflow: hidden;
+}
+.card-cover {
+  width: 100%;
+  height: 110px;
+  object-fit: cover;
+  display: block;
+}
+.card-cover-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, transparent 62%, rgba(0, 0, 0, 0.16));
+  pointer-events: none;
+}
+</style>
