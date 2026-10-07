@@ -103,6 +103,13 @@ export const useEntityStore = defineStore('entity', () => {
     clean.createdAt = new Date().toISOString()
     clean.updatedAt = clean.createdAt
 
+    // 封面死值归一（2026-10-07）：AI/模板/导入等 schema 外写手会把封面写进 properties.coverImage，
+    // 真值在顶层（plugin-sdk/detail 的 fieldAccessor.TOP_LEVEL_FIELD）——进库时提升一次，
+    // 原 key 保留（EntityCardCover 顶层优先读，原 key 作无顶层时的回退兜底）
+    if (!clean.coverImage && clean.properties?.coverImage) {
+      clean.coverImage = clean.properties.coverImage as string
+    }
+
     const schema = entitySchemaRegistry.get(entity.type)
     const validation = getValidationApi()
     const report = validation.validateEntity
@@ -147,6 +154,11 @@ export const useEntityStore = defineStore('entity', () => {
     const clean = { ...changes, updatedAt: new Date().toISOString() }
 
     const old = findById(id)
+    // 封面死值归一（同 add）：仅当顶层**从未设过**封面（undefined）且载荷 properties 带封面时提升——
+    // 显式移除（coverImage 空串）与用户在封面 Tab 设的值，都不被 properties 旧副本回填
+    if (!clean.coverImage && clean.properties?.coverImage && old?.coverImage === undefined) {
+      clean.coverImage = clean.properties.coverImage as string
+    }
     const oldProps = old?.properties ?? {}
 
     if (!isUndoing && !opts?.skipUndo && old) {

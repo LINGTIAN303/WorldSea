@@ -45,3 +45,45 @@ describe('entityStore.update —— 按引用替换（浅响应语义）', () =>
     expect(second.coverImage).toBe('u2')
   })
 })
+
+describe('entityStore —— 封面死值归一（properties.coverImage 提升到顶层）', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+  })
+
+  it('add 时 properties.coverImage 提升到顶层（AI/模板/导入写手收口）', async () => {
+    const store = useEntityStore()
+    await store.add({
+      id: 'x1', type: 'building', name: 'A', description: '', tags: [],
+      properties: { coverImage: 'https://ai.png' }, createdAt: '', updatedAt: '',
+    } as never)
+    expect(store.entities.find(e => e.id === 'x1')?.coverImage).toBe('https://ai.png')
+  })
+
+  it('update：顶层从未设过封面且载荷带 properties.coverImage → 提升', async () => {
+    const store = useEntityStore()
+    await store.add({
+      id: 'x2', type: 'building', name: 'A', description: '', tags: [],
+      properties: {}, createdAt: '', updatedAt: '',
+    } as never)
+    await store.update('x2', { properties: { coverImage: 'https://ai.png' } })
+    expect(store.entities.find(e => e.id === 'x2')?.coverImage).toBe('https://ai.png')
+  })
+
+  it('显式移除（coverImage 空串）后，properties 旧副本不回填', async () => {
+    const store = useEntityStore()
+    await store.add({
+      id: 'x3', type: 'building', name: 'A', description: '', tags: [],
+      properties: { coverImage: 'https://old.png' }, createdAt: '', updatedAt: '',
+    } as never)
+    expect(store.entities.find(e => e.id === 'x3')?.coverImage).toBe('https://old.png')
+
+    await store.update('x3', { coverImage: '' })
+    expect(store.entities.find(e => e.id === 'x3')?.coverImage).toBe('')
+
+    // AI 再携带 properties 旧副本更新 → 顶层从未设过？不——曾设过（后被清空），不回填
+    await store.update('x3', { properties: { coverImage: 'https://old.png' } })
+    expect(store.entities.find(e => e.id === 'x3')?.coverImage).toBe('')
+  })
+})

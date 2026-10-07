@@ -123,7 +123,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
-import { CustomDropdown, EntityCoverPanel, EntityFormModal, CreateButton, DynamicFieldsAdder, UniversalRelationPanel, EntityRelationSelector, EntityPager, useDuplicateNameCheck, useShortcuts, useBatchDelete, useConfirm, useEntityEdit, useEntityPaging, useDetailCarrier, type FormFieldDef } from '@worldsea/plugin-sdk'
+import { CustomDropdown, EntityCoverPanel, EntityFormModal, CreateButton, DynamicFieldsAdder, UniversalRelationPanel, EntityRelationSelector, EntityPager, useDuplicateNameCheck, useSelectedFollow, useShortcuts, useBatchDelete, useConfirm, useEntityEdit, useEntityPaging, useDetailCarrier, type FormFieldDef } from '@worldsea/plugin-sdk'
 import { toastSuccess, toastWithUndo, useUndoRedo } from '@worldsea/ui-kit'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { TuiButton } from '@worldsea/ui-kit'
@@ -135,7 +135,7 @@ import EventDetailFields from './components/EventDetailFields.vue'
 import { useEventTree } from './composables/useEventTree'
 import { useTimelineSort } from './composables/useTimelineSort'
 import { useConflictDetection } from './composables/useConflictDetection'
-import { detectEras, parseDateRange } from './composables/useDateParser'
+import { useTimelineFilters } from './composables/useTimelineFilters'
 import { useTimelineDrag } from './composables/useTimelineDrag'
 import { entitySchemaRegistry } from '@worldsea/entity-core'
 
@@ -148,9 +148,6 @@ const { undo, redo } = useUndoRedo()
 const settingsStore = useSettingsStore()
 const { selectedIds, selecting, toggleSelect, clearSelection, toggleSelectMode, batchDelete } = useBatchDelete()
 
-const searchQuery = ref('')
-const eraFilter = ref('')
-const importanceFilter = ref('')
 const loading = ref(false)
 const showForm = ref(false)
 const showConflicts = ref(false)
@@ -161,6 +158,9 @@ const splitCarrierOpen = computed(() => isSplit.value && !!selectedEvent.value)
 const immersiveOpen = computed(() => isImmersive.value && !!selectedEvent.value)
 const editingEvent = ref<Entity | null>(null)
 const formModalRef = ref<InstanceType<typeof EntityFormModal> | null>(null)
+
+// 选中事件跟随 store（updateById 按引用替换后，详情面板不能挂旧对象——封面 Tab 同口径）
+useSelectedFollow(selectedEvent, () => entityStore.entityMap)
 
 const layoutMode = ref<'horizontal' | 'vertical'>(
   (settingsStore as any).timelineDefaultMode === 'horizontal' ? 'horizontal' : 'vertical'
@@ -211,36 +211,12 @@ const dragState = { isDragging: drag.isDragging, dragTarget: drag.dragTarget }
 const computedRelations = computed(() => relationStore.relations)
 const computedEntityMap = computed(() => entityStore.entityMap)
 
-const detectedEras = computed(() => {
-  const dates = eventList.value.map(e => {
-    const dateText = (e.properties.date as string) || ''
-    const dateEndText = (e.properties.dateEnd as string) || ''
-    return parseDateRange(dateText, dateEndText)
-  })
-  return detectEras(dates)
-})
-
-const eras = computed(() => {
-  const set = new Set<string>()
-  for (const e of eventList.value) {
-    const era = e.properties.era as string
-    if (era) set.add(era)
-  }
-  return Array.from(set).sort()
-})
-
-const eraFilterOptions = computed(() => [
-  { value: '', label: '全部纪元' },
-  ...eras.value.map(era => ({ value: era, label: era }))
-])
-
-const importanceFilterOptions = [
-  { value: '', label: '全部重要度' },
-  { value: '关键', label: '★ 关键' },
-  { value: '重要', label: '★★ 重要' },
-  { value: '普通', label: '★★★ 普通' },
-  { value: '细微', label: '★★★★ 细微' },
-]
+/* ── 筛选管线（2026-10-07 抽至 composables/useTimelineFilters——文件顶在尺寸基线，守卫"拆分为宜"）── */
+const {
+  searchQuery, eraFilter, importanceFilter,
+  detectedEras, eraFilterOptions, importanceFilterOptions,
+  filteredEvents,
+} = useTimelineFilters(sortedEvents)
 
 const groupModeOptions = [
   { value: 'none', label: '无分组' },
@@ -249,25 +225,6 @@ const groupModeOptions = [
   { value: 'era', label: '按纪元' },
   { value: 'tag', label: '按标签' },
 ]
-
-const filteredEvents = computed(() => {
-  let list = sortedEvents.value
-  if (searchQuery.value) {
-    const q = searchQuery.value.toLowerCase()
-    list = list.filter(e =>
-      e.name.toLowerCase().includes(q) ||
-      e.description.toLowerCase().includes(q) ||
-      (e.properties.date as string)?.toLowerCase().includes(q)
-    )
-  }
-  if (eraFilter.value) {
-    list = list.filter(e => (e.properties.era as string) === eraFilter.value)
-  }
-  if (importanceFilter.value) {
-    list = list.filter(e => (e.properties.importance as string) === importanceFilter.value)
-  }
-  return list
-})
 
 /* ── 分页（2026-10-01，与 GEV 同一口径：只切「渲染哪一段」，filteredEvents 仍全量——
  * 冲突检测、批量删除取名、跨页选中都吃全量，不随翻页变化）── */
