@@ -72,6 +72,7 @@ export {
   inferSemanticHintFromKey,
   inferDirectTargetFromKey,
   userFieldMappingStore,
+  autoLinkDecisionStore,
   // Phase 8a: 事件总线
   eventBus,
   // Phase 8a: io 模块
@@ -166,5 +167,6 @@ export type {
   PotentialLink,
   UserFieldMapping,
 } from './core/AutoLinkEngine'
+export type { AutoLinkDecision, AutoLinkDecisionValue } from './core/AutoLinkDecisions'
 export * from './stores'
 export * from './composables'

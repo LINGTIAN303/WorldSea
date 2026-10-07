@@ -172,6 +172,9 @@ export {
 } from './AutoLinkEngine'
 export type { UserFieldMapping } from './AutoLinkEngine'
 
+export { autoLinkDecisionStore } from './AutoLinkDecisions'
+export type { AutoLinkDecision, AutoLinkDecisionValue } from './AutoLinkDecisions'
+
 // Phase 3: 公式引擎（从 src/modules/runtime/ 下沉）
 export { evaluateFormula, extractFieldRefs } from './formula'
 export {

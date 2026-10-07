@@ -633,17 +633,7 @@ async function onFormSave(data: { name: string; description: string; properties:
   showForm.value = false
   editingEntity.value = null
   await entityStore.loadAll()
-
-  // 触发 AutoLink 索引（新架构）
-  if (savedEntityId) {
-    try {
-      const { indexPotentialLinks } = await import('@worldsea/entity-core')
-      const savedEntity = entityStore.entities.find(e => e.id === savedEntityId)
-      if (savedEntity) {
-        await indexPotentialLinks(savedEntityId, savedEntity.type, savedEntity.properties ?? {})
-      }
-    } catch { /* AutoLink 索引失败不影响主流程 */ }
-  }
+  // AutoLink 索引由 entityStore.add/update 统一接线（① 批），此处不再重复触发
 }
 
 async function onBatchDel() {

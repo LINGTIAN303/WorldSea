@@ -36,9 +36,16 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
 import { WsIcon } from '@worldsea/ui-kit'
-import { potentialLinkIndex, indexPotentialLinks, entitySchemaRegistryV2, relationshipRegistry } from '@worldsea/entity-core'
+import {
+  potentialLinkIndex,
+  indexPotentialLinks,
+  entitySchemaRegistryV2,
+  relationshipRegistry,
+  autoLinkDecisionStore,
+  useRelationStore,
+  useBidirectional,
+} from '@worldsea/entity-core'
 import type { PotentialLink } from '@worldsea/entity-core'
-import { storage } from '@worldsea/entity-core'
 
 const props = defineProps<{
   entityId: string
@@ -68,19 +75,24 @@ async function refresh() {
   suggestions.value = potentialLinkIndex.getBySource(props.entityId)
 }
 
-/** 确认关联：创建实际关系 */
+/** 确认关联：经标准双向管线建立（关系和未变时判重跳过；反向按 inverseRegistry） */
 async function confirmLink(link: PotentialLink) {
   try {
-    const id = crypto.randomUUID()
-    await storage.putRelation({
-      id,
-      type: link.relationType,
-      sourceId: link.sourceEntityId,
-      targetId: link.targetEntityId,
-      properties: {},
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    })
+    const relationStore = useRelationStore()
+    const duplicated = relationStore.relations.some(r =>
+      r.type === link.relationType &&
+      ((r.sourceId === link.sourceEntityId && r.targetId === link.targetEntityId) ||
+       (r.sourceId === link.targetEntityId && r.targetId === link.sourceEntityId))
+    )
+    if (!duplicated) {
+      const { createBidirectional } = useBidirectional()
+      await createBidirectional({
+        type: link.relationType,
+        sourceId: link.sourceEntityId,
+        targetId: link.targetEntityId,
+      })
+    }
+    autoLinkDecisionStore.record(link, 'confirmed')
     potentialLinkIndex.resolve(link.id, 'confirmed')
     suggestions.value = suggestions.value.filter(s => s.id !== link.id)
   } catch (e) {
@@ -88,8 +100,9 @@ async function confirmLink(link: PotentialLink) {
   }
 }
 
-/** 忽略建议 */
+/** 忽略建议（决策持久化：重建索引不复活） */
 function dismissLink(link: PotentialLink) {
+  autoLinkDecisionStore.record(link, 'dismissed')
   potentialLinkIndex.resolve(link.id, 'dismissed')
   suggestions.value = suggestions.value.filter(s => s.id !== link.id)
 }
@@ -97,6 +110,7 @@ function dismissLink(link: PotentialLink) {
 /** 全部忽略 */
 function dismissAll() {
   for (const link of suggestions.value) {
+    autoLinkDecisionStore.record(link, 'dismissed')
     potentialLinkIndex.resolve(link.id, 'dismissed')
   }
   suggestions.value = []

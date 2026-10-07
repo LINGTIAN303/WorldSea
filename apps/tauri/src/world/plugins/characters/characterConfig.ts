@@ -5,7 +5,7 @@ export const characterFields: FormFieldDef[] = [
   { key: 'description', label: '描述', type: 'textarea', placeholder: '简要描述' },
   { key: 'age', label: '年龄', type: 'text', placeholder: '如：25 / 不朽' },
   { key: 'gender', label: '性别', type: 'text', placeholder: '男/女/其他' },
-  { key: 'race', label: '种族', type: 'text', autoLink: { targetType: 'race', relationType: 'belongs_to' } },
+  { key: 'race', label: '种族', type: 'text', autoLink: { targetType: 'species', relationType: 'belongs_to' } },
   { key: 'occupation', label: '职业', type: 'text', placeholder: '如：剑士/学者' },
   { key: 'affiliation', label: '所属势力', type: 'text', autoLink: { targetType: 'organization', relationType: 'belongs_to' } },
   { key: 'role', label: '角色', type: 'select', options: [

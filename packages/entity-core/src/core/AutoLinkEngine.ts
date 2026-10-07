@@ -11,6 +11,11 @@
 import type { SemanticHintName, AutoLinkStrategy } from '../types/trait'
 import { entitySchemaRegistryV2, traitRegistry } from './TraitRuntime'
 import { storage } from './StorageBackend'
+import { potentialLinkIndex, type PotentialLink } from './PotentialLinkIndex'
+import { autoLinkDecisionStore } from './AutoLinkDecisions'
+
+export { potentialLinkIndex } from './PotentialLinkIndex'
+export type { PotentialLink } from './PotentialLinkIndex'
 
 // ─────────────────────────────────────────────
 // SemanticHint Registry — 语义标签注册表
@@ -297,7 +302,7 @@ const FIELD_KEY_TARGET_MAP: Array<{ patterns: RegExp[]; targetType: string; rela
   { patterns: [/race/i, /种族/, /物种/], targetType: 'species', relationType: 'belongs_to' },
   { patterns: [/faction/i, /势力/, /组织/, /affiliation/i, /所属/], targetType: 'organization', relationType: 'belongs_to' },
   { patterns: [/weapon/i, /武器/, /兵器/], targetType: 'item', relationType: 'wields' },
-  { patterns: [/mount/i, /坐骑/], targetType: 'creature', relationType: 'rides' },
+  // mount→creature 条目已删（2026-10-07）：仓内无 creature 实体类型，待生物类型立项后再加
 ]
 
 /**
@@ -312,88 +317,6 @@ export function inferDirectTargetFromKey(key: string): { targetType: string; rel
   }
   return null
 }
-
-// ─────────────────────────────────────────────
-// 潜在链接索引（Passive Index）
-// ─────────────────────────────────────────────
-
-/** 潜在链接条目 */
-export interface PotentialLink {
-  id: string
-  /** 源实体 ID */
-  sourceEntityId: string
-  /** 源字段 key */
-  sourceFieldKey: string
-  /** 源字段中的文本值 */
-  sourceText: string
-  /** 匹配到的目标实体 ID */
-  targetEntityId: string
-  /** 匹配到的目标实体类型 */
-  targetEntityType: string
-  /** 匹配到的目标字段值 */
-  targetFieldValue: string
-  /** 语义标签 */
-  hint: SemanticHintName
-  /** 建议的关系类型 */
-  relationType: string
-  /** 置信度：exact 或 fuzzy */
-  confidence: 'exact' | 'fuzzy'
-  /** 匹配分数（0-1） */
-  score: number
-  /** 用户是否已处理 */
-  resolved: boolean
-  /** 用户决定：confirmed / dismissed */
-  decision?: 'confirmed' | 'dismissed'
-  /** 创建时间 */
-  createdAt: string
-}
-
-/** 潜在链接索引存储 */
-class PotentialLinkIndexClass {
-  private links = new Map<string, PotentialLink>()
-  /** 按源实体索引 */
-  private bySource = new Map<string, PotentialLink[]>()
-
-  add(link: PotentialLink): void {
-    this.links.set(link.id, link)
-    const list = this.bySource.get(link.sourceEntityId) || []
-    list.push(link)
-    this.bySource.set(link.sourceEntityId, list)
-  }
-
-  getBySource(entityId: string): PotentialLink[] {
-    return (this.bySource.get(entityId) || []).filter(l => !l.resolved)
-  }
-
-  get(id: string): PotentialLink | undefined {
-    return this.links.get(id)
-  }
-
-  resolve(id: string, decision: 'confirmed' | 'dismissed'): void {
-    const link = this.links.get(id)
-    if (link) {
-      link.resolved = true
-      link.decision = decision
-    }
-  }
-
-  getAll(): PotentialLink[] {
-    return Array.from(this.links.values())
-  }
-
-  /** 清除指定实体的所有未解决链接（实体删除时调用） */
-  clearBySource(entityId: string): void {
-    const links = this.bySource.get(entityId)
-    if (links) {
-      for (const link of links) {
-        this.links.delete(link.id)
-      }
-      this.bySource.delete(entityId)
-    }
-  }
-}
-
-export const potentialLinkIndex = new PotentialLinkIndexClass()
 
 // ─────────────────────────────────────────────
 // AutoLink 执行器
@@ -477,6 +400,18 @@ export async function indexPotentialLinks(
   if (adHocFields.length > 0) {
     // 临时字段同样走：用户映射 → 启发式推断 → 盲匹配
     await resolveUnmappedFields(entityId, adHocFields)
+  }
+
+  // 持久决策应用：已处理且内容未变的条目保持隐藏（跨会话 / 重建索引均有效）
+  applyPersistedDecisions(entityId)
+}
+
+/** 应用持久化决策：命中且内容指纹未变的条目保持隐藏 */
+function applyPersistedDecisions(sourceEntityId: string): void {
+  for (const link of potentialLinkIndex.getAllBySource(sourceEntityId)) {
+    if (link.resolved) continue
+    const decision = autoLinkDecisionStore.recall(link)
+    if (decision) potentialLinkIndex.resolve(link.id, decision)
   }
 }
 

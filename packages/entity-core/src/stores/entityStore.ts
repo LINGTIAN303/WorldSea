@@ -2,6 +2,8 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useShallowArray, useShallowRefMap } from '@worldsea/perf-kit/reactive'
 import { storage } from '../core/StorageBackend'
+import { indexPotentialLinks, potentialLinkIndex, refreshLinksForTarget } from '../core/AutoLinkEngine'
+import { autoLinkDecisionStore } from '../core/AutoLinkDecisions'
 import { useUndoRedo, isUndoing } from '../composables/useUndoRedo'
 import { entitySchemaRegistry } from '../core/EntitySchema'
 import { getValidationApi, getEventBus } from '../core/serviceProvider'
@@ -138,6 +140,12 @@ export const useEntityStore = defineStore('entity', () => {
     if (!isUndoing) record('entity', 'add', clean.id, null, { ...clean }, clean.name)
     getEventBus().emit('entity:create', { entityId: clean.id, entityType: clean.type, properties: clean.properties || {}, source })
     refreshAllTypeCounts()
+
+    // AutoLink：新实体进潜在链接索引（失败不影响主流程）
+    try {
+      await indexPotentialLinks(clean.id, clean.type, clean.properties ?? {})
+    } catch { /* AutoLink 索引失败不影响主流程 */ }
+
     return clean.id
   }
 
@@ -180,6 +188,14 @@ export const useEntityStore = defineStore('entity', () => {
 
     // 更新索引
     if (updated) mapSet(id, updated)
+
+    // AutoLink：重索引本实体（源侧）+ 刷新以本实体为目标的建议（目标侧）；失败不影响主流程
+    if (updated) {
+      try {
+        await indexPotentialLinks(updated.id, updated.type, updated.properties ?? {})
+        await refreshLinksForTarget(updated.id, updated.type, updated.properties ?? {})
+      } catch { /* AutoLink 索引失败不影响主流程 */ }
+    }
 
     // 事件发射（EventBus.emit 已改为非阻塞）
     const newProps = updated?.properties ?? {}
@@ -273,6 +289,10 @@ export const useEntityStore = defineStore('entity', () => {
 
     getEventBus().emit('entity:delete', { entityId: id, entityType: old.type, properties: old.properties || {}, source })
     refreshAllTypeCounts()
+
+    // AutoLink：清理该实体的索引与相关决策（含以它为目标的决策）
+    potentialLinkIndex.clearBySource(id)
+    autoLinkDecisionStore.clearForEntity(id)
   }
 
   /** @deprecated 使用 loadByPage 代替；图谱等需全量数据的场景仍可使用 */
