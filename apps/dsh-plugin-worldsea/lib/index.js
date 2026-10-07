@@ -17,9 +17,11 @@
  * 时 @deepseek-ai scope 从 link: 目录解析不到的老问题）。代价：插件运行前 dsh 树须已构建
  * （vendor 的 `lib/` 是构建产物；缺失则 import 直接 fail loud）。
  *
- * 配置（cordis.patch.yml 的插件 config；**schema 见下方 `Config`**，可在「WorldSea 产品域」设置页的
- * 「插件数据面」组直接编辑——D3-c2，2026-09-30）：
- * - `dshHome`：DSH_HOME 覆盖（缺省读 `process.env.DSH_HOME`）
+ * 配置（**2026-10-07 预设化**：本插件挪进「产品域模式」预设（见 cordis.patch.yml），不再是顶层
+ * 装载行——设置面编辑不到自身 config，数据面真源移到 console 插件经服务桥 `worldseaDataFace` 提供。
+ * 取值链 = **console 服务（设置面「WorldSea 插件」Tab 编辑，保存即生效）> 自身 config（预设子行
+ * 覆盖 / 单独部署兜底，schema 见下方 `Config`）**；dshHome 再回落 `process.env.DSH_HOME`）：
+ * - `dshHome`：DSH_HOME 覆盖（最终缺省读 `process.env.DSH_HOME`）
  * - `dataRoot`：无会话 cwd 时的实体目录兜底（缺省无——非会话调用直接拒，fail loud）
  *
  * schema 快照：`<worlddata>/.worldsea/schema-snapshot.json`（工作台启动/重播种时导出），
@@ -39,7 +41,7 @@
 /** 稳定 cordis 插件名（内置插件页显示的包标识）。 */
 const name = 'worldsea';
 
-/** 前置服务：工具注册面 + system prompt 指引段（缺失即 `cannot get property "tools" without inject`）。 */
+/** 前置服务：工具注册面 + system prompt 指引段（缺失即 `cannot get property ... without inject`）。 */
 const inject = ['tools', 'systemPrompt'];
 
 //#region ── 通用工具函数 ────────────────────────────────────────────────
@@ -71,7 +73,9 @@ import z from '@deepseek-ai/schemastery';
  *
  * 两字段都 `volatile()`：插件是**每次调用现读 config**（见下方 dshHome / worlddataDir），
  * 改值无需重挂载。缺省 `''` = 未设 → 既有回落链（env / fail loud）原样生效。
- * 编辑入口 = 设置 → 内置插件 → 「WorldSea 产品域」的「插件数据面」组。
+ * 编辑入口 = 设置 → 内置插件 → 「WorldSea 插件」Tab 的 worldsea 卡片——但绑定的是 console
+ * 插件的命名空间（本插件预设化后自身 config 不在设置面上，此 schema 服务于单独部署兜底 +
+ * 保持 volatile 物化句柄的实测契约用例）。
  */
 export const Config = z.object({
   /** DSH_HOME 覆盖（缺省读 `process.env.DSH_HOME`）。 */
@@ -127,7 +131,20 @@ function configText(value) {
   return value !== null && typeof value === 'object' && typeof value.get === 'function' ? value.get() : value;
 }
 
-/** DSH_HOME（与壳的 spawn 口径同源）：config.dshHome 覆盖 > process.env.DSH_HOME。 */
+/**
+ * 读 console 服务桥（worldseaDataFace）的一个数据面现值。
+ *
+ * 软访问（不进 inject）：console 是顶层 bundle 插件，正常装配下必然先于本预设子实例激活；
+ * 但本插件允许脱离 console 单独部署（此时回落自身 config / env）——硬 inject 会把两插件
+ * 焊死成装载依赖，与「分开变化节奏」的分治初衷相悖。服务未就绪/字段未设置 → null。
+ */
+function faceValue(ctx, field) {
+  const face = ctx?.worldseaDataFace;
+  const value = typeof face?.[field] === 'function' ? face[field]() : null;
+  return value === null || value === undefined ? null : String(value);
+}
+
+/** DSH_HOME（与壳的 spawn 口径同源）：生效视图.dshHome（console 服务 > 自身 config）> process.env.DSH_HOME。 */
 function dshHome(config) {
   return configText(config?.dshHome) || process.env.DSH_HOME || null;
 }
@@ -808,12 +825,22 @@ function readdirSafe(dir) {
  * @param config - 插件配置（dshHome / dataRoot 覆盖，见文件头注）。
  */
 export function apply(ctx, config = {}) {
-  // 工具执行时把本插件 config 带给 execute（exec.pluginConfig 由注册侧闭包注入）
+  // 生效配置视图（2026-10-07 预设化配套）：本插件挪进「产品域模式」预设后不再是顶层装载行，
+  // 设置面编辑不到自身 config——数据面真源移到 console 插件（worldsea-console，顶层常驻），
+  // 经其服务桥 `worldseaDataFace` 读取（作用域继承；ctx 属性访问每次现解析，保存即生效）。
+  // 回落链：console 服务 > 本插件自身 config（预设子行 config / 单独部署兜底）> 调用方再回落 env。
+  // 视图用 getter 而非展开：volatile 句柄与服务值都要**每次取用时现解析**，apply 时展开会冻结旧值。
+  const effectiveConfig = {
+    get dshHome() { return faceValue(ctx, 'dshHome') ?? configText(config?.dshHome); },
+    get dataRoot() { return faceValue(ctx, 'dataRoot') ?? configText(config?.dataRoot); },
+  };
+
+  // 工具执行时把生效配置视图带给 execute（exec.pluginConfig 由注册侧闭包注入）
   for (const tool of tools) {
     ctx.tools.register({
       ...tool,
       async execute(args, exec) {
-        return tool.execute(args, { ...exec, pluginConfig: config });
+        return tool.execute(args, { ...exec, pluginConfig: effectiveConfig });
       },
     });
   }
@@ -823,7 +850,7 @@ export function apply(ctx, config = {}) {
   try {
     ctx.systemPrompt?.section?.({
       name: 'tool:worldsea',
-      order: 900, // 工具段之后的追加位（数字直接给——自定义段名不在预声明排序表内）
+      order: 900, // FILE_REFERENCE 段位（'context:file-reference' 同为 900，按段名排序在其后）——指引在工具段（1000+）之前，随文件引用说明一起构成"任务语境"
       text: () =>
         'WorldSea 创作数据可直接读写：world_entity_search（按关键词/标签定位）/ world_entity_list（返回 total——超过 items 数即有更多，用 offset/limit 翻页；清单按更新时间降序稳定排序）/ world_entity_get（可带 fields 点路径按需取字段）看现有实体；' +
         '组装新实体前先 world_schema_get 拿该类型的字段与必填；写类操作（put/update/delete）完成后工作台界面会自动刷新。' +
@@ -840,6 +867,8 @@ export function apply(ctx, config = {}) {
 
   console.log('[worldsea-plugin] 产品域工具集已注册（' + tools.length + ' 条 world_* 工具）');
 }
+
+//#endregion
 
 /** 稳定导出（cordis 插件身份三件）。 */
 export { name, inject };

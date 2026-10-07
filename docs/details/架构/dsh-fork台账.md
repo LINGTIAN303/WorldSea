@@ -47,6 +47,8 @@ dsh/packages/host/webserver/tests/webserver-external.spec.ts | 新 | C2-a：外�
 dsh/packages/bundle/web-app/tests/pipe-transport.spec.ts | 新 | C2-a：管道载体用例 11 条（hello / 一元 GET+POST 体 / 流式响应 head+chunk+end / res-err / 流 item+uplink+end / 失败映射 / abort / 四类协议违规 fail-closed）；客户端侧为独立实现以免同源套套逻辑 | 上游无
 ```
 
+> **曾登记已撤（2026-10-07）**：`client/ui-commands` 的 `commandUi.face()` 挂载点（contract / service / 测试 3 文件）曾为 `/entity` 指令行样式引入并登记——**同日改判纯插件形态后整体撤出**（客户端贡献位 `commandUi.register` 原生支持图标/中文名/短提示呈现，呈现面无需动 dsh；行为链路改走壳 IPC，见 console 插件 README）。上游对照结论留档：上游非内建指令行固定渲染「注册名 + catalog 描述」（`builtinRowFace` 仅覆盖 6 个写死 definitionId），无第三方呈现面机制；若将来 WorldSea 需要「宿主指令 + 客户端呈现」，此撤撤销记录即是现成设计稿。
+
 ## 四、纪律（D10）
 
 1. **收敛**：改动优先落在少量「接缝」文件（例如 `packages/client/connection`、`packages/host/webserver`、`packages/bundle/web-app`、`packages/boot/app-boot`），避免大面积铺开。

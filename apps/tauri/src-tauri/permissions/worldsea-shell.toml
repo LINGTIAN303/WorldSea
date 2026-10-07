@@ -26,6 +26,8 @@ commands.allow = [
     # D3-a（2026-09-28）：产品域设置节——console 设置页（dsh 窗）读写，工作台页（快照门）读
     "cmd_product_prefs_get",
     "cmd_product_prefs_set",
+    # D2 预设化走查批（2026-10-07）：/entity 就绪卡事实面——console 客户端贡献位（dsh 窗）调用；只读
+    "cmd_product_briefing",
 ]
 
 [[permission]]

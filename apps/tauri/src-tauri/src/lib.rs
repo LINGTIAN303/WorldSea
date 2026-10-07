@@ -47,6 +47,8 @@ mod app_prefs_dsh;
 mod capabilities;
 // E1（2026-09-25）：单一可见根（%USERPROFILE%\WorldSea）+ 旧 ~/.WorldSea 一次性搬迁
 mod data_root;
+// D2 预设化走查批（2026-10-07）：/entity 就绪卡数据面（纯插件形态：console 客户端贡献位经壳 IPC 取事实）
+mod product_briefing;
 // C1-a（2026-09-24）：mux WebSocket 凭据中转（改写握手首部后双向透传；C2 起仅 legacy 对照模式使用）
 mod dsh_relay;
 // C2-b（2026-09-24）：管道传输客户端（宿主管道载体的壳侧对端：帧编解码 + 请求多路复用 + 流 lane）
@@ -162,6 +164,8 @@ pub fn run() {
             // D3-a：产品域设置节（console 设置页读写；壳启动与工作台快照门消费）
             app_prefs::cmd_product_prefs_get,
             app_prefs::cmd_product_prefs_set,
+            // D2 预设化走查批：/entity 就绪卡事实面（console 客户端贡献位调用；只读）
+            product_briefing::cmd_product_briefing,
             // A：壳侧能力桥（登记 / 内省 / 调用 / 回执 / 撤登记；两窗共用，ACL 在 Rust 侧按窗口 label 判）
             capabilities::cmd_capability_register,
             capabilities::cmd_capability_list,

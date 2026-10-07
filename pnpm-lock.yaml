@@ -223,7 +223,11 @@ importers:
         specifier: link:../../dsh/vendor/schemastery
         version: link:../../dsh/vendor/schemastery
 
-  apps/dsh-plugin-worldsea-console: {}
+  apps/dsh-plugin-worldsea-console:
+    dependencies:
+      '@deepseek-ai/schemastery':
+        specifier: link:../../dsh/vendor/schemastery
+        version: link:../../dsh/vendor/schemastery
 
   apps/tauri:
     dependencies:

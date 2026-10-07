@@ -2,13 +2,16 @@
   "name": "dsh-plugin-worldsea-console",
   "version": "0.1.0",
   "private": true,
-  "description": "WorldSea 产品域管理面（内置级 dsh 插件）：设置页客户端半侧 + 交界配置桥",
+  "description": "WorldSea 产品域管理面（内置级 dsh 插件）：「WorldSea 插件」插件清单页 + 「WorldSea 产品域」交界配置页",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
     ".": "./lib/index.js",
     "./client": "./lib/client.js",
     "./package.json": "./package.json"
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "link:../../dsh/vendor/schemastery"
   },
   "dsh": {
     "engines": {
