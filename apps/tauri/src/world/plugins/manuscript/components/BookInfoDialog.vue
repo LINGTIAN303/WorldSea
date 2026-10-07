@@ -107,7 +107,7 @@ function removeTag(t: string) {
 //    显式移除 = coverRemoved；两者都不沾 = 保持原值 ──
 const coverFile = ref<File | null>(null)
 const coverRemoved = ref(false)
-const coverPreview = ref(props.book ? (props.book.properties.cover as string) || '' : '')
+const coverPreview = ref(props.book ? ((props.book.coverImage as string) || (props.book.properties.cover as string) || '') : '')
 const coverInput = ref<HTMLInputElement | null>(null)
 let previewObjectUrl = ''
 
@@ -175,10 +175,18 @@ async function save() {
     // 实体更新 = properties 整体替换（entity_commands.rs:338），必须带全量
     const properties: Record<string, unknown> = { ...(props.book?.properties ?? {}) }
     if (!props.book && props.nextSortOrder !== undefined) properties.sortOrder = props.nextSortOrder
-    if (cover !== undefined) properties.cover = cover
+    // 封面归一（2026-10-07）：写顶层 coverImage（全局封面体系真源）；旧字段 properties.cover 同步清退
+    let coverImage: string | undefined = undefined
+    if (cover !== undefined) {
+      coverImage = cover
+      delete properties.cover
+    }
 
     if (props.book) {
-      await es.update(props.book.id, { name, description: descVal.value, tags: [...tagsVal.value], properties })
+      await es.update(props.book.id, {
+        name, description: descVal.value, tags: [...tagsVal.value], properties,
+        ...(coverImage !== undefined ? { coverImage } : {}),
+      })
     } else {
       // 创建模式：此刻才落地书籍实体
       const now = new Date().toISOString()
@@ -189,6 +197,7 @@ async function save() {
         description: descVal.value,
         properties,
         tags: [...tagsVal.value],
+        ...(coverImage !== undefined ? { coverImage } : {}),
         createdAt: now,
         updatedAt: now,
       })

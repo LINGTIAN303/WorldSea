@@ -253,9 +253,9 @@ const selectedBook = computed(() =>
   selectedBookId.value ? books.value.find(b => b.id === selectedBookId.value) ?? null : null
 )
 
-/** 书籍封面 asset URL（BookInfoDialog 上传后落 properties.cover） */
+/** 书籍封面 asset URL（2026-10-07 归一：真值在顶层 coverImage，与全局封面体系同源；旧数据 properties.cover 回退） */
 function bookCover(b: Entity): string {
-  return (b.properties.cover as string) || ''
+  return (b.coverImage as string) || (b.properties.cover as string) || ''
 }
 
 // ── 书籍信息编辑（书名/简介/封面；层1 卡片 hover + 层2 返回条旁双入口）──
