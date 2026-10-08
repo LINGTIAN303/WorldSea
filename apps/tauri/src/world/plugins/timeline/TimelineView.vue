@@ -52,6 +52,7 @@
          内容侧仍复用通用件——私有 EventDetailPanel 早在 2026-09-13 收敛过，令牌/结构与全局一致 -->
     <component
       :is="carrierDef.component"
+      ref="carrierRef"
       :visible="!!selectedEvent"
       :entity="selectedEvent"
       :icon="importanceIcon"
@@ -129,7 +130,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useEntityStore, useRelationStore, useUIStore, useDetailLayoutStore } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
-import { AutoLinkSuggestions, CustomDropdown, EntityCoverPanel, EntityFormModal, CreateButton, DynamicFieldsAdder, UniversalRelationPanel, EntityRelationSelector, EntityPager, useDuplicateNameCheck, useSelectedFollow, useShortcuts, useBatchDelete, useConfirm, useEntityEdit, useEntityPaging, useDetailCarrier, resolveDetailTabs, type FormFieldDef } from '@worldsea/plugin-sdk'
+import { AutoLinkSuggestions, CustomDropdown, EntityCoverPanel, EntityFormModal, CreateButton, DynamicFieldsAdder, UniversalRelationPanel, EntityRelationSelector, EntityPager, useDuplicateNameCheck, useSelectedFollow, useShortcuts, useBatchDelete, useConfirm, useEntityEdit, useEntityPaging, useDetailCarrier, resolveDetailTabs, adjacentTabId, type FormFieldDef } from '@worldsea/plugin-sdk'
 import { toastSuccess, toastWithUndo, useUndoRedo } from '@worldsea/ui-kit'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { TuiButton } from '@worldsea/ui-kit'
@@ -302,6 +303,15 @@ function onWsSelectEntity(e: Event) {
 
 // ── 事件详情面板（原私有 EventDetailPanel 逻辑收敛到通用 EntityDetailPanel）──
 const detailActiveTab = ref('info')
+/** 载体实例（ALT+←/→ 程序化切页要经它；契约同 GEV 的 detailPanelRef） */
+const carrierRef = ref<{ switchTab: (tabId: string) => void; activeTab?: string } | null>(null)
+
+/** ALT+←/→ 切页（wrap；2026-10-08 Tab 优化批 B） */
+function switchTabBy(delta: number): void {
+  if (!selectedEvent.value) return
+  const next = adjacentTabId(detailTabs.value, detailActiveTab.value, delta)
+  if (next) carrierRef.value?.switchTab(next)
+}
 const customFieldDefs = ref<any[]>([])
 
 /** 详情 Tab：组装走 `resolveDetailTabs` 单点（2026-10-08 Tab 优化批；因果链为自绘芽的附加页）；
@@ -389,13 +399,16 @@ onMounted(async () => {
   // 分页（Ctrl+←/→，与 GEV 的 `${entityType}.page-*` 同键位、不同 id）
   register({ id: 'timeline.page-prev', keys: ['ctrl', 'left'], scope: 'view', description: '时间轴：上一页', preventDefault: true, handler: pagePrev })
   register({ id: 'timeline.page-next', keys: ['ctrl', 'right'], scope: 'view', description: '时间轴：下一页', preventDefault: true, handler: pageNext })
+  // ALT+←/→ 切详情标签页（2026-10-08 Tab 优化批 B；wrap；详情未开 no-op）
+  register({ id: 'timeline.tab-prev', keys: ['alt', 'left'], scope: 'view', description: '时间轴：上一个标签页', preventDefault: true, handler: () => switchTabBy(-1) })
+  register({ id: 'timeline.tab-next', keys: ['alt', 'right'], scope: 'view', description: '时间轴：下一个标签页', preventDefault: true, handler: () => switchTabBy(1) })
 
   // 挂起位兜底：数据就绪后读回（跨视图跳转的事件发在本视图挂载前，见 Shell.onWsNavigate）
   selectEventById(uiStore.selectedEntityId ?? '')
 })
 
 /** 本视图注册的快捷键 id：注册表不随组件销毁清理，不注销会叠下指向陈旧闭包的记录 */
-const TIMELINE_SHORTCUT_IDS = ['timeline.undo', 'timeline.redo', 'timeline.close', 'timeline.page-prev', 'timeline.page-next']
+const TIMELINE_SHORTCUT_IDS = ['timeline.undo', 'timeline.redo', 'timeline.close', 'timeline.page-prev', 'timeline.page-next', 'timeline.tab-prev', 'timeline.tab-next']
 onBeforeUnmount(() => {
   for (const id of TIMELINE_SHORTCUT_IDS) unregister(id)
   window.removeEventListener('ws-select-entity', onWsSelectEntity)

@@ -48,6 +48,8 @@ export const SHORTCUT_CATALOG: ShortcutItem[] = [
   { id: 'timeline.close', description: '时间轴：关闭详情 / 退出批量选择', keys: ['escape'], scope: 'view' },
   { id: 'timeline.page-prev', description: '时间轴：上一页', keys: ['ctrl', 'left'], scope: 'view' },
   { id: 'timeline.page-next', description: '时间轴：下一页', keys: ['ctrl', 'right'], scope: 'view' },
+  { id: 'timeline.tab-prev', description: '时间轴：上一个标签页', keys: ['alt', 'left'], scope: 'view' },
+  { id: 'timeline.tab-next', description: '时间轴：下一个标签页', keys: ['alt', 'right'], scope: 'view' },
   { id: 'region.borderline', description: '区域图谱：边境线模式', keys: ['alt'], scope: 'view' },
   { id: 'region.erase-confirm', description: '区域图谱：确认偏移边境线', keys: ['enter'], scope: 'view' },
   { id: 'region.erase-cancel', description: '区域图谱：取消边境线编辑', keys: ['escape'], scope: 'view' },

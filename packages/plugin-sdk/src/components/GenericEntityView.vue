@@ -184,7 +184,7 @@ import EntityCard from './EntityCard.vue'
 import AutoLinkSuggestions from './AutoLinkSuggestions.vue'
 import EntityDetailForm from '../detail/EntityDetailForm.vue'
 import { useDetailCarrier } from '../detail/useDetailCarrier'
-import { resolveDetailTabs } from '../detail/detailTabs'
+import { resolveDetailTabs, adjacentTabId } from '../detail/detailTabs'
 import type { DetailFieldMeta } from '../detail/fieldMeta'
 import type { LayoutSource } from '../detail/detailLayout'
 import { useDetailLayout } from '../detail/useDetailLayout'
@@ -275,7 +275,7 @@ const typeFilter = ref('')
 const selectedEntity = ref<Entity | null>(null)
 const showForm = ref(false)
 const editingEntity = ref<Entity | null>(null)
-const detailPanelRef = ref<{ switchTab: (tabId: string) => void } | null>(null)
+const detailPanelRef = ref<{ switchTab: (tabId: string) => void; activeTab?: string } | null>(null)
 
 // 选中实体跟随 store（updateById 按引用替换后，详情面板不能挂旧对象）
 useSelectedFollow(selectedEntity, () => entityStore.entityMap)
@@ -554,6 +554,23 @@ onMounted(async () => {
     preventDefault: true,
     handler: pageNext,
   })
+  // ALT+←/→ 切详情标签页（2026-10-08 Tab 优化批 B；wrap；详情未开 no-op）
+  register({
+    id: `${props.entityType}.tab-prev`,
+    keys: ['alt', 'left'],
+    scope: 'view',
+    description: '上一个标签页',
+    preventDefault: true,
+    handler: () => switchTabBy(-1),
+  })
+  register({
+    id: `${props.entityType}.tab-next`,
+    keys: ['alt', 'right'],
+    scope: 'view',
+    description: '下一个标签页',
+    preventDefault: true,
+    handler: () => switchTabBy(1),
+  })
 
   // 挂起位兜底：数据就绪后读回（跨视图跳转的事件发在本视图挂载前，见 Shell.onWsNavigate）
   selectById(uiStore.selectedEntityId ?? '')
@@ -566,6 +583,8 @@ onBeforeUnmount(() => {
   unregister(`${props.entityType}.close`)
   unregister(`${props.entityType}.page-prev`)
   unregister(`${props.entityType}.page-next`)
+  unregister(`${props.entityType}.tab-prev`)
+  unregister(`${props.entityType}.tab-next`)
 })
 
 function selectEntity(e: Entity) { selectedEntity.value = e; listHighlight.select(e.id); emit('select-entity', e) }
@@ -672,6 +691,13 @@ async function deleteEntity() {
     await entityStore.loadAll()
     toastSuccess('已撤销删除')
   })
+}
+
+/** ALT+←/→ 切页（wrap）：读载体 expose 的 activeTab 与组装单点的 tab 列（2026-10-08 Tab 优化批 B） */
+function switchTabBy(delta: number): void {
+  if (!selectedEntity.value) return
+  const next = adjacentTabId(resolvedTabs.value, detailPanelRef.value?.activeTab, delta)
+  if (next) detailPanelRef.value?.switchTab(next)
 }
 
 defineExpose({

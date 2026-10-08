@@ -48,3 +48,14 @@ export function resolveDetailTabs(input: ResolveDetailTabsInput): DetailTab[] {
     return ra - rb
   })
 }
+
+/**
+ * 相邻 tab 的 id（ALT+←/→ 切页的算法单点，回绕）。
+ * 单 tab / 空 / 当前 id 不在列 → null（调用方据此 no-op）。
+ */
+export function adjacentTabId(tabs: DetailTab[], currentId: string | undefined, delta: number): string | null {
+  if (tabs.length < 2) return null
+  const idx = tabs.findIndex(t => t.id === currentId)
+  if (idx < 0) return null
+  return tabs[(idx + delta + tabs.length) % tabs.length]?.id ?? null
+}

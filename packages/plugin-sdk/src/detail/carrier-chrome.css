@@ -104,6 +104,31 @@
   border-bottom-color: var(--color-primary);
 }
 
+/* 2026-10-08（Tab 优化批 B）：标签条溢出——两端 mask 渐隐（只在可滚侧出现；mask 与载体底色无关，五载体通用） */
+.dp-shell .dp-tabs-wrap { position: relative; }
+.dp-shell .dp-tabs-wrap--left .dp-tabs {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 18px);
+  mask-image: linear-gradient(to right, transparent 0, #000 18px);
+}
+.dp-shell .dp-tabs-wrap--right .dp-tabs {
+  -webkit-mask-image: linear-gradient(to left, transparent 0, #000 18px);
+  mask-image: linear-gradient(to left, transparent 0, #000 18px);
+}
+.dp-shell .dp-tabs-wrap--left.dp-tabs-wrap--right .dp-tabs {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 18px, #000 calc(100% - 18px), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 18px, #000 calc(100% - 18px), transparent 100%);
+}
+/* 标签计数徽标（DetailTab.count；如「关联 12」） */
+.dp-shell .dp-tab-count {
+  font-size: 10px;
+  line-height: 1;
+  padding: 1px 5px;
+  border-radius: 8px;
+  background: var(--color-bg-hover);
+  color: var(--color-text-secondary);
+}
+.dp-shell .dp-tab.active .dp-tab-count { background: var(--color-primary); color: #fff; }
+
 .dp-shell .dp-content {
   flex: 1;
   overflow-y: auto;

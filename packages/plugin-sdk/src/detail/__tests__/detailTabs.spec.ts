@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resolveDetailTabs, PINNED_TAB_IDS } from '../detailTabs'
+import { resolveDetailTabs, adjacentTabId, PINNED_TAB_IDS } from '../detailTabs'
 
 const custom = [
   { id: 'family', label: '家谱', icon: 'tree' },
@@ -67,5 +67,25 @@ describe('resolveDetailTabs —— 用户覆写', () => {
 
   it('钉底清单导出（消费侧共用）内容锁定', () => {
     expect(PINNED_TAB_IDS).toEqual(['info', 'relations'])
+  })
+})
+
+describe('adjacentTabId —— ALT+←/→ 切页算法', () => {
+  const three = [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }, { id: 'c', label: 'C' }]
+
+  it('前进/后退（含回绕）', () => {
+    expect(adjacentTabId(three, 'a', 1)).toBe('b')
+    expect(adjacentTabId(three, 'c', 1)).toBe('a')
+    expect(adjacentTabId(three, 'a', -1)).toBe('c')
+  })
+
+  it('单 tab / 空列 → null（no-op 依据）', () => {
+    expect(adjacentTabId([{ id: 'a', label: 'A' }], 'a', 1)).toBeNull()
+    expect(adjacentTabId([], undefined, 1)).toBeNull()
+  })
+
+  it('当前 id 不在列（如已失效）→ null', () => {
+    expect(adjacentTabId(three, 'ghost', 1)).toBeNull()
+    expect(adjacentTabId(three, undefined, 1)).toBeNull()
   })
 })
