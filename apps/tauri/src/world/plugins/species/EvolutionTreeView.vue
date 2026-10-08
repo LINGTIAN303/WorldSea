@@ -200,7 +200,7 @@ onMounted(async () => {
     onNodeClick: (node) => { canvas.setSelectedId(node.id) },
     onNodeDoubleClick: (node) => {
       window.dispatchEvent(new CustomEvent('ws-navigate', {
-        detail: { type: 'entity', entityId: node.id, entityType: 'species' },
+        detail: { entityType: 'species', entityId: node.id },
       }))
     },
     onBackgroundClick: () => { canvas.setSelectedId(null) },

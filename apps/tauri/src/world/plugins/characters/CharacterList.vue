@@ -122,7 +122,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { TuiButton, WsIcon  } from '@worldsea/ui-kit'
-import { useEntityStore, useRelationStore, entitySchemaRegistry } from '@worldsea/entity-core'
+import { useEntityStore, useRelationStore, entitySchemaRegistry, useUIStore } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
 import FamilyTree from './components/FamilyTree.vue'
 import RelationGraph from './components/RelationGraph.vue'
@@ -245,20 +245,20 @@ function onSelectEntity(entity: Entity) {
 }
 
 // ── ws-select-entity listener (cross-plugin navigation) ──
+function selectCharacterById(id?: string | null) {
+  const entity = entityStore.entityMap.get(id ?? '')
+  if (!entity || entity.type !== 'character') return
+  gevRef.value?.selectEntityById(entity.id)
+  loadEntityTabData(entity)
+}
 function onWsSelectEntity(e: Event) {
-  const detail = (e as CustomEvent).detail
-  if (detail?.entityId) {
-    const entity = entityStore.entityMap.get(detail.entityId)
-    if (entity && entity.type === 'character') {
-      gevRef.value?.selectEntityById(detail.entityId)
-      loadEntityTabData(entity)
-    }
-  }
+  selectCharacterById((e as CustomEvent).detail?.entityId)
 }
 
 // ── Undo/Redo shortcuts ──
 onMounted(() => {
   window.addEventListener('ws-select-entity', onWsSelectEntity)
+  void entityStore.loadAll().then(() => selectCharacterById(useUIStore().selectedEntityId)) // 跨视图跳转挂起位兜底（见 Shell.onWsNavigate）
 
   const undoKeys = ['ctrl', 'z']
   const redoKeys = ['ctrl', 'y']

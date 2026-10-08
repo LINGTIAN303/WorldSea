@@ -149,7 +149,7 @@ function fitView() { canvas.fitView() }
 
 function navigateTo(entityId: string, entityType: string) {
   window.dispatchEvent(new CustomEvent('ws-navigate', {
-    detail: { type: 'entity', entityId, entityType },
+    detail: { entityType, entityId },
   }))
 }
 
@@ -204,7 +204,7 @@ onMounted(async () => {
     },
     onNodeDoubleClick: (node) => {
       window.dispatchEvent(new CustomEvent('ws-navigate', {
-        detail: { type: 'entity', entityId: node.id, entityType: 'building' },
+        detail: { entityType: 'building', entityId: node.id },
       }))
     },
     onBackgroundClick: () => {

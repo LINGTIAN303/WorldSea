@@ -165,7 +165,7 @@ function fitView() { canvas.fitView() }
 function selectById(id: string) { canvas.setSelectedId(id) }
 
 function navigateTo(entityId: string, entityType: string) {
-  window.dispatchEvent(new CustomEvent('ws-navigate', { detail: { type: 'entity', entityId, entityType } }))
+  window.dispatchEvent(new CustomEvent('ws-navigate', { detail: { entityType, entityId } }))
 }
 
 function recalcLayout() {
@@ -203,7 +203,7 @@ onMounted(async () => {
     },
     onNodeDoubleClick: (node) => {
       const et = node.nodeType === 'plant' ? 'plant' : node.nodeType === 'magic' ? 'magic' : 'item'
-      window.dispatchEvent(new CustomEvent('ws-navigate', { detail: { type: 'entity', entityId: node.id, entityType: et } }))
+      window.dispatchEvent(new CustomEvent('ws-navigate', { detail: { entityType: et, entityId: node.id } }))
     },
     onBackgroundClick: () => {
       canvas.setSelectedId(null)

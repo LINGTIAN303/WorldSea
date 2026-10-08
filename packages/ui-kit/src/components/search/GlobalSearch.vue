@@ -128,7 +128,7 @@ function typeLabel(type: string) {
 function goToEntity(e: { id: string; type: string }) {
   close()
   setTimeout(() => {
-    window.dispatchEvent(new CustomEvent('ws-navigate', { detail: { view: e.type, entityId: e.id } }))
+    window.dispatchEvent(new CustomEvent('ws-navigate', { detail: { entityType: e.type, entityId: e.id } }))
   }, 50)
 }
 

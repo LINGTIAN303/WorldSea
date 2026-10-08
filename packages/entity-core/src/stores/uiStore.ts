@@ -22,6 +22,10 @@ function saveOrder(order: string[]) {
 
 export const useUIStore = defineStore('ui', () => {
   const currentView = ref<string | null>(null)
+  /**
+   * 导航选中挂起位（2026-10-08 语义复活）：`ws-navigate` 跨视图跳转写入，
+   * 目标视图挂载时读回（挂载晚于事件派发，见 Shell.onWsNavigate）；`setView` 会清空。
+   */
   const selectedEntityId = ref<string | null>(null)
   const sidebarCollapsed = ref(false)
   const menuOpen = ref(false)

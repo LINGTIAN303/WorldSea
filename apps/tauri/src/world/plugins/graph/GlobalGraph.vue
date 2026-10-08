@@ -510,12 +510,7 @@ function fitView(): void {
 }
 
 function goTo(node: GraphNode): void {
-  const viewMap: Record<string, string> = {
-    character: 'characters', region: 'regions', event: 'timeline',
-    organization: 'organizations', concept: 'concepts', item: 'items',
-  }
-  const vid = viewMap[node.type]
-  if (vid) window.dispatchEvent(new CustomEvent('ws-navigate', { detail: { view: vid, entityId: node.id } }))
+  window.dispatchEvent(new CustomEvent('ws-navigate', { detail: { entityType: node.type, entityId: node.id } }))
 }
 
 onMounted(async () => {

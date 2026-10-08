@@ -486,7 +486,7 @@ function onOpenManuscript(containerId: string): void {
   const manuscriptId = (nodesById.value.get(container.nodeId)?.properties?.manuscriptId as string) || ''
   if (!manuscriptId) return
   window.dispatchEvent(new CustomEvent('ws-navigate', {
-    detail: { type: 'entity', entityId: manuscriptId, entityType: 'manuscript' },
+    detail: { entityType: 'manuscript', entityId: manuscriptId },
   }))
 }
 

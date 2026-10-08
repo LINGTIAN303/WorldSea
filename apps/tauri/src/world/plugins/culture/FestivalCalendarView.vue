@@ -112,7 +112,7 @@ const relatedOrgs = computed(() => getRelated('organization', 'promoted_by'))
 
 function navigateTo(entityId: string, entityType: string) {
   window.dispatchEvent(new CustomEvent('ws-navigate', {
-    detail: { type: 'entity', entityId, entityType },
+    detail: { entityType, entityId },
   }))
 }
 
@@ -133,7 +133,7 @@ onMounted(async () => {
     onNodeClick: (node) => { canvas.setSelectedId(node.id) },
     onNodeDoubleClick: (node) => {
       window.dispatchEvent(new CustomEvent('ws-navigate', {
-        detail: { type: 'entity', entityId: node.id, entityType: 'culture' },
+        detail: { entityType: 'culture', entityId: node.id },
       }))
     },
     onBackgroundClick: () => { canvas.setSelectedId(null) },

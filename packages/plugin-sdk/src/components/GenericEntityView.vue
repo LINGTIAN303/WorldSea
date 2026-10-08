@@ -182,7 +182,7 @@
 import { toastSuccess, toastWarn, toastWithUndo } from '@worldsea/ui-kit'
 import { useEntityEdit, useBatchDelete, useDuplicateNameCheck, useShortcuts, useConfirm, useHighlight, useEntityPaging, useSelectedFollow } from '../composables'
 import { ref, computed, onMounted, onBeforeUnmount, reactive, useSlots, watch } from 'vue'
-import { useEntityStore, useRelationStore, entitySchemaRegistry, fieldRegistry } from '@worldsea/entity-core'
+import { useEntityStore, useRelationStore, entitySchemaRegistry, fieldRegistry, useUIStore } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
 import CustomDropdown from './CustomDropdown.vue'
 import CreateButton from './CreateButton.vue'
@@ -262,6 +262,7 @@ const props = withDefaults(defineProps<{
 
 const entityStore = useEntityStore()
 const relationStore = useRelationStore()
+const uiStore = useUIStore()
 const slots = useSlots()
 // hasListSlot 只在渲染期消费（class 绑定 / pager v-if）：context.slots 是非响应式对象
 // （父组件重渲染时原地改写），computed 读取它会缓存过期值——条件槽（v-if 模板槽）增删后
@@ -514,6 +515,8 @@ const pagedHighlight = computed(() => listHighlight.applyToList(pagedList.value)
 watch(searchQuery, resetPage)
 
 onMounted(async () => {
+  // ws-navigate 跨视图跳转：监听先于数据加载**同步注册**（loadAll 期间到达的事件不能丢）
+  window.addEventListener('ws-select-entity', onWsSelectEntity)
   try {
     await entityStore.loadAll()
     await relationStore.loadAll()
@@ -563,9 +566,13 @@ onMounted(async () => {
     preventDefault: true,
     handler: pageNext,
   })
+
+  // 挂起位兜底：数据就绪后读回（跨视图跳转的事件发在本视图挂载前，见 Shell.onWsNavigate）
+  selectById(uiStore.selectedEntityId ?? '')
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener('ws-select-entity', onWsSelectEntity)
   unregister(`${props.entityType}.delete`)
   unregister(`${props.entityType}.new`)
   unregister(`${props.entityType}.close`)
@@ -574,6 +581,23 @@ onBeforeUnmount(() => {
 })
 
 function selectEntity(e: Entity) { selectedEntity.value = e; listHighlight.select(e.id); emit('select-entity', e) }
+
+/**
+ * 按 id 选中（跨视图跳转专用，供 selectEntityById 暴露面与 ws-select-entity 共用）。
+ * **不 emit('select-entity')**：宿主（如 CharacterList）对该 emit 会回派发全局
+ * ws-select-entity，若此处再 emit 即形成「事件 → 选中 → 事件」回环。
+ */
+function selectById(id: string): void {
+  const entity = entityStore.entityMap.get(id)
+  if (entity && entity.type === props.entityType) {
+    selectedEntity.value = entity
+    listHighlight.select(id)
+  }
+}
+/** 跨视图跳转的即时选中通道（视图已挂载时） */
+function onWsSelectEntity(e: Event) {
+  selectById(((e as CustomEvent).detail?.entityId as string | undefined) ?? '')
+}
 /** 卡片激活：批量态=选中切换；浏览态=打开详情（批量态下不弹详情，见批计划裁定） */
 function onCardActivate(e: Entity) { selecting.value ? toggleSelect(e.id) : selectEntity(e) }
 function openNewForm() { editingEntity.value = null; showForm.value = true }
@@ -664,13 +688,7 @@ async function deleteEntity() {
 
 defineExpose({
   /** Select an entity by id (opens detail panel) */
-  selectEntityById(id: string) {
-    const entity = entityStore.entityMap.get(id)
-    if (entity && entity.type === props.entityType) {
-      selectedEntity.value = entity
-      listHighlight.select(id)
-    }
-  },
+  selectEntityById: selectById,
   /** Open the create form with optional pre-filled defaults */
   openFormWithDefaults(defaults?: Record<string, any>) {
     if (defaults) {

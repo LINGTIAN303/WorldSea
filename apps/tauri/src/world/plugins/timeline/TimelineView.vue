@@ -127,7 +127,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
-import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
+import { useEntityStore, useRelationStore, useUIStore } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
 import { AutoLinkSuggestions, CustomDropdown, EntityCoverPanel, EntityFormModal, CreateButton, DynamicFieldsAdder, UniversalRelationPanel, EntityRelationSelector, EntityPager, useDuplicateNameCheck, useSelectedFollow, useShortcuts, useBatchDelete, useConfirm, useEntityEdit, useEntityPaging, useDetailCarrier, type FormFieldDef } from '@worldsea/plugin-sdk'
 import { toastSuccess, toastWithUndo, useUndoRedo } from '@worldsea/ui-kit'
@@ -147,6 +147,7 @@ import { entitySchemaRegistry } from '@worldsea/entity-core'
 
 const entityStore = useEntityStore()
 const relationStore = useRelationStore()
+const uiStore = useUIStore()
 const { checkAndConfirmName } = useDuplicateNameCheck()
 const { confirm } = useConfirm()
 const { register, unregister } = useShortcuts()
@@ -289,6 +290,16 @@ async function onFormSave(data: { name: string; description: string; properties:
 
 function selectEvent(event: Entity) { selectedEvent.value = event }
 
+/** 跨视图跳转专用：按 id 选中事件（类型不符 no-op，与 GEV 的 selectById 同口径） */
+function selectEventById(id: string): void {
+  const entity = entityStore.entityMap.get(id)
+  if (entity && entity.type === 'event') selectedEvent.value = entity
+}
+/** 跨视图跳转的即时选中通道（视图已挂载时） */
+function onWsSelectEntity(e: Event) {
+  selectEventById(((e as CustomEvent).detail?.entityId as string | undefined) ?? '')
+}
+
 // ── 事件详情面板（原私有 EventDetailPanel 逻辑收敛到通用 EntityDetailPanel）──
 const detailActiveTab = ref('info')
 const customFieldDefs = ref<any[]>([])
@@ -346,6 +357,8 @@ async function deleteEvent(id: string) {
 }
 
 onMounted(async () => {
+  // ws-navigate 跨视图跳转：监听先于数据加载**同步注册**（loadAll 期间到达的事件不能丢）
+  window.addEventListener('ws-select-entity', onWsSelectEntity)
   try {
     loading.value = true
     await entityStore.loadAll()
@@ -373,11 +386,17 @@ onMounted(async () => {
   // 分页（Ctrl+←/→，与 GEV 的 `${entityType}.page-*` 同键位、不同 id）
   register({ id: 'timeline.page-prev', keys: ['ctrl', 'left'], scope: 'view', description: '时间轴：上一页', preventDefault: true, handler: pagePrev })
   register({ id: 'timeline.page-next', keys: ['ctrl', 'right'], scope: 'view', description: '时间轴：下一页', preventDefault: true, handler: pageNext })
+
+  // 挂起位兜底：数据就绪后读回（跨视图跳转的事件发在本视图挂载前，见 Shell.onWsNavigate）
+  selectEventById(uiStore.selectedEntityId ?? '')
 })
 
 /** 本视图注册的快捷键 id：注册表不随组件销毁清理，不注销会叠下指向陈旧闭包的记录 */
 const TIMELINE_SHORTCUT_IDS = ['timeline.undo', 'timeline.redo', 'timeline.close', 'timeline.page-prev', 'timeline.page-next']
-onBeforeUnmount(() => { for (const id of TIMELINE_SHORTCUT_IDS) unregister(id) })
+onBeforeUnmount(() => {
+  for (const id of TIMELINE_SHORTCUT_IDS) unregister(id)
+  window.removeEventListener('ws-select-entity', onWsSelectEntity)
+})
 
 </script>
 

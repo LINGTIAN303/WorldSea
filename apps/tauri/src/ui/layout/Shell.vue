@@ -111,7 +111,8 @@ onMounted(() => {
 function onWsNavigate(e: Event) {
   const detail = (e as CustomEvent).detail
   if (!detail) return
-  const { view: entityType, entityId } = detail
+  // 契约单一口径：{ entityType, entityId }（2026-10-08 全链统一；旧 view/type 读法已撤）
+  const { entityType, entityId } = detail
   const schema = entitySchemaRegistry.get(entityType)
   const pluginId = schema?.pluginId
   const targetView = pluginStore.views.find(v => v.pluginId === pluginId)
@@ -120,6 +121,7 @@ function onWsNavigate(e: Event) {
     uiStore.viewComponent = targetView.component
   }
   if (entityId) {
+    // 双通道：挂起位兜底跨视图（新视图挂载晚于本事件）+ 即时事件通道响应当前已挂载视图
     uiStore.selectEntity(entityId)
     window.dispatchEvent(new CustomEvent('ws-select-entity', { detail: { entityId } }))
   }

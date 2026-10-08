@@ -85,7 +85,7 @@ function relativeTime(d: string) {
 function viewEntity(e: Entity) {
   typeFilter.value = ''
   emit('close')
-  window.dispatchEvent(new CustomEvent('ws-navigate', { detail: { view: e.type, entityId: e.id } }))
+  window.dispatchEvent(new CustomEvent('ws-navigate', { detail: { entityType: e.type, entityId: e.id } }))
 }
 
 function close() { typeFilter.value = ''; emit('close') }

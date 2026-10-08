@@ -108,7 +108,7 @@ const relatedItems = computed(() => getRelated('item', 'breakthrough_item'))
 
 function navigateTo(entityId: string, entityType: string) {
   window.dispatchEvent(new CustomEvent('ws-navigate', {
-    detail: { type: 'entity', entityId, entityType },
+    detail: { entityType, entityId },
   }))
 }
 
@@ -125,7 +125,7 @@ onMounted(async () => {
     onNodeClick: (node) => { canvas.setSelectedId(node.id) },
     onNodeDoubleClick: (node) => {
       window.dispatchEvent(new CustomEvent('ws-navigate', {
-        detail: { type: 'entity', entityId: node.id, entityType: 'combat_stat' },
+        detail: { entityType: 'combat_stat', entityId: node.id },
       }))
     },
     onBackgroundClick: () => { canvas.setSelectedId(null) },

@@ -190,7 +190,7 @@ function onCardDoubleClick(card: CardData) {
   const entity = inspirationEntities.value.find(e => e.id === card.id)
   if (entity) {
     window.dispatchEvent(new CustomEvent('ws-navigate', {
-      detail: { type: 'entity', entityId: entity.id, entityType: 'inspiration' },
+      detail: { entityType: 'inspiration', entityId: entity.id },
     }))
   }
 }

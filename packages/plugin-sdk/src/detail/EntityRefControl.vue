@@ -123,7 +123,7 @@ async function createAndPick() {
 
 function jumpToEntity(e: Entity) {
   window.dispatchEvent(new CustomEvent('ws-navigate', {
-    detail: { view: e.type, entityId: e.id, entityType: e.type },
+    detail: { entityType: e.type, entityId: e.id },
   }))
 }
 </script>

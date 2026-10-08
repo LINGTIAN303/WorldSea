@@ -110,7 +110,7 @@ function restNames(g: OutlineRefGroup): string {
 /** 跳转实体（复用既有 ws-navigate 链路，与「打开正文」同一实现） */
 function openEntity(entityId: string, entityType: string): void {
   window.dispatchEvent(new CustomEvent('ws-navigate', {
-    detail: { type: 'entity', entityId, entityType },
+    detail: { entityType, entityId },
   }))
 }
 </script>
