@@ -195,6 +195,7 @@ import BookInfoDialog from './components/BookInfoDialog.vue'
 import { useChapterEditor } from './composables/useChapterEditor'
 import { plainTextToEditorHtml } from '@/composables/plainTextToEditorHtml'
 import { useChapterSnapshots } from './composables/useChapterSnapshots'
+import { useManuscriptExternalNav } from './composables/useManuscriptExternalNav'
 import type { Entity } from '@worldsea/entity-core'
 // 「章节 ↔ 大纲节点」关联的唯一写入入口（新建章节归属节点时用，保证双侧一致）
 import { linkChapterToNode } from '@/entity/chapterLink'
@@ -354,6 +355,7 @@ function select(m: Entity, opts: { focusTitle?: boolean } = {}) {
     })
   }
 }
+useManuscriptExternalNav({ openBook, openChapter: select }) // 「打开正文」等外部章节跳转（接线收在 composable 内）
 
 async function saveTitle() {
   if (!current.value) return
@@ -450,9 +452,7 @@ async function deleteSnap(idx: number) {
   await deleteSnapshot(idx)
 }
 
-function formatTime(iso: string): string {
-  return new Date(iso).toLocaleString()
-}
+function formatTime(iso: string): string { return new Date(iso).toLocaleString() }
 
 onMounted(async () => {
   try {
