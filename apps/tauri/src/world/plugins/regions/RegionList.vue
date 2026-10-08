@@ -150,6 +150,7 @@ import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
 import { EntityRelationSelector } from '@worldsea/plugin-sdk'
 import { RegionMap, WsIcon, WsEmpty } from '@worldsea/ui-kit'
 import { regionFields, typeIconMap } from './regionConfig'
+import { DETAIL_TAB_DECLARATIONS } from '../../detailTabDeclarations'
 
 const entityStore = useEntityStore()
 const relationStore = useRelationStore()
@@ -183,13 +184,8 @@ const cardFooterFields: CardFieldDef[] = [
   { key: 'regionType', type: 'tag' },
 ]
 
-// ── Custom tabs (rendered via tab-${id} slots) ──
-const customTabs: CustomTabDef[] = [
-  { id: 'subregions', label: '子区域', icon: 'location' },
-  { id: 'enclaves', label: '飞地', icon: 'location' },
-  { id: 'residents', label: '驻留角色', icon: 'user' },
-  { id: 'faction', label: '所属势力', icon: 'building' },
-]
+// ── Custom tabs (rendered via tab-${id} slots；声明单点在 world/detailTabDeclarations.ts) ──
+const customTabs: CustomTabDef[] = DETAIL_TAB_DECLARATIONS.region?.custom ?? []
 
 // ── Detail tabs (relation-based, rendered by GenericEntityView) ──
 const detailTabs: RelationTabDef[] = []

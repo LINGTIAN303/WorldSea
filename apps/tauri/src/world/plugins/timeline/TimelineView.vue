@@ -144,6 +144,7 @@ import { useTimelineSort } from './composables/useTimelineSort'
 import { useConflictDetection } from './composables/useConflictDetection'
 import { useTimelineFilters } from './composables/useTimelineFilters'
 import { useTimelineDrag } from './composables/useTimelineDrag'
+import { DETAIL_TAB_DECLARATIONS } from '../../detailTabDeclarations'
 import { entitySchemaRegistry } from '@worldsea/entity-core'
 
 const entityStore = useEntityStore()
@@ -319,7 +320,7 @@ const customFieldDefs = ref<any[]>([])
 const detailPrefs = useDetailLayoutStore()
 const detailTabs = computed(() => resolveDetailTabs({
   hasCover: true,
-  extras: [{ id: 'causal', icon: 'link', label: '因果链' }],
+  extras: DETAIL_TAB_DECLARATIONS.event?.extras,
   override: detailPrefs.tabOverrides['event'],
 }))
 

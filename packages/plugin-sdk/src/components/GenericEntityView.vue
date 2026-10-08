@@ -145,7 +145,10 @@
       </template>
 
       <template v-for="ct in customTabs" :key="ct.id" #[ct.id]="{ entity }">
-        <slot :name="`tab-${ct.id}`" :entity="entity" :editing="isEditing" />
+        <!-- 芽没给内容的自定义页 → 说明文案（消除「点进去啥也没有」的密室感），而不是空白 -->
+        <slot :name="`tab-${ct.id}`" :entity="entity" :editing="isEditing">
+          <WsEmpty preset="no-data" :title="`「${ct.label}」暂无可显示的内容`" />
+        </slot>
       </template>
 
       <template #relations="{ entity }">

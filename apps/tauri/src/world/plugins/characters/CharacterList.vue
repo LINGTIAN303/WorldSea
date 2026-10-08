@@ -31,7 +31,7 @@
         <FamilyTree :character-id="entity.id" @navigate="onFamilyNavigate" @switch-to-profile="switchToInfoTab" />
       </template>
 
-      <template #tab-relations="{ entity }">
+      <template #tab-relation-graph="{ entity }">
         <RelationGraph :character-id="entity.id" @navigate="onFamilyNavigate" />
       </template>
 
@@ -132,6 +132,7 @@ import { GenericEntityView, EntityRelationSelector, CustomDropdown, useShortcuts
 import { toastSuccess } from '@worldsea/ui-kit'
 import { characterFields } from './characterConfig'
 import { characterTemplates } from './characterTemplates'
+import { DETAIL_TAB_DECLARATIONS } from '../../detailTabDeclarations'
 import type { FilterDef, CustomTabDef, LayoutSource } from '@worldsea/plugin-sdk'
 
 const entityStore = useEntityStore()
@@ -163,15 +164,8 @@ const sortOptions = [
   { key: 'occupation', label: '职业' },
 ]
 
-// ── Custom tabs ──
-const customTabs: CustomTabDef[] = [
-  { id: 'family', label: '家谱', icon: 'tree' },
-  { id: 'relations', label: '关系图', icon: 'web' },
-  { id: 'experience', label: '经历', icon: 'hourglass' },
-  { id: 'names', label: '称呼', icon: 'badge' },
-  { id: 'appearance', label: '外貌', icon: 'eye' },
-  { id: 'equipment', label: '装备栏', icon: 'clothing' },
-]
+// ── Custom tabs（声明单点在 world/detailTabDeclarations.ts——设置面「Tab 管理」卡与图标守卫共用）──
+const customTabs: CustomTabDef[] = DETAIL_TAB_DECLARATIONS.character?.custom ?? []
 
 // ── Compare mode ──
 const compareMode = ref(false)

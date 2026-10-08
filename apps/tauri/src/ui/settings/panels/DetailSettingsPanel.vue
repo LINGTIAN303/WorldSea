@@ -1,5 +1,5 @@
 <template>
-  <CardDeck :count="6" :flat="!!searchQuery" ref="deckRef" @change="(i) => emit('card-change', i)">
+  <CardDeck :count="7" :flat="!!searchQuery" ref="deckRef" @change="(i) => emit('card-change', i)">
     <template #card="{ idx, cls }">
       <div class="set-card deck-card ds-panel" :class="cls" :data-index="idx" v-show="match(CARD_KEYS[idx] ?? '')">
 
@@ -103,7 +103,7 @@
         </template>
 
         <!-- ⑥ 承载形态（L1：详情装在哪种容器里） -->
-        <template v-else>
+        <template v-else-if="idx === 5">
           <div class="sc-head"><span>承载形态</span><span class="ds-type">{{ typeLabel }}</span></div>
           <div class="set-row"><span>详情容器</span>
             <div class="set-chip-group">
@@ -146,6 +146,11 @@
             <button class="set-btn" type="button" @click="clearCarrier">回到芽声明（当前未设＝右栏抽屉）</button>
           </div>
         </template>
+
+        <!-- ⑦ Tab 管理（顺序/隐藏；「信息」「关联」钉底禁隐——2026-10-08 Tab 优化批 C） -->
+        <template v-else>
+          <DetailTabsCard :entity-type="activeType" :type-label="typeLabel" />
+        </template>
       </div>
     </template>
   </CardDeck>
@@ -165,6 +170,7 @@ import { computed, ref } from 'vue'
 import { entitySchemaRegistry, fieldRegistry, useDetailLayoutStore, useFieldOrderStore } from '@worldsea/entity-core'
 import { CardDeck, WsIcon, matchKeywords, toastSuccess, useConfirm } from '@worldsea/ui-kit'
 import DetailGroupsCard from './DetailGroupsCard.vue'
+import DetailTabsCard from './DetailTabsCard.vue'
 import '../detail-settings.css'
 import {
   DEFAULT_CARRIER,
@@ -190,6 +196,7 @@ const CARD_KEYS = [
   '实体 详情 分组 分组管理 组名 归属 未分组 group',
   '实体 详情 预设 命名预设 基准序 另存为 preset',
   '实体 详情 载体 承载形态 抽屉 栏式 分栏 遮罩 穿透 拦截 backdrop carrier column drawer',
+  '实体 详情 标签页 tab 标签 排序 隐藏 位置 固定',
 ]
 
 const props = defineProps<{ searchQuery?: string }>()

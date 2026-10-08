@@ -100,6 +100,7 @@ import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
 import OrgTreeNode from './OrgTreeNode.vue'
 import { orgFields, orgIconOf } from './organizationConfig'
+import { DETAIL_TAB_DECLARATIONS } from '../../detailTabDeclarations'
 
 const entityStore = useEntityStore()
 const relationStore = useRelationStore()
@@ -119,12 +120,7 @@ const filterDefs: FilterDef[] = [
   { key: 'alignment', label: '阵营', dynamic: true },
 ]
 
-const customTabs: CustomTabDef[] = [
-  { id: 'members', label: '成员', icon: 'user' },
-  { id: 'subfactions', label: '下属势力', icon: 'building' },
-  { id: 'territories', label: '控制区域', icon: 'location' },
-  { id: 'diplomacy', label: '外交', icon: 'link' },
-]
+const customTabs: CustomTabDef[] = DETAIL_TAB_DECLARATIONS.organization?.custom ?? []
 
 const detailTabs: RelationTabDef[] = []
 

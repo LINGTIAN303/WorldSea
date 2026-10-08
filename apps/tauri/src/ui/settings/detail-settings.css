@@ -20,6 +20,11 @@
 .ds-panel .ds-gf-list { display: flex; flex-direction: column; padding-left: 14px; }
 .ds-panel .ds-gf-row { gap: 6px; }
 .ds-panel .ds-gf-label { font-size: var(--font-size-xs); color: var(--text-secondary, var(--color-text-secondary)); }
+/* Tab 管理卡（2026-10-08）：行内 图标/名/固定标/升降/显隐开关 */
+.ds-panel .ds-tab-row { gap: 6px; }
+.ds-panel .ds-tab-icon { flex-shrink: 0; color: var(--text-secondary, var(--color-text-secondary)); }
+.ds-panel .ds-tab-label { font-size: var(--font-size-xs); }
+.ds-panel .ds-tab-toggle { accent-color: var(--primary, var(--color-primary)); flex-shrink: 0; }
 .ds-panel .ds-order {
   width: 18px; text-align: right; font-size: var(--font-size-xs);
   color: var(--text-tertiary, var(--color-text-tertiary)); font-family: monospace; flex-shrink: 0;

@@ -57,10 +57,10 @@ beforeEach(() => {
 })
 
 describe('面板骨架', () => {
-  it('六张卡各有分节标题（左列 rail 靠 .sc-head 取首个 span 文本）', () => {
+  it('七张卡各有分节标题（左列 rail 靠 .sc-head 取首个 span 文本）', () => {
     const w = mountPanel()
     const heads = w.findAll('.sc-head').map(h => h.find('span').text())
-    expect(heads).toEqual(['内容形态', '字段顺序与可见性', '形态配置', '分组管理', '命名预设', '承载形态'])
+    expect(heads).toEqual(['内容形态', '字段顺序与可见性', '形态配置', '分组管理', '命名预设', '承载形态', 'Tab 管理'])
     expect(w.findAll('.sc-head')[0].text()).toContain('角色')
   })
 
