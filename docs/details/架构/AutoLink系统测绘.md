@@ -1,6 +1,6 @@
 # AutoLink 系统测绘
 
-> 状态：参考基线（2026-10-07 定稿；**① 活异常修复批已落，见 §9**）｜用途：AutoLink 完善批（[立项](../../plans/2026-10-07-AutoLink成熟度审查与完善立项.md)）实施底稿 + 后续维护参照
+> 状态：参考基线（2026-10-07 定稿；**① 批走查通过、② 批已落，见 §9 / §10**）｜用途：AutoLink 完善批（[立项](../../plans/2026-10-07-AutoLink成熟度审查与完善立项.md)）实施底稿 + 后续维护参照
 > 口径：结论均出自 2026-10-07 HEAD 全仓检索 + 逐件精读；行号为该日快照。
 
 ## 0. 一句话定位
@@ -63,7 +63,7 @@ AutoLink = **从字段值发现实体间潜在关联 → 建议 → 确认后落
 
 - 桥定义：`core/serviceProvider.ts`（noop :63-70；register/get :78-124）——未注册时 settings 恒 false、confirm 恒 false。
 - 设置真源：`stores/settingsStore.ts:247-250`（autoCreateEntityEnabled 默认 true + selector / entityRef / graph 三子开关）；设置面板 `ui-kit .../settings/panels/RelationsPanel.vue:6-11`（v-model 直写 store）。
-- 装配现状：全仓 `register*` 只有定义与导出；应用只注册 ValidationApi（`apps/tauri/src/main.ts:38`）——**其余五桥零装配**。
+- 装配现状（② 批后）：`apps/tauri/src/shell/autoLinkWiring.ts` 装配 settings / confirm 两桥 + 撤销 provider + 策略注册（`main.ts` initializeBackend 调用）；Validation 桥仍旧（`main.ts:38`）；**EventBus / Toast / Dialog 三桥仍空**（AutoLink 家族未用）。
 
 ### 2.7 注册与类型面（引擎的数据前提）
 
@@ -96,6 +96,8 @@ AutoLink = **从字段值发现实体间潜在关联 → 建议 → 确认后落
 | **休眠** | confirm 桥 → `deleteWithConfirm` 静默「不删对」、`promptAndCreate` 恒 null | 同上 |
 | **休眠** | `refreshLinksForTarget`（目标变更重索引） | `AutoLinkEngine.ts:540-568` 全仓零调用 |
 | **幽灵** | selector / entityRef / graph 三子开关：设置面板可勾，零消费者；graph 触发面从未实现 | `settingsStore.ts:248-250` + `RelationsPanel.vue:8-10` |
+
+> **② 批（2026-10-07）已把上表「休眠」各行接线落地**（策略注册 / settings 桥 / confirm 桥 / 撤销上限；`refreshLinksForTarget` 已于 ① 批接线）；「幽灵」行：selector（`EntityRelationSelector`）与 entityRef（`EntityRefControl`）两枚已接门控，**graph 面仍挂账**——详见 §10。
 
 ## 5. 活路径上的确认异常（**① 批已逐条修复，处置见 §9**）
 
@@ -139,3 +141,11 @@ AutoLink = **从字段值发现实体间潜在关联 → 建议 → 确认后落
 - **减压**：`PotentialLinkIndex.ts` 抽出（引擎 re-export，导出面零变化）；734 → 655 行。
 - **测试**：4 spec / 14 例；变异反证五处（详见立项 §三）。
 - **仍未动（② 批）**：策略注册（`registerDefaultStrategies`）、设置桥（`registerSettingsApi`）、自定义视图覆盖面、`relationDirection` 消费。
+
+## 10. ② 批变更记录（2026-10-07）
+
+- **装配件**：`apps/tauri/src/shell/autoLinkWiring.ts`（`main.ts` initializeBackend 调用一次，幂等守卫）——策略注册（9 条）/ 设置桥（getter 活读 settingsStore；`SettingsApi` 增补 `autoCreateSelectorEnabled`）/ 确认桥（ui-kit `useConfirm` 全局弹窗适配，宿主 `WsConfirmDialog` 由 Shell 全局挂载）/ `setUndoHistoryProvider`（撤销上限从此生效）。
+- **子开关门控**：`EntityRefControl`（entityRef 开关）、`EntityRelationSelector`（selector 开关）——关闭时「+ 创建」入口隐藏；graph 面挂账。
+- **激活的效果**：语义标签路径产出建议 + SmartFieldAdder 推断分支复活；保存智能链（自动建关系 + 提醒）与自动建实体弹窗（三入口）随桥生效；删对确认（`useBidirectional`）恢复询问；高亮 dimming 生效（默认开）。
+- **顺带清理**：plugin-sdk 既有 typecheck 5 条红（carrier CSS 侧效导入）补 `shims-css.d.ts` 清零；`EntityRelationSelector.vue` 行内判定减压（596 ≤ 597 基线）。
+- **测试**：2 spec / 10 例（装配级 8 + 门控 2）；变异四轮（详见立项 §三）。
