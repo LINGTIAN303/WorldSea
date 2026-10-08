@@ -24,7 +24,7 @@ AutoLink = **从字段值发现实体间潜在关联 → 建议 → 确认后落
 
 | 部件 | 位置 | 说明 |
 |------|------|------|
-| 潜在链接索引 `potentialLinkIndex` | `PotentialLinkIndex.ts`（① 批抽出） | 内存 Map + bySource 索引；条目含 id / source / target / hint / relationType / confidence / score / resolved / decision |
+| 潜在链接索引 `potentialLinkIndex` | `PotentialLinkIndex.ts`（① 批抽出） | 内存 Map + bySource 索引；条目含 id / source / target / hint / relationType / direction / confidence / score / resolved / decision |
 | 决策 store `autoLinkDecisionStore` | `AutoLinkDecisions.ts`（① 批新增） | localStorage `worldsea_potential_link_decisions`；键 = 源:字段:目标:关系 + 源值/目标值 djb2 指纹；指纹变 → 自清重评 |
 | 策略注册表 + 9 条默认策略 | :55-78 / :85-175 | hint→[策略]；9 条 = origin / creator / owner / location / date / appearance / material / birthDate / deathDate |
 | SemanticHint 注册表 | :26-49 | hint→usedInTraits 元数据；**全仓无 register 调用、亦无消费（尸体）** |
@@ -106,7 +106,7 @@ AutoLink = **从字段值发现实体间潜在关联 → 建议 → 确认后落
 3. **陈旧目标**：`characterConfig.ts:8` `race → 'race'`（无此类型；V2 侧 `characters/index.ts:28` 已是 `species`——表单侧与 schema 侧双源不一致，`CharacterList.vue:6/:133` 仍喂该表单）；`FIELD_KEY_TARGET_MAP` 的 `mount → 'creature'`（无此类型）。
 4. **目标改名卡旧值**：`refreshLinksForTarget` 未接线 → 目标实体改名 / 变更不会刷新他方建议的 `targetFieldValue`（直到源实体自身被重索引）。
 5. **删除实体不清索引**：`clearBySource` 仅有引擎内部调用（:416），删除链未接（单一挂点为 `entityStore.remove :207`，批量删除已经它 `useBatchDelete :56`）。
-6. **relationDirection 未消费**：确认方向恒为「本实体 → 目标」（当前 9 策略全 `source` 恰好等价；② 接策略时需逐条核）。
+6. **relationDirection 未消费** → **③ 批已消费落地**（`PotentialLink.direction`；`target` 策略确认时反向建）。
 7. **覆盖面与底座**：建议面板仅在 GEV 系视图（GEV 直用 + SchemaRenderer 系 ≈15 芽）；timeline / tactical-board / outline 等自定义视图无面板；全家族**零测试**；`AutoLinkEngine.ts` 734 行 = 冻结基线（改动前先减压）。
 
 ## 6. 设计意图 vs 现实（理解这把「钥匙」）
@@ -149,3 +149,11 @@ AutoLink = **从字段值发现实体间潜在关联 → 建议 → 确认后落
 - **激活的效果**：语义标签路径产出建议 + SmartFieldAdder 推断分支复活；保存智能链（自动建关系 + 提醒）与自动建实体弹窗（三入口）随桥生效；删对确认（`useBidirectional`）恢复询问；高亮 dimming 生效（默认开）。
 - **顺带清理**：plugin-sdk 既有 typecheck 5 条红（carrier CSS 侧效导入）补 `shims-css.d.ts` 清零；`EntityRelationSelector.vue` 行内判定减压（596 ≤ 597 基线）。
 - **测试**：2 spec / 10 例（装配级 8 + 门控 2）；变异四轮（详见立项 §三）。
+
+## 11. ③ 批变更记录（2026-10-07，挂账收尾）
+
+- **撤回「图谱视图中触发」空开关**：GlobalGraph 为纯展示/点选面（无创建交互可挂）——设置面板删行 + `settingsStore` 字段退役；设置面口径「三子开关」→ 两枚。
+- **时间线接入**：`TimelineView` `#info` 槽顶部挂 `AutoLinkSuggestions`（编辑态隐藏；同 GEV 序位）。
+- **relationDirection 消费**：`PotentialLink.direction`（必填）；策略路径取 `strategy.relationDirection`，直配/盲匹配显式 `'source'`；确认链按方向反向建。
+- **守卫教训**：挂载类守卫必须断言**调用形状正则**——首版裸串断言被同文件 `EntityRelationSelector` 的同串旁证满足（假绿，变异轮抓到）。
+- **登记**：映射 UI 入口维持现状；graph 面此后若出创建类交互另行立项。
