@@ -23,3 +23,13 @@ export function visibleViewsInSidebarOrder(): PluginView[] {
     .slice()
     .sort((a, b) => (orderMap.get(a.id) ?? 999) - (orderMap.get(b.id) ?? 999))
 }
+
+/**
+ * 首屏默认视图 id（2026-10-09 增）：优先恢复上次视图（须仍在可见列表），否则侧栏首项。
+ * 消费方＝`boot.ts` 冷启动——旧实现取注册序 `pluginStore.views[0]`（装载器 `files.sort()`
+ * 字典序，`apparel` 目录恰第一 → 首屏恒「服饰/装备」，且绕开本文件口径）。
+ */
+export function resolveDefaultViewId(views: PluginView[], preferredId: string | null): string | null {
+  if (views.length === 0) return null
+  return preferredId && views.some(view => view.id === preferredId) ? preferredId : views[0].id
+}

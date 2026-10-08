@@ -4,6 +4,17 @@ import type { Component } from 'vue'
 import { watchDebounced } from '@worldsea/perf-kit/render'
 
 const STORAGE_KEY = 'worldsea_sidebar_order'
+const LAST_VIEW_KEY = 'worldsea_last_view'
+
+/** 上次查看的视图 id（冷启动恢复用；经 `setView` 落盘，见下）。
+ *  空视图是「视图列表未就绪」瞬态（SidebarV2 空列表分支），`setView('')` 不清记忆。 */
+export function readLastViewId(): string | null {
+  try {
+    return localStorage.getItem(LAST_VIEW_KEY)
+  } catch {
+    return null
+  }
+}
 
 function loadOrder(): string[] {
   try {
@@ -41,6 +52,11 @@ export const useUIStore = defineStore('ui', () => {
   function setView(viewId: string) {
     currentView.value = viewId
     selectedEntityId.value = null
+    if (viewId) {
+      try {
+        localStorage.setItem(LAST_VIEW_KEY, viewId)
+      } catch { /* quota exceeded, 静默 */ }
+    }
   }
 
   function selectEntity(id: string | null) {

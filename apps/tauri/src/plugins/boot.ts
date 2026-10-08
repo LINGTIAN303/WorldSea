@@ -7,12 +7,13 @@
  * - **worldview 芽表** → `installWorldTree()`；
  * - 这里只剩**产品壳自身**的两件：① 视图生命周期同步装配 ② 首屏默认视图。
  */
-import { useEntityStore, usePluginStore, useRelationStore } from '@worldsea/entity-core/stores'
+import { useEntityStore, useRelationStore } from '@worldsea/entity-core/stores'
 import { entitySchemaRegistry, getFileStorageBackend } from '@worldsea/entity-core/core'
 import { invoke } from '@tauri-apps/api/core'
 
 import { installViewSynchronizer } from './viewSync'
-import { useUIStore } from '../stores/uiStore'
+import { readLastViewId, useUIStore } from '../stores/uiStore'
+import { resolveDefaultViewId, visibleViewsInSidebarOrder } from '../ui/layout/sidebar/viewOrder'
 
 export interface BootstrapOptions {
   /** 跳过「默认选中首个视图」：切项目重播种时不应打断当前视图选择 */
@@ -78,12 +79,17 @@ export async function bootstrapShell(opts?: BootstrapOptions): Promise<void> {
   // D2-b：能力桥变更通知消费端（幂等挂一次）——Agent 改完工作台即见
   installCapabilityMutationListener()
 
-  // 若尚无视图选中（Agent 是首项），默认选中第一个视图（切项目重播种时跳过）
+  // 首屏默认视图：优先恢复上次视图（`worldsea_last_view`），否则侧栏首项——与侧栏渲染 /
+  // Ctrl+↑/↓ 同走 `viewOrder` 单一口径（旧实现取注册序 `views[0]`＝装载器字典序，
+  // `apparel` 恰排第一 → 首屏恒「服饰/装备」；2026-10-09 修）。切项目重播种时跳过。
   const uiStore = useUIStore()
-  const pluginStore = usePluginStore()
-  if (!opts?.skipDefaultView && pluginStore.views.length > 0 && !uiStore.currentView) {
-    uiStore.setView(pluginStore.views[0].id)
-    uiStore.viewComponent = pluginStore.views[0].component
+  if (!opts?.skipDefaultView && !uiStore.currentView) {
+    const views = visibleViewsInSidebarOrder()
+    const target = views.find(view => view.id === resolveDefaultViewId(views, readLastViewId()))
+    if (target) {
+      uiStore.setView(target.id)
+      uiStore.viewComponent = target.component
+    }
   }
 
   // D2-c：schema 快照导出（此刻实体类型注册已就绪；切项目重播种同样走到，快照随项目更新）
