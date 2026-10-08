@@ -38,7 +38,7 @@ export function apply(_ctx: unknown, api: WorldPluginApi) {
       { key: 'wordCount', label: '字数（预估）', fieldType: 'number' },
       // 2026-09-18（Q6-①）：此前是「自由写入」字段 —— Agent 侧 `create_node`/`batch_create`
       // 会写它、`get_structure` 会返回它、SKILL.md 也记载它，但**从未注册**，
-      // 且 UI 里完全不可见（属性面板补了编辑入口，见 BoardInspector）。
+      // 且 UI 里完全不可见（属性面板补了编辑入口，见 NodeDetailView——2026-10-08 详情分层后随载体呈现）。
       // 取值保留英文四值（Agent 工具与 SKILL.md 已按此口径），中文只作显示标签。
       {
         key: 'nodeType',

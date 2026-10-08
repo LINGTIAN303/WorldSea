@@ -94,22 +94,21 @@
       @cleanup-dangling="onCleanupDangling"
     />
 
-    <!-- 容器属性面板（规格 §五「属性条」）：选中容器时出现，画布内悬浮 -->
+    <!-- 容器工具面板（节点属性已拆至 NodeDetailDock）：尺寸 + 表现形式，画布内悬浮 -->
     <BoardInspector
       v-if="inspectedContainer"
       :container="inspectedContainer"
       :node="inspectedNode"
-      :linked-chapter-name="inspectedChapterName"
       @close="inspectorClosed = true"
-      @unlink-chapter="onUnlinkChapter"
       @resize="onInspectorResize"
       @reset-size="onInspectorResetSize"
       @update-config="onComponentConfig"
       @remove-component="onInspectorRemoveComponent"
       @reorder-components="onReorderComponents"
-      @open-node="onOpenNodeFromInspector"
-      @update-node-field="onUpdateNodeField"
     />
+    <!-- 节点详情（L1 载体，缺省抽屉；节点属性 / 关联章节 / 关联实体 / 打开正文） -->
+    <NodeDetailDock :node="inspectedNode" :linked-chapter-name="inspectedChapterName"
+      @unlink-chapter="onUnlinkChapter" @open-node="onOpenNodeFromInspector" @update-node-field="onUpdateNodeField" />
 
     <NodeSidebar
       :nodes="outlineNodes"
@@ -181,6 +180,7 @@ import { WsIcon, useShortcuts, toastWarn, toastInfo } from '@worldsea/ui-kit'
 import BoardCanvas from './components/BoardCanvas.vue'
 import BoardCanvasToolbar from './components/BoardCanvasToolbar.vue'
 import BoardInspector from './components/BoardInspector.vue'
+import NodeDetailDock from './components/NodeDetailDock.vue'
 import BoardContextMenu from './components/BoardContextMenu.vue'
 import BoardExportDialog from './components/BoardExportDialog.vue'
 import BoardListView from './BoardListView.vue'

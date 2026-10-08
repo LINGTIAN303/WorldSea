@@ -183,8 +183,8 @@ describe('NodeRefsSection / 解除与跳转', () => {
 })
 
 describe('NodeRefsSection / 挂载守卫', () => {
-  it('BoardInspector 以 :node 挂载本件（调用形状正则，防摘）', () => {
-    const src = readFileSync(join(__dirname, '..', 'board', 'components', 'BoardInspector.vue'), 'utf8')
+  it('NodeDetailView 以 :node 挂载本件（调用形状正则，防摘；2026-10-08 随详情分层从 BoardInspector 迁出）', () => {
+    const src = readFileSync(join(__dirname, '..', 'board', 'components', 'NodeDetailView.vue'), 'utf8')
     expect(src).toMatch(/<NodeRefsSection\s+:node="node"\s*\/>/)
   })
 })
