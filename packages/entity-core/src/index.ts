@@ -1,4 +1,12 @@
 // @worldsea/entity-core - Entity engine core package
+// 内置关系定义注册（side-effect）：原载入点（src/App.vue → 后迁入 governor 启动模块）随端分离
+// 迁移与旧结构下线消失，而新端启动装配从未接过 ⇒ relationshipRegistry 长期空表，
+// 徽章等「注册表驱动」的面静默失效。接在包入口一处，app / 各包 / 测试 import 本包即一致
+// （2026-10-08 修复）。加载后同步 V2 → 旧版 registry（relationSchemaRegistry 仍有消费者，
+// 如 canvas-engine 图数据标签）——即老载入点的同款两步。
+import './relations'
+import { syncToLegacyRegistry } from './core/RelationshipRegistry'
+syncToLegacyRegistry()
 export * from './types'
 export {
   WorldDatabase,
