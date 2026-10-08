@@ -1,5 +1,7 @@
 import { shallowRef, onBeforeUnmount, type Ref } from 'vue'
 import Sigma from 'sigma'
+// 边程序经子路径导出（根导出面不含程序类；默认注册仅 line/arrow，double-arrow 须显式并入）
+import { EdgeArrowProgram, EdgeDoubleArrowProgram, EdgeLineProgram } from 'sigma/rendering'
 import Graph from 'graphology'
 
 /** sigma 渲染器选项类型（sigma 未导出 Settings，从构造函数参数提取） */
@@ -22,7 +24,16 @@ export function useSigmaRenderer(
     labelColor: { color: '#e0e0e0' },
     labelWeight: 'normal',
     labelRenderedSizeThreshold: 8,
-    renderEdgeLabels: false,
+    renderEdgeLabels: true,
+    edgeLabelSize: 9,
+    edgeLabelColor: { color: '#c9d4e0' },
+    edgeLabelWeight: '500',
+    // 批 A：方向箭头边程序——sigma 默认只注册 line/arrow，`double-arrow` 需显式并入
+    edgeProgramClasses: {
+      line: EdgeLineProgram,
+      arrow: EdgeArrowProgram,
+      'double-arrow': EdgeDoubleArrowProgram,
+    },
     enableEdgeClickEvents: true,
     enableEdgeHoverEvents: true,
     minCameraRatio: 0.05,

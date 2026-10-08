@@ -29,7 +29,7 @@
       :nodes="graphNodes"
       :path-length="interaction.pathResult.value.length"
       :not-found="pathNotFound"
-      @close="showPathSearch = false; interaction.clearHighlight(); syncGraphColors()"
+      @close="showPathSearch = false; interaction.clearHighlight(); resetVisuals()"
       @search="onPathSearch"
     />
 
@@ -48,7 +48,7 @@
     <NodeDetailPanel
       :visible="!!selectedNode"
       :node="selectedNode"
-      @close="interaction.clearHighlight(); syncGraphColors()"
+      @close="interaction.clearHighlight(); resetVisuals()"
       @navigate="goTo"
     />
 
@@ -85,11 +85,12 @@ import Graph from 'graphology'
 import { useEntityStore, useRelationStore, entitySchemaRegistry, getNodeTypeInfo } from '@worldsea/entity-core'
 import { useGraphData, type GraphNode, useTypeMapping, useGraphFilter, useGraphAlgorithms } from '@worldsea/ui-kit'
 import { useSigmaRenderer } from './composables/useSigmaRenderer'
+import { useGraphModel } from './composables/useGraphModel'
 import { useGraphLayout, type LayoutType } from './composables/useGraphLayout'
 import { useGraphClustering } from './composables/useGraphClustering'
 import { useGraphInteraction } from './composables/useGraphInteraction'
 import { usePathParticles } from './composables/usePathParticles'
-import { parseDate } from '@/world/plugins/timeline/composables/useDateParser'
+import { labelThresholdFor } from './graphStyle'
 import GraphToolbar from './components/GraphToolbar.vue'
 import GraphLegend from './components/GraphLegend.vue'
 import PathSearchPanel from './components/PathSearchPanel.vue'
@@ -127,19 +128,11 @@ const showLegend = ref(true)
 const showPathSearch = ref(false)
 const showTimeline = ref(false)
 const pathNotFound = ref(false)
-const timelineMinYear = ref(0)
-const timelineMaxYear = ref(2100)
-const timelineFilteredCount = ref(0)
-const timelineActiveRange = ref<{ start: number; end: number } | null>(null)
 const tooltip = ref({ show: false, x: 0, y: 0, text: '' })
 
-function extractAbsYear(properties: Record<string, unknown>): number | null {
-  const dateText = (properties.date as string) || (properties.startDate as string) || ''
-  if (!dateText) return null
-  const parsed = parseDate(dateText)
-  if (!parsed) return null
-  return parsed.era * 10000 + parsed.year
-}
+/** 数据模型（2026-10-09 图谱改进批 A：组装/双过滤/增量更新/视觉复位自本件外移；视图只留接线） */
+const model = useGraphModel({ graph, nodes: graphNodes, edges: graphEdges, shownTypes, sigma })
+const { timelineMinYear, timelineMaxYear, timelineFilteredCount, onTimelineFilter, onTimelineReset } = model
 
 const allTypes = computed(() => {
   const used = new Set(entityStore.entities.map(e => e.type))
@@ -166,128 +159,14 @@ const selectedNode = computed<GraphNode | null>(() => {
   return id ? (getNode(id) ?? null) : null
 })
 
-function buildGraphology(): void {
-  graph.clear()
-  let minAbs = Infinity
-  let maxAbs = -Infinity
-  let hasDatedNodes = false
-
-  for (const n of graphNodes.value) {
-    const size = Math.min(16, Math.max(4, 4 + n.degree * 0.8))
-    const color = getColor(n.type, 'cool')
-    const hidden = !shownTypes.value.has(n.type)
-    const entity = entityStore.entityMap.get(n.id)
-    const absYear = entity ? extractAbsYear(entity.properties) : null
-    if (absYear !== null) {
-      minAbs = Math.min(minAbs, absYear)
-      maxAbs = Math.max(maxAbs, absYear)
-      hasDatedNodes = true
-    }
-    graph.addNode(n.id, {
-      x: Math.random() * 100,
-      y: Math.random() * 100,
-      label: n.name,
-      size,
-      color,
-      originalColor: color,
-      originalSize: size,
-      entityType: n.type,
-      hidden,
-      absYear: absYear ?? undefined,
-    })
-  }
-  for (const e of graphEdges.value) {
-    if (graph.hasNode(e.source) && graph.hasNode(e.target)) {
-      try {
-        const srcHidden = graph.getNodeAttribute(e.source, 'hidden')
-        const tgtHidden = graph.getNodeAttribute(e.target, 'hidden')
-        graph.addEdge(e.source, e.target, {
-          id: e.id,
-          color: 'rgba(255,255,255,0.12)',
-          size: 1,
-          relType: e.relType,
-          hidden: srcHidden || tgtHidden,
-        })
-      } catch {
-      }
-    }
-  }
-
-  if (hasDatedNodes) {
-    timelineMinYear.value = minAbs
-    timelineMaxYear.value = maxAbs
-  } else {
-    timelineMinYear.value = 0
-    timelineMaxYear.value = 2100
-  }
-  timelineFilteredCount.value = 0
-  timelineActiveRange.value = null
-}
-
-function syncGraphColors(): void {
+/** 选中/路径视觉复位（含粒子清理——资源归视图侧） */
+function resetVisuals(): void {
   pathParticles.clearPath()
-  graph.forEachNode((node) => {
-    graph.setNodeAttribute(node, 'color', graph.getNodeAttribute(node, 'originalColor') || '#4fc3f7')
-    graph.setNodeAttribute(node, 'size', graph.getNodeAttribute(node, 'originalSize') || 6)
-    graph.setNodeAttribute(node, 'highlighted', false)
-  })
-  graph.forEachEdge((edge) => {
-    graph.setEdgeAttribute(edge, 'hidden', false)
-  })
-}
-
-function applyTypeFilter(): void {
-  graph.forEachNode((node) => {
-    const type = graph.getNodeAttribute(node, 'entityType') as string
-    const typeHidden = !shownTypes.value.has(type)
-    const absYear = graph.getNodeAttribute(node, 'absYear') as number | undefined
-    let timelineHidden = false
-    if (timelineActiveRange.value && absYear !== undefined) {
-      timelineHidden = absYear < timelineActiveRange.value.start || absYear > timelineActiveRange.value.end
-    }
-    graph.setNodeAttribute(node, 'hidden', typeHidden || timelineHidden)
-  })
-  graph.forEachEdge((edge) => {
-    const src = graph.source(edge)
-    const tgt = graph.target(edge)
-    const srcHidden = graph.getNodeAttribute(src, 'hidden')
-    const tgtHidden = graph.getNodeAttribute(tgt, 'hidden')
-    graph.setEdgeAttribute(edge, 'hidden', srcHidden || tgtHidden)
-  })
-  sigma.value?.refresh()
-}
-
-function onTimelineFilter(start: number, end: number): void {
-  timelineActiveRange.value = { start, end }
-  let count = 0
-  graph.forEachNode((node) => {
-    const type = graph.getNodeAttribute(node, 'entityType') as string
-    const typeHidden = !shownTypes.value.has(type)
-    const absYear = graph.getNodeAttribute(node, 'absYear') as number | undefined
-    let timelineHidden = false
-    if (absYear !== undefined) {
-      timelineHidden = absYear < start || absYear > end
-      if (!timelineHidden && !typeHidden) count++
-    }
-    graph.setNodeAttribute(node, 'hidden', typeHidden || timelineHidden)
-  })
-  graph.forEachEdge((edge) => {
-    const src = graph.source(edge)
-    const tgt = graph.target(edge)
-    graph.setEdgeAttribute(edge, 'hidden', graph.getNodeAttribute(src, 'hidden') || graph.getNodeAttribute(tgt, 'hidden'))
-  })
-  timelineFilteredCount.value = count
-  sigma.value?.refresh()
-}
-
-function onTimelineReset(): void {
-  timelineActiveRange.value = null
-  timelineFilteredCount.value = 0
-  applyTypeFilter()
+  model.syncGraphColors()
 }
 
 function initGraph(): void {
-  buildGraphology()
+  model.buildGraphology()
   layout.applyLayout(graph, layoutName.value, undefined, sigma.value)
   createRenderer()
   bindEvents()
@@ -306,7 +185,7 @@ function bindEvents(): void {
 
   s.on('clickStage', () => {
     interaction.clearHighlight()
-    syncGraphColors()
+    resetVisuals()
   })
 
   s.on('enterNode', ({ node }) => {
@@ -339,16 +218,23 @@ function bindEvents(): void {
     nextTick(() => layout.fitToGraph(sigma.value, 10))
   })
 
+  // 相机缩放：百分比显示 + 标签阈值两档（批 A：远看只大节点、放大后全标）
   const camera = s.getCamera()
+  let lastLabelThreshold = -1
   camera.on('updated', () => {
     zoomPct.value = Math.round((1 / camera.ratio) * 100)
+    const threshold = labelThresholdFor(camera.ratio)
+    if (threshold !== lastLabelThreshold) {
+      lastLabelThreshold = threshold
+      s.setSetting('labelRenderedSizeThreshold', threshold)
+    }
   })
 }
 
 function toggleType(type: string): void {
   if (shownTypes.value.has(type)) shownTypes.value.delete(type)
   else shownTypes.value.add(type)
-  applyTypeFilter()
+  model.applyTypeFilter()
 }
 
 function switchLayout(newLayout: string): void {
@@ -404,93 +290,6 @@ async function onPathSearch(fromId: string, toId: string): Promise<void> {
   }
 }
 
-function incrementalUpdate(): void {
-  const currentIds = new Set<string>()
-  graph.forEachNode((n) => currentIds.add(n))
-
-  const targetIds = new Set(graphNodes.value.map(n => n.id))
-
-  for (const id of currentIds) {
-    if (!targetIds.has(id)) {
-      graph.dropNode(id)
-    }
-  }
-
-  for (const n of graphNodes.value) {
-    const size = Math.min(16, Math.max(4, 4 + n.degree * 0.8))
-    const color = getColor(n.type, 'cool')
-    const typeHidden = !shownTypes.value.has(n.type)
-    const entity = entityStore.entityMap.get(n.id)
-    const absYear = entity ? extractAbsYear(entity.properties) : null
-    let timelineHidden = false
-    if (timelineActiveRange.value && absYear !== null) {
-      timelineHidden = absYear < timelineActiveRange.value.start || absYear > timelineActiveRange.value.end
-    }
-    const hidden = typeHidden || timelineHidden
-
-    if (graph.hasNode(n.id)) {
-      graph.mergeNodeAttributes(n.id, {
-        label: n.name,
-        size,
-        color,
-        originalColor: color,
-        originalSize: size,
-        entityType: n.type,
-        hidden,
-        absYear: absYear ?? undefined,
-      })
-    } else {
-      graph.addNode(n.id, {
-        x: Math.random() * 100,
-        y: Math.random() * 100,
-        label: n.name,
-        size,
-        color,
-        originalColor: color,
-        originalSize: size,
-        entityType: n.type,
-        hidden,
-        absYear: absYear ?? undefined,
-      })
-    }
-  }
-
-  const currentEdges = new Set<string>()
-  graph.forEachEdge((e) => currentEdges.add(e))
-  const targetEdgeIds = new Set(graphEdges.value.map(e => e.id))
-
-  for (const eid of currentEdges) {
-    if (!targetEdgeIds.has(eid)) {
-      try { graph.dropEdge(eid) } catch { /* skip */ }
-    }
-  }
-
-  for (const e of graphEdges.value) {
-    if (!graph.hasNode(e.source) || !graph.hasNode(e.target)) continue
-    const srcHidden = graph.getNodeAttribute(e.source, 'hidden')
-    const tgtHidden = graph.getNodeAttribute(e.target, 'hidden')
-    if (currentEdges.has(e.id)) {
-      graph.mergeEdgeAttributes(e.id, {
-        relType: e.relType,
-        hidden: srcHidden || tgtHidden,
-      })
-    } else {
-      try {
-        graph.addEdge(e.source, e.target, {
-          id: e.id,
-          color: 'rgba(255,255,255,0.12)',
-          size: 1,
-          relType: e.relType,
-          hidden: srcHidden || tgtHidden,
-        })
-      } catch {
-      }
-    }
-  }
-
-  sigma.value?.refresh()
-}
-
 function zoomIn(): void {
   const s = sigma.value
   if (!s) return
@@ -533,7 +332,7 @@ onBeforeUnmount(() => {
 
 watch([graphNodes, graphEdges], () => {
   if (!sigma.value) return
-  incrementalUpdate()
+  model.incrementalUpdate()
 }, { deep: true })
 
 </script>

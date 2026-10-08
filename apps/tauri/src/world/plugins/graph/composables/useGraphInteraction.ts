@@ -76,11 +76,12 @@ export function useGraphInteraction() {
 
     const hlEdges = highlightedEdges.value
     graph.forEachEdge((edge) => {
-      if (hlEdges.size > 0 && !hlEdges.has(edge)) {
-        graph.setEdgeAttribute(edge, 'hidden', true)
-      } else {
-        graph.setEdgeAttribute(edge, 'hidden', false)
-      }
+      const isHl = hlEdges.size > 0 && hlEdges.has(edge)
+      graph.setEdgeAttribute(edge, 'hidden', hlEdges.size > 0 && !isHl)
+      // 高亮档：类型色满档 + 加粗 + 显关系标签（批 A「选中/聚焦时显关系标签」）
+      graph.setEdgeAttribute(edge, 'color', isHl ? graph.getEdgeAttribute(edge, 'hlColor') : graph.getEdgeAttribute(edge, 'baseColor'))
+      graph.setEdgeAttribute(edge, 'size', isHl ? graph.getEdgeAttribute(edge, 'hlSize') : graph.getEdgeAttribute(edge, 'baseSize'))
+      graph.setEdgeAttribute(edge, 'label', isHl ? graph.getEdgeAttribute(edge, 'relLabel') : undefined)
     })
   }
 
