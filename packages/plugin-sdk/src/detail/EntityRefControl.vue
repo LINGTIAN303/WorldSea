@@ -39,7 +39,7 @@
         type="button"
         @mousedown.prevent="pick(e.id)"
       >{{ e.name }}</button>
-      <div v-if="!results.length && query.trim()" class="erf-create">
+      <div v-if="!results.length && query.trim() && autoCreateEnabled" class="erf-create">
         <button type="button" @mousedown.prevent="createAndPick">+ 创建「{{ query.trim() }}」</button>
       </div>
     </div>
@@ -51,7 +51,7 @@
  * entityRef 字段控件。详细见 docs/details/注释/packages/plugin-sdk/实体详情表单.md
  */
 import { computed, ref } from 'vue'
-import { useEntityStore, entitySchemaRegistry } from '@worldsea/entity-core'
+import { useEntityStore, entitySchemaRegistry, getSettingsApi } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
 import { WsIcon } from '@worldsea/ui-kit'
 
@@ -72,6 +72,9 @@ const emit = defineEmits<{ 'update:modelValue': [id: string] }>()
 const entityStore = useEntityStore()
 const query = ref('')
 const open = ref(false)
+
+/** 建实体入口子开关（② 批：设置 → 关系面板「实体引用字段中触发」） */
+const autoCreateEnabled = computed(() => getSettingsApi().autoCreateEntityRefEnabled)
 
 const target = computed(() => (props.modelValue ? entityStore.entityMap.get(props.modelValue) || null : null))
 

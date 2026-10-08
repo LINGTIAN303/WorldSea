@@ -19,7 +19,7 @@
         <span v-if="e.typeLabel" class="rel-s-tag">{{ e.typeLabel }}</span>
         <span class="rel-s-status">＋ 关联</span>
       </div>
-      <div v-if="searchResults.length === 0 && query.trim()" class="rel-s-create-hint">
+      <div v-if="searchResults.length === 0 && query.trim() && getSettingsApi().autoCreateSelectorEnabled" class="rel-s-create-hint">
         <button class="rel-s-create-btn" @click="onCreateNewEntity">+ 创建新实体「{{ query.trim() }}」</button>
       </div>
       <p v-else-if="searchResults.length === 0" class="rel-s-empty">无结果</p>
@@ -70,7 +70,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useEntityStore, useRelationStore, entitySchemaRegistry, RelationTypes } from '@worldsea/entity-core'
+import { useEntityStore, useRelationStore, entitySchemaRegistry, getSettingsApi, RelationTypes } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
 import { useBidirectional } from '@worldsea/entity-core/composables'
 import { FloatingPanel, WsIcon } from '@worldsea/ui-kit'

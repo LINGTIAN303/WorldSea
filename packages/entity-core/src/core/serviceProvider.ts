@@ -29,6 +29,8 @@ export interface DialogApi {
 export interface SettingsApi {
   autoCreateEntityEnabled: boolean
   autoCreateEntityRefEnabled: boolean
+  /** 关系选择器建实体入口门控（② 批接入，2026-10-07） */
+  autoCreateSelectorEnabled: boolean
   undoHistoryLimit: number
   highlight_spreadHops: number
   highlight_dimmingEnabled: boolean
@@ -63,6 +65,7 @@ const noopDialogApi: DialogApi = {
 const noopSettingsApi: SettingsApi = {
   get autoCreateEntityEnabled() { return false },
   get autoCreateEntityRefEnabled() { return false },
+  get autoCreateSelectorEnabled() { return false },
   get undoHistoryLimit() { return 20 },
   get highlight_spreadHops() { return 3 },
   get highlight_dimmingEnabled() { return false },

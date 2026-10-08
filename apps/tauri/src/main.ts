@@ -20,6 +20,7 @@ installFileDragGuard()
 import { registerValidationApi } from '@worldsea/entity-core'
 import { registerBackend } from '@worldsea/canvas-engine/core'
 import { injectAllKeyframes } from '@worldsea/motion-kit'
+import { installAutoLinkWiring } from './shell/autoLinkWiring'
 
 /**
  * Tauri 端后端初始化
@@ -28,6 +29,9 @@ import { injectAllKeyframes } from '@worldsea/motion-kit'
  * Tauri 运行时会自动注入 window.__TAURI_INTERNALS__，getTauriInvoke() 可正常工作
  */
 async function initializeBackend() {
+  // AutoLink ② 批装配（策略注册 / 设置桥 / 确认桥 / 撤销上限）
+  installAutoLinkWiring()
+
   // 注册 canvas-engine 后端（Tauri invoke 路径，契约 = BackendAlgoApi）
   registerBackend({
     getBackendType: coreBackend.getBackendType,
