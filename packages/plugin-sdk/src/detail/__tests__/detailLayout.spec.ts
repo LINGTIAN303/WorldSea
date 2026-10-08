@@ -23,11 +23,11 @@ describe('normalizeGroups —— 分组成员归一', () => {
     expect(normalizeGroups(undefined, FIELDS)).toEqual([{ ...OTHER_GROUP, fieldKeys: FIELDS }])
   })
 
-  it('组内顺序以 order 为准，组外字段补进其它', () => {
+  it('组内顺序以各组自身 fieldKeys 为准（独立于全局 order）；组外字段补进其它', () => {
     const groups = normalizeGroups([
       { key: 'g1', label: '一组', fieldKeys: ['c', 'a'] },
     ], ['a', 'b', 'c', 'd'])
-    expect(groups[0]).toMatchObject({ key: 'g1', fieldKeys: ['a', 'c'] })
+    expect(groups[0]).toMatchObject({ key: 'g1', fieldKeys: ['c', 'a'] })
     expect(groups[1]).toMatchObject({ key: OTHER_GROUP.key, fieldKeys: ['b', 'd'] })
   })
 
@@ -81,13 +81,13 @@ describe('resolveLayout —— 芽默认 ⊕ 用户覆写 ⊕ 即时态', () => 
     expect(layout.groups.flatMap(g => g.fieldKeys)).not.toContain('a')
   })
 
-  it('分组声明 + 用户排序同时生效：组不变，组内顺序跟着用户', () => {
+  it('全局排序不再改组内顺序（组内独立）；「其它」仍跟随全局 order', () => {
     const layout = resolveLayout(
       FIELDS,
       { groups: [{ key: 'g1', label: '一组', fieldKeys: ['a', 'b'] }] },
       { order: ['b', 'a', 'd', 'c'] },
     )
-    expect(layout.groups[0]).toMatchObject({ key: 'g1', fieldKeys: ['b', 'a'] })
+    expect(layout.groups[0]).toMatchObject({ key: 'g1', fieldKeys: ['a', 'b'] })
     expect(layout.groups[1]).toMatchObject({ key: OTHER_GROUP.key, fieldKeys: ['d', 'c'] })
   })
 })

@@ -49,7 +49,10 @@ export function orderedVisibleFields(
   return out
 }
 
-/** 分组成员按 order 排；无分组的字段归入「其它」（与 detailLayout 的归一口径一致） */
+/**
+ * 分组成员按各组自身 `fieldKeys` 顺序展开（组内独立排序的消费口；与 detailLayout 的归一口径一致
+ * ——归一时已剔隐藏/失效）；无分组的字段归入「其它」。
+ */
 export function groupsOf(
   fields: DetailFieldMeta[],
   groups: DetailGroup[],

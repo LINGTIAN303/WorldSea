@@ -14,7 +14,10 @@ export interface DetailGroup {
 
 export interface DetailLayout {
   groups: DetailGroup[]
-  /** 字段的展示顺序（同时也是分组成员的组内顺序基准） */
+  /**
+   * 字段的展示顺序：未分组字段与「其它」组的次序；
+   * **已分组字段的组内次序以 `DetailGroup.fieldKeys` 为准**（组内独立排序，2026-10-08）。
+   */
   order: string[]
   /** 隐藏的字段 key */
   hidden: string[]
@@ -47,14 +50,19 @@ export function normalizeOrder(requested: string[] | undefined, available: strin
   return out
 }
 
-/** 分组成员归一：剔未知 key、去重、按 order 排；未入组的字段补进「其它」 */
+/**
+ * 分组成员归一：剔未知 key、去重、**按各组自身 `fieldKeys` 的顺序**（＝组内独立排序，
+ * 分组管理卡上移/下移即改此序）；未入组的字段补进「其它」（按 order）。
+ * `order` 此处仅作**可见性基准**（已剔隐藏/失效），不再充当组内定序。
+ */
 export function normalizeGroups(groups: DetailGroup[] | undefined, order: string[]): DetailGroup[] {
+  const visible = new Set(order)
   const assigned = new Set<string>()
   const out: DetailGroup[] = []
   for (const g of groups ?? []) {
     const keys: string[] = []
-    for (const key of order) {
-      if (!g.fieldKeys.includes(key) || assigned.has(key)) continue
+    for (const key of g.fieldKeys) {
+      if (!visible.has(key) || assigned.has(key)) continue
       assigned.add(key)
       keys.push(key)
     }

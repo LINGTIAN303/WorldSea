@@ -1,12 +1,24 @@
 <template>
   <div class="sc-head"><span>分组管理</span><span class="ds-type">{{ typeLabel }}</span></div>
 
-  <div v-for="g in draft" :key="g.key" class="set-row ds-group">
-    <input class="set-input ds-group-name" :value="g.label" aria-label="分组名"
-      @change="rename(g.key, ($event.target as HTMLInputElement).value)" />
-    <span class="ds-count">{{ g.fieldKeys.length }} 字段</span>
-    <button class="ds-btn" type="button" title="删除分组（字段回到未分组）" aria-label="删除分组"
-      @click="remove(g.key)"><WsIcon name="delete" size="xs" /></button>
+  <div v-for="g in draft" :key="g.key" class="ds-group-block">
+    <div class="set-row ds-group">
+      <input class="set-input ds-group-name" :value="g.label" aria-label="分组名"
+        @change="rename(g.key, ($event.target as HTMLInputElement).value)" />
+      <span class="ds-count">{{ g.fieldKeys.length }} 字段</span>
+      <button class="ds-btn" type="button" title="删除分组（字段回到未分组）" aria-label="删除分组"
+        @click="remove(g.key)"><WsIcon name="delete" size="xs" /></button>
+    </div>
+    <!-- 这里的次序就是详情里的组内次序（组内独立排序，2026-10-08）；加入字段用下方「字段归属」 -->
+    <div v-if="g.fieldKeys.length" class="ds-gf-list">
+      <div v-for="(fk, i) in g.fieldKeys" :key="fk" class="set-row ds-gf-row">
+        <span class="ds-label ds-gf-label">{{ labelOf(fk) }}</span>
+        <button class="ds-btn" type="button" title="上移" aria-label="上移"
+          :disabled="i === 0" @click="moveField(g.key, i, -1)"><WsIcon name="arrow-up" size="xs" /></button>
+        <button class="ds-btn" type="button" title="下移" aria-label="下移"
+          :disabled="i === g.fieldKeys.length - 1" @click="moveField(g.key, i, 1)"><WsIcon name="arrow-down" size="xs" /></button>
+      </div>
+    </div>
   </div>
 
   <div class="set-btn-row">
@@ -39,7 +51,7 @@ import { ref, watch } from 'vue'
 import { WsIcon } from '@worldsea/ui-kit'
 import type { DetailGroup } from '@worldsea/plugin-sdk'
 
-const HINT = '未分组的字段在详情里归入「其它」；组内次序跟随字段顺序，隐藏字段不参与分组。'
+const HINT = '未分组的字段在详情里归入「其它」；组内次序即上方箭头调整的顺序（与全局字段顺序相互独立）。'
   + ' 空组保存后不会出现在详情里。芽若声明过分组，这里改过一次即以你这版为准（整表替换）。'
 
 const props = defineProps<{
@@ -102,6 +114,22 @@ function assign(fieldKey: string, target: string) {
   for (const g of draft.value) g.fieldKeys = g.fieldKeys.filter(k => k !== fieldKey)
   const g = draft.value.find(x => x.key === target)
   if (g) g.fieldKeys.push(fieldKey)
+  dirty.value = true
+}
+
+function labelOf(fieldKey: string): string {
+  return props.fields.find(f => f.key === fieldKey)?.label ?? fieldKey
+}
+
+/** 组内调序（上移/下移一格）：改的就是详情里生效的组内次序（写回 commit 的 fieldKeys 顺序） */
+function moveField(groupKey: string, index: number, delta: number) {
+  const g = draft.value.find(x => x.key === groupKey)
+  if (!g) return
+  const to = index + delta
+  if (to < 0 || to >= g.fieldKeys.length) return
+  const arr = [...g.fieldKeys]
+  ;[arr[index], arr[to]] = [arr[to], arr[index]]
+  g.fieldKeys = arr
   dirty.value = true
 }
 

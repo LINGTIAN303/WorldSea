@@ -15,6 +15,11 @@
 .ds-panel .ds-field,
 .ds-panel .ds-assign,
 .ds-panel .ds-group { align-items: center; gap: 8px; }
+/* 组内排序（2026-10-08）：块 = 组头行 + 组内字段列表（次序即详情组内次序） */
+.ds-panel .ds-group-block { display: flex; flex-direction: column; margin-bottom: 4px; }
+.ds-panel .ds-gf-list { display: flex; flex-direction: column; padding-left: 14px; }
+.ds-panel .ds-gf-row { gap: 6px; }
+.ds-panel .ds-gf-label { font-size: var(--font-size-xs); color: var(--text-secondary, var(--color-text-secondary)); }
 .ds-panel .ds-order {
   width: 18px; text-align: right; font-size: var(--font-size-xs);
   color: var(--text-tertiary, var(--color-text-tertiary)); font-family: monospace; flex-shrink: 0;
