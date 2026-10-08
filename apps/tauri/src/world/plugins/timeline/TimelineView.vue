@@ -103,8 +103,9 @@
         />
         <EntityRelationSelector v-if="selectedEvent" :entity-id="selectedEvent.id" entity-type="event" relation-type="causes" />
       </template>
-      <template #default>
-        <UniversalRelationPanel v-if="selectedEvent?.id" :entity-id="selectedEvent.id" entity-type="event" :inline-visible="detailActiveTab === 'info'" storage-scope="event" />
+      <!-- 关联页（2026-10-08 修复）：原内嵌 info 页（#default + inline-visible 门控），批 A 组装恒尾「关联」页后缺槽空白——迁移为具名槽，与 GEV 同口径 -->
+      <template #relations>
+        <UniversalRelationPanel v-if="selectedEvent?.id" :entity-id="selectedEvent.id" entity-type="event" storage-scope="event" />
       </template>
     </component>
 
@@ -309,20 +310,20 @@ const carrierRef = ref<{ switchTab: (tabId: string) => void; activeTab?: string 
 
 /** ALT+←/→ 切页（wrap；2026-10-08 Tab 优化批 B） */
 function switchTabBy(delta: number): void {
-  if (!selectedEvent.value) return
-  const next = adjacentTabId(detailTabs.value, detailActiveTab.value, delta)
+  const next = selectedEvent.value && adjacentTabId(detailTabs.value, detailActiveTab.value, delta)
   if (next) carrierRef.value?.switchTab(next)
 }
 const customFieldDefs = ref<any[]>([])
 
 /** 详情 Tab：组装走 `resolveDetailTabs` 单点（2026-10-08 Tab 优化批；因果链为自绘芽的附加页）；
- *  用户覆写（排序/隐藏）按 'event' 类型生效 */
+ *  用户覆写（排序/隐藏）按 'event' 类型生效；「关联」徽标＝选中事件的关系总数（与 GEV 同口径） */
 const detailPrefs = useDetailLayoutStore()
-const detailTabs = computed(() => resolveDetailTabs({
-  hasCover: true,
-  extras: DETAIL_TAB_DECLARATIONS.event?.extras,
-  override: detailPrefs.tabOverrides['event'],
-}))
+const detailTabs = computed(() => {
+  const tabs = resolveDetailTabs({ hasCover: true, extras: DETAIL_TAB_DECLARATIONS.event?.extras, override: detailPrefs.tabOverrides['event'] })
+  const evId = selectedEvent.value?.id, assoc = tabs.find(t => t.id === 'relations')
+  if (assoc && evId) assoc.count = relationStore.relations.filter(r => r.sourceId === evId || r.targetId === evId).length
+  return tabs
+})
 
 const { isEditing, editForm, startEdit, cancelEdit, saveEdit } = useEntityEdit(selectedEvent)
 
