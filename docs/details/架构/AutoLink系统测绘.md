@@ -97,7 +97,7 @@ AutoLink = **从字段值发现实体间潜在关联 → 建议 → 确认后落
 | **休眠** | `refreshLinksForTarget`（目标变更重索引） | `AutoLinkEngine.ts:540-568` 全仓零调用 |
 | **幽灵** | selector / entityRef / graph 三子开关：设置面板可勾，零消费者；graph 触发面从未实现 | `settingsStore.ts:248-250` + `RelationsPanel.vue:8-10` |
 
-> **② 批（2026-10-07）已把上表「休眠」各行接线落地**（策略注册 / settings 桥 / confirm 桥 / 撤销上限；`refreshLinksForTarget` 已于 ① 批接线）；「幽灵」行：selector（`EntityRelationSelector`）与 entityRef（`EntityRefControl`）两枚已接门控，**graph 面仍挂账**——详见 §10。
+> **② 批（2026-10-07）已把上表「休眠」各行接线落地**（策略注册 / settings 桥 / confirm 桥 / 撤销上限；`refreshLinksForTarget` 已于 ① 批接线）；「幽灵」行：selector（`EntityRelationSelector`）与 entityRef（`EntityRefControl`）两枚已接门控，**graph 面已撤（③ 批）**——详见 §10 / §11。
 
 ## 5. 活路径上的确认异常（**① 批已逐条修复，处置见 §9**）
 
@@ -157,3 +157,4 @@ AutoLink = **从字段值发现实体间潜在关联 → 建议 → 确认后落
 - **relationDirection 消费**：`PotentialLink.direction`（必填）；策略路径取 `strategy.relationDirection`，直配/盲匹配显式 `'source'`；确认链按方向反向建。
 - **守卫教训**：挂载类守卫必须断言**调用形状正则**——首版裸串断言被同文件 `EntityRelationSelector` 的同串旁证满足（假绿，变异轮抓到）。
 - **登记**：映射 UI 入口维持现状；graph 面此后若出创建类交互另行立项。
+- **覆盖面评估（2026-10-07 续）**：战术棋盘 dock 与大纲 Inspector 均评估为**不接**——棋盘 `WasmBattleUnit` 无实体锚点；大纲节点无自由文本面，且徽章仅认三条 curated 关系类型（引擎产出不会入徽章，需定制映射属独立功能）。另记：大纲「用户侧建实体关联」缺口（现仅 Agent `link_entity`）为独立候选。
