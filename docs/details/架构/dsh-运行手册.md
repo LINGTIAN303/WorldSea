@@ -239,7 +239,7 @@ DSH_HOME="D:/WorldSea/.独立项/b0-home" node apps/cli/lib/bin.js web --no-open
 - **写边界裁定（5A）**：产品域 `cmd_fs_*` **保留宽口径**（本地创作工具语义；仅拒 `~/.ssh` / `~/.gnupg` / 系统目录）；dsh 侧严沙箱（cwd + tmp）——**两套写规则并存是显式设计**，非缺陷（`fs_commands.rs` 头注留档）。
 
 **C2 完成态（2026-09-25）**：**25 个官方芽全部在树内**（`world/plugins/**`，插件 id 沿用 `official.*`）；`sprouts/` 目录已删除；**旧芽机器退场**（`PluginManager` / `PluginSandbox` / `plugin-manifest` / 旧 `bootstrap` 全删，含 Phase-3 死代码 `plugins/workflow/`）——产品壳只留 `plugins/{boot.ts,viewSync.ts}`：
-- `boot.ts` 的 `bootstrapShell()` = 视图生命周期同步装配 + 首屏默认视图（原 `bootstrapSprouts` 的装载/注册职责归树）；
+- `boot.ts` 的 `bootstrapShell()` = 视图生命周期同步装配 + 首屏默认视图（原 `bootstrapSprouts` 的装载/注册职责归树；2026-10-09 起默认＝恢复上次视图 `worldsea_last_view`，失效/无记录回落侧栏首项）；
 - 启动顺序：`main.ts`（App 挂载）→ `App.vue` 的 `bootstrapShell()` → 工作台入口的 `installWorldTree()`（树的装载读芽清单）；
 - 台账：树 `plugins` = 芽面板里开着的（含 mindmap）+ 清单外的树插件（`ws.spike.panel`），`skipped` = 关掉的（如 `official.custom`）。**修正（走查反馈）**：思维导图原用 `ws.mindmap`（C 批临时口径，离开芽清单）→ C2 走查后**归一为 `official.mindmap` 并加回芽清单行**（芽面板即插件启停台账，26 行；不带 pluginId 的清单外插件仅示例 `ws.spike.panel`）。
 

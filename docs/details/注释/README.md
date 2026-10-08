@@ -21,7 +21,7 @@
 | src/main.ts | [main.md](tauri/main.md) | Tauri 端入口：端分离策略、Phase 3/4 演进说明 |
 | vite.config.ts | [vite-config.md](tauri/vite-config.md) | Tauri 端 Vite 配置：IPC 直连设计原则、WASM 算法降级、端口与构建触发 |
 | src/memory-archive/adapters/TauriFsOperations.ts | [TauriFsOperations.md](tauri/TauriFsOperations.md) | FsOperations 的 Tauri 实现：cmd_fs_* 命令映射 |
-| src/ui/layout/sidebar/viewOrder.ts | — | 侧栏可见视图**唯一顺序口径**（`isViewVisible` 过滤 + `sidebarOrder` 排序）：渲染（SidebarV2）与 `Ctrl+↑/↓` 切换（Shell）共用，修「切得太多/乱跳」（2026-10-01；短注释未立文档） |
+| src/ui/layout/sidebar/viewOrder.ts | — | 侧栏可见视图**唯一顺序口径**（`isViewVisible` 过滤 + `sidebarOrder` 排序）：渲染（SidebarV2）与 `Ctrl+↑/↓` 切换（Shell）共用，修「切得太多/乱跳」（2026-10-01；短注释未立文档）；`resolveDefaultViewId`＝首屏默认挑选单点（boot 冷启动：恢复上次视图 `worldsea_last_view`，否则侧栏首项——修「首屏总是服饰/装备」，2026-10-09） |
 | src/world/plugins/regions/RegionList.vue | [实体视图分页.md](packages/plugin-sdk/实体视图分页.md) | 区域视图：默认卡片 + 卡片模式分页（页状态由 GEV 经槽属性下放）；插槽自绘卡片/树样式自带、批量态路由、视图切换按钮显式 color（2026-10-01） |
 | src/world/plugins/timeline/TimelineView.vue | [实体视图分页.md](packages/plugin-sdk/实体视图分页.md) | 时序表分页：`pageable`=竖向+时序表（横向画布/大纲树不分页）；`timeline.page-prev/next` 字面量 id 须进快捷键目录；卸载注销全部视图键（2026-10-01） |
 | src/world/plugins/timeline/components/TimelineChart.vue | [实体视图分页.md](packages/plugin-sdk/实体视图分页.md) | `verticalEvents` 决定喂分页子集（时序表）还是全量（树）；`pagedEvents` prop 可选，缺省即不分页（2026-10-01） |
