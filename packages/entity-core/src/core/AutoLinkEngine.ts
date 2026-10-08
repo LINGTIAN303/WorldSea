@@ -542,6 +542,7 @@ async function matchAndIndex(
             targetFieldValue: targetValue,
             hint,
             relationType: strategy.relationType,
+            direction: strategy.relationDirection,
             confidence: strategy.confidence,
             score,
             resolved: false,
@@ -587,6 +588,7 @@ async function matchAndIndexDirect(
         targetFieldValue: targetValue,
         hint: 'origin' as SemanticHintName, // autoLink 无 hint，用占位
         relationType,
+        direction: 'source',
         confidence: score >= 0.9 ? 'exact' : 'fuzzy',
         score,
         resolved: false,
@@ -637,6 +639,7 @@ async function blindMatchAllEntities(
             targetFieldValue: targetTitle,
             hint: 'origin' as SemanticHintName, // 盲匹配无 hint，用占位
             relationType: 'associated_with',
+            direction: 'source',
             confidence: score >= 0.9 ? 'exact' : 'fuzzy',
             score,
             resolved: false,

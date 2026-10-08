@@ -14,8 +14,10 @@ import {
   getProjectManager,
   storage,
   entitySchemaRegistryV2,
+  traitRegistry,
   potentialLinkIndex,
   autoLinkDecisionStore,
+  autoLinkStrategyRegistry,
   useRelationStore,
   inverseRegistry,
 } from '@worldsea/entity-core'
@@ -40,20 +42,27 @@ function makeEntity(id: string, type: string, name: string, properties: Record<s
 }
 
 function registerSchemas(): void {
+  if (!traitRegistry.has('als_hinted')) {
+    traitRegistry.register({
+      id: 'als_hinted',
+      label: '测试语义',
+      fields: [{ key: 'origin', label: '来源', fieldType: 'text', semanticHint: 'origin' }],
+    } as never)
+  }
   const raceField = { key: 'race', label: '种族', fieldType: 'text' as const }
   entitySchemaRegistryV2.register({
     type: 'als_character',
     label: '测试角色',
-    traits: [],
+    traits: [{ traitId: 'als_hinted' }],
     ownFields: [raceField],
     _compiledFields: [raceField],
-    _traitIds: [],
+    _traitIds: ['als_hinted'],
   } as never)
 }
 
-async function mountPanel(): Promise<VueWrapper> {
+async function mountPanel(properties: Record<string, unknown> = { race: '精灵' }): Promise<VueWrapper> {
   wrapper = mount(AutoLinkSuggestions, {
-    props: { entityId: SRC, entityType: 'als_character', properties: { race: '精灵' } },
+    props: { entityId: SRC, entityType: 'als_character', properties },
   })
   await vi.waitFor(() => expect(wrapper!.findAll('.als-item')).toHaveLength(1))
   return wrapper
@@ -131,5 +140,26 @@ describe('AutoLinkSuggestions —— 确认 / 忽略管线（① 批）', () => 
     await vi.waitFor(() => expect(potentialLinkIndex.getAllBySource(SRC)[0]).not.toBe(link))
     await flushPromises()
     expect(w.findAll('.als-item')).toHaveLength(0)
+  })
+
+  it('target 方向：确认时关系反着建（候选为源、本实体为目标）', async () => {
+    autoLinkStrategyRegistry.register({
+      hint: 'origin',
+      matchTargets: ['species'],
+      matchFields: ['name'],
+      confidence: 'fuzzy',
+      relationType: 'originates_from',
+      relationDirection: 'target',
+    })
+    const w = await mountPanel({ origin: '精灵' })
+    const rs = useRelationStore()
+    await w.find('.als-confirm').trigger('click')
+
+    await vi.waitFor(() => {
+      const r = rs.relations.find(x => x.type === 'originates_from')
+      expect(r).toBeTruthy()
+      expect(r!.sourceId).toBe(TGT)
+      expect(r!.targetId).toBe(SRC)
+    })
   })
 })

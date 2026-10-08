@@ -10,8 +10,9 @@ import 'fake-indexeddb/auto'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { getProjectManager } from '../ProjectManager'
 import { storage } from '../StorageBackend'
-import { entitySchemaRegistryV2 } from '../TraitRuntime'
+import { entitySchemaRegistryV2, traitRegistry } from '../TraitRuntime'
 import {
+  autoLinkStrategyRegistry,
   indexPotentialLinks,
   inferDirectTargetFromKey,
   potentialLinkIndex,
@@ -36,13 +37,20 @@ function makeEntity(id: string, type: string, name: string, properties: Record<s
 }
 
 function registerSchemas(): void {
+  if (!traitRegistry.has('alk_hinted')) {
+    traitRegistry.register({
+      id: 'alk_hinted',
+      label: '测试语义',
+      fields: [{ key: 'origin', label: '来源', fieldType: 'text', semanticHint: 'origin' }],
+    } as never)
+  }
   entitySchemaRegistryV2.register({
     type: 'alk_character',
     label: '测试角色',
-    traits: [],
+    traits: [{ traitId: 'alk_hinted' }],
     ownFields: [{ key: 'race', label: '种族', fieldType: 'text' }],
     _compiledFields: [{ key: 'race', label: '种族', fieldType: 'text' }],
-    _traitIds: [],
+    _traitIds: ['alk_hinted'],
   } as never)
 }
 
@@ -87,6 +95,7 @@ describe('决策持久化 —— 忽略 / 确认不复活，内容变化则重�
     const link = await readLink()
     expect(link).toBeTruthy()
     expect(link.targetFieldValue).toBe('精灵')
+    expect(link.direction).toBe('source')
 
     autoLinkDecisionStore.record(link, 'dismissed')
     await indexPotentialLinks(SRC, 'alk_character', { race: '精灵' })
@@ -117,5 +126,25 @@ describe('决策持久化 —— 忽略 / 确认不复活，内容变化则重�
     const fresh = new AutoLinkDecisionStoreClass()
     expect(fresh.recall(link)).toBe('dismissed')
     expect(fresh.recall({ ...link, targetFieldValue: '高等精灵' })).toBeUndefined()
+  })
+})
+
+describe('方向字段（relationDirection 消费）', () => {
+  it('target 策略：产出链接带 direction=target', async () => {
+    autoLinkStrategyRegistry.register({
+      hint: 'origin',
+      matchTargets: ['species'],
+      matchFields: ['name'],
+      confidence: 'fuzzy',
+      relationType: 'originates_from',
+      relationDirection: 'target',
+    })
+    await seed([makeEntity(TGT, 'species', '精灵'), makeEntity(SRC, 'alk_character', '测试角色')])
+    await indexPotentialLinks(SRC, 'alk_character', { origin: '精灵' })
+
+    const links = potentialLinkIndex.getBySource(SRC)
+    expect(links).toHaveLength(1)
+    expect(links[0].relationType).toBe('originates_from')
+    expect(links[0].direction).toBe('target')
   })
 })

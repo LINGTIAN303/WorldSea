@@ -51,7 +51,6 @@ const STORAGE_KEY_SMOOTH_CARET_VARIANT = 'worldsea_smooth_caret_variant'
 const STORAGE_KEY_AUTO_CREATE_ENTITY = 'worldsea_auto_create_entity'
 const STORAGE_KEY_AUTO_CREATE_SELECTOR = 'worldsea_auto_create_selector'
 const STORAGE_KEY_AUTO_CREATE_ENTITY_REF = 'worldsea_auto_create_entity_ref'
-const STORAGE_KEY_AUTO_CREATE_GRAPH = 'worldsea_auto_create_graph'
 const STORAGE_KEY_HIGHLIGHT_PULSE_ENABLED = 'worldsea_highlight_pulse_enabled'
 const STORAGE_KEY_HIGHLIGHT_DIMMING_ENABLED = 'worldsea_highlight_dimming_enabled'
 const STORAGE_KEY_HIGHLIGHT_DIMMING_MODE = 'worldsea_highlight_dimming_mode'
@@ -247,7 +246,6 @@ export const useSettingsStore = defineStore('settings', () => {
   const autoCreateEntityEnabled = persistedRef(STORAGE_KEY_AUTO_CREATE_ENTITY, true)
   const autoCreateSelectorEnabled = persistedRef(STORAGE_KEY_AUTO_CREATE_SELECTOR, true)
   const autoCreateEntityRefEnabled = persistedRef(STORAGE_KEY_AUTO_CREATE_ENTITY_REF, true)
-  const autoCreateGraphEnabled = persistedRef(STORAGE_KEY_AUTO_CREATE_GRAPH, true)
   const highlight_pulseEnabled = persistedRef(STORAGE_KEY_HIGHLIGHT_PULSE_ENABLED, true)
   const highlight_dimmingEnabled = persistedRef(STORAGE_KEY_HIGHLIGHT_DIMMING_ENABLED, true)
   const highlight_dimmingMode = persistedRef(STORAGE_KEY_HIGHLIGHT_DIMMING_MODE, 'spread')
@@ -388,7 +386,7 @@ export const useSettingsStore = defineStore('settings', () => {
   return { sprouts, sproutGroups, theme, toggleSprout, setSproutsActive, saveSproutGroup, applySproutGroup, removeSproutGroup, setTheme, isActive, getActiveSproutIds, loadProjectSprouts, loadProjectSproutGroups,
            undoHistoryLimit, multiStepRedo, maxCenterNodes, panelLimitEnabled,
            smoothCaretEnabled, smoothCaretDuration, smoothCaretVariant,
-           autoCreateEntityEnabled, autoCreateSelectorEnabled, autoCreateEntityRefEnabled, autoCreateGraphEnabled,
+           autoCreateEntityEnabled, autoCreateSelectorEnabled, autoCreateEntityRefEnabled,
            highlight_pulseEnabled, highlight_dimmingEnabled, highlight_dimmingMode, highlight_dimOpacity, highlight_spreadHops,
            aiProviderMode, aiCloudProvider, aiCloudModel, aiLocalEndpoint, aiLocalType, aiLocalModel,
            aiCustomBaseUrl, aiCustomType, aiCustomModel, agentBackend,

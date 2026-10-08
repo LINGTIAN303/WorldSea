@@ -24,6 +24,8 @@ export interface PotentialLink {
   hint: SemanticHintName
   /** 建议的关系类型 */
   relationType: string
+  /** 建议方向：source=本实体为关系源；target=本实体为关系目标（创建时反向） */
+  direction: 'source' | 'target'
   /** 置信度：exact 或 fuzzy */
   confidence: 'exact' | 'fuzzy'
   /** 匹配分数（0-1） */

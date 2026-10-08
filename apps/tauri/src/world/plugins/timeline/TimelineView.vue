@@ -67,6 +67,12 @@
       @tab-change="detailActiveTab = $event"
     >
       <template #info>
+        <AutoLinkSuggestions
+          v-if="selectedEvent && !isEditing"
+          :entity-id="selectedEvent.id"
+          :entity-type="'event'"
+          :properties="selectedEvent.properties"
+        />
         <EventDetailFields
           :event="selectedEvent"
           :schema-fields="eventSchema?.fields ?? []"
@@ -123,7 +129,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
-import { CustomDropdown, EntityCoverPanel, EntityFormModal, CreateButton, DynamicFieldsAdder, UniversalRelationPanel, EntityRelationSelector, EntityPager, useDuplicateNameCheck, useSelectedFollow, useShortcuts, useBatchDelete, useConfirm, useEntityEdit, useEntityPaging, useDetailCarrier, type FormFieldDef } from '@worldsea/plugin-sdk'
+import { AutoLinkSuggestions, CustomDropdown, EntityCoverPanel, EntityFormModal, CreateButton, DynamicFieldsAdder, UniversalRelationPanel, EntityRelationSelector, EntityPager, useDuplicateNameCheck, useSelectedFollow, useShortcuts, useBatchDelete, useConfirm, useEntityEdit, useEntityPaging, useDetailCarrier, type FormFieldDef } from '@worldsea/plugin-sdk'
 import { toastSuccess, toastWithUndo, useUndoRedo } from '@worldsea/ui-kit'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { TuiButton } from '@worldsea/ui-kit'

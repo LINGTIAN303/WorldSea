@@ -88,8 +88,8 @@ async function confirmLink(link: PotentialLink) {
       const { createBidirectional } = useBidirectional()
       await createBidirectional({
         type: link.relationType,
-        sourceId: link.sourceEntityId,
-        targetId: link.targetEntityId,
+        sourceId: link.direction === 'target' ? link.targetEntityId : link.sourceEntityId,
+        targetId: link.direction === 'target' ? link.sourceEntityId : link.targetEntityId,
       })
     }
     autoLinkDecisionStore.record(link, 'confirmed')

@@ -7,7 +7,6 @@
         <template v-if="store.autoCreateEntityEnabled">
           <div class="set-row set-row-sub"><span>关系选择器中触发</span><label class="set-toggle"><input type="checkbox" v-model="store.autoCreateSelectorEnabled" /><span class="set-toggle-slider"></span></label></div>
           <div class="set-row set-row-sub"><span>实体引用字段中触发</span><label class="set-toggle"><input type="checkbox" v-model="store.autoCreateEntityRefEnabled" /><span class="set-toggle-slider"></span></label></div>
-          <div class="set-row set-row-sub"><span>图谱视图中触发</span><label class="set-toggle"><input type="checkbox" v-model="store.autoCreateGraphEnabled" /><span class="set-toggle-slider"></span></label></div>
         </template>
       </div>
     </template>
