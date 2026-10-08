@@ -115,6 +115,14 @@ export function totalRefCount(groups: readonly OutlineRefGroup[]): number {
   return groups.reduce((s, g) => s + g.members.length, 0)
 }
 
+/** 关系 schema 的最小形状（`type`（V2）与 `typeKey`（旧）两种命名都兼容） */
+export interface RelationSchemaLike {
+  type?: string
+  typeKey?: string
+  sourceTypes?: string[]
+  targetTypes?: string[]
+}
+
 /**
  * 从关系注册表筛出「徽章应该纳入」的关系类型。
  *
@@ -126,17 +134,9 @@ export function totalRefCount(groups: readonly OutlineRefGroup[]): number {
  * 于是：
  * · `parent_child`（目标也是 outline_node）→ 排除 ✓
  * · 新增一条「节点 → 某芽实体」的类型 → **自动纳入**，无需改本文件（「注册表即扩展点」）✓
- *
- * 字段名兼容 `type`（V2 schema）与 `typeKey`（旧 schema）—— 两个注册表命名不同，
- * 调用方传哪个都能用。
  */
 export function pickRefRelationTypes(
-  schemas: ReadonlyArray<{
-    type?: string
-    typeKey?: string
-    sourceTypes?: string[]
-    targetTypes?: string[]
-  }>,
+  schemas: ReadonlyArray<RelationSchemaLike>,
   nodeType = 'outline_node',
 ): string[] {
   const out: string[] = []
@@ -150,4 +150,44 @@ export function pickRefRelationTypes(
     out.push(name)
   }
   return out
+}
+
+/**
+ * 「目标类型 → 可用关系类型」反查（2026-10-08「关联实体」编辑行）。
+ *
+ * 排序 = **专一者优先**（targetTypes 数量升序）：更专一的关系类型是更准确的表达，
+ * 故首位即该类型的默认选择——建筑同时可「发生于」（2 个目标）与「提及」（12 个目标）时，
+ * 默认取「发生于」。这是从注册表推导的启发式，不是硬编码映射：新增类型自动进候选。
+ */
+export function refRelationTypesForTarget(
+  schemas: ReadonlyArray<RelationSchemaLike>,
+  targetType: string,
+  nodeType = 'outline_node',
+): string[] {
+  const hits: Array<{ name: string; breadth: number }> = []
+  for (const r of schemas) {
+    const name = r.type ?? r.typeKey ?? ''
+    if (!name) continue
+    if (!(r.sourceTypes ?? []).includes(nodeType)) continue
+    const targets = r.targetTypes ?? []
+    if (!targets.includes(targetType)) continue
+    hits.push({ name, breadth: targets.length })
+  }
+  return hits.sort((a, b) => a.breadth - b.breadth).map(h => h.name)
+}
+
+/** 合法目标类型并集（候选实体的类型过滤用；排除 outline 内部目标，与 pickRefRelationTypes 同口径） */
+export function refTargetTypes(
+  schemas: ReadonlyArray<RelationSchemaLike>,
+  nodeType = 'outline_node',
+): string[] {
+  const out = new Set<string>()
+  for (const r of schemas) {
+    if (!(r.sourceTypes ?? []).includes(nodeType)) continue
+    for (const t of r.targetTypes ?? []) {
+      if (t === nodeType || t.startsWith('outline_')) continue
+      out.add(t)
+    }
+  }
+  return [...out]
 }

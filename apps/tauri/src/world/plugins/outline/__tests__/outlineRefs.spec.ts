@@ -5,10 +5,13 @@
  * **三条容易写错的分组规则**：方向不敏感 / 同实体去重但保留多条关系类型 / 孤儿关系丢弃。
  */
 import { describe, it, expect } from 'vitest'
+import { relationshipRegistry, relationSchemaRegistry } from '@worldsea/entity-core'
 import {
   groupOutlineRefs,
   pickRefRelationTypes,
   refRelationsOf,
+  refRelationTypesForTarget,
+  refTargetTypes,
   totalRefCount,
   type RefEntityLike,
 } from '../board/forms/outlineRefs'
@@ -183,5 +186,71 @@ describe('outlineRefs / pickRefRelationTypes（注册表驱动）', () => {
 
   it('空注册表 → 空结果', () => {
     expect(pickRefRelationTypes([])).toEqual([])
+  })
+})
+
+// ── 2026-10-08「关联实体」编辑行：反查与并集 ──────────────────
+
+const LOOKUP_SCHEMAS = [
+  { type: 'outline_mentions', sourceTypes: ['outline_node'], targetTypes: ['character', 'item', 'building'] },
+  { type: 'outline_located_in', sourceTypes: ['outline_node'], targetTypes: ['region', 'building'] },
+  { type: 'outline_covers', sourceTypes: ['outline_node'], targetTypes: ['event', 'conflict'] },
+  { type: 'parent_child', sourceTypes: ['outline_node'], targetTypes: ['outline_node'] },
+  { type: 'mentioned_by_outline', sourceTypes: ['character'], targetTypes: ['outline_node'] },
+]
+
+describe('outlineRefs / refRelationTypesForTarget（反查；专一者优先）', () => {
+  it('唯一合法：区域 → 发生于', () => {
+    expect(refRelationTypesForTarget(LOOKUP_SCHEMAS, 'region')).toEqual(['outline_located_in'])
+  })
+
+  it('二义（建筑）：专一者（2 目标）在首＝默认「发生于」，泛指「提及」（3 目标）在后', () => {
+    expect(refRelationTypesForTarget(LOOKUP_SCHEMAS, 'building')).toEqual([
+      'outline_located_in',
+      'outline_mentions',
+    ])
+  })
+
+  it('事件 → 承载（唯一）', () => {
+    expect(refRelationTypesForTarget(LOOKUP_SCHEMAS, 'event')).toEqual(['outline_covers'])
+  })
+
+  it('其余目标 → 提及', () => {
+    expect(refRelationTypesForTarget(LOOKUP_SCHEMAS, 'character')).toEqual(['outline_mentions'])
+  })
+
+  it('无合法类型的目标 → 空（调用方据此拒建，不静默回退）', () => {
+    expect(refRelationTypesForTarget(LOOKUP_SCHEMAS, 'manuscript')).toEqual([])
+  })
+
+  it('inverse 方向（源是芽实体）不掺入', () => {
+    expect(refRelationTypesForTarget(LOOKUP_SCHEMAS, 'character', 'character')).toEqual([])
+  })
+
+  it('真实注册表锁定：建筑默认「发生于」且「提及」可选（与立项裁定一致）', () => {
+    const types = refRelationTypesForTarget(relationshipRegistry.getBySourceType('outline_node'), 'building')
+    expect(types[0]).toBe('outline_located_in')
+    expect(types).toContain('outline_mentions')
+  })
+})
+
+describe('outlineRefs / refTargetTypes（合法目标并集）', () => {
+  it('汇总去重、排除 outline 内部目标', () => {
+    expect(refTargetTypes(LOOKUP_SCHEMAS).sort()).toEqual(
+      ['building', 'character', 'conflict', 'event', 'item', 'region'].sort(),
+    )
+  })
+
+  it('真实注册表：并集恰为 15 类芽实体（含 building 二义，不含 outline 自身）', () => {
+    const types = refTargetTypes(relationshipRegistry.getBySourceType('outline_node'))
+    expect(types).toHaveLength(15)
+    expect(types).toContain('building')
+    expect(types).not.toContain('outline_node')
+    expect(types).not.toContain('manuscript')
+  })
+
+  it('V2 定义加载时同步到旧版 registry（canvas-engine 图标签等消费者的依赖）', () => {
+    expect(relationSchemaRegistry.get('outline_mentions')?.label).toBe('提及')
+    expect(relationSchemaRegistry.get('knows')?.label).toBe('认识')
   })
 })

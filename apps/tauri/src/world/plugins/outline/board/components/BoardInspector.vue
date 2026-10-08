@@ -115,6 +115,7 @@
           >解除</button>
         </div>
       </div>
+      <NodeRefsSection :node="node" />
     </div>
 
     <!-- 组件列表（可拖拽排序） -->
@@ -205,6 +206,7 @@ import type { Entity } from '@worldsea/entity-core'
 import { DEFAULT_CONTAINER_SIZE, type BoardComponent, type BoardContainer } from '../layoutSchema'
 import { getForm, resolveFormConfig, type FormConfigField } from '../forms/registry'
 import { NODE_STATUSES, statusOf } from '../forms/progressStats'
+import NodeRefsSection from './NodeRefsSection.vue'
 
 /** 状态三态（与节点注册的 deteriorable trait 选项一致，勿另造值） */
 const STATUS_OPTIONS = NODE_STATUSES
@@ -282,12 +284,10 @@ function commitSize(): void {
     h: Math.max(48, Math.round(Number(draftHeight.value) || DEFAULT_CONTAINER_SIZE.h)),
   })
 }
-
 function onWidthChange(ev: Event): void {
   draftWidth.value = Number((ev.target as HTMLInputElement).value)
   commitSize()
 }
-
 function onHeightChange(ev: Event): void {
   draftHeight.value = Number((ev.target as HTMLInputElement).value)
   commitSize()
