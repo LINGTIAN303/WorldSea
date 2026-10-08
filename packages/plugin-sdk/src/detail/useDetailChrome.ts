@@ -12,6 +12,8 @@ export interface DetailTab {
   id: string
   label: string
   icon?: string
+  /** 标签徽标计数（如「关联」的关系总数）；undefined＝不显示徽标 */
+  count?: number
 }
 
 export interface DetailChromeOptions {

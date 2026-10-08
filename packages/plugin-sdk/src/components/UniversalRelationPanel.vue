@@ -10,52 +10,16 @@
         <span class="urp-count">{{ groupedTypes.length }} 类 / {{ relations.length }} 条</span>
         <button class="urp-detach-btn" @click="detach" title="浮出面板"><WsIcon name="pin" size="xs" /></button>
       </div>
-      <div v-if="relations.length > 0" class="urp-groups">
-        <div
-          v-for="(group, gi) in groupedTypes"
-          :key="group.type"
-          class="urp-group"
-          :class="{ 'urp-drag-over': dragOverIndex === gi }"
-          draggable="true"
-          @dragstart="onGroupDragStart(gi, $event)"
-          @dragover.prevent="onGroupDragOver(gi, $event)"
-          @dragenter.prevent="onGroupDragEnter(gi)"
-          @dragleave="onGroupDragLeave(gi)"
-          @drop="onGroupDrop(gi)"
-          @dragend="onGroupDragEnd"
-        >
-          <div class="urp-group-header" @click="group.collapsed = !group.collapsed">
-            <WsIcon name="grip" size="xs" class="urp-drag-handle" title="拖拽排序" />
-            <span class="urp-group-toggle"><WsIcon :name="group.collapsed ? 'chevron-right' : 'chevron-down'" size="xs" /></span>
-            <span class="urp-group-label">{{ group.label }}</span>
-            <span class="urp-group-count">{{ group.relations.length }}</span>
-          </div>
-          <div v-if="!group.collapsed" class="urp-group-body">
-            <div v-for="rel in group.relations" :key="rel.id" class="urp-rel-item"
-              :class="{ 'urp-editing': editingRelId === rel.id }">
-              <span class="urp-direction" @click="navigateTo(rel)">{{ rel.direction === 'out' ? '→' : '←' }}</span>
-              <WsIcon class="urp-counterpart-icon" :name="rel.counterpartIcon" size="xs" @click="navigateTo(rel)" />
-              <span class="urp-counterpart-name" @click="navigateTo(rel)">{{ rel.counterpartName }}</span>
-              <span class="urp-counterpart-type" @click="navigateTo(rel)">{{ rel.counterpartTypeLabel }}</span>
-              <span v-if="rel.pairId" class="urp-bidirectional-icon" title="双向关系">↔</span>
-              <button class="urp-rel-edit" @click.stop="startEdit(rel)" title="编辑关系"><WsIcon name="edit" size="xs" /></button>
-              <button class="urp-rel-del" @click.stop="removeRelation(rel)" title="删除关联"><WsIcon name="close" size="xs" /></button>
-            </div>
-            <div v-if="getRelationProps(group.relations[0]).length > 0" class="urp-rel-props">
-              <div v-for="rel in group.relations" :key="'p-' + rel.id" class="urp-prop-line"
-                @click="navigateTo(rel)">
-                <span class="urp-prop-target">{{ rel.counterpartName }}</span>
-                <span v-for="p in getRelationProps(rel)" :key="p.key" class="urp-prop-kv">
-                  <span class="urp-prop-key">{{ p.label }}</span>
-                  <span class="urp-prop-val">{{ p.value }}</span>
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <WsEmpty v-else preset="no-data" title="暂无关联条目" />
+      <RelationGroupList
+        :groups="groupedTypes"
+        :editing-rel-id="editingRelId"
+        :tab-defs="props.tabDefs"
+        @navigate="navigateTo"
+        @edit="startEdit"
+        @remove="removeRelation"
+        @reorder="onGroupReorder"
+        @add="openAddGroup"
+      />
 
       <EntityRelationSelector
         v-if="entityId"
@@ -97,6 +61,25 @@
         </div>
       </div>
     </FloatingPanel>
+
+    <!-- 定向添加（2026-10-08 合并批）：分组头「＋」按该类型的 relationType/reverseDirection 打开 -->
+    <FloatingPanel
+      v-model:visible="addVisible"
+      v-model:pinned="addPinned"
+      :title="addTarget ? `添加：${addTarget.label}` : '添加关联'"
+      :width="270"
+      :height="320"
+      :trigger-rect="addTriggerRect"
+      panel-id="floating-relation-add"
+    >
+      <EntityRelationSelector
+        v-if="addTarget && entityId"
+        :entity-id="entityId"
+        :entity-type="entityType"
+        :relation-type="addTarget.relationType"
+        :reverse-direction="addTarget.reverseDirection"
+      />
+    </FloatingPanel>
   </div>
 
   <Teleport to="body">
@@ -110,52 +93,16 @@
         </div>
       </div>
       <div v-if="!floatCollapsed" class="urp-float-body">
-        <div v-if="relations.length > 0" class="urp-groups">
-          <div
-            v-for="(group, gi) in groupedTypes"
-            :key="group.type"
-            class="urp-group"
-            :class="{ 'urp-drag-over': dragOverIndex === gi }"
-            draggable="true"
-            @dragstart="onGroupDragStart(gi, $event)"
-            @dragover.prevent="onGroupDragOver(gi, $event)"
-            @dragenter.prevent="onGroupDragEnter(gi)"
-            @dragleave="onGroupDragLeave(gi)"
-            @drop="onGroupDrop(gi)"
-            @dragend="onGroupDragEnd"
-          >
-            <div class="urp-group-header" @click="group.collapsed = !group.collapsed">
-              <WsIcon name="grip" size="xs" class="urp-drag-handle" title="拖拽排序" />
-              <span class="urp-group-toggle"><WsIcon :name="group.collapsed ? 'chevron-right' : 'chevron-down'" size="xs" /></span>
-              <span class="urp-group-label">{{ group.label }}</span>
-              <span class="urp-group-count">{{ group.relations.length }}</span>
-            </div>
-            <div v-if="!group.collapsed" class="urp-group-body">
-              <div v-for="rel in group.relations" :key="rel.id" class="urp-rel-item"
-                :class="{ 'urp-editing': editingRelId === rel.id }">
-                <span class="urp-direction" @click="navigateTo(rel)">{{ rel.direction === 'out' ? '→' : '←' }}</span>
-                <WsIcon class="urp-counterpart-icon" :name="rel.counterpartIcon" size="xs" @click="navigateTo(rel)" />
-                <span class="urp-counterpart-name" @click="navigateTo(rel)">{{ rel.counterpartName }}</span>
-                <span class="urp-counterpart-type" @click="navigateTo(rel)">{{ rel.counterpartTypeLabel }}</span>
-                <span v-if="rel.pairId" class="urp-bidirectional-icon" title="双向关系">↔</span>
-                <button class="urp-rel-edit" @click.stop="startEdit(rel)" title="编辑关系"><WsIcon name="edit" size="xs" /></button>
-                <button class="urp-rel-del" @click.stop="removeRelation(rel)" title="删除关联"><WsIcon name="close" size="xs" /></button>
-              </div>
-              <div v-if="getRelationProps(group.relations[0]).length > 0" class="urp-rel-props">
-                <div v-for="rel in group.relations" :key="'p-' + rel.id" class="urp-prop-line"
-                  @click="navigateTo(rel)">
-                  <span class="urp-prop-target">{{ rel.counterpartName }}</span>
-                  <span v-for="p in getRelationProps(rel)" :key="p.key" class="urp-prop-kv">
-                    <span class="urp-prop-key">{{ p.label }}</span>
-                    <span class="urp-prop-val">{{ p.value }}</span>
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <WsEmpty v-else preset="no-data" title="暂无关联条目" />
+        <RelationGroupList
+          :groups="groupedTypes"
+          :editing-rel-id="editingRelId"
+          :tab-defs="props.tabDefs"
+          @navigate="navigateTo"
+          @edit="startEdit"
+          @remove="removeRelation"
+          @reorder="onGroupReorder"
+          @add="openAddGroup"
+        />
 
         <EntityRelationSelector
           v-if="entityId"
@@ -173,18 +120,20 @@ import { toastSuccess } from '@worldsea/ui-kit'
 import { ref, watch, computed, onBeforeUnmount } from 'vue'
 import { useEntityStore, useRelationStore, entitySchemaRegistry, relationSchemaRegistry } from '@worldsea/entity-core'
 import { RelationTypes } from '@worldsea/entity-core'
-import { useUIStore } from '@worldsea/entity-core/stores/uiStore'
-import { usePluginStore } from '@worldsea/entity-core'
 import { useBidirectional } from '@worldsea/entity-core/composables'
 import EntityRelationSelector from './EntityRelationSelector.vue'
-import { FloatingPanel, WsIcon, WsEmpty } from '@worldsea/ui-kit'
-import type { Relation } from '@worldsea/entity-core'
+import RelationGroupList from './RelationGroupList.vue'
+import { FloatingPanel, WsIcon } from '@worldsea/ui-kit'
+import type { RelationTabDef } from './types'
+import type { EnhancedRelation, RelationGroupState } from './relationPanelTypes'
 
 const props = withDefaults(defineProps<{
   entityId: string
   entityType?: string
   inlineVisible?: boolean
   storageScope?: string
+  /** 芽声明的关系元数据（合并批起：分组语义名 / 定向「＋」入口） */
+  tabDefs?: RelationTabDef[]
 }>(), {
   inlineVisible: true,
   storageScope: 'default',
@@ -192,29 +141,11 @@ const props = withDefaults(defineProps<{
 
 const entityStore = useEntityStore()
 const relationStore = useRelationStore()
-const uiStore = useUIStore()
-const pluginStore = usePluginStore()
 const { deleteWithConfirm, editWithSync } = useBidirectional()
 
 const relations = ref<EnhancedRelation[]>([])
 
-interface EnhancedRelation extends Relation {
-  direction: 'in' | 'out'
-  counterpartId: string
-  counterpartName: string
-  counterpartIcon: string
-  counterpartTypeLabel: string
-  groupType: string
-}
-
-interface GroupState {
-  type: string
-  label: string
-  relations: EnhancedRelation[]
-  collapsed: boolean
-}
-
-const groupedTypes = ref<GroupState[]>([])
+const groupedTypes = ref<RelationGroupState[]>([])
 
 const scopePrefix = computed(() => `urp-${props.storageScope}`)
 
@@ -339,50 +270,30 @@ onBeforeUnmount(() => {
   document.removeEventListener('mouseup', onFloatResizeEnd)
 })
 
-const dragSourceIndex = ref<number | null>(null)
-const dragOverIndex = ref<number | null>(null)
-
-function onGroupDragStart(index: number, e: DragEvent) {
-  dragSourceIndex.value = index
-  if (e.dataTransfer) {
-    e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.setData('text/plain', String(index))
+/** 分组拖拽重排（子件上报顺序）：重排 state + 落盘「用户手排」次序 */
+function onGroupReorder(orderedTypes: string[]): void {
+  const byType = new Map(groupedTypes.value.map(g => [g.type, g]))
+  const next = orderedTypes.map(t => byType.get(t)).filter((g): g is RelationGroupState => !!g)
+  for (const g of groupedTypes.value) {
+    if (!orderedTypes.includes(g.type)) next.push(g)
   }
-}
-
-function onGroupDragOver(_index: number, e: DragEvent) {
-  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
-}
-
-function onGroupDragEnter(index: number) {
-  if (dragSourceIndex.value !== null && dragSourceIndex.value !== index) {
-    dragOverIndex.value = index
-  }
-}
-
-function onGroupDragLeave(index: number) {
-  if (dragOverIndex.value === index) {
-    dragOverIndex.value = null
-  }
-}
-
-function onGroupDrop(index: number) {
-  if (dragSourceIndex.value === null || dragSourceIndex.value === index) {
-    dragOverIndex.value = null
-    return
-  }
-  const arr = [...groupedTypes.value]
-  const [moved] = arr.splice(dragSourceIndex.value, 1)
-  arr.splice(index, 0, moved)
-  groupedTypes.value = arr
-  dragSourceIndex.value = null
-  dragOverIndex.value = null
+  groupedTypes.value = next
   saveGroupOrder()
 }
 
-function onGroupDragEnd() {
-  dragSourceIndex.value = null
-  dragOverIndex.value = null
+/** 「＋」定向添加浮层（合并批）：按分组类型声明的 relationType/reverseDirection 打开 */
+const addVisible = ref(false)
+const addPinned = ref(false)
+const addTriggerRect = ref<DOMRect | null>(null)
+const addTarget = ref<{ relationType: string; label: string; reverseDirection?: boolean } | null>(null)
+
+function openAddGroup(relationType: string, ev: MouseEvent): void {
+  const def = (props.tabDefs ?? []).find(d => d.relationType === relationType)
+  const group = groupedTypes.value.find(g => g.type === relationType)
+  const el = ev.currentTarget as HTMLElement | null
+  addTriggerRect.value = el ? el.getBoundingClientRect() : null
+  addTarget.value = { relationType, label: group?.label || relationType, reverseDirection: def?.reverseDirection }
+  addVisible.value = true
 }
 
 const GROUP_ORDER_KEY = 'urp-group-order'
@@ -442,15 +353,24 @@ async function loadRelations() {
     groups.get(r.groupType)!.push(r)
   }
 
-  let groupArray = Array.from(groups.entries()).map(([type, rels]) => {
+  let groupArray: RelationGroupState[] = Array.from(groups.entries()).map(([type, rels]) => {
     const schema = relationSchemaRegistry.get(type)
+    const def = (props.tabDefs ?? []).find(d => d.relationType === type)
     return {
       type,
-      label: schema?.label || type,
+      label: def?.label || schema?.label || type,
       relations: rels,
       collapsed: false,
     }
   })
+
+  // 初始序：芽声明序前置（稳定排序，未覆盖的保持出现序）；用户手排名（savedOrder）随后整体覆盖
+  const defRank = new Map((props.tabDefs ?? []).map((d, i) => [d.relationType, i]))
+  if (defRank.size) {
+    groupArray.sort((a, b) =>
+      (defRank.get(a.type) ?? Number.MAX_SAFE_INTEGER) - (defRank.get(b.type) ?? Number.MAX_SAFE_INTEGER),
+    )
+  }
 
   const savedOrder = loadGroupOrder()
   if (savedOrder && savedOrder.length > 0) {
@@ -473,28 +393,14 @@ watch(() => relationStore.relations.length, () => {
   if (props.entityId) loadRelations()
 })
 
-function navigateTo(rel: EnhancedRelation) {
+function navigateTo(rel: EnhancedRelation): void {
   const targetEntity = entityStore.entityMap.get(rel.counterpartId)
   if (!targetEntity) return
-
-  const typeViewMap: Record<string, string> = {
-    character: 'characters',
-    region: 'regions',
-    concept: 'concepts',
-    event: 'timeline',
-    organization: 'organizations',
-    item: 'items',
-  }
-
-  const targetView = pluginStore.views.find(v => v.id === typeViewMap[targetEntity.type])
-
-  if (targetView) {
-    uiStore.setView(targetView.id)
-    uiStore.viewComponent = targetView.component
-    uiStore.selectEntity(rel.counterpartId)
-  } else {
-    uiStore.selectEntity(rel.counterpartId)
-  }
+  // 2026-10-08 归一：走 ws-navigate 契约（Shell 统一「切视图 + 挂起位 + 事件通道」）——
+  // 此前手写 6 类视图映射直调 store：非映射类型不切视图、同视图无即时选中
+  window.dispatchEvent(new CustomEvent('ws-navigate', {
+    detail: { entityType: targetEntity.type, entityId: rel.counterpartId },
+  }))
 }
 
 async function removeRelation(rel: EnhancedRelation) {
@@ -505,43 +411,6 @@ async function removeRelation(rel: EnhancedRelation) {
   } catch (err) {
     console.error('[UniversalRelationPanel] remove failed:', err)
   }
-}
-
-interface PropDisplay {
-  key: string
-  label: string
-  value: string
-}
-
-const RELATION_PROPERTY_LABELS: Record<string, string> = {
-  role: '角色',
-  since: '时间',
-  acquisition: '获得',
-  impact: '影响',
-  status: '居住',
-  detail: '位置',
-  terms: '盟约',
-  reason: '原因',
-  nature: '性质',
-  biological: '血缘',
-  mechanism: '机制',
-  gap: '间隔',
-  length: '长度',
-  type: '类型',
-  method: '方式',
-  distance: '距离',
-  aspect: '方面',
-}
-
-function getRelationProps(rel: EnhancedRelation): PropDisplay[] {
-  if (!rel.properties || Object.keys(rel.properties).length === 0) return []
-  return Object.entries(rel.properties)
-    .filter(([, v]) => v !== undefined && v !== null && v !== '')
-    .map(([k, v]) => ({
-      key: k,
-      label: RELATION_PROPERTY_LABELS[k] || k,
-      value: String(v),
-    }))
 }
 
 const editingRelId = ref<string | null>(null)
@@ -755,81 +624,6 @@ const RELATION_EDIT_PROPS: Record<string, EditPropDef[]> = {
   opacity: 0.4; transition: opacity 0.15s, background 0.15s;
 }
 .urp-detach-btn:hover { opacity: 0.8; background: var(--hover-bg, #f3f4f6); }
-.urp-groups { max-height: 320px; overflow-y: auto; overflow-x: hidden; }
-.urp-group { border-bottom: 1px solid var(--border-light, #f0f0f0); transition: background 0.15s; }
-.urp-group:last-child { border-bottom: none; }
-.urp-group.urp-drag-over { background: var(--primary-light, #eef2ff); }
-.urp-group-header {
-  display: flex; align-items: center; gap: 6px; padding: 6px 12px;
-  cursor: pointer; font-size: var(--font-size-sm); color: var(--text-secondary, #666);
-  background: var(--hover-bg, #f5f5f5); user-select: none;
-}
-.urp-group-header:hover { background: var(--active-bg, #eef2ff); }
-.urp-drag-handle {
-  cursor: grab; font-size: var(--font-size-sm); color: var(--text-tertiary, #aaa);
-  width: 14px; text-align: center; flex-shrink: 0;
-  transition: color 0.15s;
-}
-.urp-drag-handle:hover { color: var(--primary); }
-.urp-drag-handle:active { cursor: grabbing; }
-.urp-group-toggle { font-size: var(--font-size-xs); width: 12px; flex-shrink: 0; }
-.urp-group-label { flex: 1; min-width: 0; font-weight: var(--font-weight-medium); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.urp-group-count {
-  font-size: var(--font-size-xs); color: var(--text-tertiary, #999);
-  background: var(--tag-bg, #f0f0f0); padding: 1px 6px; border-radius: 8px; flex-shrink: 0;
-}
-.urp-group-body { padding: 2px 0; overflow: hidden; }
-.urp-rel-item {
-  display: flex; align-items: center; gap: 4px;
-  padding: 5px 8px 5px 20px; font-size: var(--font-size-sm); cursor: pointer;
-  transition: background 0.1s; overflow: hidden;
-}
-.urp-rel-item:hover { background: var(--hover-bg, #f3f4f6); }
-.urp-direction { font-size: var(--font-size-sm); color: var(--text-tertiary, #999); width: 14px; text-align: center; flex-shrink: 0; }
-.urp-counterpart-icon { font-size: var(--font-size-base); width: 18px; text-align: center; flex-shrink: 0; }
-.urp-counterpart-name {
-  flex: 1; min-width: 0; color: var(--primary, #4f46e5); font-weight: var(--font-weight-medium);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.urp-counterpart-type {
-  font-size: var(--font-size-xs); color: var(--text-tertiary, #999);
-  background: var(--tag-bg, #f0f0f0); padding: 1px 5px; border-radius: 3px;
-  flex-shrink: 0; white-space: nowrap;
-}
-.urp-rel-edit {
-  opacity: 0; width: 18px; height: 18px; border: none; background: transparent;
-  color: var(--text-tertiary, #999); cursor: pointer; font-size: var(--font-size-xs); border-radius: 3px;
-  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-  transition: opacity 0.1s, background 0.1s;
-}
-.urp-rel-item:hover .urp-rel-edit { opacity: 1; }
-.urp-rel-edit:hover { background: var(--hover-bg); color: var(--primary); }
-.urp-rel-del {
-  opacity: 0; width: 18px; height: 18px; border: none; background: transparent;
-  color: var(--danger, #ef4444); cursor: pointer; font-size: var(--font-size-xs); border-radius: 50%;
-  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-  transition: opacity 0.1s, background 0.1s;
-}
-.urp-rel-item:hover .urp-rel-del { opacity: 1; }
-.urp-rel-del:hover { background: rgba(239, 68, 68, 0.1); }
-
-.urp-rel-props { padding: 0 8px 4px 20px; overflow: hidden; }
-.urp-prop-line {
-  display: flex; align-items: center; gap: 4px; padding: 2px 0;
-  font-size: var(--font-size-xs); color: var(--text-tertiary, #999); cursor: pointer;
-  overflow: hidden;
-}
-.urp-prop-line:hover { color: var(--text-secondary); }
-.urp-prop-target {
-  color: var(--primary); font-weight: var(--font-weight-medium); margin-right: 4px;
-  max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0;
-}
-.urp-prop-kv { display: flex; gap: 2px; min-width: 0; overflow: hidden; }
-.urp-prop-key { color: var(--text-tertiary); white-space: nowrap; }
-.urp-prop-val {
-  color: var(--text-secondary); max-width: 80px; overflow: hidden;
-  text-overflow: ellipsis; white-space: nowrap;
-}
 
 .urp-edit-body { padding: 10px; }
 .urp-edit-type-row { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
@@ -859,12 +653,6 @@ const RELATION_EDIT_PROPS: Record<string, EditPropDef[]> = {
   background: none; cursor: pointer; font-size: var(--font-size-xs); color: var(--text-secondary);
 }
 .urp-edit-cancel:hover { background: var(--hover-bg); }
-.urp-bidirectional-icon {
-  font-size: var(--font-size-xs);
-  color: var(--primary, #4f46e5);
-  margin-left: 2px;
-  opacity: 0.7;
-}
 
 .urp-float-panel {
   background: var(--modal-bg, #fff);

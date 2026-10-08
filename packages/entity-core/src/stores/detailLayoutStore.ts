@@ -16,6 +16,12 @@ export interface DetailLayoutOverride {
   contentConfig?: Record<string, unknown>
 }
 
+/** 详情 Tab 的用户覆写（按实体类型，2026-10-08 Tab 优化批）：排序与隐藏（info/relations 由消费侧钉底） */
+export interface DetailTabOverride {
+  order?: string[]
+  hidden?: string[]
+}
+
 export const useDetailLayoutStore = defineStore('detailLayout', () => {
   const STORAGE_KEY = 'worldsea_detail_layouts'
   /** L1 载体形态按实体类型记，与 L2 布局覆写**分键**：换容器与换编排是两件事，
@@ -26,10 +32,14 @@ export const useDetailLayoutStore = defineStore('detailLayout', () => {
   const FIELD_SCOPE_KEY = 'worldsea_custom_field_scope'
   /** 抽屉遮罩行为：缺省＝穿透（开着抽屉还能直接点列表），可切「拦截并点击关闭」 */
   const BACKDROP_KEY = 'worldsea_detail_backdrop'
+  /** Tab 排序/隐藏覆写（2026-10-08 Tab 优化批）：与 carriers/backdrop 同构，按实体类型、只存用户明确改过的 */
+  const TAB_KEY = 'worldsea_detail_tabs'
 
   const overrides = ref<Record<string, DetailLayoutOverride>>({})
   /** 实体类型 → 载体 id（未设＝用缺省抽屉） */
   const carriers = ref<Record<string, string>>({})
+  /** 实体类型 → Tab 覆写（未设＝芽声明默认序） */
+  const tabOverrides = ref<Record<string, DetailTabOverride>>({})
   const fieldScopeDefault = ref<'entity' | 'type'>(
     localStorage.getItem(FIELD_SCOPE_KEY) === 'type' ? 'type' : 'entity',
   )
@@ -56,10 +66,13 @@ export const useDetailLayoutStore = defineStore('detailLayout', () => {
       if (carrierRaw) carriers.value = JSON.parse(carrierRaw)
       const backdropRaw = localStorage.getItem(BACKDROP_TYPE_KEY)
       if (backdropRaw) backdropOverrides.value = JSON.parse(backdropRaw)
+      const tabRaw = localStorage.getItem(TAB_KEY)
+      if (tabRaw) tabOverrides.value = JSON.parse(tabRaw)
     } catch {
       overrides.value = {}
       carriers.value = {}
       backdropOverrides.value = {}
+      tabOverrides.value = {}
     }
   }
 
@@ -96,6 +109,18 @@ export const useDetailLayoutStore = defineStore('detailLayout', () => {
     localStorage.setItem(BACKDROP_TYPE_KEY, JSON.stringify(next))
   }
 
+  function setTabOverride(entityType: string, override: DetailTabOverride) {
+    tabOverrides.value = { ...tabOverrides.value, [entityType]: override }
+    localStorage.setItem(TAB_KEY, JSON.stringify(tabOverrides.value))
+  }
+
+  function clearTabOverride(entityType: string) {
+    const next = { ...tabOverrides.value }
+    delete next[entityType]
+    tabOverrides.value = next
+    localStorage.setItem(TAB_KEY, JSON.stringify(next))
+  }
+
   function get(entityType: string): DetailLayoutOverride | undefined {
     return overrides.value[entityType]
   }
@@ -114,8 +139,9 @@ export const useDetailLayoutStore = defineStore('detailLayout', () => {
   load()
 
   return {
-    overrides, carriers, fieldScopeDefault, backdropMode, backdropOverrides,
+    overrides, carriers, fieldScopeDefault, backdropMode, backdropOverrides, tabOverrides,
     get, patch, clear, setCarrier, clearCarrier,
     backdropFor, setBackdropOverride, clearBackdropOverride,
+    setTabOverride, clearTabOverride,
   }
 })

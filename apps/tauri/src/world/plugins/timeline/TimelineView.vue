@@ -127,9 +127,9 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
-import { useEntityStore, useRelationStore, useUIStore } from '@worldsea/entity-core'
+import { useEntityStore, useRelationStore, useUIStore, useDetailLayoutStore } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
-import { AutoLinkSuggestions, CustomDropdown, EntityCoverPanel, EntityFormModal, CreateButton, DynamicFieldsAdder, UniversalRelationPanel, EntityRelationSelector, EntityPager, useDuplicateNameCheck, useSelectedFollow, useShortcuts, useBatchDelete, useConfirm, useEntityEdit, useEntityPaging, useDetailCarrier, type FormFieldDef } from '@worldsea/plugin-sdk'
+import { AutoLinkSuggestions, CustomDropdown, EntityCoverPanel, EntityFormModal, CreateButton, DynamicFieldsAdder, UniversalRelationPanel, EntityRelationSelector, EntityPager, useDuplicateNameCheck, useSelectedFollow, useShortcuts, useBatchDelete, useConfirm, useEntityEdit, useEntityPaging, useDetailCarrier, resolveDetailTabs, type FormFieldDef } from '@worldsea/plugin-sdk'
 import { toastSuccess, toastWithUndo, useUndoRedo } from '@worldsea/ui-kit'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { TuiButton } from '@worldsea/ui-kit'
@@ -304,11 +304,14 @@ function onWsSelectEntity(e: Event) {
 const detailActiveTab = ref('info')
 const customFieldDefs = ref<any[]>([])
 
-const detailTabs = [
-  { id: 'info', icon: 'outline', label: '详情' },
-  { id: 'cover', icon: 'image', label: '封面' },
-  { id: 'causal', icon: 'link', label: '因果链' },
-]
+/** 详情 Tab：组装走 `resolveDetailTabs` 单点（2026-10-08 Tab 优化批；因果链为自绘芽的附加页）；
+ *  用户覆写（排序/隐藏）按 'event' 类型生效 */
+const detailPrefs = useDetailLayoutStore()
+const detailTabs = computed(() => resolveDetailTabs({
+  hasCover: true,
+  extras: [{ id: 'causal', icon: 'link', label: '因果链' }],
+  override: detailPrefs.tabOverrides['event'],
+}))
 
 const { isEditing, editForm, startEdit, cancelEdit, saveEdit } = useEntityEdit(selectedEvent)
 

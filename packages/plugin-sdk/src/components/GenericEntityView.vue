@@ -148,21 +148,9 @@
         <slot :name="`tab-${ct.id}`" :entity="entity" :editing="isEditing" />
       </template>
 
-      <template v-for="rt in relationTabs" :key="rt.id" #[rt.id]="{ entity }">
-        <slot :name="`detail-${rt.id}`" :entity="entity">
-          <div v-for="r in getRelations(entity.id, rt.relationType)" :key="r.id" class="dp-rel-item">
-            <span class="dp-rel-icon"><WsIcon :name="rt.targetIcon || 'link'" size="xs" /></span>
-            <span class="dp-rel-name">{{ getEntityName(r) }}</span>
-            <span v-if="rt.showProperty && r.properties[rt.showProperty]" class="dp-rel-meta">{{ r.properties[rt.showProperty] }}</span>
-          </div>
-          <WsEmpty v-if="getRelations(entity.id, rt.relationType).length === 0" preset="no-data" :title="`暂无${rt.label}`" />
-          <EntityRelationSelector v-if="entity" :entity-id="entity.id" :entity-type="entityType" :relation-type="rt.relationType" :reverse-direction="rt.reverseDirection" />
-        </slot>
-      </template>
-
       <template #relations="{ entity }">
         <slot name="detail-relations" :entity="entity">
-          <UniversalRelationPanel v-if="entity" :entity-id="entity.id" :entity-type="entityType" :storage-scope="entityType" />
+          <UniversalRelationPanel v-if="entity" :entity-id="entity.id" :entity-type="entityType" :storage-scope="entityType" :tab-defs="relationTabs" />
         </slot>
       </template>
     </component>
@@ -182,14 +170,13 @@
 import { toastSuccess, toastWarn, toastWithUndo } from '@worldsea/ui-kit'
 import { useEntityEdit, useBatchDelete, useDuplicateNameCheck, useShortcuts, useConfirm, useHighlight, useEntityPaging, useSelectedFollow } from '../composables'
 import { ref, computed, onMounted, onBeforeUnmount, reactive, useSlots, watch } from 'vue'
-import { useEntityStore, useRelationStore, entitySchemaRegistry, fieldRegistry, useUIStore } from '@worldsea/entity-core'
+import { useEntityStore, useRelationStore, entitySchemaRegistry, fieldRegistry, useUIStore, useDetailLayoutStore } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
 import CustomDropdown from './CustomDropdown.vue'
 import CreateButton from './CreateButton.vue'
 import UniversalRelationPanel from './UniversalRelationPanel.vue'
 import EntityFormModal from './EntityFormModal.vue'
 import EntityCoverPanel from './EntityCoverPanel.vue'
-import EntityRelationSelector from './EntityRelationSelector.vue'
 import type { FormFieldDef, RelationTabDef, CardFieldDef, CustomTabDef, FilterDef } from './types'
 import { TuiButton, WsIcon, WsEmpty } from '@worldsea/ui-kit'
 import EntityPager from './EntityPager.vue'
@@ -197,6 +184,7 @@ import EntityCard from './EntityCard.vue'
 import AutoLinkSuggestions from './AutoLinkSuggestions.vue'
 import EntityDetailForm from '../detail/EntityDetailForm.vue'
 import { useDetailCarrier } from '../detail/useDetailCarrier'
+import { resolveDetailTabs } from '../detail/detailTabs'
 import type { DetailFieldMeta } from '../detail/fieldMeta'
 import type { LayoutSource } from '../detail/detailLayout'
 import { useDetailLayout } from '../detail/useDetailLayout'
@@ -263,6 +251,7 @@ const props = withDefaults(defineProps<{
 const entityStore = useEntityStore()
 const relationStore = useRelationStore()
 const uiStore = useUIStore()
+const detailPrefs = useDetailLayoutStore()
 const slots = useSlots()
 // hasListSlot 只在渲染期消费（class 绑定 / pager v-if）：context.slots 是非响应式对象
 // （父组件重渲染时原地改写），computed 读取它会缓存过期值——条件槽（v-if 模板槽）增删后
@@ -443,16 +432,26 @@ const hasCoverTab = computed(() => {
   return !!schema?.fields.some(f => f.key === 'coverImage')
 })
 
+/**
+ * 详情 Tab：组装与用户覆写（排序/隐藏）都走 `resolveDetailTabs` 单点（2026-10-08 Tab 优化批）。
+ * 关系类页不再进标签条——已合并进「关联」面板的类型分组（`relationTabs` 转为面板元数据）。
+ * 「关联」徽标＝选中实体的关系总数（随 relationStore 响应式更新）。
+ */
 const resolvedTabs = computed(() => {
-  const tabs = [{ id: 'info', label: '信息', icon: 'outline' }]
-  if (hasCoverTab.value) tabs.push({ id: 'cover', label: '封面', icon: 'image' })
-  for (const ct of props.customTabs || []) {
-    tabs.push({ id: ct.id, label: ct.label, icon: ct.icon || '' })
+  const tabs = resolveDetailTabs({
+    hasCover: hasCoverTab.value,
+    customTabs: props.customTabs || [],
+    override: detailPrefs.tabOverrides[props.entityType],
+  })
+  const entity = selectedEntity.value
+  if (entity) {
+    const assoc = tabs.find(t => t.id === 'relations')
+    if (assoc) {
+      assoc.count = relationStore.relations.filter(
+        r => r.sourceId === entity.id || r.targetId === entity.id,
+      ).length
+    }
   }
-  for (const rt of relationTabs.value) {
-    tabs.push({ id: rt.id, label: rt.label, icon: rt.icon || '' })
-  }
-  tabs.push({ id: 'relations', label: '关联', icon: 'link' })
   return tabs
 })
 
@@ -466,17 +465,6 @@ function dynamicFilterOptions(key: string, label: string): { value: string; labe
     { value: '', label: `全部${label}` },
     ...Array.from(values).sort().map(v => ({ value: v, label: v })),
   ]
-}
-
-function getRelations(entityId: string, relationType: string) {
-  return relationStore.relations.filter(r =>
-    (r.sourceId === entityId || r.targetId === entityId) && r.type === relationType
-  )
-}
-
-function getEntityName(rel: any) {
-  const otherId = rel.sourceId === selectedEntity.value?.id ? rel.targetId : rel.sourceId
-  return entityStore.entityMap.get(otherId)?.name || otherId
 }
 
 const list = computed(() => (entityStore.entities ?? []).filter(e => e.type === props.entityType))

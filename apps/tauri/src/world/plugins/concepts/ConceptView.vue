@@ -9,45 +9,15 @@
     entity-label="概念"
     id-prefix="con"
   >
-    <template #detail-backlinks="{ entity }">
-      <div v-for="c in getBacklinks(entity.id)" :key="c.id" class="backlink-item">
-        <WsIcon :name="typeIcon(c)" size="xs" /> {{ c.name }}
-      </div>
-      <WsEmpty v-if="getBacklinks(entity.id).length === 0" preset="no-data" title="暂无其他概念引用本条" />
-      <EntityRelationSelector v-if="entity" :entity-id="entity.id" entity-type="concept" relation-type="references" :reverse-direction="true" />
-    </template>
-
-    <template #detail-forwardLinks="{ entity }">
-      <div v-for="c in getForwardLinks(entity.id)" :key="c.id" class="backlink-item">
-        <WsIcon :name="typeIcon(c)" size="xs" /> {{ c.name }}
-      </div>
-      <WsEmpty v-if="getForwardLinks(entity.id).length === 0" preset="no-data" title="暂无引用其他概念" />
-      <EntityRelationSelector v-if="entity" :entity-id="entity.id" entity-type="concept" relation-type="references" />
-    </template>
-
-    <template #detail-contradictions="{ entity }">
-      <div v-for="item in getContradictions(entity.id)" :key="item.relation.id" class="contradiction-item">
-        <span>↔ {{ item.other?.name || '(未知)' }}</span>
-        <p v-if="item.relation.properties.explanation" class="contra-explain">
-          {{ item.relation.properties.explanation }}
-        </p>
-      </div>
-      <WsEmpty v-if="getContradictions(entity.id).length === 0" preset="no-data" title="暂无矛盾设定" />
-      <EntityRelationSelector v-if="entity" :entity-id="entity.id" entity-type="concept" relation-type="contradicts" />
-    </template>
   </GenericEntityView>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
-import { GenericEntityView, EntityRelationSelector, type FormFieldDef, type FilterDef, type CardFieldDef, type RelationTabDef } from '@worldsea/plugin-sdk'
-import { WsIcon } from '@worldsea/ui-kit'
-import { WsEmpty } from '@worldsea/ui-kit'
-import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
-import type { Entity } from '@worldsea/entity-core'
+import { onMounted } from 'vue'
+import { GenericEntityView, type FormFieldDef, type FilterDef, type CardFieldDef, type RelationTabDef } from '@worldsea/plugin-sdk'
+import { useEntityStore } from '@worldsea/entity-core'
 
 const entityStore = useEntityStore()
-const relationStore = useRelationStore()
 
 /**
  * 清理重复「中心主题」概念（保留 1 个，删除其余）。
@@ -85,69 +55,11 @@ const cardFooterFields: CardFieldDef[] = [
   { key: 'conceptType', type: 'tag' },
 ]
 
+// 2026-10-08 合并批：关系类页收编进「关联」面板的类型分组——references 双向归一为一条
+// （行上以 ←/→ 箭头区分方向），自绘槽随之下线（面板默认渲染含定向「＋」与属性行）
 const detailTabs: RelationTabDef[] = [
-  { id: 'backlinks', label: '被引用', icon: 'link', relationType: 'references', targetLabel: '概念' },
-  { id: 'forwardLinks', label: '引用其他', icon: 'paperclip', relationType: 'references', targetLabel: '概念' },
+  { id: 'references', label: '引用', icon: 'link', relationType: 'references', targetLabel: '概念' },
   { id: 'contradictions', label: '矛盾设定', icon: 'warning', relationType: 'contradicts', targetLabel: '概念', showProperty: 'explanation' },
 ]
 
-const conceptList = computed(() => entityStore.entities.filter(e => e.type === 'concept'))
-const referenceRels = computed(() => relationStore.relations.filter(r => r.type === 'references'))
-
-function getBacklinks(entityId: string): Entity[] {
-  const sourceIds = referenceRels.value.filter(r => r.targetId === entityId).map(r => r.sourceId)
-  return conceptList.value.filter(c => sourceIds.includes(c.id))
-}
-
-function getForwardLinks(entityId: string): Entity[] {
-  const targetIds = referenceRels.value.filter(r => r.sourceId === entityId).map(r => r.targetId)
-  return conceptList.value.filter(c => targetIds.includes(c.id))
-}
-
-function getContradictions(entityId: string) {
-  const rels = relationStore.relations.filter(r =>
-    r.type === 'contradicts' && (r.sourceId === entityId || r.targetId === entityId)
-  )
-  return rels.map(r => ({
-    relation: r,
-    other: entityStore.entityMap.get(r.sourceId === entityId ? r.targetId : r.sourceId),
-  }))
-}
-
-function typeIcon(concept: Entity): string {
-  const t = concept.properties.conceptType as string
-  const icons: Record<string, string> = {
-    '概念': 'brain', '规则': 'ruler', '魔法': 'crystal', '科技': 'gear',
-    '文化': 'theater', '历史': 'scroll', '宗教': 'church', '生物': 'dragon',
-    '语言': 'language', '社会制度': 'building',
-  }
-  return icons[t] || 'document'
-}
 </script>
-
-<style scoped>
-.backlink-item {
-  padding: 5px 8px;
-  cursor: pointer;
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-sm);
-  transition: background var(--transition-fast);
-}
-.backlink-item:hover {
-  background: var(--hover-bg);
-}
-.contradiction-item {
-  padding: 6px 10px;
-  background: var(--danger-light);
-  border-radius: var(--radius-sm);
-  margin: 4px 0;
-  font-size: var(--font-size-sm);
-  border-left: 3px solid var(--danger);
-}
-.contra-explain {
-  margin: 4px 0 0;
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-}
-</style>
-
