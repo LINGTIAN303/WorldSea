@@ -29,8 +29,12 @@ export function computeBounds(points: Array<{ x: number; y: number }>): GraphBou
 }
 
 /**
- * 拟合相机状态（sigma `camera.animate` 入参）：可见世界 = 视口 × ratio，取两轴较大者保证全部入画；
- * 四周留 `padding`（世界单位）。单点/零尺寸边界按最小跨度 1 处理；ratio 收敛在相机档内 [0.05, 10]。
+ * 拟合相机状态（sigma `camera.animate` 入参）。**关键语义（批 C 回归修复，2026-10-09）**：
+ * sigma 相机坐标系是**图归一化帧 [0,1]²**——全图恒映射单位方框，故「全图拟合」中心恒 (0.5, 0.5)
+ * （旧代码写死 (0.5, 0.5, 1.1) 恒正确即此因）；ratio=1 即全图恰好入画，留白只按屏幕像素算。
+ * 病：批 C 误按**原始坐标**计算（bbox 中心如 (32, 35.8) 直接当相机 xy）→ 力导向布局相机
+ * 飞出图外数十个箱位 → 空画布（圆圈布局因 bbox 中心恰 ≈(0.5, 0.5) 而侥幸可见）。
+ * `bounds` 此处仅作有效性校验（有限值/非退化）；NaN 边界 → null（调用方不动相机）。
  */
 export function computeFitCamera(
   bounds: GraphBounds,
@@ -38,14 +42,9 @@ export function computeFitCamera(
   padding: number = 40,
 ): { x: number; y: number; ratio: number } | null {
   if (viewport.w <= 0 || viewport.h <= 0) return null
-  const spanX = Math.max(bounds.maxX - bounds.minX, 1)
-  const spanY = Math.max(bounds.maxY - bounds.minY, 1)
-  const ratio = Math.max((spanX + padding * 2) / viewport.w, (spanY + padding * 2) / viewport.h)
-  return {
-    x: (bounds.minX + bounds.maxX) / 2,
-    y: (bounds.minY + bounds.maxY) / 2,
-    ratio: Math.min(10, Math.max(0.05, ratio)),
-  }
+  if (![bounds.minX, bounds.minY, bounds.maxX, bounds.maxY].every(Number.isFinite)) return null
+  const ratio = 1 + (2 * padding) / Math.min(viewport.w, viewport.h)
+  return { x: 0.5, y: 0.5, ratio }
 }
 
 export interface Fa2Config {
