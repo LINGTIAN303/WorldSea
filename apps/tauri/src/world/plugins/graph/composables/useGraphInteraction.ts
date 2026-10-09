@@ -55,6 +55,13 @@ export function useGraphInteraction() {
     pathResult.value = []
   }
 
+  /** 搜索高亮（批 B）：只设高亮节点集、不动选中；边集留空 = 不隐边（applyHighlight 既有语义） */
+  function highlightNodes(ids: Set<string>): void {
+    selectedNodeId.value = null
+    highlightedNodes.value = ids
+    highlightedEdges.value = new Set()
+  }
+
   function applyHighlightToGraph(graph: Graph): void {
     const highlighted = highlightedNodes.value
     const selected = selectedNodeId.value
@@ -77,7 +84,10 @@ export function useGraphInteraction() {
     const hlEdges = highlightedEdges.value
     graph.forEachEdge((edge) => {
       const isHl = hlEdges.size > 0 && hlEdges.has(edge)
-      graph.setEdgeAttribute(edge, 'hidden', hlEdges.size > 0 && !isHl)
+      // 有高亮边集时才接管显隐（搜索零命中/空集不得把类型过滤隐藏的边「救活」）
+      if (hlEdges.size > 0) {
+        graph.setEdgeAttribute(edge, 'hidden', !isHl)
+      }
       // 高亮档：类型色满档 + 加粗 + 显关系标签（批 A「选中/聚焦时显关系标签」）
       graph.setEdgeAttribute(edge, 'color', isHl ? graph.getEdgeAttribute(edge, 'hlColor') : graph.getEdgeAttribute(edge, 'baseColor'))
       graph.setEdgeAttribute(edge, 'size', isHl ? graph.getEdgeAttribute(edge, 'hlSize') : graph.getEdgeAttribute(edge, 'baseSize'))
@@ -103,6 +113,7 @@ export function useGraphInteraction() {
     hoverNode,
     findPath,
     clearHighlight,
+    highlightNodes,
     applyHighlightToGraph,
   }
 }

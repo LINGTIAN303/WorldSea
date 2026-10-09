@@ -7,7 +7,11 @@
       :enabled-types="shownTypes"
       :zoom-pct="zoomPct"
       :clustering-on="clustering.clusteringEnabled.value"
+      :search-query="searchQuery"
+      :search-count="searchCount"
       @update:layout="switchLayout"
+      @update:search="onSearch"
+      @search-enter="onSearchEnter"
       @toggle-type="toggleType"
       @toggle-clustering="toggleClustering"
       @open-path-search="showPathSearch = true"
@@ -32,6 +36,12 @@
       @close="showPathSearch = false; interaction.clearHighlight(); resetVisuals()"
       @search="onPathSearch"
     />
+
+    <div v-if="focus" class="g-focus-chip">
+      <WsIcon name="target" size="xs" />
+      <span class="g-focus-chip__text">已聚焦「{{ focus.name }}」· {{ focus.count }} 个邻居</span>
+      <button class="g-focus-chip__exit" @click="exitFocus">返回全图</button>
+    </div>
 
     <div
       v-if="algorithms.backendUsed.value === 'js-fallback' && backendNoticeVisible"
@@ -90,7 +100,8 @@ import { useGraphLayout, type LayoutType } from './composables/useGraphLayout'
 import { useGraphClustering } from './composables/useGraphClustering'
 import { useGraphInteraction } from './composables/useGraphInteraction'
 import { usePathParticles } from './composables/usePathParticles'
-import { labelThresholdFor } from './graphStyle'
+import { useNodeDrag } from './composables/useNodeDrag'
+import { labelThresholdFor, matchNodeIds, tooltipPosition } from './graphStyle'
 import GraphToolbar from './components/GraphToolbar.vue'
 import GraphLegend from './components/GraphLegend.vue'
 import PathSearchPanel from './components/PathSearchPanel.vue'
@@ -113,6 +124,7 @@ const clustering = useGraphClustering()
 const interaction = useGraphInteraction()
 const algorithms = useGraphAlgorithms()
 const pathParticles = usePathParticles()
+const nodeDrag = useNodeDrag()
 
 const layoutName = ref<LayoutType>('forceatlas2')
 /** WASM 降级提示条可见性（NAlert 替换后本地状态，E2） */
@@ -129,6 +141,10 @@ const showPathSearch = ref(false)
 const showTimeline = ref(false)
 const pathNotFound = ref(false)
 const tooltip = ref({ show: false, x: 0, y: 0, text: '' })
+const searchQuery = ref('')
+const searchCount = ref(0)
+/** 聚焦模式（批 B）：双击进入，芯片/Esc/点空白三通道退出 */
+const focus = ref<{ name: string; count: number } | null>(null)
 
 /** 数据模型（2026-10-09 图谱改进批 A：组装/双过滤/增量更新/视觉复位自本件外移；视图只留接线） */
 const model = useGraphModel({ graph, nodes: graphNodes, edges: graphEdges, shownTypes, sigma })
@@ -165,6 +181,54 @@ function resetVisuals(): void {
   model.syncGraphColors()
 }
 
+/** 容器相对坐标（sigma MouseCoords）→ 视口坐标（tooltip 为 fixed 定位） */
+function containerPointToClient(x: number, y: number): { clientX: number; clientY: number } {
+  const rect = containerRef.value?.getBoundingClientRect()
+  return { clientX: (rect?.left ?? 0) + x, clientY: (rect?.top ?? 0) + y }
+}
+
+function moveTooltipTo(clientX: number, clientY: number): void {
+  const pos = tooltipPosition(clientX, clientY, window.innerWidth, window.innerHeight)
+  tooltip.value.x = pos.x
+  tooltip.value.y = pos.y
+}
+
+/** 退出聚焦/选中（批 B）：芯片按钮 / Esc / 点空白三通道共用 */
+function exitFocus(): void {
+  focus.value = null
+  interaction.clearHighlight()
+  resetVisuals()
+}
+
+function onKeydown(e: KeyboardEvent): void {
+  if (e.key !== 'Escape') return
+  if (focus.value || interaction.selectedNodeId.value) exitFocus()
+}
+
+/** 搜索高亮（批 B）：输入即高亮命中（淡化其余）；清空/零命中恢复全图 */
+function onSearch(q: string): void {
+  searchQuery.value = q
+  const ids = matchNodeIds(graphNodes.value, q)
+  searchCount.value = ids.length
+  focus.value = null
+  interaction.clearHighlight()
+  resetVisuals()
+  if (ids.length === 0) return
+  interaction.highlightNodes(new Set(ids))
+  interaction.applyHighlightToGraph(graph)
+}
+
+/** 回车：相机飞至首个命中（批 B） */
+function onSearchEnter(): void {
+  const first = matchNodeIds(graphNodes.value, searchQuery.value)[0]
+  const s = sigma.value
+  if (!first || !s || !graph.hasNode(first)) return
+  s.getCamera().animate(
+    { x: graph.getNodeAttribute(first, 'x'), y: graph.getNodeAttribute(first, 'y'), ratio: 0.6 },
+    { duration: 400, easing: 'cubicInOut' },
+  )
+}
+
 function initGraph(): void {
   model.buildGraphology()
   layout.applyLayout(graph, layoutName.value, undefined, sigma.value)
@@ -184,18 +248,20 @@ function bindEvents(): void {
   })
 
   s.on('clickStage', () => {
-    interaction.clearHighlight()
-    resetVisuals()
+    exitFocus()
   })
 
-  s.on('enterNode', ({ node }) => {
-    const attrs = graph.getNodeAttributes(node)
+  s.on('enterNode', ({ node, event }) => {
+    const meta = getNode(node)
+    const name = meta?.name ?? String(graph.getNodeAttribute(node, 'label'))
     tooltip.value = {
       show: true,
       x: 0,
       y: 0,
-      text: `${attrs.label} (${graph.getNodeAttribute(node, 'entityType')})`,
+      text: `${name} · ${meta?.label || '实体'} · ${meta?.degree ?? 0} 关系`,
     }
+    const { clientX, clientY } = containerPointToClient(event.x, event.y)
+    moveTooltipTo(clientX, clientY)
     interaction.hoverNode(node, graph)
   })
 
@@ -204,19 +270,37 @@ function bindEvents(): void {
     interaction.hoverNode(null, graph)
   })
 
+  // 边悬浮（批 B）：显示「A —关系→ B」
+  s.on('enterEdge', ({ edge, event }) => {
+    const rel = String(graph.getEdgeAttribute(edge, 'relLabel') || '关联')
+    const src = String(graph.getNodeAttribute(graph.source(edge), 'label'))
+    const tgt = String(graph.getNodeAttribute(graph.target(edge), 'label'))
+    tooltip.value = { show: true, x: 0, y: 0, text: `${src} —${rel}→ ${tgt}` }
+    const { clientX, clientY } = containerPointToClient(event.x, event.y)
+    moveTooltipTo(clientX, clientY)
+  })
+
+  s.on('leaveEdge', () => {
+    tooltip.value.show = false
+  })
+
+  // 悬浮跟随（批 B）：tooltip 显示期间随鼠标移动
+  s.getMouseCaptor().on('mousemovebody', (coords) => {
+    if (!tooltip.value.show) return
+    const { clientX, clientY } = containerPointToClient(coords.x, coords.y)
+    moveTooltipTo(clientX, clientY)
+  })
+
+  // 双击聚焦（批 B）：淡化非邻居（复用选中高亮）+ 芯片出口；不再硬隐藏
   s.on('doubleClickNode', ({ node }) => {
     const neighbors = algorithms.getNeighbors(graph, node, 1)
-    const subNodeIds = new Set([node, ...neighbors])
-    graph.forEachNode((n) => {
-      graph.setNodeAttribute(n, 'hidden', !subNodeIds.has(n))
-    })
-    graph.forEachEdge((e) => {
-      const src = graph.source(e)
-      const tgt = graph.target(e)
-      graph.setEdgeAttribute(e, 'hidden', !subNodeIds.has(src) || !subNodeIds.has(tgt))
-    })
-    nextTick(() => layout.fitToGraph(sigma.value, 10))
+    interaction.selectNode(node, graph)
+    interaction.applyHighlightToGraph(graph)
+    focus.value = { name: String(graph.getNodeAttribute(node, 'label')), count: neighbors.length }
   })
+
+  // 节点拖拽（批 B）：松手保留，「切换布局」可复位
+  nodeDrag.attach(s, graph)
 
   // 相机缩放：百分比显示 + 标签阈值两档（批 A：远看只大节点、放大后全标）
   const camera = s.getCamera()
@@ -313,6 +397,7 @@ function goTo(node: GraphNode): void {
 }
 
 onMounted(async () => {
+  window.addEventListener('keydown', onKeydown)
   try {
     await entityStore.loadAll()
     await relationStore.loadAll()
@@ -325,6 +410,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeydown)
   pathParticles.destroy()
   destroyRenderer()
   layout.dispose()
@@ -383,5 +469,34 @@ watch([graphNodes, graphEdges], () => {
   transition: background var(--transition-fast);
 }
 .g-wasm-notice__close:hover { background: rgba(255, 255, 255, 0.1); }
+.g-focus-chip {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: rgba(10, 14, 20, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-mid);
+  color: #ccc;
+  font-size: var(--font-size-xs);
+  z-index: 6;
+  backdrop-filter: blur(8px);
+}
+.g-focus-chip__text { white-space: nowrap; }
+.g-focus-chip__exit {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: transparent;
+  color: #e0e0e0;
+  border-radius: var(--radius-sm);
+  padding: 2px 8px;
+  cursor: pointer;
+  font-size: var(--font-size-xs);
+  transition: background 0.15s;
+}
+.g-focus-chip__exit:hover { background: rgba(255, 255, 255, 0.1); }
 .g-tooltip { position: fixed; pointer-events: none; z-index: var(--z-dropdown); background: rgba(10,14,20,0.92); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--radius-sm); padding: 6px 10px; font-size: var(--font-size-sm); color: #ccc; max-width: 240px; backdrop-filter: blur(4px); }
 </style>

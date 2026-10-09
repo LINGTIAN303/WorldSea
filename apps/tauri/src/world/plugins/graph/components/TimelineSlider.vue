@@ -4,7 +4,7 @@
       <div class="gg-timeline-header">
         <span class="gg-timeline-title">时间轴过滤</span>
         <button class="gg-timeline-reset" @click="resetRange">重置</button>
-        <button class="gg-timeline-close" @click="$emit('close')">✕</button>
+        <button class="gg-timeline-close" @click="$emit('close')" aria-label="关闭"><WsIcon name="x" size="xs" /></button>
       </div>
       <div class="gg-timeline-body">
         <div class="gg-timeline-range">
@@ -25,6 +25,7 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import { WsIcon } from '@worldsea/ui-kit'
 
 const props = defineProps<{
   visible: boolean

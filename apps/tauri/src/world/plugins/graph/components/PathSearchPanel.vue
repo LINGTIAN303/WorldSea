@@ -2,7 +2,7 @@
   <div v-if="visible" class="gg-path-panel">
     <div class="gg-path-header">
       <span>路径搜索</span>
-      <button class="gg-path-close" @click="$emit('close')">✕</button>
+      <button class="gg-path-close" @click="$emit('close')" aria-label="关闭"><WsIcon name="x" size="xs" /></button>
     </div>
     <div class="gg-path-body">
       <div class="gg-path-row">
@@ -10,14 +10,14 @@
         <input v-model="fromName" class="gg-path-input" placeholder="输入实体名称" @input="searchFrom" />
       </div>
       <div v-if="fromSuggestions.length" class="gg-path-suggestions">
-        <button v-for="s in fromSuggestions" :key="s.id" class="gg-path-sug" @click="fromId = s.id; fromName = s.name; fromSuggestions = []">{{ s.icon }} {{ s.name }}</button>
+        <button v-for="s in fromSuggestions" :key="s.id" class="gg-path-sug" @click="fromId = s.id; fromName = s.name; fromSuggestions = []"><WsIcon :name="s.icon" size="xs" /> {{ s.name }}</button>
       </div>
       <div class="gg-path-row">
         <label>终点</label>
         <input v-model="toName" class="gg-path-input" placeholder="输入实体名称" @input="searchTo" />
       </div>
       <div v-if="toSuggestions.length" class="gg-path-suggestions">
-        <button v-for="s in toSuggestions" :key="s.id" class="gg-path-sug" @click="toId = s.id; toName = s.name; toSuggestions = []">{{ s.icon }} {{ s.name }}</button>
+        <button v-for="s in toSuggestions" :key="s.id" class="gg-path-sug" @click="toId = s.id; toName = s.name; toSuggestions = []"><WsIcon :name="s.icon" size="xs" /> {{ s.name }}</button>
       </div>
       <button class="gg-path-btn" :disabled="!fromId || !toId" @click="search">搜索路径</button>
       <div v-if="pathLength >= 0" class="gg-path-result">
@@ -32,6 +32,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { WsIcon } from '@worldsea/ui-kit'
 import { type GraphNode } from '@worldsea/ui-kit'
 
 const props = defineProps<{

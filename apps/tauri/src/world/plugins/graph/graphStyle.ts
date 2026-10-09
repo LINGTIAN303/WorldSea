@@ -69,3 +69,28 @@ export function labelThresholdFor(ratio: number): number {
   if (ratio >= 0.6) return 7
   return 4
 }
+
+/** 搜索匹配（批 B）：名称大小写不敏感包含；空串 → 空集（调用方据此恢复全图） */
+export function matchNodeIds(nodes: Array<{ id: string; name: string }>, query: string): string[] {
+  const q = query.trim().toLowerCase()
+  if (!q) return []
+  return nodes.filter(n => n.name.toLowerCase().includes(q)).map(n => n.id)
+}
+
+/** tooltip 估尺寸（max-width 240 / 单行 ~2 行高；定位翻转用近似值即可） */
+export const TOOLTIP_W = 240
+export const TOOLTIP_H = 56
+
+/** tooltip 跟随定位（批 B）：指针右下 14px；近右/下缘翻到指针另一侧；左上保底 8px */
+export function tooltipPosition(
+  clientX: number,
+  clientY: number,
+  viewportW: number,
+  viewportH: number,
+  w: number = TOOLTIP_W,
+  h: number = TOOLTIP_H,
+): { x: number; y: number } {
+  const x = clientX + 14 + w > viewportW ? clientX - w - 14 : clientX + 14
+  const y = clientY + 14 + h > viewportH ? clientY - h - 14 : clientY + 14
+  return { x: Math.max(8, x), y: Math.max(8, y) }
+}

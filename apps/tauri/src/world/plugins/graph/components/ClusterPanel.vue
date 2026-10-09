@@ -3,7 +3,7 @@
     <div v-if="visible && clusters.length" class="gg-cluster">
       <div class="gg-cluster-header">
         <span class="gg-cluster-title">社区聚类</span>
-        <button class="gg-cluster-close" @click="$emit('close')">✕</button>
+        <button class="gg-cluster-close" @click="$emit('close')" aria-label="关闭"><WsIcon name="x" size="xs" /></button>
       </div>
       <div class="gg-cluster-body">
         <div
@@ -26,6 +26,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { WsIcon } from '@worldsea/ui-kit'
 import type { ClusterInfo } from '../composables/useGraphClustering'
 
 defineProps<{
