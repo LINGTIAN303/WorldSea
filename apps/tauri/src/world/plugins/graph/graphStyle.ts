@@ -81,16 +81,18 @@ export function matchNodeIds(nodes: Array<{ id: string; name: string }>, query: 
 export const TOOLTIP_W = 240
 export const TOOLTIP_H = 56
 
-/** tooltip 跟随定位（批 B）：指针右下 14px；近右/下缘翻到指针另一侧；左上保底 8px */
+/** tooltip 跟随定位（批 B）：指针右下 14px；近右/下缘翻到指针另一侧；左上保底 8px。
+ *  坐标与 viewportW/H 同空间——图谱内传入 sigma 容器相对坐标 + 容器尺寸
+ *  （走查反馈修：宿主 `contain: layout` 使 fixed 以容器为包含块，勿再按视口换算）。 */
 export function tooltipPosition(
-  clientX: number,
-  clientY: number,
+  x: number,
+  y: number,
   viewportW: number,
   viewportH: number,
   w: number = TOOLTIP_W,
   h: number = TOOLTIP_H,
 ): { x: number; y: number } {
-  const x = clientX + 14 + w > viewportW ? clientX - w - 14 : clientX + 14
-  const y = clientY + 14 + h > viewportH ? clientY - h - 14 : clientY + 14
-  return { x: Math.max(8, x), y: Math.max(8, y) }
+  const px = x + 14 + w > viewportW ? x - w - 14 : x + 14
+  const py = y + 14 + h > viewportH ? y - h - 14 : y + 14
+  return { x: Math.max(8, px), y: Math.max(8, py) }
 }

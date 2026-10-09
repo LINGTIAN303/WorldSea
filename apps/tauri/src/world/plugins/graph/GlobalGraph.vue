@@ -181,14 +181,12 @@ function resetVisuals(): void {
   model.syncGraphColors()
 }
 
-/** 容器相对坐标（sigma MouseCoords）→ 视口坐标（tooltip 为 fixed 定位） */
-function containerPointToClient(x: number, y: number): { clientX: number; clientY: number } {
-  const rect = containerRef.value?.getBoundingClientRect()
-  return { clientX: (rect?.left ?? 0) + x, clientY: (rect?.top ?? 0) + y }
-}
-
-function moveTooltipTo(clientX: number, clientY: number): void {
-  const pos = tooltipPosition(clientX, clientY, window.innerWidth, window.innerHeight)
+/** tooltip 定位（走查反馈修）：视图宿主 `.view-container` 带 `contain: layout`——它是
+ *  `position: fixed` 后代的包含块，按视口换算会双重计入容器偏移；故 tooltip 用
+ *  `absolute` 挂 `.graph-view`，坐标直接用 sigma 的容器相对值（勿改回 fixed）。 */
+function moveTooltipTo(x: number, y: number): void {
+  const el = containerRef.value
+  const pos = tooltipPosition(x, y, el?.clientWidth ?? window.innerWidth, el?.clientHeight ?? window.innerHeight)
   tooltip.value.x = pos.x
   tooltip.value.y = pos.y
 }
@@ -260,8 +258,7 @@ function bindEvents(): void {
       y: 0,
       text: `${name} · ${meta?.label || '实体'} · ${meta?.degree ?? 0} 关系`,
     }
-    const { clientX, clientY } = containerPointToClient(event.x, event.y)
-    moveTooltipTo(clientX, clientY)
+    moveTooltipTo(event.x, event.y)
     interaction.hoverNode(node, graph)
   })
 
@@ -276,8 +273,7 @@ function bindEvents(): void {
     const src = String(graph.getNodeAttribute(graph.source(edge), 'label'))
     const tgt = String(graph.getNodeAttribute(graph.target(edge), 'label'))
     tooltip.value = { show: true, x: 0, y: 0, text: `${src} —${rel}→ ${tgt}` }
-    const { clientX, clientY } = containerPointToClient(event.x, event.y)
-    moveTooltipTo(clientX, clientY)
+    moveTooltipTo(event.x, event.y)
   })
 
   s.on('leaveEdge', () => {
@@ -287,8 +283,7 @@ function bindEvents(): void {
   // 悬浮跟随（批 B）：tooltip 显示期间随鼠标移动
   s.getMouseCaptor().on('mousemovebody', (coords) => {
     if (!tooltip.value.show) return
-    const { clientX, clientY } = containerPointToClient(coords.x, coords.y)
-    moveTooltipTo(clientX, clientY)
+    moveTooltipTo(coords.x, coords.y)
   })
 
   // 双击聚焦（批 B）：淡化非邻居（复用选中高亮）+ 芯片出口；不再硬隐藏
@@ -498,5 +493,7 @@ watch([graphNodes, graphEdges], () => {
   transition: background 0.15s;
 }
 .g-focus-chip__exit:hover { background: rgba(255, 255, 255, 0.1); }
-.g-tooltip { position: fixed; pointer-events: none; z-index: var(--z-dropdown); background: rgba(10,14,20,0.92); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--radius-sm); padding: 6px 10px; font-size: var(--font-size-sm); color: #ccc; max-width: 240px; backdrop-filter: blur(4px); }
+/* 走查反馈修：宿主 .view-container 带 contain:layout（fixed 的包含块是它而非视口）——
+   tooltip 必须 absolute 挂 .graph-view，坐标即 sigma 容器相对值；勿改回 fixed */
+.g-tooltip { position: absolute; pointer-events: none; z-index: var(--z-dropdown); background: rgba(10,14,20,0.92); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--radius-sm); padding: 6px 10px; font-size: var(--font-size-sm); color: #ccc; max-width: 240px; backdrop-filter: blur(4px); }
 </style>
