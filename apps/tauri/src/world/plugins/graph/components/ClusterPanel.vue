@@ -49,8 +49,8 @@ const hoveredCluster = ref<string | null>(null)
   right: 12px;
   width: 220px;
   max-height: 400px;
-  background: rgba(10, 14, 20, 0.95);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--g-panel-bg, rgba(10, 14, 20, 0.95));
+  border: 1px solid var(--g-panel-border, rgba(255, 255, 255, 0.08));
   border-radius: var(--radius-md);
   backdrop-filter: blur(12px);
   z-index: 20;
@@ -61,23 +61,23 @@ const hoveredCluster = ref<string | null>(null)
   align-items: center;
   justify-content: space-between;
   padding: 10px 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--g-panel-border, rgba(255, 255, 255, 0.06));
 }
 .gg-cluster-title {
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
-  color: #e0e0e0;
+  color: var(--g-text-strong, #e0e0e0);
 }
 .gg-cluster-close {
   background: none;
   border: none;
-  color: #888;
+  color: var(--g-text-dim, #888);
   cursor: pointer;
   font-size: var(--font-size-base);
   padding: 2px 4px;
   border-radius: var(--radius-xs);
 }
-.gg-cluster-close:hover { color: #fff; background: rgba(255,255,255,0.08); }
+.gg-cluster-close:hover { color: var(--g-text-strong, #fff); background: var(--g-hover, rgba(255,255,255,0.08)); }
 .gg-cluster-body {
   padding: 6px 0;
   max-height: 340px;
@@ -92,7 +92,7 @@ const hoveredCluster = ref<string | null>(null)
   transition: background 0.15s;
 }
 .gg-cluster-item:hover, .gg-cluster-item.active {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--g-hover, rgba(255, 255, 255, 0.05));
 }
 .gg-cluster-dot {
   width: 10px;
@@ -103,15 +103,15 @@ const hoveredCluster = ref<string | null>(null)
 .gg-cluster-label {
   flex: 1;
   font-size: var(--font-size-sm);
-  color: #ccc;
+  color: var(--g-text, #ccc);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .gg-cluster-count {
   font-size: var(--font-size-xs);
-  color: #888;
-  background: rgba(255,255,255,0.06);
+  color: var(--g-text-dim, #888);
+  background: var(--g-hover, rgba(255,255,255,0.06));
   padding: 1px 6px;
   border-radius: var(--radius-mid);
 }

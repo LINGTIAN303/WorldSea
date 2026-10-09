@@ -65,8 +65,8 @@ function resetRange(): void {
   bottom: 60px;
   left: 12px;
   right: 12px;
-  background: rgba(10, 14, 20, 0.95);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--g-panel-bg, rgba(10, 14, 20, 0.95));
+  border: 1px solid var(--g-panel-border, rgba(255, 255, 255, 0.08));
   border-radius: var(--radius-md);
   backdrop-filter: blur(12px);
   z-index: 20;
@@ -81,29 +81,29 @@ function resetRange(): void {
 .gg-timeline-title {
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
-  color: #e0e0e0;
+  color: var(--g-text-strong, #e0e0e0);
   flex: 1;
 }
 .gg-timeline-reset {
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.1);
-  color: #aaa;
+  background: var(--g-hover, rgba(255,255,255,0.06));
+  border: 1px solid var(--g-panel-border, rgba(255,255,255,0.1));
+  color: var(--g-text, #aaa);
   cursor: pointer;
   font-size: var(--font-size-xs);
   padding: 3px 10px;
   border-radius: var(--radius-xs);
 }
-.gg-timeline-reset:hover { color: #fff; background: rgba(255,255,255,0.1); }
+.gg-timeline-reset:hover { color: var(--g-text-strong, #fff); background: var(--g-hover, rgba(255,255,255,0.1)); }
 .gg-timeline-close {
   background: none;
   border: none;
-  color: #888;
+  color: var(--g-text-dim, #888);
   cursor: pointer;
   font-size: var(--font-size-base);
   padding: 2px 4px;
   border-radius: var(--radius-xs);
 }
-.gg-timeline-close:hover { color: #fff; background: rgba(255,255,255,0.08); }
+.gg-timeline-close:hover { color: var(--g-text-strong, #fff); background: var(--g-hover, rgba(255,255,255,0.08)); }
 .gg-timeline-range {
   display: flex;
   align-items: center;
@@ -112,15 +112,15 @@ function resetRange(): void {
 }
 .gg-timeline-label {
   font-size: var(--font-size-xs);
-  color: #888;
+  color: var(--g-text-dim, #888);
   min-width: 24px;
 }
 .gg-timeline-input {
   width: 80px;
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.1);
+  background: var(--g-hover, rgba(255,255,255,0.06));
+  border: 1px solid var(--g-panel-border, rgba(255,255,255,0.1));
   border-radius: var(--radius-xs);
-  color: #ccc;
+  color: var(--g-text, #ccc);
   font-size: var(--font-size-sm);
   padding: 4px 8px;
   text-align: center;
@@ -133,7 +133,7 @@ function resetRange(): void {
 }
 .gg-timeline-info {
   font-size: var(--font-size-xs);
-  color: #888;
+  color: var(--g-text-dim, #888);
   text-align: center;
   margin-top: 4px;
 }

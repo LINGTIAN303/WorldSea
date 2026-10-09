@@ -18,7 +18,7 @@ defineProps<{
 </script>
 
 <style scoped>
-.gg-legend { position: fixed; bottom: 12px; right: 12px; z-index: var(--z-dropdown); background: rgba(10,14,20,0.92); border: 1px solid rgba(255,255,255,0.08); border-radius: var(--radius-mid); padding: 10px 14px; font-size: var(--font-size-xs); color: #ccc; min-width: 100px; backdrop-filter: blur(8px); }
+.gg-legend { position: fixed; bottom: 12px; right: 12px; z-index: var(--z-dropdown); background: var(--g-panel-bg, rgba(10,14,20,0.92)); border: 1px solid var(--g-panel-border, rgba(255,255,255,0.08)); border-radius: var(--radius-mid); padding: 10px 14px; font-size: var(--font-size-xs); color: var(--g-text, #ccc); min-width: 100px; backdrop-filter: blur(8px); }
 .gg-legend-title { color: #7c4dff; margin-bottom: 4px; font-size: var(--font-size-xs); font-weight: bold; }
 .gg-legend-item { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
 .gg-legend-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }

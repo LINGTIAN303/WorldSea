@@ -1,5 +1,5 @@
 <template>
-  <div class="graph-view">
+  <div class="graph-view" :class="{ 'graph-view--theme': graphThemeMode }">
     <GraphToolbar
       :layout="layoutName"
       :layout-options="layoutOptions"
@@ -92,7 +92,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { WsIcon, WsEmpty } from '@worldsea/ui-kit'
 import Graph from 'graphology'
-import { useEntityStore, useRelationStore, entitySchemaRegistry, getNodeTypeInfo } from '@worldsea/entity-core'
+import { useEntityStore, useRelationStore, useSettingsStore, entitySchemaRegistry, getNodeTypeInfo } from '@worldsea/entity-core'
 import { useGraphData, type GraphNode, useTypeMapping, useGraphFilter, useGraphAlgorithms } from '@worldsea/ui-kit'
 import { useSigmaRenderer } from './composables/useSigmaRenderer'
 import { useGraphModel } from './composables/useGraphModel'
@@ -112,9 +112,13 @@ import type { ClusterInfo } from './composables/useGraphClustering'
 
 const entityStore = useEntityStore()
 const relationStore = useRelationStore()
+const settingsStore = useSettingsStore()
 const { nodes: graphNodes, edges: graphEdges, getNode } = useGraphData()
 const { getColor } = useTypeMapping()
 void useGraphFilter(() => graphNodes.value, () => graphEdges.value)
+
+/** 底色双档（批 D）：`dark`＝深色星图（默认）；`theme`＝跟随主题（画布/浮层走令牌） */
+const graphThemeMode = computed(() => settingsStore.graphBackgroundMode === 'theme')
 
 const containerRef = ref<HTMLElement | null>(null)
 const graph = new Graph({ multi: false })
@@ -191,6 +195,19 @@ function moveTooltipTo(x: number, y: number): void {
   tooltip.value.y = pos.y
 }
 
+/** 底色双档（批 D）：sigma 标签色不吃 CSS——从画布现算 `--g-label`/`--g-edge-label` 再下发。
+ *  触发点：渲染器创建后、底色档切换后、应用主题翻转（data-theme）后（见观察器）。 */
+function applySigmaPalette(): void {
+  const s = sigma.value
+  const el = containerRef.value
+  if (!s || !el) return
+  const cs = getComputedStyle(el)
+  const label = cs.getPropertyValue('--g-label').trim()
+  const edgeLabel = cs.getPropertyValue('--g-edge-label').trim()
+  if (label) s.setSetting('labelColor', { color: label })
+  if (edgeLabel) s.setSetting('edgeLabelColor', { color: edgeLabel })
+}
+
 /** 退出聚焦/选中（批 B）：芯片按钮 / Esc / 点空白三通道共用 */
 function exitFocus(): void {
   focus.value = null
@@ -231,6 +248,7 @@ function initGraph(): void {
   model.buildGraphology()
   layout.applyLayout(graph, layoutName.value, undefined, sigma.value)
   createRenderer()
+  applySigmaPalette()
   bindEvents()
   if (sigma.value) pathParticles.init(sigma.value, graph)
   nextTick(() => layout.fitToGraph(sigma.value))
@@ -391,8 +409,14 @@ function goTo(node: GraphNode): void {
   window.dispatchEvent(new CustomEvent('ws-navigate', { detail: { entityType: node.type, entityId: node.id } }))
 }
 
+/** 应用主题观察器（批 D）：data-theme 翻转时重取 sigma 标签色（生命周期见 onMounted/onBeforeUnmount） */
+let themeObserver: MutationObserver | null = null
+
 onMounted(async () => {
   window.addEventListener('keydown', onKeydown)
+  // 应用主题翻转（data-theme/class）→ sigma 标签色重取（CSS 令牌自动、sigma 不自动；批 D）
+  themeObserver = new MutationObserver(() => applySigmaPalette())
+  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class'] })
   try {
     await entityStore.loadAll()
     await relationStore.loadAll()
@@ -406,9 +430,16 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown)
+  themeObserver?.disconnect()
+  themeObserver = null
   pathParticles.destroy()
   destroyRenderer()
   layout.dispose()
+})
+
+/** 底色档切换（批 D）：等 class 落到 DOM 后再重取令牌色下发 sigma */
+watch(graphThemeMode, () => {
+  void nextTick(() => applySigmaPalette())
 })
 
 watch([graphNodes, graphEdges], () => {
@@ -419,8 +450,32 @@ watch([graphNodes, graphEdges], () => {
 </script>
 
 <style scoped>
-.graph-view { display: flex; flex-direction: column; height: 100%; position: relative; background: #0a0e14; }
-.g-canvas { flex: 1; background: #0a0e14; }
+.graph-view {
+  display: flex; flex-direction: column; height: 100%; position: relative;
+  /* 底色双档（批 D）：默认深色星图；.graph-view--theme 覆盖为应用主题令牌 */
+  --g-canvas: #0a0e14;
+  --g-panel-bg: rgba(10, 14, 20, 0.92);
+  --g-panel-border: rgba(255, 255, 255, 0.1);
+  --g-text: #ccc;
+  --g-text-strong: #e0e0e0;
+  --g-text-dim: #888;
+  --g-hover: rgba(255, 255, 255, 0.08);
+  --g-label: #e0e0e0;
+  --g-edge-label: #c9d4e0;
+  background: var(--g-canvas);
+}
+.graph-view--theme {
+  --g-canvas: var(--color-bg-surface, #ffffff);
+  --g-panel-bg: color-mix(in srgb, var(--color-bg-elevated, #ffffff) 94%, transparent);
+  --g-panel-border: var(--color-border, #e5e7eb);
+  --g-text: var(--color-text-secondary, #666);
+  --g-text-strong: var(--color-text-primary, #333);
+  --g-text-dim: var(--color-text-tertiary, #999);
+  --g-hover: var(--color-bg-hover, rgba(0, 0, 0, 0.06));
+  --g-label: var(--color-text-primary, #333);
+  --g-edge-label: var(--color-text-secondary, #666);
+}
+.g-canvas { flex: 1; background: var(--g-canvas); }
 .g-empty {
   position: absolute;
   inset: 0;
@@ -463,7 +518,7 @@ watch([graphNodes, graphEdges], () => {
   cursor: pointer;
   transition: background var(--transition-fast);
 }
-.g-wasm-notice__close:hover { background: rgba(255, 255, 255, 0.1); }
+.g-wasm-notice__close:hover { background: var(--g-hover, rgba(255, 255, 255, 0.1)); }
 .g-focus-chip {
   position: absolute;
   top: 12px;
@@ -473,27 +528,27 @@ watch([graphNodes, graphEdges], () => {
   align-items: center;
   gap: 8px;
   padding: 6px 12px;
-  background: rgba(10, 14, 20, 0.92);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--g-panel-bg, rgba(10, 14, 20, 0.92));
+  border: 1px solid var(--g-panel-border, rgba(255, 255, 255, 0.12));
   border-radius: var(--radius-mid);
-  color: #ccc;
+  color: var(--g-text, #ccc);
   font-size: var(--font-size-xs);
   z-index: 6;
   backdrop-filter: blur(8px);
 }
 .g-focus-chip__text { white-space: nowrap; }
 .g-focus-chip__exit {
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid var(--g-panel-border, rgba(255, 255, 255, 0.2));
   background: transparent;
-  color: #e0e0e0;
+  color: var(--g-text-strong, #e0e0e0);
   border-radius: var(--radius-sm);
   padding: 2px 8px;
   cursor: pointer;
   font-size: var(--font-size-xs);
   transition: background 0.15s;
 }
-.g-focus-chip__exit:hover { background: rgba(255, 255, 255, 0.1); }
+.g-focus-chip__exit:hover { background: var(--g-hover, rgba(255, 255, 255, 0.1)); }
 /* 走查反馈修：宿主 .view-container 带 contain:layout（fixed 的包含块是它而非视口）——
    tooltip 必须 absolute 挂 .graph-view，坐标即 sigma 容器相对值；勿改回 fixed */
-.g-tooltip { position: absolute; pointer-events: none; z-index: var(--z-dropdown); background: rgba(10,14,20,0.92); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--radius-sm); padding: 6px 10px; font-size: var(--font-size-sm); color: #ccc; max-width: 240px; backdrop-filter: blur(4px); }
+.g-tooltip { position: absolute; pointer-events: none; z-index: var(--z-dropdown); background: var(--g-panel-bg, rgba(10,14,20,0.92)); border: 1px solid var(--g-panel-border, rgba(255,255,255,0.1)); border-radius: var(--radius-sm); padding: 6px 10px; font-size: var(--font-size-sm); color: var(--g-text, #ccc); max-width: 240px; backdrop-filter: blur(4px); }
 </style>

@@ -2,16 +2,13 @@
   <CardDeck :count="4" :flat="!!searchQuery" @change="(i) => emit('card-change', i)" ref="deckRef">
     <template #card="{ idx, cls }">
       <div class="set-card deck-card" :class="cls" :data-index="idx"
-        v-show="idx === 0 ? match('主题 theme 外观 底色 深色 浅色 跟随系统 强调色 颜色 编辑器') : idx === 1 ? match('高亮 highlight 脉冲 动画 淡化 扩散 透明度') : true">
+        v-show="idx === 0 ? match('主题 theme 外观 底色 深色 浅色 跟随系统 强调色 颜色 编辑器 图谱 星图') : idx === 1 ? match('高亮 highlight 脉冲 动画 淡化 扩散 透明度') : true">
         <!-- 主题（2026-09-13 收束：主题 = 底色 × 强调色 两轴，不再陈列六个预设主题卡） -->
         <template v-if="idx === 0">
           <div class="sc-head">主题</div>
           <div class="set-theme-sub">底色</div>
           <div class="set-theme-row" role="group" aria-label="底色">
-            <button v-for="m in modeOptions" :key="m.id" class="set-theme-btn" :class="{ on: modePreference === m.id }" @click="onModeChange(m.id)">
-              <WsIcon :name="m.icon" size="md" class="st-icon" />
-              <span class="st-label">{{ m.label }}</span>
-            </button>
+            <button v-for="m in modeOptions" :key="m.id" class="set-theme-btn" :class="{ on: modePreference === m.id }" @click="onModeChange(m.id)"><WsIcon :name="m.icon" size="md" class="st-icon" /><span class="st-label">{{ m.label }}</span></button>
           </div>
           <div class="set-theme-sub">强调色</div>
           <div class="set-accent-row" role="group" aria-label="强调色">
@@ -20,6 +17,8 @@
             </button>
           </div>
           <div class="set-accent-hint">当前强调色：{{ currentAccentLabel }}（深色下自动提亮）</div>
+          <div class="set-theme-sub">图谱底色</div>
+          <div class="set-row"><span>全局图谱</span><select v-model="store.graphBackgroundMode" class="set-select" aria-label="图谱底色"><option value="dark">深色星图</option><option value="theme">跟随主题</option></select></div>
           <button class="set-theme-editor-btn" @click="openThemeEditor">
             <WsIcon name="theme-editor" size="xs" /> 主题编辑器
           </button>

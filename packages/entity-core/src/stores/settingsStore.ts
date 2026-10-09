@@ -72,6 +72,8 @@ const STORAGE_KEY_VISION_SUB_AGENT_MODEL = 'worldsea_vision_sub_agent_model'
 const STORAGE_KEY_OUTLINE_INLINE_EDIT = 'worldsea_outline_inline_edit'
 const STORAGE_KEY_SIDEBAR_POSITION = 'worldsea_sidebar_position'
 const STORAGE_KEY_DETAIL_PANEL_POSITION = 'worldsea_detail_panel_position'
+/** 图谱底色档（批 D）：`dark`＝深色星图画布；`theme`＝跟随应用主题（浅/深令牌） */
+const STORAGE_KEY_GRAPH_BACKGROUND = 'worldsea_graph_background'
 const STORAGE_KEY_PHONE_PREVIEW_MODE = 'worldsea_phone_preview_mode'
 const STORAGE_KEY_TIMELINE_DRAG_ENABLED = 'worldsea_timeline_drag_enabled'
 const STORAGE_KEY_TIMELINE_DEFAULT_MODE = 'worldsea_timeline_default_mode'
@@ -287,6 +289,8 @@ export const useSettingsStore = defineStore('settings', () => {
   const timelineDefaultMode = persistedRef(STORAGE_KEY_TIMELINE_DEFAULT_MODE, 'vertical' as string)
   const timelineDefaultGroup = persistedRef(STORAGE_KEY_TIMELINE_DEFAULT_GROUP, 'none' as string)
   const timelineCompactMode = persistedRef(STORAGE_KEY_TIMELINE_COMPACT_MODE, false)
+  /** 图谱底色（2026-10-09 图谱批 D）：默认「深色星图」；切「跟随主题」后画布与浮层走主题令牌 */
+  const graphBackgroundMode = persistedRef(STORAGE_KEY_GRAPH_BACKGROUND, 'dark' as string)
 
   watch(customProviders, v => saveCustomProviders(v))
 
@@ -396,5 +400,6 @@ export const useSettingsStore = defineStore('settings', () => {
            groupChatMaxAgents, groupChatDefaultStrategy, groupChatGlobalRpm, groupChatGlobalConcurrent,
             reduceMotion, animations, ANIMATION_GROUPS,
             sidebarPosition, detailPanelPosition, phonePreviewMode,
-            timelineDragEnabled, timelineDefaultMode, timelineDefaultGroup, timelineCompactMode }
+            timelineDragEnabled, timelineDefaultMode, timelineDefaultGroup, timelineCompactMode,
+            graphBackgroundMode }
 })
