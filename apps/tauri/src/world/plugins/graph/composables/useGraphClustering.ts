@@ -3,6 +3,7 @@ import Graph from 'graphology'
 import { algoCommunityDetection } from '@/core/coreBackend'
 import { graphToWeightedGraph } from '@worldsea/ui-kit'
 import type { CommunityDetectionResult } from '@worldsea/canvas-engine/core'
+import { clusterLabel, nodeClusterColorMap } from '../clusterPolicy'
 
 export interface ClusterInfo {
   id: string
@@ -45,7 +46,7 @@ export function useGraphClustering() {
         const dominantType = getMostFrequent(types)
         resultClusters.push({
           id: `cluster-${comm.id}`,
-          label: `${dominantType} (${nodeIds.length})`,
+          label: clusterLabel(graph, nodeIds, dominantType),
           color: clusterColors[colorIdx % clusterColors.length],
           nodeIds,
           size: nodeIds.length,
@@ -110,7 +111,7 @@ export function useGraphClustering() {
       const dominantType = getMostFrequent(types)
       result.push({
         id: `cluster-${lbl}`,
-        label: `${dominantType} (${members.length})`,
+        label: clusterLabel(graph, members, dominantType),
         color: clusterColors[colorIdx % clusterColors.length],
         nodeIds: members,
         size: members.length,
@@ -135,11 +136,44 @@ export function useGraphClustering() {
     clusteringEnabled.value = !clusteringEnabled.value
   }
 
+  /** 「按社区着色」开关（批 E）：与类型色互切。开启后 originalColor 基准随簇色，
+   *  高亮淡化/复位自动兼容；类型色备份进 typeColor 属性 */
+  const colorByCluster = ref(false)
+
+  function toggleColorByCluster(): boolean {
+    colorByCluster.value = !colorByCluster.value
+    return colorByCluster.value
+  }
+
+  /** 簇色上画布（批 E）：开→成员节点写簇色并同步 originalColor 基准（类型色备份 typeColor）；
+   *  关→从 typeColor 恢复，无簇节点不动。数据增量更新会重写 originalColor，簇色不重放
+   *  （聚类结果随数据过期，重跑聚类即可）。 */
+  function applyClusterColors(graph: Graph, on: boolean): void {
+    const map = on ? nodeClusterColorMap(clusters.value) : null
+    graph.forEachNode((n) => {
+      if (map) {
+        const clusterColor = map.get(n)
+        if (!clusterColor) return
+        graph.setNodeAttribute(n, 'typeColor', graph.getNodeAttribute(n, 'originalColor') || graph.getNodeAttribute(n, 'color'))
+        graph.setNodeAttribute(n, 'originalColor', clusterColor)
+        graph.setNodeAttribute(n, 'color', clusterColor)
+      } else {
+        const typeColor = graph.getNodeAttribute(n, 'typeColor') as string | undefined
+        if (!typeColor) return
+        graph.setNodeAttribute(n, 'originalColor', typeColor)
+        graph.setNodeAttribute(n, 'color', typeColor)
+      }
+    })
+  }
+
   return {
     clusters,
     isClustering,
     clusteringEnabled,
     detectCommunities,
     toggleClustering,
+    colorByCluster,
+    toggleColorByCluster,
+    applyClusterColors,
   }
 }

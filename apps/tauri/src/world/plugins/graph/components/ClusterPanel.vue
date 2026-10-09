@@ -3,6 +3,12 @@
     <div v-if="visible && clusters.length" class="gg-cluster">
       <div class="gg-cluster-header">
         <span class="gg-cluster-title">社区聚类</span>
+        <button
+          class="gg-cluster-toggle"
+          :class="{ on: colorBy }"
+          :aria-pressed="colorBy"
+          @click="$emit('toggleColorBy')"
+        >按社区着色</button>
         <button class="gg-cluster-close" @click="$emit('close')" aria-label="关闭"><WsIcon name="x" size="xs" /></button>
       </div>
       <div class="gg-cluster-body">
@@ -11,8 +17,8 @@
           :key="c.id"
           class="gg-cluster-item"
           :class="{ active: hoveredCluster === c.id }"
-          @mouseenter="hoveredCluster = c.id"
-          @mouseleave="hoveredCluster = null"
+          @mouseenter="hoveredCluster = c.id; $emit('hoverCluster', c)"
+          @mouseleave="hoveredCluster = null; $emit('hoverCluster', null)"
           @click="$emit('focusCluster', c)"
         >
           <span class="gg-cluster-dot" :style="{ background: c.color }"></span>
@@ -32,11 +38,14 @@ import type { ClusterInfo } from '../composables/useGraphClustering'
 defineProps<{
   visible: boolean
   clusters: ClusterInfo[]
+  colorBy: boolean
 }>()
 
 defineEmits<{
   close: []
   focusCluster: [cluster: ClusterInfo]
+  toggleColorBy: []
+  hoverCluster: [cluster: ClusterInfo | null]
 }>()
 
 const hoveredCluster = ref<string | null>(null)
@@ -78,6 +87,26 @@ const hoveredCluster = ref<string | null>(null)
   border-radius: var(--radius-xs);
 }
 .gg-cluster-close:hover { color: var(--g-text-strong, #fff); background: var(--g-hover, rgba(255,255,255,0.08)); }
+/* 「按社区着色」开关（批 E）：auto margin 收拢到右侧与关闭钮相邻 */
+.gg-cluster-toggle {
+  margin-left: auto;
+  margin-right: 8px;
+  border: 1px solid var(--g-panel-border, rgba(255, 255, 255, 0.15));
+  background: transparent;
+  color: var(--g-text-dim, #888);
+  font-size: var(--font-size-xs);
+  padding: 2px 8px;
+  border-radius: var(--radius-mid);
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.gg-cluster-toggle.on {
+  color: var(--g-text-strong, #e0e0e0);
+  border-color: rgba(79, 195, 247, 0.6);
+  background: rgba(79, 195, 247, 0.12);
+}
+.gg-cluster-toggle:hover { color: var(--g-text-strong, #e0e0e0); background: var(--g-hover, rgba(255,255,255,0.08)); }
 .gg-cluster-body {
   padding: 6px 0;
   max-height: 340px;

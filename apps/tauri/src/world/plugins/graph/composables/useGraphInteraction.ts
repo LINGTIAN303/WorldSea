@@ -62,6 +62,12 @@ export function useGraphInteraction() {
     highlightedEdges.value = new Set()
   }
 
+  /** 悬停暂态高亮（批 E）：同上但保留选中态——簇项悬停离开后可据此恢复选中视觉 */
+  function peekHighlight(ids: Set<string>): void {
+    highlightedNodes.value = ids
+    highlightedEdges.value = new Set()
+  }
+
   function applyHighlightToGraph(graph: Graph): void {
     const highlighted = highlightedNodes.value
     const selected = selectedNodeId.value
@@ -114,6 +120,7 @@ export function useGraphInteraction() {
     findPath,
     clearHighlight,
     highlightNodes,
+    peekHighlight,
     applyHighlightToGraph,
   }
 }

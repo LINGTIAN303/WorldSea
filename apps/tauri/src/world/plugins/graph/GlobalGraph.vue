@@ -65,8 +65,11 @@
     <ClusterPanel
       :visible="clustering.clusteringEnabled.value"
       :clusters="clustering.clusters.value"
+      :color-by="clustering.colorByCluster.value"
       @close="clustering.toggleClustering()"
       @focus-cluster="focusCluster"
+      @toggle-color-by="onToggleClusterColor"
+      @hover-cluster="hoverCluster"
     />
 
     <TimelineSlider
@@ -102,6 +105,7 @@ import { useGraphInteraction } from './composables/useGraphInteraction'
 import { usePathParticles } from './composables/usePathParticles'
 import { useNodeDrag } from './composables/useNodeDrag'
 import { labelThresholdFor, matchNodeIds, tooltipPosition } from './graphStyle'
+import { clusterHighlightIds } from './clusterPolicy'
 import GraphToolbar from './components/GraphToolbar.vue'
 import GraphLegend from './components/GraphLegend.vue'
 import PathSearchPanel from './components/PathSearchPanel.vue'
@@ -345,9 +349,43 @@ async function toggleClustering(): Promise<void> {
   clustering.toggleClustering()
   if (clustering.clusteringEnabled.value) {
     await clustering.detectCommunities(graph)
+    // 检测完成时着色开关已开 → 重放簇色（覆盖「先开着色后出结果」时序）
+    if (clustering.colorByCluster.value) clustering.applyClusterColors(graph, true)
   } else {
     clustering.clusters.value = []
+    // 关面板即撤簇色（批 E）：簇表已空，着色基准必须回类型色
+    if (clustering.colorByCluster.value) {
+      clustering.colorByCluster.value = false
+      clustering.applyClusterColors(graph, false)
+    }
   }
+}
+
+/** 簇色开关（批 E）：与类型色互切；切后重放当前活跃视觉（高亮/选中优先，否则复位） */
+function onToggleClusterColor(): void {
+  const on = clustering.toggleColorByCluster()
+  clustering.applyClusterColors(graph, on)
+  if (interaction.highlightedNodes.value.size > 0 || interaction.selectedNodeId.value) {
+    interaction.applyHighlightToGraph(graph)
+  } else {
+    model.syncGraphColors()
+  }
+}
+
+/** 簇项悬停（批 E）：成员高亮/非成员淡化（peek 不动选中）；离开恢复悬停前视觉。
+ *  路径粒子活跃时不接管（避免覆盖路径边高亮态）。 */
+function hoverCluster(cluster: ClusterInfo | null): void {
+  if (interaction.pathResult.value.length > 0) return
+  if (cluster) {
+    interaction.peekHighlight(clusterHighlightIds(cluster))
+  } else if (interaction.selectedNodeId.value) {
+    interaction.selectNode(interaction.selectedNodeId.value, graph)
+  } else if (searchQuery.value) {
+    interaction.highlightNodes(new Set(matchNodeIds(graphNodes.value, searchQuery.value)))
+  } else {
+    interaction.peekHighlight(new Set())
+  }
+  interaction.applyHighlightToGraph(graph)
 }
 
 function focusCluster(cluster: ClusterInfo): void {
