@@ -4,6 +4,7 @@ import forceAtlas2 from 'graphology-layout-forceatlas2'
 import circular from 'graphology-layout/circular'
 import random from 'graphology-layout/random'
 import type { Sigma } from 'sigma'
+import { computeBounds, computeFitCamera, fa2ConfigFor, layoutCacheKey } from '../layoutPolicy'
 
 export type LayoutType = 'forceatlas2' | 'circular' | 'random'
 
@@ -11,7 +12,8 @@ const CACHE_KEY = 'worldsea-graph-layout-cache'
 const CACHE_TTL = 30 * 60 * 1000
 
 interface LayoutCacheEntry {
-  layout: LayoutType
+  /** 批 C：键含节点数 + 边数 + 布局——边集变化即失效（旧实现只认节点集合，边变仍复用旧位） */
+  key: string
   positions: Record<string, { x: number; y: number }>
   timestamp: number
 }
@@ -47,16 +49,20 @@ export function useGraphLayout() {
         y: graph.getNodeAttribute(node, 'y'),
       }
     })
-    const entry: LayoutCacheEntry = { layout, positions, timestamp: Date.now() }
+    const entry: LayoutCacheEntry = {
+      key: layoutCacheKey(graph.order, graph.size, layout),
+      positions,
+      timestamp: Date.now(),
+    }
     try { sessionStorage.setItem(CACHE_KEY, JSON.stringify(entry)) } catch { /* quota */ }
   }
 
-  function loadLayoutCache(layout: LayoutType): Record<string, { x: number; y: number }> | null {
+  function loadLayoutCache(graph: Graph, layout: LayoutType): Record<string, { x: number; y: number }> | null {
     try {
       const raw = sessionStorage.getItem(CACHE_KEY)
       if (!raw) return null
       const entry: LayoutCacheEntry = JSON.parse(raw)
-      if (entry.layout !== layout) return null
+      if (entry.key !== layoutCacheKey(graph.order, graph.size, layout)) return null
       if (Date.now() - entry.timestamp > CACHE_TTL) {
         sessionStorage.removeItem(CACHE_KEY)
         return null
@@ -89,7 +95,7 @@ export function useGraphLayout() {
     if (graph.order === 0) return
     isComputing.value = true
 
-    const cached = loadLayoutCache(layout)
+    const cached = loadLayoutCache(graph, layout)
     if (cached && applyCachedPositions(graph, cached)) {
       isComputing.value = false
       layoutProgress.value = 100
@@ -99,19 +105,12 @@ export function useGraphLayout() {
 
     try {
       switch (layout) {
-        case 'forceatlas2':
+        case 'forceatlas2': {
           random.assign(graph, { scale: 100, center: 0.5 })
-          forceAtlas2.assign(graph, {
-            iterations: 100,
-            settings: {
-              gravity: 1.3,
-              scalingRatio: 1,
-              barnesHutOptimize: graph.order > 500,
-              slowDown: 1.5,
-              adjustSizes: false,
-            },
-          })
+          const config = fa2ConfigFor(graph.order)
+          forceAtlas2.assign(graph, { iterations: config.iterations, settings: config.settings })
           break
+        }
         case 'circular':
           circular.assign(graph, { scale: 100, center: 0.5 })
           break
@@ -139,7 +138,7 @@ export function useGraphLayout() {
     isComputing.value = true
     layoutProgress.value = 0
 
-    const cached = loadLayoutCache(layout)
+    const cached = loadLayoutCache(graph, layout)
     if (cached && applyCachedPositions(graph, cached)) {
       isComputing.value = false
       layoutProgress.value = 100
@@ -201,7 +200,15 @@ export function useGraphLayout() {
     }
 
     worker.addEventListener('message', onMessage)
-    worker.postMessage({ type: 'layout', layout, nodes, edges })
+    const config = fa2ConfigFor(graph.order)
+    worker.postMessage({
+      type: 'layout',
+      layout,
+      nodes,
+      edges,
+      iterations: config.iterations,
+      settings: config.settings,
+    })
   }
 
   function applyLayout(
@@ -217,21 +224,26 @@ export function useGraphLayout() {
     }
   }
 
-  function fitToGraph(sigmaInstance: Sigma | null, _padding: number = 50): void {
+  /** 真·适应画面（批 C）：节点边界 → 相机（旧实现写死飞 (0.5, 0.5)/1.1，从不看边界） */
+  function fitToGraph(sigmaInstance: Sigma | null, padding: number = 40): void {
     if (!sigmaInstance) return
-    const camera = sigmaInstance.getCamera()
     const graph = sigmaInstance.getGraph()
     if (graph.order === 0) return
 
-    let hasValid = false
+    const points: { x: number; y: number }[] = []
     graph.forEachNode((node: string) => {
-      const x = graph.getNodeAttribute(node, 'x')
-      const y = graph.getNodeAttribute(node, 'y')
-      if (isFinite(x) && isFinite(y)) hasValid = true
+      points.push({
+        x: graph.getNodeAttribute(node, 'x'),
+        y: graph.getNodeAttribute(node, 'y'),
+      })
     })
-    if (!hasValid) return
+    const bounds = computeBounds(points)
+    if (!bounds) return
 
-    camera.animate({ x: 0.5, y: 0.5, ratio: 1.1 }, { duration: 400, easing: 'cubicInOut' })
+    const { width, height } = sigmaInstance.getDimensions()
+    const cam = computeFitCamera(bounds, { w: width, h: height }, padding)
+    if (!cam) return
+    sigmaInstance.getCamera().animate(cam, { duration: 400, easing: 'cubicInOut' })
   }
 
   function dispose(): void {

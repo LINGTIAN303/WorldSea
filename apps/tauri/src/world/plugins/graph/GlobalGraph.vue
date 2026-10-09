@@ -233,7 +233,7 @@ function initGraph(): void {
   createRenderer()
   bindEvents()
   if (sigma.value) pathParticles.init(sigma.value, graph)
-  nextTick(() => layout.fitToGraph(sigma.value, 10))
+  nextTick(() => layout.fitToGraph(sigma.value))
 }
 
 function bindEvents(): void {
@@ -320,7 +320,7 @@ function switchLayout(newLayout: string): void {
   layoutName.value = newLayout as LayoutType
   layout.applyLayout(graph, layoutName.value, undefined, sigma.value)
   sigma.value?.refresh()
-  nextTick(() => layout.fitToGraph(sigma.value, 10))
+  nextTick(() => layout.fitToGraph(sigma.value))
 }
 
 async function toggleClustering(): Promise<void> {
@@ -342,7 +342,7 @@ function focusCluster(cluster: ClusterInfo): void {
     const tgt = graph.target(e)
     graph.setEdgeAttribute(e, 'hidden', !clusterNodeIds.has(src) || !clusterNodeIds.has(tgt))
   })
-  nextTick(() => layout.fitToGraph(sigma.value, 10))
+  nextTick(() => layout.fitToGraph(sigma.value))
 }
 
 async function onPathSearch(fromId: string, toId: string): Promise<void> {
@@ -384,7 +384,7 @@ function zoomOut(): void {
 }
 
 function fitView(): void {
-  layout.fitToGraph(sigma.value, 10)
+  layout.fitToGraph(sigma.value)
 }
 
 function goTo(node: GraphNode): void {

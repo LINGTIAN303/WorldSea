@@ -3,11 +3,22 @@ import forceAtlas2 from 'graphology-layout-forceatlas2'
 import circular from 'graphology-layout/circular'
 import random from 'graphology-layout/random'
 
+interface Fa2Settings {
+  gravity: number
+  scalingRatio: number
+  slowDown: number
+  barnesHutOptimize: boolean
+  adjustSizes: boolean
+}
+
 interface LayoutRequest {
   type: 'layout'
   layout: 'forceatlas2' | 'circular' | 'random'
   nodes: { key: string; x: number; y: number }[]
   edges: { key: string; source: string; target: string }[]
+  /** FA2 参数（批 C：主线程按规模给；缺省回退旧值兼容） */
+  iterations?: number
+  settings?: Fa2Settings
 }
 
 interface LayoutResponse {
@@ -45,20 +56,18 @@ self.onmessage = (e: MessageEvent<LayoutRequest>) => {
   switch (layout) {
     case 'forceatlas2': {
       random.assign(graph, { scale: 100, center: 0.5 })
-      const totalIter = 100
+      const totalIter = e.data.iterations ?? 100
+      const settings: Fa2Settings = e.data.settings ?? {
+        gravity: 1.3,
+        scalingRatio: 1,
+        barnesHutOptimize: graph.order > 500,
+        slowDown: 1.5,
+        adjustSizes: false,
+      }
       const batchSize = 20
       for (let done = 0; done < totalIter; done += batchSize) {
         const batch = Math.min(batchSize, totalIter - done)
-        forceAtlas2.assign(graph, {
-          iterations: batch,
-          settings: {
-            gravity: 1.3,
-            scalingRatio: 1,
-            barnesHutOptimize: graph.order > 500,
-            slowDown: 1.5,
-            adjustSizes: false,
-          },
-        })
+        forceAtlas2.assign(graph, { iterations: batch, settings })
         const positions: Record<string, { x: number; y: number }> = {}
         graph.forEachNode((node) => {
           positions[node] = {
