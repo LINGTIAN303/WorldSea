@@ -44,7 +44,6 @@
     "@worldsea/core": "link:./worldsea-core/pkg",
     "@worldsea/entity-core": "link:./packages/entity-core",
     "@worldsea/font-kit": "link:./packages/font-kit",
-    "@worldsea/memory-archive": "link:./packages/memory-archive",
     "@worldsea/motion-kit": "link:./packages/motion-kit",
     "@worldsea/perf-kit": "link:./packages/perf-kit",
     "@worldsea/plugin-sdk": "link:./packages/plugin-sdk",

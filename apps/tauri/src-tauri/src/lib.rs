@@ -1,9 +1,10 @@
-// WorldSea Tauri App — Agent 端到端闭环（Phase 5.x）
+// WorldSea Tauri App（壳）——三面结构：壳 · Agent 面（dsh 子进程托管）· 产品域（工作台窗）
 //
-// Phase 5.1：注册 agent-commands 命令层，manage 一个 AgentCommandService 实例，
-// 供 WebView 前端 invoke 调用（newSession / sendMessage / abort / ... 14 主链路命令）。
-// 批次97：窗口层体验——窗口状态记忆（位置/大小持久化）+ 系统托盘（后台长任务不中断）
-// + 关闭即最小化到托盘（托盘菜单「退出」才是真正退出）。
+// 本文件 = 壳进程入口与装配：窗口/托盘/系统集成 + dsh host 生命周期（spawn/回收）
+// + 壳协议（worldsea:// 代理与注入）+ 工作台静态伺服（/workspace）。
+// 批次97：窗口状态记忆（位置/大小持久化）+ 系统托盘（后台长任务不中断）+ 关闭即最小化到托盘。
+// 沿革：旧自研 Agent 面（agent-commands 命令层等）已于 2026-09 E7/E8 整体退役删除，
+//       由 dsh（deepseek-harness）接管——见 docs/details/架构/现状与冻结面.md。
 
 use std::sync::Mutex;
 

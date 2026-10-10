@@ -53,9 +53,6 @@ importers:
       '@worldsea/font-kit':
         specifier: link:./packages/font-kit
         version: link:packages/font-kit
-      '@worldsea/memory-archive':
-        specifier: link:./packages/memory-archive
-        version: link:packages/memory-archive
       '@worldsea/motion-kit':
         specifier: link:./packages/motion-kit
         version: link:packages/motion-kit
@@ -477,15 +474,6 @@ importers:
       vue:
         specifier: ^3.5.32
         version: 3.5.40(typescript@6.0.3)
-
-  packages/memory-archive:
-    dependencies:
-      gpt-tokenizer:
-        specifier: ^2.9.0
-        version: 2.9.0
-      nanoid:
-        specifier: ^5.1.11
-        version: 5.1.16
 
   packages/motion-kit: {}
 

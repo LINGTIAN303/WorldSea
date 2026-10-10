@@ -5,20 +5,6 @@
     "types": ["vite/client"],
     "paths": {
       "@/*": ["./src/*"],
-      "@agent/*": ["./packages/agent-runtime/src/*"],
-      "@agent/bridge-types": ["./packages/agent-runtime/src/bridge-types.ts"],
-      "@agent/toolbus/*": ["./packages/agent-runtime/src/toolbus/*"],
-      "@agent/tools/*": ["./packages/agent-runtime/src/tools/*"],
-      "@agent/stores/*": ["./packages/agent-runtime/src/stores/*"],
-      "@agent/kb/*": ["./packages/agent-runtime/src/kb/*"],
-      "@agent/orchestrator/*": ["./packages/agent-runtime/src/orchestrator/*"],
-      "@agent/providers/*": ["./packages/agent-runtime/src/providers/*"],
-      "@agent/skills/*": ["./packages/agent-runtime/src/skills/*"],
-      "@agent/types": ["./packages/agent-runtime/src/types.ts"],
-      "@agent/context/*": ["./packages/agent-runtime/src/context/*"],
-      "@agent/group-chat/*": ["./packages/agent-runtime/src/group-chat/*"],
-      "@agent/session/*": ["./packages/agent-runtime/src/session/*"],
-      "@agent/execution/*": ["./packages/agent-runtime/src/execution/*"],
       "@worldsea/entity-core": ["./packages/entity-core/src/index.ts"],
       "@worldsea/entity-core/*": ["./packages/entity-core/src/*"],
       "@worldsea/plugin-sdk": ["./packages/plugin-sdk/src/index.ts"],
@@ -33,18 +19,8 @@
       "@worldsea/font-kit/*": ["./packages/font-kit/src/*"],
       "@worldsea/theme-kit": ["./packages/theme-kit/src/index.ts"],
       "@worldsea/theme-kit/*": ["./packages/theme-kit/src/*"],
-      "@worldsea/memory-archive": ["./packages/memory-archive/src/index.ts"],
-      "@worldsea/memory-archive/*": ["./packages/memory-archive/src/*"],
-      "@worldsea/agent-core": ["./packages/agent-core/src/index.ts"],
-      "@worldsea/agent-core/*": ["./packages/agent-core/src/*"],
-      "@worldsea/agent-runtime": ["./packages/agent-runtime/src/index.ts"],
-      "@worldsea/agent-runtime/*": ["./packages/agent-runtime/src/*"],
-      "@worldsea/governor-core": ["./packages/governor-core/src/index.ts"],
-      "@worldsea/governor-core/*": ["./packages/governor-core/src/*"],
       "@worldsea/shared-composables": ["./packages/shared-composables/src/index.ts"],
       "@worldsea/shared-composables/*": ["./packages/shared-composables/src/*"],
-      "@worldsea/shared-composables/agent/*": ["./packages/shared-composables/src/agent/*"],
-      "@worldsea/shared-composables/long-task/*": ["./packages/shared-composables/src/agent/long-task/*"],
       "@worldsea/shared-composables/entity/*": ["./packages/shared-composables/src/entity/*"],
       "@worldsea/shared-composables/ui/*": ["./packages/shared-composables/src/ui/*"]
     },
@@ -55,5 +31,5 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["packages/ui-kit/src/**/*.ts", "packages/ui-kit/src/**/*.vue", "packages/entity-core/src/**/*.ts", "packages/plugin-sdk/src/**/*.ts", "packages/canvas-engine/src/**/*.ts", "packages/motion-kit/src/**/*.ts", "packages/font-kit/src/**/*.ts", "packages/agent-core/src/**/*.ts", "packages/agent-runtime/src/**/*.ts", "packages/memory-archive/src/**/*.ts", "packages/governor-core/src/**/*.ts", "packages/shared-composables/src/**/*.ts", "packages/shared-composables/src/**/*.vue"]
+  "include": ["packages/ui-kit/src/**/*.ts", "packages/ui-kit/src/**/*.vue", "packages/entity-core/src/**/*.ts", "packages/plugin-sdk/src/**/*.ts", "packages/canvas-engine/src/**/*.ts", "packages/motion-kit/src/**/*.ts", "packages/font-kit/src/**/*.ts", "packages/shared-composables/src/**/*.ts", "packages/shared-composables/src/**/*.vue"]
 }

@@ -3,44 +3,49 @@ import { join, resolve } from 'node:path'
 
 const ROOT = resolve(import.meta.dirname, '..')
 
+// 2026-10-11 刷新：路径对齐现结构（壳=apps/tauri · 安装器=apps/installer · WASM=仓根两包）；
+// 移除旧世界路径（worldsea-agent / worldsea-server / 根 src-tauri）。
+const light = [
+  { path: 'apps/tauri/dist', reason: '工作台前端构建输出', rebuild: 'cd apps/tauri && pnpm build' },
+  { path: 'apps/tauri/workspace-dist', reason: '产品域（工作台窗）产物', rebuild: 'cd apps/tauri && node node_modules/vite/bin/vite.js build --config workspace/vite.config.ts' },
+  { path: 'apps/tauri/dist-stats.html', reason: 'chunk 可视化报告（build 时生成）', rebuild: '随 build 再生成' },
+  { path: 'node_modules/.cache', reason: 'Vite/工具缓存', rebuild: '自动重建' },
+]
+
 const TIERS = {
   light: {
     label: '轻量清理',
-    desc: '构建产物和缓存（可随时重建）',
-    targets: [
-      { path: 'dist', reason: 'Vite 构建输出', rebuild: 'pnpm build:web' },
-      { path: 'worldsea-agent/dist', reason: 'Agent 库构建输出', rebuild: 'pnpm install' },
-      { path: 'node_modules/.cache', reason: 'Vite/工具缓存', rebuild: '自动重建' },
-      { path: 'worldsea-agent/node_modules/.cache', reason: 'Agent 缓存', rebuild: '自动重建' },
-    ],
+    desc: '前端构建产物与工具缓存（可随时重建）',
+    targets: light,
   },
   deep: {
     label: '深度清理',
-    desc: '含 Rust 编译缓存（重建 WASM 需 2-5 分钟）',
+    desc: '含 Rust/WASM 编译缓存（重建需数分钟起）',
     targets: [
-      { path: 'dist', reason: 'Vite 构建输出', rebuild: 'pnpm build:web' },
-      { path: 'worldsea-agent/dist', reason: 'Agent 库构建输出', rebuild: 'pnpm install' },
-      { path: 'node_modules/.cache', reason: 'Vite/工具缓存', rebuild: '自动重建' },
-      { path: 'worldsea-agent/node_modules/.cache', reason: 'Agent 缓存', rebuild: '自动重建' },
+      ...light,
+      { path: 'apps/tauri/src-tauri/target', reason: '壳（Tauri）编译缓存', rebuild: 'cargo build --offline（全量重编）' },
+      { path: 'apps/installer/src-tauri/target', reason: '安装器编译缓存', rebuild: 'cd apps/installer && pnpm tauri:build' },
       { path: 'worldsea-core/target', reason: 'Core WASM 编译缓存', rebuild: 'pnpm build:core' },
-      { path: 'tactical-engine/target', reason: '战术引擎编译缓存', rebuild: 'pnpm build:wasm' },
-      { path: 'src-tauri/target', reason: 'Tauri 桌面端编译缓存', rebuild: 'pnpm tauri:build' },
+      { path: 'tactical-engine/target', reason: '战术引擎 WASM 编译缓存', rebuild: 'pnpm build:wasm' },
     ],
   },
   full: {
     label: '完全清理',
-    desc: '含 node_modules（需 pnpm install 重建，约 1-3 分钟）',
+    desc: '含 node_modules 与代码生成物（需完整重建）',
     targets: [
-      { path: 'dist', reason: 'Vite 构建输出', rebuild: 'pnpm build:web' },
-      { path: 'worldsea-agent/dist', reason: 'Agent 库构建输出', rebuild: 'pnpm install' },
-      { path: 'node_modules', reason: '主项目依赖', rebuild: 'pnpm install' },
+      ...light,
+      { path: 'apps/tauri/src-tauri/target', reason: '壳（Tauri）编译缓存', rebuild: 'cargo build --offline（全量重编）' },
+      { path: 'apps/installer/src-tauri/target', reason: '安装器编译缓存', rebuild: 'cd apps/installer && pnpm tauri:build' },
       { path: 'worldsea-core/target', reason: 'Core WASM 编译缓存', rebuild: 'pnpm build:core' },
+      { path: 'tactical-engine/target', reason: '战术引擎 WASM 编译缓存', rebuild: 'pnpm build:wasm' },
+      { path: 'node_modules', reason: '主依赖（pnpm workspace）', rebuild: 'pnpm install' },
+      { path: 'apps/tauri/node_modules', reason: '工作台依赖', rebuild: 'pnpm install' },
+      { path: 'apps/dsh-plugin-worldsea/node_modules', reason: 'dsh 插件依赖', rebuild: 'pnpm install' },
+      { path: 'apps/dsh-plugin-worldsea-console/node_modules', reason: 'dsh 插件依赖', rebuild: 'pnpm install' },
+      { path: 'apps/installer/src-tauri/gen', reason: 'Tauri 代码生成物', rebuild: '随 tauri:build 再生成' },
+      { path: 'apps/installer/src-tauri/payload', reason: '安装器打包载荷', rebuild: '随 tauri:build 再生成' },
       { path: 'worldsea-core/pkg', reason: 'Core WASM 产物（git 跟踪，删后需重建并提交）', rebuild: 'pnpm build:core' },
-      { path: 'tactical-engine/target', reason: '战术引擎编译缓存', rebuild: 'pnpm build:wasm' },
       { path: 'tactical-engine/pkg', reason: '战术引擎 WASM 产物（git 跟踪，删后需重建并提交）', rebuild: 'pnpm build:wasm' },
-      { path: 'src-tauri/target', reason: 'Tauri 桌面端编译缓存', rebuild: 'pnpm tauri:build' },
-      { path: 'worldsea-server/node_modules', reason: '服务端依赖（独立 npm 项目）', rebuild: 'cd worldsea-server && npm install' },
-      { path: 'worldsea-agent/node_modules', reason: 'Agent 依赖（workspace 成员，随主项目安装）', rebuild: 'pnpm install' },
     ],
   },
 }
@@ -93,9 +98,9 @@ const dryRun = process.argv.includes('--dry-run')
 if (!TIERS[mode]) {
   console.log('用法: node scripts/clean.js [light|deep|full]')
   console.log('')
-  console.log('  light  — 清理构建产物和缓存（默认）')
-  console.log('  deep   — 额外清理 Rust 编译缓存（节省最多空间）')
-  console.log('  full   — 额外清理 node_modules（完全重置）')
+  console.log('  light  — 清理前端构建产物与缓存（默认）')
+  console.log('  deep   — 额外清理 Rust/WASM 编译缓存（节省最多空间）')
+  console.log('  full   — 额外清理 node_modules 与代码生成物（完全重置）')
   console.log('  --dry-run — 仅显示可回收空间，不实际删除')
   process.exit(0)
 }

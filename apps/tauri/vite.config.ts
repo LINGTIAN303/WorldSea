@@ -51,10 +51,8 @@ const aliases: Record<string, string> = {
   '@worldsea/perf-kit/reactive': path.resolve(__dirname, '../../packages/perf-kit/src/reactive'),
   '@worldsea/perf-kit/io': path.resolve(__dirname, '../../packages/perf-kit/src/io'),
   '@worldsea/perf-kit/render': path.resolve(__dirname, '../../packages/perf-kit/src/render'),
-  // 共享 UI（Phase 5.3 抽取，A2UI 渲染组件）
+  // 共享 UI（Phase 5.3 抽取）
   '@worldsea/shared-ui$': path.resolve(__dirname, '../../packages/shared-ui/src'),
-  '@worldsea/shared-ui/agent': path.resolve(__dirname, '../../packages/shared-ui/src/agent'),
-  '@worldsea/shared-ui/agent/a2ui': path.resolve(__dirname, '../../packages/shared-ui/src/agent/a2ui'),
   '@worldsea/theme-kit': path.resolve(__dirname, '../../packages/theme-kit/src'),
   // WASM 包（算法降级用 — Tauri 命令不可用时的回退）
   '@worldsea/core$': path.resolve(__dirname, '../../worldsea-core/pkg/index.js'),

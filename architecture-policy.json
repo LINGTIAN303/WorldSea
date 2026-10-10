@@ -138,15 +138,6 @@
       ]
     },
     {
-      "id": "memory-archive",
-      "kind": "ts",
-      "roots": [
-        "packages/memory-archive/src"
-      ],
-      "manifest": "packages/memory-archive/package.json",
-      "requires": []
-    },
-    {
       "id": "motion-kit",
       "kind": "ts",
       "roots": [
