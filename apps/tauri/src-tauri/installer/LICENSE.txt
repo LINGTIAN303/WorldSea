@@ -1,0 +1,41 @@
+WorldSea 软件许可协议
+（MIT License · Copyright (c) 2026 LINGTIAN303）
+
+════════════════════════════════════════
+英文原文（具有法律效力）
+
+MIT License
+
+Copyright (c) 2026 LINGTIAN303
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+════════════════════════════════════════
+中文要点（仅供参考，以英文原文为准）
+
+1. 本软件依 MIT 协议发布：任何人可免费使用、复制、修改、合并、发布、分发、再许可与销售本软件及其副本。
+2. 在软件及其副本中保留上述版权声明与许可声明，是使用与分发的唯一条件。
+3. 本软件按「现状」提供，不附带任何明示或默示的担保；作者或版权持有人不对因使用产生的任何索赔、损害或其他责任承担责任。
+
+════════════════════════════════════════
+第三方组件
+
+本软件包含并使用了多个第三方开源项目（如 DeepSeek dsh、ECharts、PDF.js、
+Dexie、SheetJS、Naive UI、TipTap、xterm 及各类开源字体等），其版权归各自
+作者所有，依其自身许可条款分发。完整声明见随附的 THIRD-PARTY-NOTICES 文件。
