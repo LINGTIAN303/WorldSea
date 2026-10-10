@@ -10,6 +10,8 @@ use std::sync::Mutex;
 use tauri::Manager;
 
 mod win_job;
+// GUI 模式隐藏子进程控制台窗口（node/icacls/pwsh/cmd 等后台 spawn 点统一使用）
+mod proc_quiet;
 // LSP 外挂桥（智能提示三期 B1）：系统已装语言服务器检测 + stdio 帧 ↔ IPC
 mod lsp_commands;
 // Phase A 迁移：内容插件数据落盘（FileStorageBackend 依赖的 fs 命令）
@@ -22,6 +24,8 @@ mod project_commands;
 mod entity_commands;
 // 系统层集成：托盘（完整菜单 + 状态同步 + 事件桥）
 mod tray;
+// 主题跟随图标（深色→黑底白眼 / 浅色→白底黑眼，窗口任务栏 + 托盘）
+mod theme_icon;
 // 系统层集成：通知 / 开机自启命令
 mod system;
 

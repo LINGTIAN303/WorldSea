@@ -200,23 +200,25 @@ fn try_upstream_script(workspace: &Path, recovery_dir: &Path) -> UpstreamAttempt
     let Some(script) = upstream_script_path() else {
         return UpstreamAttempt::Unavailable("脚本不在 dsh 树（树未就绪或追版挪位）".to_string());
     };
-    let mut child = match Command::new("pwsh")
-        .arg("-NoProfile")
-        .arg("-NonInteractive")
-        .arg("-ExecutionPolicy")
-        .arg("Bypass")
-        .arg("-File")
-        .arg(&script)
-        .arg("-Path")
-        .arg(workspace)
-        .arg("-AllowRoot")
-        .arg(workspace)
-        .arg("-Out")
-        .arg(recovery_dir)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-    {
+    let mut child = match {
+        // 注意：let 绑定 Command 值本身再逐个 arg()——链式绑定会让 cmd 变成指向临时值的引用（E0716）
+        let mut cmd = Command::new("pwsh");
+        cmd.arg("-NoProfile")
+            .arg("-NonInteractive")
+            .arg("-ExecutionPolicy")
+            .arg("Bypass")
+            .arg("-File")
+            .arg(&script)
+            .arg("-Path")
+            .arg(workspace)
+            .arg("-AllowRoot")
+            .arg(workspace)
+            .arg("-Out")
+            .arg(recovery_dir);
+        // GUI 模式下 spawn pwsh 会闪控制台窗口
+        crate::proc_quiet::hide_console(&mut cmd);
+        cmd.stdout(Stdio::piped()).stderr(Stdio::piped()).spawn()
+    } {
         Ok(child) => child,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             return UpstreamAttempt::Unavailable("未安装 pwsh（PowerShell 7）".to_string())
@@ -307,12 +309,13 @@ fn icacls_fallback(workspace: &Path, recovery_dir: &Path) -> Result<String, Stri
         .unwrap_or(0);
     // 修复前留档（SDDL 原文；/restore 本机不可用，此文件供人工核对与资产管理工具恢复）
     let pre_state = recovery_dir.join(format!("icacls-pre-state-{stamp}.txt"));
-    let save = Command::new("icacls")
-        .arg(workspace)
-        .arg("/save")
-        .arg(&pre_state)
-        .output()
-        .map_err(|e| format!("调用 icacls（/save）失败：{e}"))?;
+    let save = {
+        let mut cmd = Command::new("icacls");
+        cmd.arg(workspace).arg("/save").arg(&pre_state);
+        crate::proc_quiet::hide_console(&mut cmd);
+        cmd.output()
+            .map_err(|e| format!("调用 icacls（/save）失败：{e}"))?
+    };
     if !save.status.success() {
         return Err(format!(
             "icacls /save 失败（{}）：{}",
@@ -321,17 +324,21 @@ fn icacls_fallback(workspace: &Path, recovery_dir: &Path) -> Result<String, Stri
         ));
     }
     // 前检：已有该用户的显式授权项时，/remove:g 会连带移除它们 → 恢复命令文件附警示
-    let listing = Command::new("icacls")
-        .arg(workspace)
-        .output()
-        .map_err(|e| format!("调用 icacls（读取当前 ACL）失败：{e}"))?;
+    let listing = {
+        let mut cmd = Command::new("icacls");
+        cmd.arg(workspace);
+        crate::proc_quiet::hide_console(&mut cmd);
+        cmd.output()
+            .map_err(|e| format!("调用 icacls（读取当前 ACL）失败：{e}"))?
+    };
     let had_explicit = has_explicit_user_ace(&String::from_utf8_lossy(&listing.stdout), &user);
-    let grant = Command::new("icacls")
-        .arg(workspace)
-        .arg("/grant")
-        .arg(format!("{user}:(OI)(CI)F"))
-        .output()
-        .map_err(|e| format!("调用 icacls（/grant）失败：{e}"))?;
+    let grant = {
+        let mut cmd = Command::new("icacls");
+        cmd.arg(workspace).arg("/grant").arg(format!("{user}:(OI)(CI)F"));
+        crate::proc_quiet::hide_console(&mut cmd);
+        cmd.output()
+            .map_err(|e| format!("调用 icacls（/grant）失败：{e}"))?
+    };
     if !grant.status.success() {
         return Err(format!(
             "icacls /grant 失败（{}）：{}",

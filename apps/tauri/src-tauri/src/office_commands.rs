@@ -149,21 +149,26 @@ fn sweep_cache(root: &Path) {
 
 /// 同步执行一次转换（在阻塞线程中调用）
 fn run_conversion(exe: &str, src: &Path, out_dir: &Path, profile: &Path) -> Result<(), String> {
-    let mut child = Command::new(exe)
-        .arg("--headless")
-        .arg("--norestore")
-        .arg("--invisible")
-        // 独立用户配置目录：避免与用户正在运行的 LibreOffice 抢占，也避免并发转换互相干扰
-        .arg(format!("-env:UserInstallation={}", file_url(profile)))
-        .arg("--convert-to")
-        .arg("pdf")
-        .arg("--outdir")
-        .arg(out_dir)
-        .arg(src)
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .map_err(|e| format!("启动 LibreOffice 失败: {e}"))?;
+    let mut child = {
+        // let 绑定 Command 值本身再逐个 arg()——链式绑定会让 cmd 变成指向临时值的引用（E0716）
+        let mut cmd = Command::new(exe);
+        cmd.arg("--headless")
+            .arg("--norestore")
+            .arg("--invisible")
+            // 独立用户配置目录：避免与用户正在运行的 LibreOffice 抢占，也避免并发转换互相干扰
+            .arg(format!("-env:UserInstallation={}", file_url(profile)))
+            .arg("--convert-to")
+            .arg("pdf")
+            .arg("--outdir")
+            .arg(out_dir)
+            .arg(src);
+        // GUI 模式下 spawn LibreOffice（控制台子系统子进程）会闪控制台窗口
+        crate::proc_quiet::hide_console(&mut cmd);
+        cmd.stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .map_err(|e| format!("启动 LibreOffice 失败: {e}"))?
+    };
 
     let start = Instant::now();
     loop {

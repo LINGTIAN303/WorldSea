@@ -99,8 +99,10 @@ fn spawn_server(prog: &str, args: &[&str], cwd: &std::path::Path) -> std::io::Re
         .current_dir(cwd)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
+        .stderr(Stdio::null());
+    // GUI 模式下 spawn LSP 服务器（cmd /c 包装的 .cmd 尤甚）会闪控制台窗口
+    crate::proc_quiet::hide_console(&mut c);
+    c.spawn()
 }
 
 /// 语言对应的工程清单（上溯时优先匹配本语言标记）

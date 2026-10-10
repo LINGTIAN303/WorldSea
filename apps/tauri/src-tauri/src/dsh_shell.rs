@@ -198,6 +198,8 @@ pub fn spawn_and_wait_ready(
     command.env("WORLDSEA_WORKSPACE", &workspace);
     // C5（凭证批）：凭据取向 = 库优先 + env 兜底（判定、留痕与反证开关见 dsh_credentials.rs）
     crate::dsh_credentials::apply_credential_env(&mut command, &home);
+    // GUI 模式（windows_subsystem=windows）下 spawn node 会闪现控制台窗口，隐藏之
+    crate::proc_quiet::hide_console(&mut command);
     let mut child = command
         .spawn()
         .map_err(|e| format!("启动 dsh 失败（node={node}）：{e}"))?;
