@@ -4,7 +4,7 @@
 
 use tauri::Manager;
 
-use crate::{app_prefs, data_root, dsh_shell, entity_commands, menu, nav_fence, secure_store, tray, workspace_window, worldsea_manual};
+use crate::{app_prefs, data_root, dsh_shell, entity_commands, menu, nav_fence, secure_store, theme_icon, tray, workspace_window, worldsea_manual};
 
 /// 启动装配（lib.rs `.setup` 链的实体）。
 pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
@@ -116,6 +116,8 @@ pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
         }
     };
     app.manage(TrayActive(tray_active));
+    // 主题跟随图标：托盘 build 用的是 bundle 默认图标，此处按当前深浅对齐（主窗任务栏 + 托盘）
+    theme_icon::apply(app.handle());
 
     // 全局快捷键注册（Ctrl+Shift+W 唤起/隐藏主窗口）
     use tauri_plugin_global_shortcut::GlobalShortcutExt;
@@ -150,6 +152,8 @@ pub(crate) fn on_window_event(window: &tauri::Window, event: &tauri::WindowEvent
     if let tauri::WindowEvent::ThemeChanged(theme) = event {
         if app_prefs::preference_now() == "system" {
             app_prefs::set_dark(*theme == tauri::Theme::Dark);
+            // 主题跟随图标：深浅变了 → 窗口任务栏 + 托盘图标同步换（幂等）
+            theme_icon::apply(window.app_handle());
         }
     }
 }

@@ -219,6 +219,8 @@ pub fn cmd_theme_set(
         eprintln!("[DSH-SHELL] theme: 同步 dsh 失败：{e}");
     }
     broadcast(&app, dark, &value);
+    // 主题跟随图标：深浅变了 → 窗口任务栏 + 托盘图标同步换（幂等）
+    crate::theme_icon::apply(&app);
     Ok(value)
 }
 
