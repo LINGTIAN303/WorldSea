@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>07 卸载过程页 · WorldSea 安装向导设计稿</title>
+    <link rel="stylesheet" href="_shared/tokens.css" />
+    <link rel="stylesheet" href="_shared/wizard.css" />
+    <script src="_shared/theme.js" defer></script>
+  </head>
+  <body data-ds-dark-theme>
+    <button class="theme-toggle" type="button" data-theme-toggle>切换浅色</button>
+
+    <!-- ======================================================================
+         页面 07 / 08 · 卸载过程页
+         场景：卸载进行中。与安装过程页同构，但语义不同：
+              「移除」是破坏性动作，日志需要明确写出被删除了什么。
+         关键决策：① 结构与安装过程页保持一致（进度条 + 滚动日志 + 单一按钮），
+                    让用户在两处获得相同的节奏预期，降低认知成本。
+                  ② 已移除的条目用状态点标记，正在移除的用品牌色，
+                    尚未处理的保持灰——与安装页同一套视觉语法。
+                  ③ 该页不提供「取消」——卸载中途取消会给系统留下半残状态，
+                    按钮区改为一句状态说明。这是刻意的设计取舍。
+         ================================================================= -->
+    <div class="window">
+      <aside class="sidebar">
+        <div class="brand">
+          <span class="brand-mark"><img src="logo.png" alt="WorldSea" /></span>
+          <div>
+            <div class="brand-name">WorldSea</div>
+            <div class="brand-version">版本 0.1.0</div>
+          </div>
+        </div>
+
+        <nav class="steps">
+          <div class="step" data-state="done">
+            <span class="step-dot">
+              <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M2.5 6.2l2.3 2.3 4.7-5" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </span>确认卸载
+          </div>
+          <div class="step" data-state="current">
+            <span class="step-dot"></span>卸载
+          </div>
+          <div class="step" data-state="todo">
+            <span class="step-dot"></span>完成
+          </div>
+        </nav>
+
+        <div class="sidebar-foot">UI 设计稿 · 仅供评审</div>
+      </aside>
+
+      <main class="pane">
+        <div class="pane-head">
+          <h1 class="pane-title">正在卸载 WorldSea</h1>
+          <p class="pane-desc">请稍候，卸载过程中请不要强制关闭窗口。</p>
+        </div>
+
+        <div class="pane-body">
+          <div class="progress">
+            <div class="progress-fill" style="width: 45%"></div>
+          </div>
+
+          <div class="log">
+            <div class="log-line" data-state="done"><span>注销文件关联与 Shell 集成</span></div>
+            <div class="log-line" data-state="done"><span>移除桌面与开始菜单快捷方式</span></div>
+            <div class="log-line" data-state="active"><span>删除程序文件 · C:\Users\LINGTIAN\AppData\Local\WorldSea</span></div>
+            <div class="log-line" data-state="pending"><span>保留作品数据 · %APPDATA%\WorldSea\data</span></div>
+            <div class="log-line" data-state="pending"><span>从系统卸载列表中移除 WorldSea</span></div>
+          </div>
+        </div>
+
+        <div class="pane-foot">
+          <span class="foot-note">卸载进行中，此操作不可中断</span>
+        </div>
+      </main>
+    </div>
+
+    <style>
+      /* 卸载过程页专有：与安装过程页同构 */
+      .pane-body {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        padding-bottom: 4px;
+      }
+
+      .progress {
+        flex: none;
+      }
+
+      .log {
+        flex: 1;
+        min-height: 0;
+      }
+    </style>
+  </body>
+</html>

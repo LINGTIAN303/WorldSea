@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>04 安装过程页 · WorldSea 安装向导设计稿</title>
+    <link rel="stylesheet" href="_shared/tokens.css" />
+    <link rel="stylesheet" href="_shared/wizard.css" />
+    <script src="_shared/theme.js" defer></script>
+  </head>
+  <body data-ds-dark-theme>
+    <button class="theme-toggle" type="button" data-theme-toggle>切换浅色</button>
+
+    <!-- ======================================================================
+         页面 04 / 08 · 安装过程页
+         场景：安装进行中。用户此时只需知道「在做什么 / 还要多久 / 有没有出错」。
+         关键决策：① 用「滚动日志」而非进度百分比作为主信息——安装步骤可枚举，
+                    逐条打勾比一个会卡在 90% 的进度条更让人安心。
+                  ② 进度条仍保留，但降为辅助信息（细条，无百分比数字）。
+                  ③ 页脚按钮区在该页只剩「取消」，且为幽灵样式——
+                    避免用户误以为可以「下一步」。
+                  ④ 若 NSIS 方案落地：本页仅「日志文字可定制」，
+                    进度条为原生控件，样式不可改。见 README 对照表。
+         ================================================================= -->
+    <div class="window">
+      <aside class="sidebar">
+        <div class="brand">
+          <span class="brand-mark"><img src="logo.png" alt="WorldSea" /></span>
+          <div>
+            <div class="brand-name">WorldSea</div>
+            <div class="brand-version">版本 0.1.0</div>
+          </div>
+        </div>
+
+        <nav class="steps">
+          <div class="step" data-state="done">
+            <span class="step-dot">
+              <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M2.5 6.2l2.3 2.3 4.7-5" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </span>欢迎
+          </div>
+          <div class="step" data-state="done">
+            <span class="step-dot">
+              <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M2.5 6.2l2.3 2.3 4.7-5" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </span>许可协议
+          </div>
+          <div class="step" data-state="done">
+            <span class="step-dot">
+              <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M2.5 6.2l2.3 2.3 4.7-5" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </span>安装位置
+          </div>
+          <div class="step" data-state="current">
+            <span class="step-dot"></span>安装
+          </div>
+          <div class="step" data-state="todo">
+            <span class="step-dot"></span>完成
+          </div>
+        </nav>
+
+        <div class="sidebar-foot">UI 设计稿 · 仅供评审</div>
+      </aside>
+
+      <main class="pane">
+        <div class="pane-head">
+          <h1 class="pane-title">正在安装 WorldSea</h1>
+          <p class="pane-desc">请不要关闭窗口或断开电源。安装完成后会自动进入下一步。</p>
+        </div>
+
+        <div class="pane-body">
+          <div class="progress">
+            <div class="progress-fill" style="width: 62%"></div>
+          </div>
+
+          <div class="log">
+            <div class="log-line" data-state="done"><span>解压程序文件到 C:\Users\LINGTIAN\AppData\Local\WorldSea</span></div>
+            <div class="log-line" data-state="done"><span>写入运行时依赖（WebView2 已就绪，跳过）</span></div>
+            <div class="log-line" data-state="done"><span>创建桌面快捷方式</span></div>
+            <div class="log-line" data-state="done"><span>注册开始菜单项</span></div>
+            <div class="log-line" data-state="active"><span>初始化本地数据目录 · 正在部署世界观引擎</span></div>
+            <div class="log-line" data-state="pending"><span>校验文件完整性</span></div>
+            <div class="log-line" data-state="pending"><span>写入卸载信息</span></div>
+          </div>
+        </div>
+
+        <div class="pane-foot">
+          <span class="foot-note">已用 12 秒 · 剩余约 8 秒</span>
+          <button class="btn btn-ghost" type="button">取消</button>
+        </div>
+      </main>
+    </div>
+
+    <style>
+      /* 安装过程页专有：进度条与日志的纵向节奏 */
+      .pane-body {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        padding-bottom: 4px;
+      }
+
+      .progress {
+        flex: none;
+      }
+
+      .log {
+        flex: 1;
+        min-height: 0;
+      }
+
+      .log-line[data-state='active'] span {
+        font-weight: 500;
+      }
+    </style>
+  </body>
+</html>

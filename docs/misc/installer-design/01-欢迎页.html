@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="zh-CN" data-page-node-id="KLfh9kObv0oRnYhjSL3HRm">
+  <head data-page-node-id="q89iIHntEug9QOgceYmknP">
+    <meta charset="UTF-8" data-page-node-id="HJunaGG96aQhOa1sSiNpoL" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="5MEEFYyo79ygClGqMjqekR" />
+    <title>01 欢迎页 · WorldSea 安装向导设计稿</title>
+    <link rel="stylesheet" href="_shared/tokens.css" data-page-node-id="grvfBxc6asGIGEbNAp7atR" />
+    <link rel="stylesheet" href="_shared/wizard.css" data-page-node-id="ZxQOC0znYbgiYSMkam6LWF" />
+    <script src="_shared/theme.js" defer></script>
+  </head>
+  <body data-ds-dark-theme data-page-node-id="3zQMlojuBwCeu9Yb0BEKJF">
+    <button class="theme-toggle" type="button" data-theme-toggle data-page-node-id="L1v0iWJurD5py49Nrzlc4I">切换浅色</button>
+
+    <!-- ======================================================================
+         页面 01 / 08 · 欢迎页
+         场景：双击安装包后的第一屏。目标是「用一句话说清这是什么」，
+              并让用户愿意点「开始安装」。
+         关键决策：左栏承载品牌与步骤；正文区主动作 + 三条卖点，
+                  不做功能罗列（用户此刻没有上下文去理解功能名）。
+         ================================================================= -->
+    <div class="window" data-page-node-id="DRmk7DdL7NDffbWZ6TvtBh">
+      <aside class="sidebar" data-page-node-id="2LSBSWHPqlvqMiagfXDh1H">
+        <div class="brand" data-page-node-id="oHN6WqleQrYZFJzPNvRUmC">
+          <span class="brand-mark" data-page-node-id="l6ykbtWCsNLjO3oypXR3W6"><img src="logo.png" alt="WorldSea" data-page-node-id="8I3Z3SFLHBgi7IseaBfqAb" /></span>
+          <div data-page-node-id="WrKpmFRmRbXB7mpbWaAA5X">
+            <div class="brand-name" data-page-node-id="XROSrP6EVeqAqOqmI4ERKn">WorldSea</div>
+            <div class="brand-version" data-page-node-id="23C8D8t9zu0JY3j46vZuX0">版本 0.1.0</div>
+          </div>
+        </div>
+
+        <nav class="steps" data-page-node-id="BhbH4ifhBFSXbAOD1uAzCp">
+          <div class="step" data-state="current" data-page-node-id="FuWE0HiH0rl0kH30aGMI3A">
+            <span class="step-dot" data-page-node-id="BTfAVAhfOGvlP7eFfQQOXJ"></span>欢迎
+          </div>
+          <div class="step" data-state="todo" data-page-node-id="xDXO2Te30lK3bE0elVe7jY">
+            <span class="step-dot" data-page-node-id="nJqhECPzv5NfEDwRoGXZRp"></span>许可协议
+          </div>
+          <div class="step" data-state="todo" data-page-node-id="Q5amnXxn1DYNxSoExG9bZL">
+            <span class="step-dot" data-page-node-id="YXwzEH60ppQD2CZcfbiMrN"></span>安装位置
+          </div>
+          <div class="step" data-state="todo" data-page-node-id="j9RTz1tnhWbNwYQJkFGkSc">
+            <span class="step-dot" data-page-node-id="D3ohFpqO8SPZfxvZDfoKNc"></span>安装
+          </div>
+          <div class="step" data-state="todo" data-page-node-id="TDSICoNAi1UwSruAPFEvip">
+            <span class="step-dot" data-page-node-id="Im6aYrMkxoKt5yzgejuGSG"></span>完成
+          </div>
+        </nav>
+
+        <div class="sidebar-foot" data-page-node-id="RaHuyANpOMlrqsLnPZm3sm">UI 设计稿 · 仅供评审</div>
+      </aside>
+
+      <main class="pane" data-page-node-id="BXEfOnWuotMng6nH6q94My">
+        <div class="pane-head" data-page-node-id="TFNBqR7ORThoUNocPc6VRp">
+          <h1 class="pane-title" data-page-node-id="9nkPX0EFi0fOPIyXnPajGu">欢迎使用 WorldSea</h1>
+          <p class="pane-desc" data-page-node-id="cbiwQFl4JGwwcaAYwpRm4L">
+            一个为长线创作而生的世界观构建工作台。安装过程约需 30 秒，不会修改系统设置。
+          </p>
+        </div>
+
+        <div class="pane-body" data-page-node-id="hvJCCIjGzD7qZHK9mI4Ema">
+          <ul class="feature-list" data-page-node-id="sEe2CgHknyIpHAc40RXurM">
+            <li class="feature" data-page-node-id="pC72nSfVqz3F8BAwGKObaA">
+              <span class="feature-icon" aria-hidden="true" data-page-node-id="18B71MlkNC5E1sjqHH2kKf">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" data-page-node-id="zMVJgTz9qMqfvF2u0lqwUT">
+                  <path d="M3 7h18M3 12h18M3 17h12" stroke-linecap="round" data-page-node-id="dcQMhFUnBJKn1fkuLzwwj7" />
+                </svg>
+              </span>
+              <div data-page-node-id="eHHCuQMmbHFD2WJOkcKkQF">
+                <div class="feature-title" data-page-node-id="ElEIKVNWYprJCep2e2FjH7">结构化写作</div>
+                <div class="feature-desc" data-page-node-id="G8wUAFKvAFdWWWVbHlhdjj">大纲、章节、笔记三线并行，内容随时互相引用。</div>
+              </div>
+            </li>
+            <li class="feature" data-page-node-id="g4rDz6Zi8MD0r6VMPpE4sl">
+              <span class="feature-icon" aria-hidden="true" data-page-node-id="yrbML9Y76KFhYWTPEGNfzE">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" data-page-node-id="JaXsyHqFZsFFxwD56sCT4o">
+                  <circle cx="12" cy="12" r="8" data-page-node-id="TQtVJy1GxR4QbhN5xxZgO1" />
+                  <path d="M4 12h16M12 4c2.5 2.6 2.5 13.4 0 16M12 4c-2.5 2.6-2.5 13.4 0 16" data-page-node-id="F9RANviAWiIYADUxz4cyhC" />
+                </svg>
+              </span>
+              <div data-page-node-id="nW6NDcmnEoofF4YfSV28yB">
+                <div class="feature-title" data-page-node-id="zAnILlicCZiCVYHQmTkqyc">世界观图谱</div>
+                <div class="feature-desc" data-page-node-id="3EjhHnrUxrZia6wedZg1E0">实体与关系自动成图，设定冲突一眼可见。</div>
+              </div>
+            </li>
+            <li class="feature" data-page-node-id="NL1KHluIFe2XMHFkOsBopT">
+              <span class="feature-icon" aria-hidden="true" data-page-node-id="bF1nM7eRWFFNq28wuAmZ5m">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" data-page-node-id="E8XSQYXigXWBzjnyUJDUsq">
+                  <path d="M12 3v4M12 17v4M3 12h4M17 12h4" stroke-linecap="round" data-page-node-id="oZLHK5GtAFKY51Q0pxPKxO" />
+                  <circle cx="12" cy="12" r="4" data-page-node-id="iCvNFfPHPthok0bUaU2AE2" />
+                </svg>
+              </span>
+              <div data-page-node-id="NUrTX1UQ4BmWggzt7lLTNO">
+                <div class="feature-title" data-page-node-id="H3B8OerMnAhkh8DBoHsyyf">本地优先</div>
+                <div class="feature-desc" data-page-node-id="Dc9Z05jcgEyfQHfJ9OTIjC">数据全部保存在本机，无需注册账号即可开始。</div>
+              </div>
+            </li>
+          </ul>
+        </div>
+
+        <div class="pane-foot" data-page-node-id="1KPURNeDPAvyRcrEb7qNhE">
+          <span class="foot-step" data-page-node-id="bkHu4ylTOP2EsmyuIS6VtF">第 1 步，共 5 步</span>
+          <button class="btn btn-ghost" type="button" data-page-node-id="hAPcDogT2FIsLTVxuPfq67">取消</button>
+          <button class="btn btn-primary" type="button" data-page-node-id="K2JQ3tVzdQzG8DIt3GdpsA">开始安装</button>
+        </div>
+      </main>
+    </div>
+
+    <style>
+      /* 欢迎页专有：卖点列表。三行等距，图标为线性 SVG（项目禁用 emoji 图标）。 */
+      .feature-list {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .feature {
+        display: flex;
+        gap: 12px;
+      }
+
+      .feature-icon {
+        display: flex;
+        flex: none;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        border-radius: var(--dsw-radius-sm);
+        background: var(--dsw-alias-bg-layer-3);
+        color: var(--dsw-alias-brand-primary-new-colorprimary-new-color);
+      }
+
+      .feature-title {
+        font-size: 13px;
+        font-weight: 500;
+        line-height: 20px;
+      }
+
+      .feature-desc {
+        color: var(--dsw-alias-label-secondary);
+        font-size: 12px;
+        line-height: 18px;
+      }
+    </style>
+  </body>
+</html>

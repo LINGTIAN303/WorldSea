@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>08 卸载完成页 · WorldSea 安装向导设计稿</title>
+    <link rel="stylesheet" href="_shared/tokens.css" />
+    <link rel="stylesheet" href="_shared/wizard.css" />
+    <script src="_shared/theme.js" defer></script>
+  </head>
+  <body data-ds-dark-theme>
+    <button class="theme-toggle" type="button" data-theme-toggle>切换浅色</button>
+
+    <!-- ======================================================================
+         页面 08 / 08 · 卸载成功页
+         场景：卸载完成。用户的预期是「结束了，可以关掉」。
+         关键决策：① 不再使用绿色成功徽章——卸载成功不必庆祝，
+                    用中性的对勾即可，避免情绪错位。
+                  ② 明确告知「数据保留在哪」，这是卸载页最容易被忽略、
+                    但用户最需要的信息（留了东西 vs 全清空）。
+                  ③ 若上一步选择了删除数据，本页对应条目显示为「已删除」，
+                    并附带回退可能性说明。
+         ================================================================= -->
+    <div class="window">
+      <aside class="sidebar">
+        <div class="brand">
+          <span class="brand-mark"><img src="logo.png" alt="WorldSea" /></span>
+          <div>
+            <div class="brand-name">WorldSea</div>
+            <div class="brand-version">版本 0.1.0</div>
+          </div>
+        </div>
+
+        <nav class="steps">
+          <div class="step" data-state="done">
+            <span class="step-dot">
+              <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M2.5 6.2l2.3 2.3 4.7-5" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </span>确认卸载
+          </div>
+          <div class="step" data-state="done">
+            <span class="step-dot">
+              <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M2.5 6.2l2.3 2.3 4.7-5" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </span>卸载
+          </div>
+          <div class="step" data-state="current">
+            <span class="step-dot"></span>完成
+          </div>
+        </nav>
+
+        <div class="sidebar-foot">UI 设计稿 · 仅供评审</div>
+      </aside>
+
+      <main class="pane">
+        <div class="pane-head">
+          <div class="head-row">
+            <span class="result-badge" data-tone="neutral" aria-hidden="true">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M5 12.5l4.5 4.5L19 7.5" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </span>
+            <div>
+              <h1 class="pane-title">卸载完成</h1>
+              <p class="pane-desc">WorldSea 已从您的电脑移除。感谢使用。</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="pane-body">
+          <dl class="kv">
+            <dt>程序文件</dt>
+            <dd>已移除（释放 412 MB）</dd>
+            <dt>系统集成</dt>
+            <dd>快捷方式与文件关联已注销</dd>
+            <dt>作品数据</dt>
+            <dd class="mono" data-state="kept">已保留 · %APPDATA%\WorldSea\data</dd>
+          </dl>
+
+          <div class="notice" data-tone="warn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true" style="flex: none; margin-top: 2px">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 11v5M12 8v.5" stroke-linecap="round" />
+            </svg>
+            <span>
+              保留的作品数据不会自动清理。若确认不再需要，可手动删除
+              <b>%APPDATA%\WorldSea</b> 文件夹。请务必先关闭所有正在运行的相关进程。
+            </span>
+          </div>
+        </div>
+
+        <div class="pane-foot">
+          <span class="foot-note">重新安装 WorldSea 即可继续使用保留的数据</span>
+          <button class="btn btn-ghost" type="button">打开数据目录</button>
+          <button class="btn btn-primary" type="button">关闭</button>
+        </div>
+      </main>
+    </div>
+
+    <style>
+      /* 卸载完成页专有 */
+      .head-row {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+
+      .pane-body {
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+
+      /* 卸载成功不必用绿色庆祝——改用中性状态色，避免情绪错位 */
+      .result-badge[data-tone='neutral'] {
+        background: var(--dsw-alias-bg-layer-3);
+        color: var(--dsw-alias-label-secondary);
+      }
+
+      /* 数据保留 / 已删除两态 */
+      .kv dd[data-state='kept'] {
+        color: var(--dsw-alias-label-primary);
+      }
+
+      .kv dd[data-state='purged'] {
+        color: var(--dsw-alias-state-error-primary);
+      }
+
+      .notice b {
+        color: var(--dsw-alias-label-primary);
+        font-weight: 500;
+      }
+    </style>
+  </body>
+</html>

@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>02 许可协议页 · WorldSea 安装向导设计稿</title>
+    <link rel="stylesheet" href="_shared/tokens.css" />
+    <link rel="stylesheet" href="_shared/wizard.css" />
+    <script src="_shared/theme.js" defer></script>
+  </head>
+  <body data-ds-dark-theme>
+    <button class="theme-toggle" type="button" data-theme-toggle>切换浅色</button>
+
+    <!-- ======================================================================
+         页面 02 / 08 · 许可协议页
+         场景：安装流程第二步。用户需要能读到协议，并显式接受。
+         关键决策：① 协议文本用真实 LICENSE.txt 内容，不做占位符——
+                    审稿时能直接判断排版是否吃得住长文。
+                  ② 「接受」复选框未勾选时主按钮禁用——这是许可页的标准
+                    交互约束，避免「一路下一步」式误接受。
+                  ③ 协议框独立滚动，不撑破窗口。
+         ================================================================= -->
+    <div class="window">
+      <aside class="sidebar">
+        <div class="brand">
+          <span class="brand-mark"><img src="logo.png" alt="WorldSea" /></span>
+          <div>
+            <div class="brand-name">WorldSea</div>
+            <div class="brand-version">版本 0.1.0</div>
+          </div>
+        </div>
+
+        <nav class="steps">
+          <div class="step" data-state="done">
+            <span class="step-dot">
+              <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M2.5 6.2l2.3 2.3 4.7-5" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </span>欢迎
+          </div>
+          <div class="step" data-state="current">
+            <span class="step-dot"></span>许可协议
+          </div>
+          <div class="step" data-state="todo">
+            <span class="step-dot"></span>安装位置
+          </div>
+          <div class="step" data-state="todo">
+            <span class="step-dot"></span>安装
+          </div>
+          <div class="step" data-state="todo">
+            <span class="step-dot"></span>完成
+          </div>
+        </nav>
+
+        <div class="sidebar-foot">UI 设计稿 · 仅供评审</div>
+      </aside>
+
+      <main class="pane">
+        <div class="pane-head">
+          <h1 class="pane-title">许可协议</h1>
+          <p class="pane-desc">请在继续之前阅读以下条款。继续安装即表示您接受这些条款。</p>
+        </div>
+
+        <div class="pane-body">
+          <div class="license-box">
+<b>WorldSea 软件许可协议</b>
+版本 1.0 · 2026-10-09
+
+<b>1. 授权范围</b>
+作者在此授予您免费、非独占、不可转让的许可，允许您在个人设备上安装并使用本软件，用于个人创作与研究。
+
+<b>2. 复制与分发</b>
+您可以出于备份目的制作本软件副本；未经作者书面许可，不得以任何形式再分发、转售或将本软件与其他产品捆绑销售。
+
+<b>3. 禁止行为</b>
+除非适用法律明确允许，不得对本软件进行反向工程、反编译或反汇编；不得移除或遮蔽软件内的版权与署名信息。
+
+<b>4. 内容归属</b>
+您使用本软件创建的世界观、文档、角色、设定等全部内容归您所有，作者不对其主张任何权利。
+
+<b>5. 免责声明</b>
+本软件按「现状」提供，不附带任何明示或默示的担保。在适用法律允许的最大范围内，因使用或无法使用本软件所产生的任何损失，作者不承担责任。
+
+<b>6. 许可变更</b>
+本协议条款如有更新，将随新版本软件一并发布；安装或继续使用新版本即视为接受更新后的条款。
+
+如需商业授权或其他合作，请联系作者。
+          </div>
+        </div>
+
+        <div class="pane-foot">
+          <span class="foot-step">第 2 步，共 5 步</span>
+          <label class="checkbox foot-check">
+            <input type="checkbox" id="accept" />
+            <span class="checkbox-text">我已阅读并接受上述许可协议</span>
+          </label>
+          <button class="btn btn-ghost" type="button">上一步</button>
+          <button class="btn btn-primary" type="button" disabled>下一步</button>
+        </div>
+      </main>
+    </div>
+
+    <style>
+      /* 许可页专有：
+       * 页脚含「步骤计数 + 接受复选框 + 两个按钮」共四项，容量接近上限，
+       * 因此压缩步骤计数宽度并禁止复选框文字换行。 */
+      .pane-foot {
+        gap: 8px;
+      }
+
+      .foot-step {
+        flex: none;
+      }
+
+      .foot-check {
+        margin-right: auto;
+      }
+
+      .foot-check .checkbox-text {
+        white-space: nowrap;
+      }
+    </style>
+
+    <script>
+      // 设计稿交互：勾选接受后启用「下一步」，用于演示禁用态样式。
+      (function () {
+        var box = document.getElementById('accept');
+        var next = document.querySelector('.pane-foot .btn-primary');
+        if (!box || !next) return;
+        box.addEventListener('change', function () {
+          next.disabled = !box.checked;
+        });
+      })();
+    </script>
+  </body>
+</html>

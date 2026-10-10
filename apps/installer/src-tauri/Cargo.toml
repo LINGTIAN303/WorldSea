@@ -1,0 +1,28 @@
+[package]
+name = "worldsea-installer"
+version = "0.1.0"
+description = "WorldSea 安装/卸载向导（Tauri 小壳）"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# 精确锁 2.11.5：与主程序（apps/tauri）及根目录 @tauri-apps/api 2.11.x 对齐，
+# 避免 tauri CLI 的版本一致性检查报错
+tauri = { version = "=2.11.5", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[target.'cfg(windows)'.dependencies]
+# 快捷方式（COM IShellLink）、磁盘空间查询
+windows = { version = "0.62", features = ["Win32_Storage_FileSystem", "Win32_UI_Shell", "Win32_System_Com"] }
+# 卸载注册表项读写
+winreg = "0.56"
+# 桌面 / 开始菜单 / Roaming 目录定位（处理 OneDrive 重定向）
+dirs = "7"
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1

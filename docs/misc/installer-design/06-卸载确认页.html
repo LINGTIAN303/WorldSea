@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>06 卸载确认页 · WorldSea 安装向导设计稿</title>
+    <link rel="stylesheet" href="_shared/tokens.css" />
+    <link rel="stylesheet" href="_shared/wizard.css" />
+    <script src="_shared/theme.js" defer></script>
+  </head>
+  <body data-ds-dark-theme>
+    <button class="theme-toggle" type="button" data-theme-toggle>切换浅色</button>
+
+    <!-- ======================================================================
+         页面 06 / 08 · 卸载确认页（控制面板卸载入口）
+         场景：用户从「设置 → 应用」触发卸载，或运行安装目录下的卸载程序。
+         关键决策：① 这是全流程唯一需要用户「想清楚」的页面——用危险色提示
+                    条明确后果，并把「作品数据是否保留」独立成一个决策点。
+                  ② 主按钮为「卸载」（危险色），次按钮为「取消」——
+                    危险操作不做默认聚焦，避免回车误触。
+                  ③ 与安装流程不同：卸载页不显示步骤指示（卸载没有「下一步」），
+                    左栏改为纯品牌区 + 卸载范围说明。
+         ================================================================= -->
+    <div class="window">
+      <aside class="sidebar">
+        <div class="brand">
+          <span class="brand-mark"><img src="logo.png" alt="WorldSea" /></span>
+          <div>
+            <div class="brand-name">WorldSea</div>
+            <div class="brand-version">版本 0.1.0</div>
+          </div>
+        </div>
+
+        <nav class="steps">
+          <div class="step" data-state="current">
+            <span class="step-dot"></span>确认卸载
+          </div>
+          <div class="step" data-state="todo">
+            <span class="step-dot"></span>卸载
+          </div>
+          <div class="step" data-state="todo">
+            <span class="step-dot"></span>完成
+          </div>
+        </nav>
+
+        <div class="sidebar-foot">UI 设计稿 · 仅供评审</div>
+      </aside>
+
+      <main class="pane">
+        <div class="pane-head">
+          <h1 class="pane-title">卸载 WorldSea</h1>
+          <p class="pane-desc">此操作将移除 WorldSea 的程序文件，并注销其系统集成项。</p>
+        </div>
+
+        <div class="pane-body">
+          <div class="notice" data-tone="warn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true" style="flex: none; margin-top: 2px">
+              <path d="M12 4l8.5 15h-17z" stroke-linejoin="round" />
+              <path d="M12 10v4M12 16.5v.5" stroke-linecap="round" />
+            </svg>
+            <span>卸载后将无法直接恢复到当前状态。若只是想升级版本，请直接运行新版安装包，无需卸载。</span>
+          </div>
+
+          <div class="field">
+            <span class="field-label">将移除以下内容</span>
+            <dl class="kv">
+              <dt>程序文件</dt>
+              <dd class="mono">C:\Users\LINGTIAN\AppData\Local\WorldSea（412 MB）</dd>
+              <dt>系统集成</dt>
+              <dd>桌面快捷方式、开始菜单项、文件关联</dd>
+            </dl>
+          </div>
+
+          <div class="field">
+            <span class="field-label">作品数据如何处理</span>
+            <div class="option-group">
+              <label class="option">
+                <input type="radio" name="data" value="keep" checked />
+                <span class="option-body">
+                  <span class="option-label">保留我的作品数据（推荐）</span>
+                  <span class="option-hint">
+                    世界观、文档与笔记将保留在 %APPDATA%\WorldSea\data，重新安装后可继续使用。
+                  </span>
+                </span>
+              </label>
+              <label class="option">
+                <input type="radio" name="data" value="purge" />
+                <span class="option-body">
+                  <span class="option-label">一并删除全部作品数据</span>
+                  <span class="option-hint">
+                    所有世界观、文档与笔记将被永久删除，无法找回。此选项不可撤销。
+                  </span>
+                </span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="pane-foot">
+          <span class="foot-note">卸载约需 10 秒</span>
+          <button class="btn btn-secondary" type="button" autofocus>取消</button>
+          <button class="btn btn-danger" type="button">卸载</button>
+        </div>
+      </main>
+    </div>
+
+    <style>
+      /* 卸载确认页专有 */
+      .pane-body {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+
+      .field {
+        margin: 0;
+      }
+
+      .field-label {
+        display: block;
+        margin-bottom: 10px;
+        color: var(--dsw-alias-label-primary);
+        font-size: 13px;
+        font-weight: 500;
+        line-height: 20px;
+      }
+
+      /* 危险操作：主按钮获得视觉权重，但不自动聚焦（见 HTML 中 autofocus 落在「取消」上） */
+      .btn-danger:focus-visible {
+        outline-color: var(--dsw-alias-state-error-primary);
+      }
+    </style>
+
+    <script>
+      // 设计稿交互：选择「一并删除全部作品数据」时，强化危险提示文案。
+      (function () {
+        var warning = document.querySelector('.notice[data-tone="warn"] span');
+        if (!warning) return;
+        var original = warning.textContent;
+        var extra =
+          ' 已选择删除作品数据：卸载完成后，所有世界观、文档与笔记将无法恢复。';
+        document
+          .querySelectorAll('input[name="data"]')
+          .forEach(function (radio) {
+            radio.addEventListener('change', function () {
+              var purge =
+                document.querySelector('input[name="data"]:checked').value === 'purge';
+              warning.textContent = purge ? original + extra : original;
+              warning
+                .closest('.notice')
+                .setAttribute('data-tone', purge ? 'danger' : 'warn');
+            });
+          });
+      })();
+    </script>
+  </body>
+</html>

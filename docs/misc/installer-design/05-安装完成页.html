@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>05 安装完成页 · WorldSea 安装向导设计稿</title>
+    <link rel="stylesheet" href="_shared/tokens.css" />
+    <link rel="stylesheet" href="_shared/wizard.css" />
+    <script src="_shared/theme.js" defer></script>
+  </head>
+  <body data-ds-dark-theme>
+    <button class="theme-toggle" type="button" data-theme-toggle>切换浅色</button>
+
+    <!-- ======================================================================
+         页面 05 / 08 · 安装完成页
+         场景：安装成功。用户此刻的唯一意图是「赶紧打开看看」。
+         关键决策：① 成功徽章（64px 圆环 + 对勾）作为视觉锚点，但不用大面积
+                    绿色填充——品牌色仍是主角，绿色只做状态点缀。
+                  ② 默认勾选「立即启动 WorldSea」——减少一次操作。
+                  ③ 安装摘要用紧凑的 kv 列表，给技术型用户核对路径的出口，
+                    不占正文主要高度。
+         ================================================================= -->
+    <div class="window">
+      <aside class="sidebar">
+        <div class="brand">
+          <span class="brand-mark"><img src="logo.png" alt="WorldSea" /></span>
+          <div>
+            <div class="brand-name">WorldSea</div>
+            <div class="brand-version">版本 0.1.0</div>
+          </div>
+        </div>
+
+        <nav class="steps">
+          <div class="step" data-state="done">
+            <span class="step-dot">
+              <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M2.5 6.2l2.3 2.3 4.7-5" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </span>欢迎
+          </div>
+          <div class="step" data-state="done">
+            <span class="step-dot">
+              <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M2.5 6.2l2.3 2.3 4.7-5" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </span>许可协议
+          </div>
+          <div class="step" data-state="done">
+            <span class="step-dot">
+              <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M2.5 6.2l2.3 2.3 4.7-5" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </span>安装位置
+          </div>
+          <div class="step" data-state="done">
+            <span class="step-dot">
+              <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M2.5 6.2l2.3 2.3 4.7-5" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </span>安装
+          </div>
+          <div class="step" data-state="current">
+            <span class="step-dot"></span>完成
+          </div>
+        </nav>
+
+        <div class="sidebar-foot">UI 设计稿 · 仅供评审</div>
+      </aside>
+
+      <main class="pane">
+        <div class="pane-head">
+          <div class="head-row">
+            <span class="result-badge" aria-hidden="true">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M5 12.5l4.5 4.5L19 7.5" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </span>
+            <div>
+              <h1 class="pane-title">安装完成</h1>
+              <p class="pane-desc">WorldSea 已成功安装到您的电脑，现在可以开始构建第一个世界观了。</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="pane-body">
+          <dl class="kv">
+            <dt>安装版本</dt>
+            <dd>0.1.0（正式版）</dd>
+            <dt>安装位置</dt>
+            <dd class="mono">C:\Users\LINGTIAN\AppData\Local\WorldSea</dd>
+            <dt>占用空间</dt>
+            <dd>412 MB</dd>
+            <dt>用户数据</dt>
+            <dd class="mono">%APPDATA%\WorldSea\data</dd>
+          </dl>
+
+          <div class="notice">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true" style="flex: none; margin-top: 2px">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 11v5M12 8v.5" stroke-linecap="round" />
+            </svg>
+            <span>卸载可在「设置 → 应用 → 已安装的应用」中完成，或运行安装目录下的 卸载 WorldSea。</span>
+          </div>
+        </div>
+
+        <div class="pane-foot">
+          <label class="checkbox foot-check">
+            <input type="checkbox" checked />
+            <span class="checkbox-text">立即启动 WorldSea</span>
+          </label>
+          <button class="btn btn-ghost" type="button">打开安装目录</button>
+          <button class="btn btn-primary" type="button">完成</button>
+        </div>
+      </main>
+    </div>
+
+    <style>
+      /* 安装完成页专有：徽章与标题同行，避免标题区过高 */
+      .head-row {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+
+      .pane-body {
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+
+      .foot-check {
+        margin-right: auto;
+      }
+    </style>
+  </body>
+</html>

@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WorldSea 安装向导</title>
+    <link rel="stylesheet" href="tokens.css" />
+    <link rel="stylesheet" href="wizard.css" />
+    <link rel="stylesheet" href="overrides.css" />
+  </head>
+  <body data-ds-dark-theme>
+    <div class="window">
+      <!-- 无边框窗口：顶部拖动区 + 关闭按钮（运行版新增，设计稿无） -->
+      <div class="titlebar-drag" data-tauri-drag-region></div>
+      <button class="btn-close" id="btn-close" type="button" title="关闭">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4">
+          <path d="M2.5 2.5l7 7M9.5 2.5l-7 7" stroke-linecap="round" />
+        </svg>
+      </button>
+
+      <!-- 左栏（安装流，5 步） -->
+      <aside class="sidebar" id="sidebar-install">
+        <div class="brand">
+          <span class="brand-mark"><img src="logo.png" alt="WorldSea" /></span>
+          <div>
+            <div class="brand-name">WorldSea</div>
+            <div class="brand-version">版本 0.1.0</div>
+          </div>
+        </div>
+        <nav class="steps" id="steps-install">
+          <div class="step"><span class="step-dot"></span>欢迎</div>
+          <div class="step"><span class="step-dot"></span>许可协议</div>
+          <div class="step"><span class="step-dot"></span>安装位置</div>
+          <div class="step"><span class="step-dot"></span>安装</div>
+          <div class="step"><span class="step-dot"></span>完成</div>
+        </nav>
+        <div class="sidebar-foot">WorldSea · 世界观构建工具</div>
+      </aside>
+
+      <!-- 左栏（卸载流，3 步） -->
+      <aside class="sidebar" id="sidebar-uninstall" hidden>
+        <div class="brand">
+          <span class="brand-mark"><img src="logo.png" alt="WorldSea" /></span>
+          <div>
+            <div class="brand-name">WorldSea</div>
+            <div class="brand-version">版本 0.1.0</div>
+          </div>
+        </div>
+        <nav class="steps" id="steps-uninstall">
+          <div class="step"><span class="step-dot"></span>确认卸载</div>
+          <div class="step"><span class="step-dot"></span>卸载</div>
+          <div class="step"><span class="step-dot"></span>完成</div>
+        </nav>
+        <div class="sidebar-foot">WorldSea · 世界观构建工具</div>
+      </aside>
+
+      <main class="pane">
+        <!-- 01 欢迎页 -->
+        <section class="pane-page" data-page="welcome">
+          <div class="pane-head">
+            <h1 class="pane-title">欢迎使用 WorldSea</h1>
+            <p class="pane-desc">一个为长线创作而生的世界观构建工作台。安装过程约需 30 秒，不会修改系统设置。</p>
+          </div>
+          <div class="pane-body">
+            <ul class="feature-list">
+              <li class="feature">
+                <span class="feature-icon" aria-hidden="true">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                    <path d="M3 7h18M3 12h18M3 17h12" stroke-linecap="round" />
+                  </svg>
+                </span>
+                <div>
+                  <div class="feature-title">结构化写作</div>
+                  <div class="feature-desc">大纲、章节、笔记三线并行，内容随时互相引用。</div>
+                </div>
+              </li>
+              <li class="feature">
+                <span class="feature-icon" aria-hidden="true">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                    <circle cx="12" cy="12" r="8" />
+                    <path d="M4 12h16M12 4c2.5 2.6 2.5 13.4 0 16M12 4c-2.5 2.6-2.5 13.4 0 16" />
+                  </svg>
+                </span>
+                <div>
+                  <div class="feature-title">世界观图谱</div>
+                  <div class="feature-desc">实体与关系自动成图，设定冲突一眼可见。</div>
+                </div>
+              </li>
+              <li class="feature">
+                <span class="feature-icon" aria-hidden="true">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                    <path d="M12 3v4M12 17v4M3 12h4M17 12h4" stroke-linecap="round" />
+                    <circle cx="12" cy="12" r="4" />
+                  </svg>
+                </span>
+                <div>
+                  <div class="feature-title">本地优先</div>
+                  <div class="feature-desc">数据全部保存在本机，无需注册账号即可开始。</div>
+                </div>
+              </li>
+            </ul>
+          </div>
+          <div class="pane-foot">
+            <span class="foot-step">第 1 步，共 5 步</span>
+            <button class="btn btn-ghost" id="btn-welcome-cancel" type="button">取消</button>
+            <button class="btn btn-primary" id="btn-welcome-next" type="button">开始安装</button>
+          </div>
+        </section>
+
+        <!-- 02 许可协议页 -->
+        <section class="pane-page" data-page="license">
+          <div class="pane-head">
+            <h1 class="pane-title">许可协议</h1>
+            <p class="pane-desc">请在继续之前阅读以下条款。继续安装即表示您接受这些条款。</p>
+          </div>
+          <div class="pane-body">
+            <div class="license-box" id="license-box">正在加载许可协议…</div>
+          </div>
+          <div class="pane-foot">
+            <span class="foot-step">第 2 步，共 5 步</span>
+            <label class="checkbox foot-check">
+              <input type="checkbox" id="chk-accept" />
+              <span class="checkbox-text">我已阅读并接受上述许可协议</span>
+            </label>
+            <button class="btn btn-ghost" id="btn-license-back" type="button">上一步</button>
+            <button class="btn btn-primary" id="btn-license-next" type="button" disabled>下一步</button>
+          </div>
+        </section>
+
+        <!-- 03 安装位置页 -->
+        <section class="pane-page" data-page="location">
+          <div class="pane-head">
+            <h1 class="pane-title">选择安装位置</h1>
+            <p class="pane-desc">决定 WorldSea 程序文件的存放位置与快捷方式创建方式。</p>
+          </div>
+          <div class="pane-body">
+            <div class="field">
+              <label class="field-label" for="input-dest">目标文件夹</label>
+              <div class="input input-path">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+                  <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                </svg>
+                <input id="input-dest" type="text" spellcheck="false" />
+              </div>
+              <div class="field-hint">建议保留默认路径。若安装到系统盘之外，请确保该分区剩余空间充足。</div>
+            </div>
+            <div class="field">
+              <span class="field-label">安装范围</span>
+              <div class="option-group">
+                <label class="option">
+                  <input type="radio" name="scope" value="current" checked />
+                  <span class="option-body">
+                    <span class="option-label">仅为我安装</span>
+                    <span class="option-hint">不需要管理员权限，只对当前用户可见。</span>
+                  </span>
+                </label>
+                <label class="option">
+                  <input type="radio" name="scope" value="all" />
+                  <span class="option-body">
+                    <span class="option-label">为所有用户安装</span>
+                    <span class="option-hint">需要管理员权限，安装到 Program Files 并对所有账户可见。</span>
+                  </span>
+                </label>
+              </div>
+            </div>
+            <div class="field">
+              <span class="field-label">附加选项</span>
+              <label class="checkbox">
+                <input type="checkbox" id="chk-desktop" checked />
+                <span class="checkbox-text">创建桌面快捷方式</span>
+              </label>
+              <label class="checkbox">
+                <input type="checkbox" id="chk-startmenu" checked />
+                <span class="checkbox-text">在开始菜单中创建快捷方式</span>
+              </label>
+              <label class="checkbox">
+                <input type="checkbox" id="chk-contextmenu" />
+                <span class="checkbox-text">将 WorldSea 添加到右键菜单（在新窗口中打开项目文件夹）</span>
+              </label>
+            </div>
+          </div>
+          <div class="pane-foot">
+            <span class="foot-note">需要 412 MB 可用空间 · 当前磁盘剩余 <b id="free-space">…</b></span>
+            <button class="btn btn-ghost" id="btn-location-back" type="button">上一步</button>
+            <button class="btn btn-primary" id="btn-location-next" type="button">下一步</button>
+          </div>
+        </section>
+
+        <!-- 04 安装过程页 -->
+        <section class="pane-page" data-page="installing">
+          <div class="pane-head">
+            <h1 class="pane-title">正在安装 WorldSea</h1>
+            <p class="pane-desc">请不要关闭窗口或断开电源。安装完成后会自动进入下一步。</p>
+          </div>
+          <div class="pane-body process-body">
+            <div class="progress">
+              <div class="progress-fill" id="install-progress" style="width: 0%"></div>
+            </div>
+            <div class="log" id="install-log"></div>
+          </div>
+          <div class="pane-foot">
+            <span class="foot-note" id="install-elapsed">已用 0 秒</span>
+            <button class="btn btn-ghost" id="btn-install-cancel" type="button">取消</button>
+          </div>
+        </section>
+
+        <!-- 05 安装完成页 -->
+        <section class="pane-page" data-page="install-done">
+          <div class="pane-head">
+            <div class="head-row">
+              <span class="result-badge" aria-hidden="true">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M5 12.5l4.5 4.5L19 7.5" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </span>
+              <div>
+                <h1 class="pane-title">安装完成</h1>
+                <p class="pane-desc">WorldSea 已成功安装到您的电脑，现在可以开始构建第一个世界观了。</p>
+              </div>
+            </div>
+          </div>
+          <div class="pane-body done-body">
+            <dl class="kv">
+              <dt>安装版本</dt>
+              <dd>0.1.0（正式版）</dd>
+              <dt>安装位置</dt>
+              <dd class="mono" id="kv-dest">—</dd>
+              <dt>占用空间</dt>
+              <dd>412 MB</dd>
+              <dt>用户数据</dt>
+              <dd class="mono" id="kv-datadir">…</dd>
+            </dl>
+            <div class="notice">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true" style="flex: none; margin-top: 2px">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 11v5M12 8v.5" stroke-linecap="round" />
+              </svg>
+              <span>卸载可在「设置 → 应用 → 已安装的应用」中完成，或运行安装目录下的卸载程序。</span>
+            </div>
+          </div>
+          <div class="pane-foot">
+            <label class="checkbox foot-check">
+              <input type="checkbox" id="chk-launch" checked />
+              <span class="checkbox-text">立即启动 WorldSea</span>
+            </label>
+            <button class="btn btn-ghost" id="btn-done-open" type="button">打开安装目录</button>
+            <button class="btn btn-primary" id="btn-done-finish" type="button">完成</button>
+          </div>
+        </section>
+
+        <!-- 06 卸载确认页 -->
+        <section class="pane-page" data-page="u-confirm">
+          <div class="pane-head">
+            <h1 class="pane-title">卸载 WorldSea</h1>
+            <p class="pane-desc">此操作将移除 WorldSea 的程序文件，并注销其系统集成项。</p>
+          </div>
+          <div class="pane-body uconfirm-body">
+            <div class="notice" data-tone="warn" id="u-warning">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true" style="flex: none; margin-top: 2px">
+                <path d="M12 4l8.5 15h-17z" stroke-linejoin="round" />
+                <path d="M12 10v4M12 16.5v.5" stroke-linecap="round" />
+              </svg>
+              <span id="u-warning-text">卸载后将无法直接恢复到当前状态。若只是想升级版本，请直接运行新版安装包，无需卸载。</span>
+            </div>
+            <div class="field">
+              <span class="field-label">将移除以下内容</span>
+              <dl class="kv">
+                <dt>程序文件</dt>
+                <dd class="mono" id="u-kv-dest">…</dd>
+                <dt>系统集成</dt>
+                <dd>桌面快捷方式、开始菜单项、文件关联</dd>
+              </dl>
+            </div>
+            <div class="field">
+              <span class="field-label">作品数据如何处理</span>
+              <div class="option-group">
+                <label class="option">
+                  <input type="radio" name="data" value="keep" checked />
+                  <span class="option-body">
+                    <span class="option-label">保留我的作品数据（推荐）</span>
+                    <span class="option-hint">世界观、文档与笔记将保留在 %APPDATA%\WorldSea\data，重新安装后可继续使用。</span>
+                  </span>
+                </label>
+                <label class="option">
+                  <input type="radio" name="data" value="purge" />
+                  <span class="option-body">
+                    <span class="option-label">一并删除全部作品数据</span>
+                    <span class="option-hint">所有世界观、文档与笔记将被永久删除，无法找回。此选项不可撤销。</span>
+                  </span>
+                </label>
+              </div>
+            </div>
+          </div>
+          <div class="pane-foot">
+            <span class="foot-note">卸载约需 10 秒</span>
+            <button class="btn btn-secondary" id="btn-uconfirm-cancel" type="button" autofocus>取消</button>
+            <button class="btn btn-danger" id="btn-uconfirm-uninstall" type="button">卸载</button>
+          </div>
+        </section>
+
+        <!-- 07 卸载过程页 -->
+        <section class="pane-page" data-page="u-progress">
+          <div class="pane-head">
+            <h1 class="pane-title">正在卸载 WorldSea</h1>
+            <p class="pane-desc">请稍候，卸载过程中请不要强制关闭窗口。</p>
+          </div>
+          <div class="pane-body process-body">
+            <div class="progress">
+              <div class="progress-fill" id="u-progress" style="width: 0%"></div>
+            </div>
+            <div class="log" id="u-log"></div>
+          </div>
+          <div class="pane-foot">
+            <span class="foot-note">卸载进行中，此操作不可中断</span>
+          </div>
+        </section>
+
+        <!-- 08 卸载完成页 -->
+        <section class="pane-page" data-page="u-done">
+          <div class="pane-head">
+            <div class="head-row">
+              <span class="result-badge" data-tone="neutral" aria-hidden="true">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M5 12.5l4.5 4.5L19 7.5" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </span>
+              <div>
+                <h1 class="pane-title">卸载完成</h1>
+                <p class="pane-desc">WorldSea 已从您的电脑移除。感谢使用。</p>
+              </div>
+            </div>
+          </div>
+          <div class="pane-body done-body">
+            <dl class="kv">
+              <dt>程序文件</dt>
+              <dd>已移除（释放 412 MB）</dd>
+              <dt>系统集成</dt>
+              <dd>快捷方式与文件关联已注销</dd>
+              <dt>作品数据</dt>
+              <dd class="mono" id="u-data-state" data-state="kept">已保留 · %APPDATA%\WorldSea\data</dd>
+            </dl>
+            <div class="notice" data-tone="warn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true" style="flex: none; margin-top: 2px">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 11v5M12 8v.5" stroke-linecap="round" />
+              </svg>
+              <span>
+                保留的作品数据不会自动清理。若确认不再需要，可手动删除
+                <b>%APPDATA%\WorldSea</b> 文件夹。请务必先关闭所有正在运行的相关进程。
+              </span>
+            </div>
+          </div>
+          <div class="pane-foot">
+            <span class="foot-note">重新安装 WorldSea 即可继续使用保留的数据</span>
+            <button class="btn btn-ghost" id="btn-udone-open" type="button">打开数据目录</button>
+            <button class="btn btn-primary" id="btn-udone-close" type="button">关闭</button>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>

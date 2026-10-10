@@ -1,0 +1,690 @@
+/* ============================================================================
+ * WorldSea 安装向导设计稿 · 布局与控件
+ *
+ * 设计意图说明（给后续真机施工者）：
+ * 本文件定义的是「Tauri 小壳安装器」的界面语言——即脱离 NSIS 原生对话框后
+ * 才可能实现的形态。若最终仍走 NSIS，本稿仅可作为「素材图 + 文案 + 布局
+ * 意图」的参考，见 ../README.md「与 NSIS 的关系」一节。
+ *
+ * 窗口尺寸基准：760 × 480（Tauri 安装器小壳的推荐初值）
+ *   左栏 220px 固定侧栏（品牌区 / 步骤指示），右侧自适应内容区。
+ *   NSIS 默认窗口为 502×362 且左栏 164px——本稿放大窗口以获得可读性，
+ *   代价是需要自研壳，收益是能承载深色主题与完整品牌表达。
+ * ========================================================================== */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 32px 24px;
+  /* 稿纸背景：刻意与窗口底色拉开，便于审稿时区分「应用窗口」与「页面」 */
+  background: #0a0a0c;
+  color: var(--dsw-alias-label-primary);
+  font-family: var(--dsw-font-family);
+  font-size: 14px;
+  line-height: 22px;
+  -webkit-font-smoothing: antialiased;
+}
+
+body[data-preview-light] {
+  background: #e8eaee;
+}
+
+/* ---------------------------------------------------------------------------
+ * 一、窗口外壳
+ * ------------------------------------------------------------------------ */
+.window {
+  position: relative;
+  display: flex;
+  width: 760px;
+  height: 480px;
+  overflow: hidden;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-base);
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.45),
+    0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+/* ---------------------------------------------------------------------------
+ * 二、左栏：品牌区 + 步骤指示
+ * ------------------------------------------------------------------------ */
+.sidebar {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  width: 220px;
+  padding: 28px 24px 24px;
+  border-right: 1px solid var(--dsw-alias-border-l1);
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+/* 品牌标识：logo 方块 + 字标 */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand-mark {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  overflow: hidden;
+  border-radius: var(--dsw-radius-sm);
+  background: var(--dsw-alias-bg-layer-3);
+}
+
+.brand-mark img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.brand-name {
+  font-family: var(--dsw-font-family-brand);
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  line-height: 24px;
+}
+
+.brand-version {
+  margin-top: 2px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+/* 步骤指示器：纵向列表，含已完成 / 当前 / 未达三态 */
+.steps {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 44px;
+}
+
+.step {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+  color: var(--dsw-alias-label-caption);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.step-dot {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--dsw-alias-border-l3);
+  border-radius: 50%;
+  color: transparent;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+/* 已完成：品牌色实心 + 勾 */
+.step[data-state='done'] {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.step[data-state='done'] .step-dot {
+  border-color: transparent;
+  background: var(--dsw-alias-brand-primary-new-colorprimary-new-color);
+  color: #fff;
+}
+
+/* 当前：描边高亮 + 主文字色 */
+.step[data-state='current'] {
+  color: var(--dsw-alias-label-primary);
+  font-weight: 500;
+}
+
+.step[data-state='current'] .step-dot {
+  border-color: var(--dsw-alias-brand-primary-new-colorprimary-new-color);
+  color: var(--dsw-alias-brand-primary-new-colorprimary-new-color);
+}
+
+/* 未达：保持 caption 灰 */
+
+/* 侧栏底部：稿纸用途说明标签 */
+.sidebar-foot {
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid var(--dsw-alias-border-l1);
+  color: var(--dsw-alias-label-caption);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+/* ---------------------------------------------------------------------------
+ * 三、右栏：内容区
+ * 三段式纵向布局：页头（标题+描述） / 正文（可滚动） / 页脚（按钮）
+ * ------------------------------------------------------------------------ */
+.pane {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.pane-head {
+  flex: none;
+  padding: 28px 32px 16px;
+}
+
+.pane-title {
+  margin: 0;
+  font-family: var(--dsw-font-family-brand);
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 30px;
+  letter-spacing: 0.01em;
+}
+
+.pane-desc {
+  margin: 6px 0 0;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.pane-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  padding: 0 32px;
+  overflow-y: auto;
+}
+
+.pane-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.pane-body::-webkit-scrollbar-thumb {
+  border-radius: 4px;
+  background: var(--dsw-alias-scrollbar-bg-l1);
+}
+
+.pane-foot {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 32px 24px;
+}
+
+/* 页脚左侧辅助信息（如「需要 128 MB 空间」） */
+.foot-note {
+  margin-right: auto;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+/* 页脚步骤计数（如「第 2 步，共 4 步」） */
+.foot-step {
+  margin-right: auto;
+  color: var(--dsw-alias-label-caption);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+/* ---------------------------------------------------------------------------
+ * 四、按钮
+ * 尺寸对齐上游 welcome.css L145-L165：高 44px、圆角 10px、字重 500
+ * ------------------------------------------------------------------------ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  padding: 8px 20px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  font-family: var(--dsw-font-family);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 22px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--ds-transition-duration) var(--ds-ease-in-out),
+    border-color var(--ds-transition-duration) var(--ds-ease-in-out),
+    color var(--ds-transition-duration) var(--ds-ease-in-out);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--dsw-alias-brand-primary-new-colorprimary-new-color);
+  outline-offset: 2px;
+}
+
+/* 主按钮：品牌色填充 */
+.btn-primary {
+  background: var(--dsw-alias-brand-primary-new-colorprimary-new-color);
+  color: #fff;
+}
+
+.btn-primary:hover {
+  filter: brightness(1.08);
+}
+
+.btn-primary:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+/* 次按钮：描边 + 抬升底色 */
+.btn-secondary {
+  border-color: var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-button-elevated-fill);
+  color: var(--dsw-alias-label-primary);
+}
+
+.btn-secondary:hover {
+  background: var(--dsw-alias-button-floating-hover);
+}
+
+/* 幽灵按钮：无底色，仅文字 */
+.btn-ghost {
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.btn-ghost:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+/* 危险按钮：卸载确认场景 */
+.btn-danger {
+  background: var(--dsw-alias-state-error-primary);
+  color: #fff;
+}
+
+.btn-danger:hover {
+  filter: brightness(1.08);
+}
+
+/* ---------------------------------------------------------------------------
+ * 五、通用控件
+ * ------------------------------------------------------------------------ */
+
+/* 文本输入 / 路径框 */
+.input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: var(--dsw-radius-sm);
+  background: var(--dsw-specific-input-major);
+  color: var(--dsw-alias-label-primary);
+  font-family: var(--dsw-font-family);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.input:focus-within {
+  border-color: var(--dsw-alias-brand-primary-new-colorprimary-new-color);
+}
+
+.input input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.input-path input {
+  font-family: var(--ds-font-family-code);
+  font-size: 12px;
+}
+
+/* 复选框 */
+.checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkbox input[type='checkbox'] {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 3px 0 0;
+  accent-color: var(--dsw-alias-brand-primary-new-colorprimary-new-color);
+  cursor: pointer;
+}
+
+.checkbox-text {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  line-height: 22px;
+}
+
+/* 分段选项卡片（安装范围、卸载范围等） */
+.option-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: var(--dsw-radius-sm);
+  cursor: pointer;
+  transition: border-color var(--ds-transition-duration) var(--ds-ease-in-out),
+    background-color var(--ds-transition-duration) var(--ds-ease-in-out);
+}
+
+.option:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.option:has(input:checked) {
+  border-color: var(--dsw-alias-brand-primary-new-colorprimary-new-color);
+  background: color-mix(
+    in srgb,
+    var(--dsw-alias-brand-primary-new-colorprimary-new-color) 8%,
+    transparent
+  );
+}
+
+.option input[type='radio'] {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 3px 0 0;
+  accent-color: var(--dsw-alias-brand-primary-new-colorprimary-new-color);
+  cursor: pointer;
+}
+
+/* 注意：label 与 hint 必须是块级，否则两者会挤在同一行 */
+.option-body {
+  display: block;
+  min-width: 0;
+}
+
+.option-label {
+  display: block;
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+}
+
+.option-hint {
+  display: block;
+  margin-top: 3px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+/* 许可协议滚动框
+ * 高度用 flex 从父容器分配，而非 height:100%——父容器（.pane-body）高度由
+ * flex 撑开，对子元素不构成「确定高度」，height:100% 会解析失败。 */
+.license-box {
+  flex: 1;
+  min-height: 150px;
+  padding: 14px 16px;
+  overflow-y: auto;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: var(--dsw-radius-sm);
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 20px;
+  white-space: pre-wrap;
+}
+
+.license-box::-webkit-scrollbar {
+  width: 8px;
+}
+
+.license-box::-webkit-scrollbar-thumb {
+  border-radius: 4px;
+  background: var(--dsw-alias-scrollbar-bg-l1);
+}
+
+.license-box b {
+  color: var(--dsw-alias-label-primary);
+  font-weight: 500;
+}
+
+/* 进度条 */
+.progress {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--dsw-alias-bg-layer-3);
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--dsw-alias-brand-primary-new-colorprimary-new-color);
+  transition: width var(--ds-transition-duration-slow) var(--ds-ease-in-out);
+}
+
+/* 滚动日志（安装过程页 / 卸载过程页） */
+.log {
+  height: 100%;
+  min-height: 150px;
+  padding: 12px 14px;
+  overflow-y: auto;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: var(--dsw-radius-sm);
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-tertiary);
+  font-family: var(--ds-font-family-code);
+  font-size: 11px;
+  line-height: 20px;
+}
+
+.log::-webkit-scrollbar {
+  width: 8px;
+}
+
+.log::-webkit-scrollbar-thumb {
+  border-radius: 4px;
+  background: var(--dsw-alias-scrollbar-bg-l1);
+}
+
+.log-line {
+  display: flex;
+  gap: 8px;
+}
+
+.log-line[data-state='active'] {
+  color: var(--dsw-alias-label-primary);
+}
+
+.log-line[data-state='done']::before {
+  content: '✓';
+  flex: none;
+  color: var(--dsw-alias-state-success-primary);
+}
+
+.log-line[data-state='active']::before {
+  content: '›';
+  flex: none;
+  color: var(--dsw-alias-brand-primary-new-colorprimary-new-color);
+}
+
+.log-line[data-state='pending']::before {
+  content: '·';
+  flex: none;
+  color: var(--dsw-alias-label-caption);
+}
+
+/* 完成态大图标圆环 */
+.result-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: color-mix(
+    in srgb,
+    var(--dsw-alias-state-success-primary) 12%,
+    transparent
+  );
+  color: var(--dsw-alias-state-success-primary);
+}
+
+/* 信息提示条 */
+.notice {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: var(--dsw-radius-sm);
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.notice[data-tone='warn'] {
+  border-color: color-mix(in srgb, var(--dsw-alias-state-warn-primary) 40%, transparent);
+  background: color-mix(in srgb, var(--dsw-alias-state-warn-primary) 8%, transparent);
+}
+
+.notice[data-tone='danger'] {
+  border-color: color-mix(in srgb, var(--dsw-alias-state-error-primary) 40%, transparent);
+  background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 8%, transparent);
+}
+
+/* 键值定义列表（安装摘要 / 卸载信息） */
+.kv {
+  display: grid;
+  grid-template-columns: 88px 1fr;
+  gap: 8px 16px;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.kv dt {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.kv dd {
+  margin: 0;
+  color: var(--dsw-alias-label-primary);
+  word-break: break-all;
+}
+
+.kv dd.mono {
+  font-family: var(--ds-font-family-code);
+  font-size: 12px;
+}
+
+/* 主题切换按钮（仅存在于设计稿，不进施工） */
+.theme-toggle {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.72);
+  font-family: var(--dsw-font-family);
+  font-size: 12px;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+}
+
+body[data-preview-light] .theme-toggle {
+  border-color: rgba(0, 0, 0, 0.12);
+  background: rgba(255, 255, 255, 0.8);
+  color: rgba(0, 0, 0, 0.6);
+}
+
+/* 变体切换（同页呈现 A/B 方案时用） */
+.variant-bar {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 10;
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(8px);
+}
+
+.variant-bar button {
+  height: 22px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.6);
+  font-family: var(--dsw-font-family);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.variant-bar button[aria-pressed='true'] {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}
+
+body[data-preview-light] .variant-bar {
+  border-color: rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 0.75);
+}
+
+body[data-preview-light] .variant-bar button {
+  color: rgba(0, 0, 0, 0.55);
+}
+
+body[data-preview-light] .variant-bar button[aria-pressed='true'] {
+  background: rgba(0, 0, 0, 0.1);
+  color: #000;
+}

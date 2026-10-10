@@ -1,0 +1,719 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WorldSea 安装向导 · UI 设计稿总览</title>
+    <link rel="stylesheet" href="_shared/tokens.css" />
+    <link rel="stylesheet" href="_shared/wizard.css" />
+    <script src="_shared/theme.js" defer></script>
+    <style>
+      /* ------------------------------------------------------------------
+       * 总览页：独立于窗口外壳，自成一格
+       * ---------------------------------------------------------------- */
+      body {
+        display: block;
+        padding: 0;
+        background: #0a0a0c;
+      }
+
+      body[data-preview-light] {
+        background: #e8eaee;
+      }
+
+      .doc {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 56px 32px 96px;
+      }
+
+      .doc-head {
+        margin-bottom: 40px;
+      }
+
+      .doc-kicker {
+        display: inline-block;
+        margin-bottom: 14px;
+        padding: 3px 10px;
+        border: 1px solid var(--dsw-alias-border-l2);
+        border-radius: 12px;
+        color: var(--dsw-alias-label-tertiary);
+        font-size: 11px;
+        letter-spacing: 0.04em;
+      }
+
+      .doc-title {
+        margin: 0;
+        font-family: var(--dsw-font-family-brand);
+        font-size: 32px;
+        font-weight: 500;
+        line-height: 44px;
+        letter-spacing: 0.01em;
+      }
+
+      .doc-sub {
+        max-width: 720px;
+        margin: 10px 0 0;
+        color: var(--dsw-alias-label-secondary);
+        font-size: 14px;
+        line-height: 24px;
+      }
+
+      .section {
+        margin-top: 44px;
+      }
+
+      .section-title {
+        margin: 0 0 6px;
+        font-family: var(--dsw-font-family-brand);
+        font-size: 17px;
+        font-weight: 500;
+        line-height: 26px;
+      }
+
+      .section-desc {
+        margin: 0 0 18px;
+        color: var(--dsw-alias-label-tertiary);
+        font-size: 13px;
+        line-height: 21px;
+      }
+
+      /* 页面卡片网格 */
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: 14px;
+      }
+
+      .card {
+        display: flex;
+        flex-direction: column;
+        padding: 18px;
+        border: 1px solid var(--dsw-alias-border-l2);
+        border-radius: var(--dsw-radius-md);
+        background: var(--dsw-alias-bg-layer-2);
+        text-decoration: none;
+        transition: border-color var(--ds-transition-duration) var(--ds-ease-in-out),
+          transform var(--ds-transition-duration) var(--ds-ease-in-out);
+      }
+
+      .card:hover {
+        border-color: var(--dsw-alias-brand-primary-new-colorprimary-new-color);
+        transform: translateY(-2px);
+      }
+
+      .card-index {
+        color: var(--dsw-alias-label-caption);
+        font-family: var(--ds-font-family-code);
+        font-size: 11px;
+        line-height: 18px;
+      }
+
+      .card-title {
+        margin-top: 6px;
+        color: var(--dsw-alias-label-primary);
+        font-size: 15px;
+        font-weight: 500;
+        line-height: 23px;
+      }
+
+      .card-desc {
+        margin-top: 8px;
+        color: var(--dsw-alias-label-secondary);
+        font-size: 12px;
+        line-height: 19px;
+      }
+
+      .card-tag {
+        align-self: flex-start;
+        margin-top: 14px;
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 10px;
+        line-height: 16px;
+      }
+
+      .card-tag[data-kind='install'] {
+        background: color-mix(
+          in srgb,
+          var(--dsw-alias-brand-primary-new-colorprimary-new-color) 16%,
+          transparent
+        );
+        color: var(--dsw-alias-brand-primary-new-colorprimary-new-color);
+      }
+
+      .card-tag[data-kind='uninstall'] {
+        background: color-mix(
+          in srgb,
+          var(--dsw-alias-state-error-primary) 16%,
+          transparent
+        );
+        color: var(--dsw-alias-state-error-primary);
+      }
+
+      .card-tag[data-kind='system'] {
+        background: var(--dsw-alias-bg-layer-3);
+        color: var(--dsw-alias-label-tertiary);
+      }
+
+      /* 表格 */
+      .table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+
+      .table th,
+      .table td {
+        padding: 11px 14px;
+        border-bottom: 1px solid var(--dsw-alias-border-l1);
+        text-align: left;
+        vertical-align: top;
+        line-height: 21px;
+      }
+
+      .table th {
+        color: var(--dsw-alias-label-tertiary);
+        font-size: 12px;
+        font-weight: 500;
+        white-space: nowrap;
+      }
+
+      .table td {
+        color: var(--dsw-alias-label-secondary);
+      }
+
+      .table td b {
+        color: var(--dsw-alias-label-primary);
+        font-weight: 500;
+      }
+
+      .table tbody tr:last-child td {
+        border-bottom: 0;
+      }
+
+      .table-wrap {
+        border: 1px solid var(--dsw-alias-border-l2);
+        border-radius: var(--dsw-radius-md);
+        overflow: hidden;
+        background: var(--dsw-alias-bg-layer-2);
+      }
+
+      /* 规格卡（三栏） */
+      .specs {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 14px;
+      }
+
+      .spec {
+        padding: 16px 18px;
+        border: 1px solid var(--dsw-alias-border-l2);
+        border-radius: var(--dsw-radius-md);
+        background: var(--dsw-alias-bg-layer-2);
+      }
+
+      .spec-label {
+        color: var(--dsw-alias-label-tertiary);
+        font-size: 11px;
+        line-height: 18px;
+      }
+
+      .spec-value {
+        margin-top: 6px;
+        font-family: var(--ds-font-family-code);
+        font-size: 16px;
+        line-height: 24px;
+      }
+
+      .spec-note {
+        margin-top: 8px;
+        color: var(--dsw-alias-label-secondary);
+        font-size: 12px;
+        line-height: 19px;
+      }
+
+      /* 色板 */
+      .swatches {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+
+      .swatch {
+        width: 132px;
+      }
+
+      .swatch-chip {
+        height: 52px;
+        border: 1px solid var(--dsw-alias-border-l2);
+        border-radius: var(--dsw-radius-sm);
+      }
+
+      .swatch-name {
+        margin-top: 8px;
+        color: var(--dsw-alias-label-secondary);
+        font-size: 12px;
+        line-height: 18px;
+      }
+
+      .swatch-hex {
+        color: var(--dsw-alias-label-caption);
+        font-family: var(--ds-font-family-code);
+        font-size: 11px;
+        line-height: 17px;
+      }
+
+      /* 提示条 */
+      .callout {
+        display: flex;
+        gap: 12px;
+        margin-top: 18px;
+        padding: 16px 18px;
+        border: 1px solid var(--dsw-alias-border-l2);
+        border-left: 3px solid var(--dsw-alias-state-warn-primary);
+        border-radius: var(--dsw-radius-sm);
+        background: var(--dsw-alias-bg-layer-2);
+        color: var(--dsw-alias-label-secondary);
+        font-size: 13px;
+        line-height: 21px;
+      }
+
+      .callout b {
+        color: var(--dsw-alias-label-primary);
+        font-weight: 500;
+      }
+
+      .callout[data-tone='info'] {
+        border-left-color: var(--dsw-alias-brand-primary-new-colorprimary-new-color);
+      }
+
+      .callout code {
+        padding: 1px 5px;
+        border-radius: 4px;
+        background: var(--dsw-alias-bg-layer-3);
+        font-family: var(--ds-font-family-code);
+        font-size: 12px;
+      }
+
+      .divider {
+        height: 1px;
+        margin: 44px 0;
+        background: var(--dsw-alias-border-l1);
+      }
+
+      .foot {
+        margin-top: 56px;
+        padding-top: 20px;
+        border-top: 1px solid var(--dsw-alias-border-l1);
+        color: var(--dsw-alias-label-caption);
+        font-size: 12px;
+        line-height: 20px;
+      }
+    </style>
+  </head>
+  <body data-ds-dark-theme>
+    <button class="theme-toggle" type="button" data-theme-toggle>切换浅色</button>
+
+    <div class="doc">
+      <header class="doc-head">
+        <span class="doc-kicker">UI 设计稿 · 参考件 · 不进施工</span>
+        <h1 class="doc-title">WorldSea 安装向导</h1>
+        <p class="doc-sub">
+          八个界面的初版视觉设计：安装流程五屏（欢迎 → 许可 → 位置 → 过程 → 完成）
+          与卸载流程三屏（确认 → 过程 → 完成）。设计目标为「与 WorldSea 主界面
+          一致的深色现代风」，对齐 dsh 设计令牌体系。
+        </p>
+        <div class="callout" data-tone="info">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true" style="flex: none; margin-top: 3px">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 11v5M12 8v.5" stroke-linecap="round" />
+          </svg>
+          <span>
+            <b>重要前提：</b>本稿的视觉目标（深色主题、圆角、现代质感）<b>NSIS 安装器无法实现</b>——
+            NSIS 向导是 Windows 原生对话框，配色与控件风格不可改。本稿对应的是
+            「改用 Tauri 小壳承载安装器」这条路线。若最终仍走 NSIS，本稿仅可作为
+            素材图与文案的参考。详见下方对照表。
+          </span>
+        </div>
+      </header>
+
+      <!-- ============================================================
+           一、页面清单
+           ========================================================== -->
+      <section class="section">
+        <h2 class="section-title">一、页面清单</h2>
+        <p class="section-desc">点击卡片进入对应页面。所有页面支持深浅主题切换（右上角按钮）。</p>
+
+        <div class="grid">
+          <a class="card" href="01-欢迎页.html">
+            <span class="card-index">01 / 08</span>
+            <span class="card-title">欢迎页</span>
+            <span class="card-desc">第一屏。品牌展示 + 三条核心卖点 + 主动作按钮。</span>
+            <span class="card-tag" data-kind="install">安装流程</span>
+          </a>
+
+          <a class="card" href="02-许可协议页.html">
+            <span class="card-index">02 / 08</span>
+            <span class="card-title">许可协议页</span>
+            <span class="card-desc">真实协议全文 + 独立滚动区 + 接受后才解锁下一步。</span>
+            <span class="card-tag" data-kind="install">安装流程</span>
+          </a>
+
+          <a class="card" href="03-安装位置页.html">
+            <span class="card-index">03 / 08</span>
+            <span class="card-title">安装位置页</span>
+            <span class="card-desc">目录选择 + 安装范围 + 快捷方式，分组收纳避免决策过载。</span>
+            <span class="card-tag" data-kind="install">安装流程</span>
+          </a>
+
+          <a class="card" href="04-安装过程页.html">
+            <span class="card-index">04 / 08</span>
+            <span class="card-title">安装过程页</span>
+            <span class="card-desc">滚动日志为主、进度条为辅；逐条打勾比百分比更让人安心。</span>
+            <span class="card-tag" data-kind="install">安装流程</span>
+          </a>
+
+          <a class="card" href="05-安装完成页.html">
+            <span class="card-index">05 / 08</span>
+            <span class="card-title">安装完成页</span>
+            <span class="card-desc">成功徽章 + 安装摘要 + 默认勾选「立即启动」。</span>
+            <span class="card-tag" data-kind="install">安装流程</span>
+          </a>
+
+          <a class="card" href="06-卸载确认页.html">
+            <span class="card-index">06 / 08</span>
+            <span class="card-title">卸载确认页</span>
+            <span class="card-desc">危险操作警告 + 作品数据去留决策；危险按钮不自动聚焦。</span>
+            <span class="card-tag" data-kind="uninstall">卸载流程</span>
+          </a>
+
+          <a class="card" href="07-卸载过程页.html">
+            <span class="card-index">07 / 08</span>
+            <span class="card-title">卸载过程页</span>
+            <span class="card-desc">与安装过程页同构；不提供取消，避免留下半残状态。</span>
+            <span class="card-tag" data-kind="uninstall">卸载流程</span>
+          </a>
+
+          <a class="card" href="08-卸载完成页.html">
+            <span class="card-index">08 / 08</span>
+            <span class="card-title">卸载完成页</span>
+            <span class="card-desc">中性徽章（不庆祝）+ 明确告知数据保留位置。</span>
+            <span class="card-tag" data-kind="uninstall">卸载流程</span>
+          </a>
+        </div>
+      </section>
+
+      <div class="divider"></div>
+
+      <!-- ============================================================
+           二、窗口规格
+           ========================================================== -->
+      <section class="section">
+        <h2 class="section-title">二、窗口与栅格规格</h2>
+        <p class="section-desc">
+          统一窗口尺寸与分栏比例。所有八屏共用同一套栅格，切换页面时左栏不动。
+        </p>
+
+        <div class="specs">
+          <div class="spec">
+            <div class="spec-label">窗口尺寸</div>
+            <div class="spec-value">760 × 480</div>
+            <div class="spec-note">
+              对照：NSIS 默认 502×362。放大窗口是为承载左栏步骤指示与更长的中文标题，
+              代价是需自研壳。
+            </div>
+          </div>
+
+          <div class="spec">
+            <div class="spec-label">左栏宽度</div>
+            <div class="spec-value">220 px</div>
+            <div class="spec-note">
+              品牌标识 + 步骤指示 + 稿纸标签。对照：NSIS 侧栏图位 164×314。
+            </div>
+          </div>
+
+          <div class="spec">
+            <div class="spec-label">内容区留白</div>
+            <div class="spec-value">32 / 28 px</div>
+            <div class="spec-note">左右 32px，页头上下 28/16px，页脚上 16px 下 24px。</div>
+          </div>
+
+          <div class="spec">
+            <div class="spec-label">圆角</div>
+            <div class="spec-value">12 / 10 / 8</div>
+            <div class="spec-note">
+              窗口 12px、按钮 10px、输入框与卡片 8px。跟随 dsh 圆角阶梯。
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="divider"></div>
+
+      <!-- ============================================================
+           三、设计令牌
+           ========================================================== -->
+      <section class="section">
+        <h2 class="section-title">三、色彩与字体</h2>
+        <p class="section-desc">
+          全部取自 dsh 令牌体系，命名与数值与上游一致，后续若改用 Tauri 小壳可直接替换为完整令牌表。
+        </p>
+
+        <div class="swatches" style="margin-bottom: 22px">
+          <div class="swatch">
+            <div class="swatch-chip" style="background: #4176e6"></div>
+            <div class="swatch-name">品牌主色（浅色）</div>
+            <div class="swatch-hex">deepseek-500 · #4176e6</div>
+          </div>
+          <div class="swatch">
+            <div class="swatch-chip" style="background: #5686fe"></div>
+            <div class="swatch-name">品牌主色（深色）</div>
+            <div class="swatch-hex">deepseek-450 · #5686fe</div>
+          </div>
+          <div class="swatch">
+            <div class="swatch-chip" style="background: #151517"></div>
+            <div class="swatch-name">窗口底色（深色）</div>
+            <div class="swatch-hex">bluish-950 · #151517</div>
+          </div>
+          <div class="swatch">
+            <div class="swatch-chip" style="background: #2c2c2e"></div>
+            <div class="swatch-name">抬升面板（深色）</div>
+            <div class="swatch-hex">bluish-850 · #2c2c2e</div>
+          </div>
+          <div class="swatch">
+            <div class="swatch-chip" style="background: #f9fafb"></div>
+            <div class="swatch-name">主文字（深色）</div>
+            <div class="swatch-hex">bluish-50 · #f9fafb</div>
+          </div>
+          <div class="swatch">
+            <div class="swatch-chip" style="background: #c7ced1"></div>
+            <div class="swatch-name">次文字（深色）</div>
+            <div class="swatch-hex">bluish-300 · #cfd3d6</div>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>用途</th>
+                <th>字体</th>
+                <th>字号 / 字重</th>
+                <th>说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><b>页面主标题</b></td>
+                <td>Montserrat</td>
+                <td>20px / 500</td>
+                <td>品牌字体。字母间距 0.01em，行高 30px。</td>
+              </tr>
+              <tr>
+                <td><b>正文与控件</b></td>
+                <td>系统字体栈</td>
+                <td>13px / 400</td>
+                <td>中文优先落到「微软雅黑」，与 dsh 应用内一致。</td>
+              </tr>
+              <tr>
+                <td><b>路径 / 日志</b></td>
+                <td>等宽字体栈</td>
+                <td>11–12px / 400</td>
+                <td>SF Mono → Consolas → 微软雅黑，路径对齐更易读。</td>
+              </tr>
+              <tr>
+                <td><b>辅助说明</b></td>
+                <td>系统字体栈</td>
+                <td>11–12px / 400</td>
+                <td>使用 label-tertiary / label-caption 层级，弱于正文。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <div class="divider"></div>
+
+      <!-- ============================================================
+           四、与 NSIS 的落地对照
+           ========================================================== -->
+      <section class="section">
+        <h2 class="section-title">四、与 NSIS 方案的落地对照</h2>
+        <p class="section-desc">
+          若最终仍走 NSIS，下表说明本稿各元素的可落地程度。对照依据为 NSIS 向导的
+          原生控件约束（配色、控件风格、窗口底色不可改）。
+        </p>
+
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>本稿元素</th>
+                <th>NSIS 可落地性</th>
+                <th>落地后的实际形态</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><b>文案全部</b></td>
+                <td>可落地</td>
+                <td>标题、描述、按钮文字通过语言文件完全可改。</td>
+              </tr>
+              <tr>
+                <td><b>左栏侧图</b></td>
+                <td>可落地</td>
+                <td>替换 <code>sidebar.bmp</code>（164×314）。但只能放静态位图，</td>
+              </tr>
+              <tr>
+                <td><b>页头横幅</b></td>
+                <td>可落地</td>
+                <td>替换 <code>header.bmp</code>（150×57）。当前项目已有这两个文件。</td>
+              </tr>
+              <tr>
+                <td><b>左栏步骤指示器</b></td>
+                <td><b>不可落地</b></td>
+                <td>NSIS 无此控件。只能把步骤文字画进侧栏位图，无法反映实时进度。</td>
+              </tr>
+              <tr>
+                <td><b>深色主题</b></td>
+                <td><b>不可落地</b></td>
+                <td>NSIS 向导为 Windows 原生对话框，跟随系统浅色，不可改窗口底色。</td>
+              </tr>
+              <tr>
+                <td><b>圆角与现代质感</b></td>
+                <td><b>不可落地</b></td>
+                <td>原生控件为方角系统样式，不支持自定义描边与阴影。</td>
+              </tr>
+              <tr>
+                <td><b>许可页滚动区</b></td>
+                <td>部分可落地</td>
+                <td>可用 <code>nsDialogs</code> 自绘 RichEdit 控件，但样式受限。</td>
+              </tr>
+              <tr>
+                <td><b>过程页滚动日志</b></td>
+                <td>部分可落地</td>
+                <td>文字内容可定制（如「正在部署世界观引擎」），但滚动区样式与进度条为原生。</td>
+              </tr>
+              <tr>
+                <td><b>进度条</b></td>
+                <td><b>不可落地</b></td>
+                <td>原生控件，粗细、颜色、圆角均不可改。</td>
+              </tr>
+              <tr>
+                <td><b>分段选项卡片</b></td>
+                <td>部分可落地</td>
+                <td>可用 <code>nsDialogs</code> 自绘单选/复选组，但为系统控件外观。</td>
+              </tr>
+              <tr>
+                <td><b>完成页成功徽章</b></td>
+                <td>部分可落地</td>
+                <td>可自绘静态位图，或改用原生图标控件。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true" style="flex: none; margin-top: 3px">
+            <path d="M12 4l8.5 15h-17z" stroke-linejoin="round" />
+            <path d="M12 10v4M12 16.5v.5" stroke-linecap="round" />
+          </svg>
+          <span>
+            <b>结论：</b>本稿的视觉目标与 NSIS 路线存在根本冲突——深色主题、圆角、
+            步骤指示器、自定义进度条四项均无法在 NSIS 中实现。若要完整落地本稿，
+            需改用 Tauri 小壳承载安装器，这是一项独立工作量。
+          </span>
+        </div>
+      </section>
+
+      <div class="divider"></div>
+
+      <!-- ============================================================
+           五、设计决策说明
+           ========================================================== -->
+      <section class="section">
+        <h2 class="section-title">五、关键设计决策</h2>
+        <p class="section-desc">以下为需要评审时重点确认的判断点，每条都给出了理由。</p>
+
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>决策点</th>
+                <th>选择</th>
+                <th>理由</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><b>过程页主信息</b></td>
+                <td>滚动日志为主，进度条为辅</td>
+                <td>
+                  安装步骤可枚举（解压 / 依赖 / 快捷方式 / 校验），逐条打勾比一个
+                  会卡在 90% 的百分比更让人安心；进度条降为细条，不给数字，避免
+                  「为什么卡住不动」的焦虑。
+                </td>
+              </tr>
+              <tr>
+                <td><b>卸载过程页可否取消</b></td>
+                <td>不提供取消按钮</td>
+                <td>
+                  卸载中途取消会给系统留下半残状态（部分文件已删、注册表项已清）。
+                  按钮区改为状态说明文字，是刻意取舍而非遗漏。
+                </td>
+              </tr>
+              <tr>
+                <td><b>卸载完成页配色</b></td>
+                <td>中性徽章，不用绿色</td>
+                <td>
+                  卸载成功不需要庆祝，绿色成功色会造成情绪错位。改用中性层底色，
+                  只保留对勾符号传达「操作已完成」。
+                </td>
+              </tr>
+              <tr>
+                <td><b>危险按钮聚焦</b></td>
+                <td>自动聚焦落在「取消」</td>
+                <td>
+                  卸载确认页的危险按钮不做默认聚焦，避免用户习惯性回车造成误卸载。
+                </td>
+              </tr>
+              <tr>
+                <td><b>安装位置页决策数</b></td>
+                <td>分组收纳（目录 / 范围 / 附加）</td>
+                <td>
+                  一次性抛出目录、范围、三个快捷方式共五个决策点会造成决策过载。
+                  按语义分三组，每组一个视觉区块。
+                </td>
+              </tr>
+              <tr>
+                <td><b>卸载是否保留数据</b></td>
+                <td>独立成显式决策，默认保留</td>
+                <td>
+                  世界观数据是用户的核心资产，默认「保留」符合最小惊讶原则；
+                  选择删除时提示条升级为危险色，明确告知不可撤销。
+                </td>
+              </tr>
+              <tr>
+                <td><b>图标形式</b></td>
+                <td>线性 SVG，无 emoji</td>
+                <td>遵循项目约束（禁用 emoji 当图标），全部图标为内联 SVG。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <footer class="foot">
+        <p>
+          设计稿位置：<code>docs/misc/installer-design/</code> ·
+          共享样式：<code>_shared/tokens.css</code> + <code>_shared/wizard.css</code>
+        </p>
+        <p>
+          本目录为参考件，<b>不进入最终施工</b>。真机方案（NSIS 模板改动 或 Tauri 小壳）
+          另行立项。
+        </p>
+      </footer>
+    </div>
+  </body>
+</html>
