@@ -232,6 +232,15 @@
         "perf-kit",
         "plugin-sdk"
       ]
+    },
+    {
+      "id": "installer",
+      "kind": "rust",
+      "roots": [
+        "apps/installer/src-tauri/src"
+      ],
+      "manifest": "apps/installer/src-tauri/Cargo.toml",
+      "requires": []
     }
   ]
 }
