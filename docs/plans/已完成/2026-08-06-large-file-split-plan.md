@@ -1,6 +1,6 @@
 # 大文件拆分计划：测试分离 + 数据型拆分
 
-status: 执行中
+status: 已完成（2026-10-10 整理核对：测试分离 + skills/data 拆分 + EntityTypeSchema 统一三项在盘）
 
 ## 目标
 

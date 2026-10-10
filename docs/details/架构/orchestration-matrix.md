@@ -1,6 +1,6 @@
 # Agent 编排模式层级架构矩阵（现状+目标双栏契约）
 
-> status: 执行中（作为后续代码模块化施工基准）
+> status: 已完成（2026-10-11 整理：矩阵所述 `kernel/ + patterns/` 拆分已落地为 agent-kernel / agent-patterns / agent-runtime；Agent 面已由 dsh 接管（旧面退场），本文档转历史留档）
 > 创建日期：2026-08-25（纯文档期：现状收集 + 架构分析，未动代码）
 > 修正记录：2026-08-25 吸收「Harness 方案」裁定合并——GoT/Reflection 跨模式耦合补录（§4，已经代码核实）、NodeType 枚举清理与 SubAgent 双池两项待决（§7）、织入点协议化里程碑（§8）
 > 施工进展：2026-08-25 阶段 A/B + 里程碑 2/5 全部完成——`crates/` 拆为 `agent-kernel`（底座）+ `agent-patterns`（8 扩展模式 + shared）+ `agent-runtime`（聚合壳，对外路径零改动）；RouterDecider trait 抽象消除 kernel→patterns 反向依赖；织入点 Hook 协议化（RunPhase 位点 + AgentLoopHook）；cargo test 全绿（agent-kernel 140 + agent-patterns 100 + agent-commands 86+1 + tauri check）。
