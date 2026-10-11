@@ -67,11 +67,12 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { EditorContent } from '@tiptap/vue-3'
 import { WsIcon } from '@worldsea/ui-kit'
-import { marked } from 'marked'
+import { sanitizeMarkdownHtml } from '@worldsea/shared-ui/markdown'
 import MentionPopover from './MentionPopover.vue'
 import SlashCommandMenu from './SlashCommandMenu.vue'
 import { useNoteEditor } from '../composables/useNoteEditor'
 import { SLASH_COMMANDS, type SlashCommandItem } from '../composables/slashCommandExtension'
+import { normalizeNoteContent } from '../contentNormalize'
 import { insertImageFilesInto } from '@/composables/imageInsert'
 import { toastSuccess, toastWarn } from '@/composables/useToast'
 import type { Entity } from '@worldsea/entity-core'
@@ -103,7 +104,8 @@ async function onPickImages(e: Event) {
 function onFallbackInput(e: Event) {
   const val = (e.target as HTMLTextAreaElement).value
   fallbackContent.value = val
-  emit('contentChange', val)
+  // 与装载网关同语义：编辑器未就绪窗口的输入也归一，避免纯文本绕过边界进内容流
+  emit('contentChange', normalizeNoteContent(val))
 }
 
 const {
@@ -161,8 +163,10 @@ const saveLabel = computed(() => {
 })
 
 const previewHtml = computed(() => {
-  const content = editor.value?.getHTML() || ''
-  return marked.parse(content) as string
+  // 编辑器产物是 HTML（非 markdown）——历史实现 marked.parse(getHTML()) 是概念错位：
+  // HTML passthrough 靠运气，而未解析的外部 md 文本反而会在预览「突然」渲染，与编辑态
+  // 自相矛盾。现与编辑态同源：HTML 经 DOMPurify 消毒直渲染（2026-10-11 装载网关配套）。
+  return sanitizeMarkdownHtml(editor.value?.getHTML() || '')
 })
 
 function setHeading(e: Event) {

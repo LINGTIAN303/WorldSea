@@ -16,7 +16,7 @@ export { registerViewFor, unregisterViewFor, registerPluginCleanup, runPluginCle
 export { createPluginApi } from './api'
 export type { WorldPluginApi } from './api'
 
-import { isViewVisible, useSettingsStore } from '@worldsea/entity-core'
+import { isViewVisible, useEntityStore, useSettingsStore } from '@worldsea/entity-core'
 import { watch } from 'vue'
 
 import { disposeWorldTree, setPluginEnabled, startWorldTree } from './tree'
@@ -27,6 +27,18 @@ export async function installWorldTree(): Promise<void> {
   // 启停来源 = 芽清单；**清单外的树插件视为启用**（现全部插件均在清单内；`ws.spike.panel` 示例插件已于 2026-09-27 退场，git 有档）——
   // 与侧栏可见性共用同一口径（`isViewVisible`），避免两处规则漂移。
   await startWorldTree({ isEnabled: id => isViewVisible(id) })
+
+  // 【装载对账 · 2026-10-12】首次 loadAll（App onMounted → projectSwitcher.initialize）与本树
+  // 的插件 apply 是竞态，且 loadAll 几乎必赢（插件经动态 import 装配）——per-type 装载归一器
+  // （IngestNormalizers，芽 apply 时注册）注册晚于装载时，已入 store 的实体保持原始形态
+  // （实测：notebook 的 md 正文不渲染，2026-10-11 走查）。树就绪后补一次全量对账：
+  // loadAll 幂等且统一走装载网关（sanitize → normalizeIngestEntity），此处重读仅替换引用，
+  // 编辑器内容不受影响（by-id watch 不重载，自动保存回流契约保持）。
+  try {
+    await useEntityStore().loadAll()
+  } catch (err) {
+    console.warn('[world-tree] 装载对账失败（下次 watcher/能力桥 reload 会再归一）:', err)
+  }
 
   // 真启停：芽清单开关变化 → 动态装/卸（`sprouts` 是项目级数据，切换项目会整体重载）
   watch(
