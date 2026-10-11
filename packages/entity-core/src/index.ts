@@ -176,5 +176,12 @@ export type {
   UserFieldMapping,
 } from './core/AutoLinkEngine'
 export type { AutoLinkDecision, AutoLinkDecisionValue } from './core/AutoLinkDecisions'
+export {
+  registerIngestNormalizer,
+  unregisterIngestNormalizer,
+  normalizeIngestEntity,
+  normalizeIngestEntities,
+  type EntityIngestNormalizer,
+} from './core/IngestNormalizers'
 export * from './stores'
 export * from './composables'

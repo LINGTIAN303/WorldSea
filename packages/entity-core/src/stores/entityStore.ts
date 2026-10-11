@@ -6,6 +6,7 @@ import { indexPotentialLinks, potentialLinkIndex, refreshLinksForTarget } from '
 import { autoLinkDecisionStore } from '../core/AutoLinkDecisions'
 import { useUndoRedo, isUndoing } from '../composables/useUndoRedo'
 import { entitySchemaRegistry } from '../core/EntitySchema'
+import { normalizeIngestEntity, normalizeIngestEntities } from '../core/IngestNormalizers'
 import { getValidationApi, getEventBus } from '../core/serviceProvider'
 import { useRelationStore } from './relationStore'
 import { useDirtyTracker } from '../composables/useDirtyTracker'
@@ -44,7 +45,11 @@ export const useEntityStore = defineStore('entity', () => {
   const types = computed(() => entitySchemaRegistry.getAll())
 
   function sanitize(raw: (Entity | undefined)[]): Entity[] {
-    return raw.filter((e): e is Entity => e != null && typeof e.id === 'string')
+    // 过滤无效实体 + 装载归一（IngestNormalizers：per-type 变换，如 notebook 正文 md→HTML）。
+    // 覆盖 loadAll / loadByType / importBatch 三条批量装载路径。
+    return normalizeIngestEntities(
+      raw.filter((e): e is Entity => e != null && typeof e.id === 'string')
+    )
   }
 
   async function loadAll() {
@@ -94,7 +99,11 @@ export const useEntityStore = defineStore('entity', () => {
   }
 
   async function getById(id: string): Promise<Entity | undefined> {
-    return entityMap.value.get(id) ?? storage.getEntity(id)
+    const cached = entityMap.value.get(id)
+    if (cached) return cached
+    // storage 直读分支同样过装载归一（绕过批量装载路径的单体获取）
+    const raw = await storage.getEntity(id)
+    return raw ? normalizeIngestEntity(raw) : raw
   }
 
   async function add(entity: Entity, source: 'user' | 'agent' | 'import' = 'user'): Promise<string> {
@@ -314,7 +323,9 @@ export const useEntityStore = defineStore('entity', () => {
     clearError()
     loading.value = true
     try {
-      return await storage.loadEntitiesPage(opts)
+      const page = await storage.loadEntitiesPage(opts)
+      // 分页结果不进 store（调用方自行处理），但同属装载边界 —— 出口统一归一
+      return { ...page, items: normalizeIngestEntities(page.items) }
     } catch (e: any) {
       setError(e?.message ?? '分页加载失败')
       return { items: [], total: 0 }
