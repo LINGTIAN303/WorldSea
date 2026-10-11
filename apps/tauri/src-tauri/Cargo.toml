@@ -13,6 +13,11 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
+# [受限环境兼容 · 2026-10-11] 与下方 [dependencies] 的同名条目同源同版本；必须双写：
+# schemars 0.8.22 位于 tauri-build 的 build-dependency 链（host 侧单元），resolver v2 下
+# host 侧与 target 侧 feature 域互不合并，仅写 [dependencies] 覆盖不到 host 单元
+# （17:29 实测：fix 后 indexmap build.rs 仍走探测路径 → 无 has_std → schemars E0107）。
+indexmap-std-compat = { package = "indexmap", version = "1.9.3", features = ["std"] }
 
 [dependencies]
 # image-png：theme_icon.rs 的 include_image! 宏解码 PNG 运行时图标（深浅两版）所需
@@ -53,6 +58,15 @@ tokio = { version = "1", features = ["sync"] }
 worldsea-core = { path = "../../../worldsea-core" }
 # worldsea:// 协议层（dsh_bridge/workspace_dist）的 http::Request/Response 类型
 http = "1"
+
+# [受限环境兼容 · 2026-10-11] indexmap 1.x 的 build.rs 用 autocfg 探测 has_std（spawn rustc
+# 并走管道）；某些受限执行环境会拦截「管道子进程」（ERROR_PIPE_BUSY），探测失败 →
+# schemars 0.8.22 的 `Map<K,V> = IndexMap<K,V>` 别名缺省泛型参数断裂（E0107 → 编译中断）。
+# 显式启用 std feature 使 build.rs 走 fast path（直接 emit has_std，不再探测）——
+# 与探测成功时的结果等价（正常环境 has_std=true），无功能语义变化。
+# 注：用重命名依赖（package 指向 indexmap）——与既有 indexmap 普通依赖同源合并，
+# 但以独立边声明确保 feature 参与合并（2026-10-11 实测普通同名的边未合并进构建计划）。
+indexmap-std-compat = { package = "indexmap", version = "1.9.3", features = ["std"] }
 
 [dev-dependencies]
 # 实体/命令单测：#[tokio::test] 需要 tokio 宏与运行时
