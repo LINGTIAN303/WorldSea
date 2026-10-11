@@ -100,6 +100,35 @@ export function parseMarkdownTokens(tokens: Token[]): string {
   return marked.parser(tokens) as string
 }
 
+// ─── 裸渲染（编辑器装载专用，无代码块外壳）─────────────────
+
+/**
+ * 裸 marked 实例：与共享实例同 GFM/breaks 配置，但**不带** code/link 自定义渲染器。
+ * 为什么不能复用共享实例：其 code renderer 产出「语言标签 + 复制按钮」外壳（div/button），
+ * 该产物喂给 TipTap `setContent` 时会被 schema 过滤 —— 未知标签保留文本内容，
+ * 「复制」「语言名」等外壳文字会污染代码块/正文（2026-10-11 笔记装载网关）。
+ * lexer 与 renderer 无关（renderer 仅在 parse 阶段生效），故 token 可跨实例复用。
+ */
+const markedRaw = new Marked({ gfm: true, breaks: true })
+
+/** 将 token 序列渲染为裸 HTML（未消毒；`<pre><code>` 无外壳，链接无 target） */
+export function parseMarkdownTokensRaw(tokens: Token[]): string {
+  return markedRaw.parser(tokens) as string
+}
+
+/**
+ * 渲染 Markdown 为编辑器装载用 HTML（已消毒，无代码块外壳、无 mention 注入）。
+ * 与 renderFullMarkdown 同一套词法与围栏降级语义（未闭合围栏 → 整段转义 + `<br>`），
+ * 差异仅在：不走带外壳的 code renderer —— 产物可直接进 TipTap schema 不产生外壳残渣。
+ */
+export function renderMarkdownForEditor(text: string): string {
+  if (!text) return ''
+  if (hasUnclosedFence(text)) {
+    return escapeHtml(text).replace(/\n/g, '<br>')
+  }
+  return sanitizeMarkdownHtml(parseMarkdownTokensRaw(lexMarkdown(text)))
+}
+
 // ─── 消毒与 mention 注入 ──────────────────────────────────
 
 /** DOMPurify hook：保留 data-ws-* 自定义属性（实体 mention 依赖）——模块级只注册一次 */

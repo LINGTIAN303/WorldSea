@@ -15,6 +15,11 @@ import './codeHighlight' // 副作用：注入 Prism 高亮实现（须在渲染
 import { renderFullMarkdown } from './markdownStream'
 
 export { renderFullMarkdown, createMarkdownStreamRenderer, setCodeHighlighter } from './markdownStream'
+export {
+  renderMarkdownForEditor,
+  sanitizeMarkdownHtml,
+  hasUnclosedFence,
+} from './markdownStream'
 export type {
   StreamRenderedHtml,
   MarkdownStreamRenderer,
