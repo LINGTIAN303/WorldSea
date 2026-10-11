@@ -2,162 +2,51 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
   pull_request:
     branches: [main]
 
 env:
   CARGO_TERM_COLOR: always
-  PNPM_VERSION: 9
 
 jobs:
   # ════════════════════════════════════════════════════════════════
-  # Rust 核心库检查（worldsea-core）
+  # WASM 引擎（worldsea-core）：检查 + 测试
   # ════════════════════════════════════════════════════════════════
-  rust-check:
-    name: Rust Check (worldsea-core)
+  wasm-core:
+    name: WASM Core (worldsea-core)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo check --all-features
-        working-directory: worldsea-core
-
-  rust-test:
-    name: Rust Test (worldsea-core)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Install dependencies
+      - name: Install SQLite deps
         run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
-      - run: cargo test --features sqlite
-        working-directory: worldsea-core
-
-  rust-fmt:
-    name: Rust Formatting
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt
-      - run: cargo fmt --all -- --check
-        working-directory: worldsea-core
-
-  rust-clippy:
-    name: Rust Clippy
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
-      - run: cargo clippy --all-features -- -D warnings
-        working-directory: worldsea-core
-
-  rust-doc:
-    name: Rust Documentation
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - run: cargo doc --all-features --no-deps
-        working-directory: worldsea-core
-
-  # ════════════════════════════════════════════════════════════════
-  # 前端构建（Tauri 唯一 GUI，apps/web 已于 Phase G 删除）
-  # ════════════════════════════════════════════════════════════════
-  # 注：Phase 3 完成前，Tauri src/ 仅为骨架，构建验证仅检查配置正确性
-  # Phase 3 完成后，将启用完整构建验证
-
-  frontend-setup:
-    name: Frontend Setup
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-      - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
-
-  tauri-build:
-    name: Tauri Build (Frontend)
-    needs: frontend-setup
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-      - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
-      - name: Install Tauri system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
-      - name: Typecheck Tauri
-        run: pnpm --filter @worldsea/tauri typecheck
-        continue-on-error: true # Phase 3 完成前可能有类型错误
-      - name: Build Tauri (Frontend only)
-        run: pnpm --filter @worldsea/tauri build
-        continue-on-error: true # Phase 3 完成前 src/ 是骨架
-      # 注：完整 Tauri app 构建（tauri build）在 release workflow 中执行
-
-  # ════════════════════════════════════════════════════════════════
-  # Tauri Rust 检查（apps/tauri/src-tauri）
-  # ════════════════════════════════════════════════════════════════
-  tauri-rust-check:
-    name: Tauri Rust Check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Install Tauri system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
       - name: Cargo check
-        run: cargo check
-        working-directory: apps/tauri/src-tauri
-        continue-on-error: true # Phase 3 完成前 Rust 骨架可能不完整
+        run: cargo check --all-features
+        working-directory: worldsea-core
+      - name: Cargo test
+        run: cargo test --features sqlite
+        working-directory: worldsea-core
 
   # ════════════════════════════════════════════════════════════════
-  # 共享包类型检查（packages/*）
+  # 前端（apps/tauri）：依赖安装 + 类型检查
   # ════════════════════════════════════════════════════════════════
-  shared-packages-typecheck:
-    name: Shared Packages Typecheck
-    needs: frontend-setup
+  frontend:
+    name: Frontend Typecheck
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
         with:
-          version: ${{ env.PNPM_VERSION }}
+          version: 10
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
-      - name: Typecheck agent-runtime
-        run: |
-          if [ -f packages/agent-runtime/tsconfig.json ]; then
-            cd packages/agent-runtime && npx tsc --noEmit
-          fi
-        continue-on-error: true
-      - name: Typecheck shared-composables
-        run: |
-          if [ -f packages/shared-composables/tsconfig.json ]; then
-            cd packages/shared-composables && npx tsc --noEmit
-          fi
-        continue-on-error: true
+        run: pnpm install --frozen-lockfile
+      - name: Typecheck (apps/tauri)
+        run: pnpm --filter @worldsea/tauri typecheck
+
+  # 注：桌面壳（apps/tauri/src-tauri）的编译验证依赖 Windows 桌面构建链，
+  # 由本地构建（scripts/build-installer.ps1 / pnpm tauri:build）覆盖。
