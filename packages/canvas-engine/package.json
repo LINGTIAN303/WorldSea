@@ -1,0 +1,23 @@
+{
+  "name": "@worldsea/canvas-engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./core": "./src/core/index.ts",
+    "./tree": "./src/tree/index.ts",
+    "./graph": "./src/graph/index.ts",
+    "./algorithms": "./src/algorithms/index.ts",
+    "./geometry": "./src/geometry/index.ts"
+  },
+  "scripts": {
+    "build": "vite build",
+    "typecheck": "tsc -p tsconfig.build.json --noEmit"
+  },
+  "dependencies": {
+    "@worldsea/entity-core": "link:../entity-core"
+  }
+}

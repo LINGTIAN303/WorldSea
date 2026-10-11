@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "dist",
+    "rootDir": "src",
+    "composite": true,
+    "tsBuildInfoFile": "./dist/.tsbuildinfo",
+    "types": [],
+    "paths": {
+      "@worldsea/agent-runtime": ["../agent-runtime/src/index.ts"],
+      "@worldsea/agent-runtime/*": ["../agent-runtime/src/*"],
+      "@worldsea/entity-core": ["../entity-core/src/index.ts"],
+      "@worldsea/entity-core/*": ["../entity-core/src/*"],
+      "@worldsea/shared-composables": ["../shared-composables/src/index.ts"],
+      "@worldsea/shared-composables/*": ["../shared-composables/src/*"],
+      "@worldsea/ui-kit": ["../ui-kit/src/index.ts"],
+      "@worldsea/ui-kit/*": ["../ui-kit/src/*"]
+    }
+  },
+  "include": ["src/**/*.ts", "src/**/*.vue"],
+  "exclude": ["node_modules", "dist", "**/__tests__/**", "**/*.spec.ts"]
+}

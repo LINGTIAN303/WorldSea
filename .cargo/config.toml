@@ -1,0 +1,10 @@
+# Cargo 镜像：字节跳动 RsProxy 稀疏索引（https://rsproxy.cn/）
+# 如需改用官方源：移除 [source.crates-io] 的 replace-with 行即可。
+[source.crates-io]
+replace-with = "rsproxy-sparse"
+
+[source.rsproxy-sparse]
+registry = "sparse+https://rsproxy.cn/index/"
+
+[net]
+git-fetch-with-cli = true

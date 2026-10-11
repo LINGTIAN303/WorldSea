@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # ════════════════════════════════════════════════════════════════
+  # WASM 引擎（worldsea-core）：检查 + 测试
+  # ════════════════════════════════════════════════════════════════
+  wasm-core:
+    name: WASM Core (worldsea-core)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install SQLite deps
+        run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
+      - name: Cargo check
+        run: cargo check --all-features
+        working-directory: worldsea-core
+      - name: Cargo test
+        run: cargo test --features sqlite
+        working-directory: worldsea-core
+
+  # ════════════════════════════════════════════════════════════════
+  # 前端（apps/tauri）：依赖安装 + 类型检查
+  # ════════════════════════════════════════════════════════════════
+  frontend:
+    name: Frontend Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Typecheck (apps/tauri)
+        run: pnpm --filter @worldsea/tauri typecheck
+
+  # 注：桌面壳（apps/tauri/src-tauri）的编译验证依赖 Windows 桌面构建链，
+  # 由本地构建（scripts/build-installer.ps1 / pnpm tauri:build）覆盖。

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://schema.tauri.app/config/2/capabilities",
+  "identifier": "default",
+  "description": "WorldSea Tauri 默认权限（Phase 2 骨架 + C3-a 应用命令白名单）",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "opener:default",
+    "dialog:allow-open",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-set-fullscreen",
+    "core:window:allow-is-fullscreen",
+    "core:window:allow-close",
+    "core:window:allow-start-dragging",
+    "allow-shell-bridge",
+    "allow-stream-bridge",
+    "allow-capability-bridge"
+  ]
+}

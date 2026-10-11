@@ -1,0 +1,59 @@
+[package]
+name = "worldsea-tauri-app"
+version = "0.1.0"
+description = "WorldSea Tauri App — 桌面端"
+authors = ["WorldSea"]
+edition = "2021"
+
+# Phase 2 骨架：仅最小 Tauri 依赖
+# Phase 3 将从 src-tauri/ 迁入完整命令层（agent/entity/file/git/pty 等）
+[lib]
+name = "worldsea_tauri_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# image-png：theme_icon.rs 的 include_image! 宏解码 PNG 运行时图标（深浅两版）所需
+tauri = { version = "2", features = ["protocol-asset", "tray-icon", "image-png"] }
+tauri-plugin-opener = "2"
+tauri-plugin-window-state = "2"
+tauri-plugin-dialog = "2"
+# ── 系统层集成（窗口栏/托盘/单实例/通知/快捷键/自启）──
+tauri-plugin-single-instance = "2"
+tauri-plugin-notification = "2"
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-autostart = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+
+# ── 窗口控制键（F11）依赖：关闭 WebView2 浏览器加速键需要底层控件接口（版本须与
+# tauri 运行时所用一致——webview2-com 0.38 / windows 0.61，见 Cargo.lock）──
+# LSP 子进程防孤儿（Job Object KillOnJobClose）：见 src/win_job.rs（自 agent-commands 打捞）
+[target.'cfg(windows)'.dependencies]
+webview2-com = "0.38"
+windows = "0.61"
+# win_job.rs（LSP 子进程 Job Object 整树回收；0.61 起 HANDLE 为指针，与原 agent-commands 同版本）
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_JobObjects", "Win32_System_Threading"] }
+
+# 实体存储命令（TauriStorageBackend fallback）：sqlx 0.8 + sqlite
+sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio"] }
+notify = "8.2.0"
+# dsh 协议层（C1/C2）：dsh_relay 阻塞转发客户端 + dsh_proxy 异步出站（rustls 避免 OpenSSL 依赖）
+reqwest = { version = "0.12", features = ["blocking", "rustls-tls"], default-features = false }
+
+# 前端传入 base64 → 解码为字节（fs_commands 导出路径使用；whisper 转录链已于 2026-10-02 整体退役）
+base64 = "0.22"
+# 异步原语（capabilities.rs oneshot 通道）；宏与多线程运行时走 [dev-dependencies] 与 tauri 栈
+tokio = { version = "1", features = ["sync"] }
+
+# 图布局/图分析算法（cmd_algo_*）：mindmap Rust 布局/分析真实后端（默认 features，无 wasm 依赖）
+worldsea-core = { path = "../../../worldsea-core" }
+# worldsea:// 协议层（dsh_bridge/workspace_dist）的 http::Request/Response 类型
+http = "1"
+
+[dev-dependencies]
+# 实体/命令单测：#[tokio::test] 需要 tokio 宏与运行时
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

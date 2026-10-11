@@ -1,0 +1,35 @@
+/* tslint:disable */
+/* eslint-disable */
+export const memory: WebAssembly.Memory;
+export const __wbg_get_position_x: (a: number) => number;
+export const __wbg_get_position_y: (a: number) => number;
+export const __wbg_position_free: (a: number, b: number) => void;
+export const __wbg_set_position_x: (a: number, b: number) => void;
+export const __wbg_set_position_y: (a: number, b: number) => void;
+export const __wbg_tacticalengine_free: (a: number, b: number) => void;
+export const tacticalengine_ai_decide: (a: number, b: number, c: number) => [number, number, number];
+export const tacticalengine_calculate_awareness: (a: number) => [number, number, number];
+export const tacticalengine_check_victory: (a: number) => [number, number, number];
+export const tacticalengine_drain_events: (a: number) => [number, number, number];
+export const tacticalengine_execute_attack: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
+export const tacticalengine_get_all_units: (a: number) => [number, number, number];
+export const tacticalengine_get_attack_range: (a: number, b: number, c: number) => [number, number];
+export const tacticalengine_get_board_info: (a: number) => [number, number, number];
+export const tacticalengine_get_movable_range: (a: number, b: number, c: number) => [number, number];
+export const tacticalengine_get_phase: (a: number) => [number, number];
+export const tacticalengine_get_turn: (a: number) => number;
+export const tacticalengine_get_unit_at: (a: number, b: number, c: number) => [number, number, number];
+export const tacticalengine_move_unit: (a: number, b: number, c: number, d: number, e: number) => [number, number];
+export const tacticalengine_new: (a: number, b: number, c: number, d: number) => number;
+export const tacticalengine_next_turn: (a: number) => void;
+export const tacticalengine_place_unit: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: number) => [number, number];
+export const tacticalengine_remove_unit: (a: number, b: number, c: number) => [number, number];
+export const tacticalengine_set_terrain: (a: number, b: number, c: number, d: number, e: number) => void;
+export const tacticalengine_start_battle: (a: number) => void;
+export const __wbindgen_malloc: (a: number, b: number) => number;
+export const __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
+export const __wbindgen_externrefs: WebAssembly.Table;
+export const __externref_table_dealloc: (a: number) => void;
+export const __externref_drop_slice: (a: number, b: number) => void;
+export const __wbindgen_free: (a: number, b: number, c: number) => void;
+export const __wbindgen_start: () => void;

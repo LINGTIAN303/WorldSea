@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>WorldSea</title>
+<!-- 启动页（splash）构建入口：产出 frontendDist（apps/tauri/shell-loading/）。
+     页面本体 = 原 Vue 版 src/ui/boot/SplashScreen.vue（100% 原样，含 splash-canvas.ts 引擎与品牌 Logo）。
+     防主题闪烁脚本与旧前端 index.html 同源（localStorage 'worldsea:theme' → data-theme）。 -->
+<script>
+  ;(function () {
+    try {
+      var v = localStorage.getItem('worldsea:theme')
+      var t =
+        v === 'light' || v === 'dark'
+          ? v
+          : window.matchMedia('(prefers-color-scheme: dark)').matches
+            ? 'dark'
+            : 'light'
+      document.documentElement.dataset.theme = t
+    } catch (e) {
+      /* localStorage 不可用时保持默认浅色 */
+    }
+  })()
+</script>
+</head>
+<body>
+  <div id="app"></div>
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+import type { WorldPluginApi } from '../../api'
+import GlobalGraph from './GlobalGraph.vue'
+
+export const manifest = {
+  id: 'official.graph',
+  name: '全局图谱',
+  version: '1.0.0',
+  description: '以关系图谱形式展示所有世界观实体',
+  author: 'WorldSea',
+}
+
+export function apply(_ctx: unknown, api: WorldPluginApi) {
+  api.registerView({
+    id: 'graph',
+    label: '全局图谱',
+    icon: 'graph',
+    component: GlobalGraph,
+    // 全屏画布：工具条悬浮胶囊，不占 44px，hover 顶部浮现
+    toolbar: 'overlay',
+  })
+}
+
+export default { manifest, apply }

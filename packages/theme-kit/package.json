@@ -1,0 +1,19 @@
+{
+  "name": "@worldsea/theme-kit",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "vite build",
+    "typecheck": "tsc -p tsconfig.build.json --noEmit"
+  },
+  "dependencies": {},
+  "peerDependencies": {
+    "vue": "^3.5.0"
+  }
+}

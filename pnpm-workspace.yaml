@@ -1,0 +1,11 @@
+packages:
+  - 'packages/*'
+  - 'apps/*'
+allowBuilds:
+  '@google/genai': true
+  esbuild: true
+  protobufjs: true
+  vue-demi: true
+# pnpm 10+ 不再读取 package.json 的 pnpm 字段，overrides 迁移至此
+overrides:
+  vis-data: 8.0.3

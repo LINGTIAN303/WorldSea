@@ -1,0 +1,102 @@
+/**
+ * 设置 ·「实体详情」Tab 的私有样式（DetailSettingsPanel + DetailGroupsCard 共用一份）。
+ *
+ * 全部规则挂在 `.ds-panel` 之下：这份 CSS 一旦被引用就是全局的，
+ * 不加前缀会和别的设置面板里同名类（`.set-input`/`.set-btn`/`.set-chip`）互相染。
+ * 基座类（`.set-card/.sc-head/.set-row/.set-toggle/.set-hint`）见 ui-kit `settings-panels.css`，不在此重复。
+ */
+
+.ds-panel .ds-type {
+  margin-left: auto;
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary, var(--color-text-tertiary));
+  font-weight: normal;
+}
+.ds-panel .ds-field,
+.ds-panel .ds-assign,
+.ds-panel .ds-group { align-items: center; gap: 8px; }
+/* 组内排序（2026-10-08）：块 = 组头行 + 组内字段列表（次序即详情组内次序） */
+.ds-panel .ds-group-block { display: flex; flex-direction: column; margin-bottom: 4px; }
+.ds-panel .ds-gf-list { display: flex; flex-direction: column; padding-left: 14px; }
+.ds-panel .ds-gf-row { gap: 6px; }
+.ds-panel .ds-gf-label { font-size: var(--font-size-xs); color: var(--text-secondary, var(--color-text-secondary)); }
+/* Tab 管理卡（2026-10-08）：行内 图标/名/固定标/升降/显隐开关 */
+.ds-panel .ds-tab-row { gap: 6px; }
+.ds-panel .ds-tab-icon { flex-shrink: 0; color: var(--text-secondary, var(--color-text-secondary)); }
+.ds-panel .ds-tab-label { font-size: var(--font-size-xs); }
+.ds-panel .ds-tab-toggle { accent-color: var(--primary, var(--color-primary)); flex-shrink: 0; }
+.ds-panel .ds-order {
+  width: 18px; text-align: right; font-size: var(--font-size-xs);
+  color: var(--text-tertiary, var(--color-text-tertiary)); font-family: monospace; flex-shrink: 0;
+}
+.ds-panel .ds-label {
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ds-panel .ds-label.is-hidden {
+  color: var(--text-tertiary, var(--color-text-tertiary)); text-decoration: line-through;
+}
+.ds-panel .ds-label.is-active {
+  color: var(--primary, var(--color-primary)); font-weight: var(--font-weight-semibold, 600);
+}
+.ds-panel .ds-key {
+  font-size: var(--font-size-xs); color: var(--text-tertiary, var(--color-text-tertiary));
+  font-family: monospace; flex-shrink: 0;
+}
+.ds-panel .ds-count {
+  font-size: var(--font-size-xs); color: var(--text-tertiary, var(--color-text-tertiary)); flex-shrink: 0;
+}
+.ds-panel .ds-acts { display: inline-flex; gap: 2px; flex-shrink: 0; }
+.ds-panel .ds-sub {
+  margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border-light, var(--color-border));
+  font-size: var(--font-size-xs); color: var(--text-secondary); letter-spacing: 0.3px;
+}
+
+.ds-panel .ds-btn {
+  width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border, var(--color-border)); border-radius: var(--radius-sm);
+  background: var(--bg, var(--color-bg-surface)); color: var(--text-color);
+  cursor: pointer; font-size: var(--font-size-xs);
+}
+.ds-panel .ds-btn-wide { width: auto; padding: 0 8px; }
+.ds-panel .ds-btn:hover:not(:disabled) {
+  border-color: var(--primary, var(--color-primary)); color: var(--primary, var(--color-primary));
+}
+.ds-panel .ds-btn:disabled { opacity: 0.35; cursor: default; }
+
+.ds-panel .set-select,
+.ds-panel .set-input {
+  padding: 4px 8px; font-size: var(--font-size-sm);
+  border: 1px solid var(--border, var(--color-border)); border-radius: var(--radius-sm);
+  background: var(--bg, var(--color-bg-surface)); color: var(--text-color); cursor: pointer;
+}
+.ds-panel .set-input:focus,
+.ds-panel .set-select:focus { outline: none; border-color: var(--primary, var(--color-primary)); }
+.ds-panel .set-input-sm { width: 72px; text-align: center; cursor: text; }
+.ds-panel .ds-group-name { flex: 1; min-width: 0; cursor: text; }
+
+.ds-panel .set-chip-group { display: flex; gap: 6px; flex-wrap: wrap; }
+.ds-panel .set-chip {
+  display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px;
+  border: 1px solid var(--border, var(--color-border)); border-radius: var(--radius-lg);
+  font-size: var(--font-size-sm); cursor: pointer;
+  background: var(--bg, var(--color-bg-surface)); color: var(--text-color);
+}
+.ds-panel .set-chip.on {
+  border-color: var(--primary, var(--color-primary)); color: var(--primary, var(--color-primary));
+  background: var(--primary-light, color-mix(in srgb, var(--color-primary) 10%, transparent));
+}
+
+.ds-panel .set-btn-row { display: flex; gap: 8px; margin-top: 6px; }
+.ds-panel .set-btn {
+  font-size: var(--font-size-sm); padding: 6px 14px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border, var(--color-border));
+  background: var(--bg, var(--color-bg-surface)); color: var(--text-color); cursor: pointer;
+}
+.ds-panel .set-btn:hover {
+  border-color: var(--primary, var(--color-primary));
+  background: var(--primary-light, color-mix(in srgb, var(--color-primary) 10%, transparent));
+}
+.ds-panel .set-btn:disabled { opacity: 0.45; cursor: default; }
+.ds-panel .set-btn:disabled:hover {
+  border-color: var(--border, var(--color-border)); background: var(--bg, var(--color-bg-surface));
+}

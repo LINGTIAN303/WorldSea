@@ -1,0 +1,402 @@
+/**
+ * theme.css：Tauri 端全局设计令牌（精致极简 · 浅色）
+ *
+ * 集中定义颜色 / 排版 / 圆角 / 阴影 / 动效令牌，供 App.vue 与各子组件
+ * 通过 `var(--token)` 引用，避免硬编码色值、保证视觉语言一致。
+ * 详细why请见 docs/details/注释/tauri/theme.md
+ */
+:root {
+  /* ── 色板（暖灰中性底 + 克制靛蓝强调）── */
+  --bg-app: #fafaf9;          /* 应用最底层背景 */
+  --bg-surface: #ffffff;      /* 面板 / 卡片 / 输入区 */
+  --bg-muted: #f4f4f5;        /* 弱背景（消息底、选中、hover） */
+  --bg-active: #e9e9ea;
+
+  /* 模式/壳切换按钮激活态（2026-08-12）：填充色与面板色一致，文字随主题取对比色 */
+  --switch-bg: var(--bg-surface);
+  --switch-fg: var(--text-primary);
+
+  --border: #ececec;          /* 基础细边框 */
+  --border-strong: #d9d9de;   /* 强调边框 / hover */
+
+  --text-primary: #1f2328;    /* 主文字 */
+  --text-secondary: #6b7280;  /* 次级文字 */
+  --text-muted: #9ca3af;      /* 弱文字 / 占位 */
+
+  --accent: #4f46e5;          /* 强调色（靛蓝，克制） */
+  --accent-hover: #4338ca;
+  --accent-soft: #eef2ff;     /* 强调色弱底 */
+  --accent-soft-border: #e0e7ff;
+  --accent-grad-to: #7c3aed;  /* accent 渐变末端（rail-logo / 助手头像），dark 下提亮覆盖 */
+  --on-accent: #ffffff;       /* 强调面文字（accent/danger 底上的白字） */
+
+  --success: #16a34a;
+  --success-soft: #e8f5ee;
+  --warning: #d97706;
+  --warning-soft: #fdf3e3;
+  --danger: #dc2626;
+  --danger-hover: #b91c1c;
+  --danger-soft: #fdecec;
+  --info: #2563eb;
+  --info-soft: #e8effc;
+
+  /* 用户头像品牌渐变（SpaceNavbar user-avatar；深色下可叠加微调） */
+  --user-avatar-grad: linear-gradient(135deg, #10b981, #34d399);
+
+  /* ── 排版 ── */
+  --font-sans: 'Inter', system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  --fs-3xs: 9px;          /* 极微小：徽标计数/键帽/极紧凑标签 */
+  --fs-2xs: 10px;         /* 次小：辅助/提示/时间戳/小标签 */
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-md: 13px;
+  --fs-base: 14px;
+  --fs-lg: 16px;
+  --fs-xl: 20px;
+  --lh-base: 1.6;
+  --lh-tight: 1.35;
+  --lh-md: 1.5;           /* 紧凑多行文本（描述/摘要/多行输入） */
+
+  /* ── 圆角 ── */
+  --radius-2xs: 3px;          /* 微：徽标/键帽/极小型标签 */
+  --radius-xs: 4px;           /* 小：小按钮/小徽标/紧凑输入框 */
+  --radius-sm: 6px;
+  --radius-mid: 8px;          /* 中：卡片/输入框/下拉项 */
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 16px;          /* 大：大圆角浮层/大卡片 */
+  --radius-2xl: 12px;         /* 弹窗/浮层（常用圆角） */
+  --radius-3xl: 24px;         /* 胶囊输入框/大浮层 */
+  --radius-pill: 999px;
+
+  /* ── 阴影 ── */
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --shadow-md: 0 4px 16px rgba(16, 24, 40, 0.07);
+  --shadow-lg: 0 12px 32px rgba(16, 24, 40, 0.12);
+
+  /* ── 布局尺寸 ── */
+  --rail-w: 68px;             /* 左侧导航轨道宽度 */
+  --panel-w: 264px;           /* 会话列表面板宽度 */
+  --icon-btn-lg: 28px;        /* icon-only 按钮：头部主操作（新建会话/弹窗关闭） */
+  --icon-btn-md: 24px;        /* icon-only 按钮：标准操作（复制/删除/折叠等）；输入框内清空为 20px 既定弱化语言（不入档） */
+  --dot-sm: 6px;              /* 状态圆点：行内紧凑（标签/阶段行内） */
+  --dot-md: 8px;              /* 状态圆点：独立/强调（思考中/状态条/标题装饰） */
+  --empty-icon: #c7cad3;      /* 空态徽标图标色：浅色下用灰调（bg-muted 上仍可辨，批次87 #14 修复）；深色下覆盖为 accent 弱化 */
+  --input-sm-h: 30px;         /* 紧凑输入框高度（搜索/检索/新建会话名三档统一基准）；与按钮 sm 28px 相邻为 2px 输入略高的既定双基准，不强行拉平 */
+  --chat-gutter: 24px;        /* 对话主区横轴间距（header/状态条/子代理条/消息/输入栏统一） */
+  --conv-w: min(75vw, calc(100vw - 32px)); /* [C] 对话主区内容宽度基准（消息区跟随输入栏）：W=75%视口（原55%向左右各扩10%），全屏与输入栏对齐；主区窄时输入栏用 min(W, 主区-2vw) 留缝 */
+  --chat-max-w: var(--conv-w); /* 对话主区内容最大宽度（消息气泡/日期分隔/输入框/错误条统一，批次101 令牌化；[C] 跟随输入栏宽度） */
+  --disabled-opacity: 0.5;    /* 禁用态统一透明度（按钮/分段器/发送钮） */
+
+  /* ── 区域分割（三区双线：各区域为独立圆角块 + 区域间缝隙）── */
+  --region-gap: 8px;                    /* 区域间缝隙（双线之间的空隙，透出 --bg-app） */
+  --region-pad: 8px;                    /* 区域外内边距（各块到 shell 边缘） */
+  --region-radius: var(--radius-md);    /* 区域圆角 */
+  --region-border: var(--border);       /* 区域 1px 边框 */
+  --region-bg: var(--bg-surface);       /* 区域底色（独立块身份） */
+
+  /* ── 动效 ── */
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);  /* 弹性质感（按钮按压回弹等） */
+  --dur-fast: 0.15s;
+  --dur-base: 0.22s;
+  --dur-lg: 0.32s;            /* 弹窗 / 视图切换等大动效 */
+  --dur-pulse: 1.2s;          /* 呼吸动画周期（pulse 共享 keyframe） */
+  --press-scale: 0.96;        /* 按压反馈统一缩放（TuiButton/send-btn/icon-only 按钮） */
+
+  /* ── 焦点可见性（键盘可达性）── */
+  --ring-color: rgba(79, 70, 229, 0.35);
+  --ring-width: 3px;
+
+  /* ── 层级（z-index 统一规划，避免魔数）── */
+  --z-sticky: 2;          /* 吸顶 header（视图面板/列表 header） */
+  --z-dropdown: 100;
+  --z-modal: 1000;
+  --z-toast: 2000;
+
+  /* ── 遮罩 / 玻璃 ── */
+  --overlay: rgba(15, 23, 42, 0.45);
+  --overlay-blur: 4px;        /* 弹窗遮罩背景模糊（营造纵深） */
+  --glass-bg: rgba(255, 255, 255, 0.82);
+
+  /* ── 滚动条 ── */
+  --scrollbar-thumb: #d4d4d8;
+
+  /* ── Markdown 内容区（消息富渲染）── */
+  --md-text: var(--text-primary);
+  --md-heading: var(--text-primary);
+  --md-code-bg: #f4f4f6;
+  --md-code-border: #e9e9ec;
+  --md-block-bg: #f8f8f9;
+  --md-block-border: #e9e9ec;
+  --md-link: var(--accent);
+  --md-quote-bg: #f7f7f8;
+  --md-quote-border: #d9d9de;
+  --md-table-head-bg: #f4f4f6;
+  --md-table-border: #e4e4e8;
+
+  /* ── A2UI 渲染区（共享组件使用 --agent-* / --color-* / --font-size-* 令牌，
+     此处映射到 Tauri 设计令牌，避免 fallback 硬编码深色（批次91 修复））── */
+  --agent-bg: var(--bg-surface);
+  --agent-bg-tertiary: var(--bg-muted);
+  --agent-border: var(--border);
+  --agent-text: var(--text-primary);
+  --agent-text-secondary: var(--text-secondary);
+  --agent-text-tertiary: var(--text-muted);
+  --agent-accent: var(--accent);
+  --agent-accent-bg: var(--accent-soft);
+  /* Agent 面板迁移组件仍引用但未定义的 --agent-* 令牌（值全部引用 Tauri 令牌，深色自动跟随） */
+  --agent-primary: var(--accent);
+  --agent-font: var(--font-sans);
+  --agent-font-mono: var(--font-mono);
+  --agent-hover-bg: var(--bg-muted);
+  --agent-input-bg: var(--bg-muted);
+  --agent-border-color: var(--border);
+  --agent-radius: var(--radius-md);
+  --agent-blur: 12px;
+  /* Agent 面板语义色（shared-ui 组件引用，浅色基准值；深色下在下方覆盖提亮） */
+  --agent-danger: #ef4444;
+  --agent-success: #22c55e;
+  --agent-warning: #eab308;
+  --agent-info: #3b82f6;
+  --agent-segment-thinking: #a78bfa;   /* 思考段：淡紫 */
+  --agent-segment-tooling: #38bdf8;    /* 工具段：淡天蓝 */
+  --agent-segment-output: #34d399;     /* 输出段：淡翠绿 */
+  --agent-user-bubble: #f3f4f6;        /* 用户气泡底 */
+  --agent-radius-sm: 4px;
+  --agent-lens-blur: 8px;
+  --color-bg-base: var(--bg-app);
+  --color-bg-elevated: var(--bg-muted);
+  --color-border: var(--border);
+  --color-primary: var(--accent);
+  --color-primary-hover: var(--accent-hover);
+  --color-danger: var(--danger);
+  --color-warning: var(--warning);
+  --color-success: var(--success);
+  --color-text-primary: var(--text-primary);
+  --color-text-tertiary: var(--text-muted);
+  --font-size-xs: var(--fs-xs);
+  --font-size-sm: var(--fs-sm);
+  --font-size-base: var(--fs-base);
+  --font-size-lg: var(--fs-lg);
+  --font-size-xl: var(--fs-xl);
+  --font-size-2xl: 22px;
+  --font-size-3xl: 24px;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --text-micro-font-size: var(--fs-xs);
+}
+
+/* ── 全局共享 keyframes（批次64：消除组件内重复定义的呼吸动画，参数统一 opacity 0.35 / 1.2s）── */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+/* ── 深色主题（html[data-theme="dark"]）──
+   保持与浅色相同的令牌语义，仅覆盖色值与阴影；
+   所有组件用 var() 引用，切换即全端生效。 */
+[data-theme='dark'] {
+  /* 色板（深中性底 + 提亮靛蓝强调，保证对比度） */
+  --bg-app: #111113;
+  --bg-surface: #18181b;
+  --bg-muted: #202024;
+  --bg-active: #2e2e34;
+
+  /* 切换按钮激活态：深色下填充=面板色（#18181b），文字用白以保持对比 */
+  --switch-fg: #ffffff;
+
+  --border: #27272c;
+  --border-strong: #38383f;
+
+  --text-primary: #e7e7ea;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
+
+  --accent: #8b87f8;
+  --accent-hover: #a09bfa;
+  --accent-soft: rgba(99, 102, 241, 0.18);
+  --accent-soft-border: rgba(99, 102, 241, 0.35);
+  --accent-grad-to: #a78bfa;  /* 深色下渐变末端提亮（随 accent 提亮原则） */
+  --on-accent: #17171b;       /* 深色下 accent/danger 提亮为浅色，白字对比度不足（约3:1）→ 换深字（对比度>7:1） */
+  --empty-icon: rgba(139, 135, 248, 0.4); /* 空态徽标图标色：深色下维持 accent 弱化观感（随 accent 提亮原则） */
+
+  --success: #34d399;
+  --success-soft: rgba(16, 185, 129, 0.15);
+  --warning: #fbbf24;
+  --warning-soft: rgba(217, 119, 6, 0.16);
+  --danger: #f87171;
+  --danger-hover: #ef4444;
+  --danger-soft: rgba(239, 68, 68, 0.14);
+  --info: #60a5fa;
+  --info-soft: rgba(96, 165, 250, 0.15);
+
+  /* Agent 面板语义色：深色下提亮（随 accent/语义色提亮原则），保证对比度 */
+  --agent-danger: #f87171;
+  --agent-success: #34d399;
+  --agent-warning: #fbbf24;
+  --agent-info: #60a5fa;
+  --agent-segment-thinking: #c084fc;
+  --agent-segment-tooling: #7dd3fc;
+  --agent-segment-output: #2dd4bf;
+  --agent-user-bubble: #27272c;
+
+  /* 用户头像品牌渐变：深色下提亮保持对比 */
+  --user-avatar-grad: linear-gradient(135deg, #34d399, #6ee7b7);
+
+  /* 阴影（深底加深，保持浮起层次） */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55);
+
+  /* 焦点环 / 遮罩 / 玻璃 */
+  --ring-color: rgba(139, 135, 248, 0.45);
+  --overlay: rgba(0, 0, 0, 0.55);
+  --glass-bg: rgba(24, 24, 27, 0.82);
+
+  /* Markdown 内容区 */
+  --md-code-bg: #232327;
+  --md-code-border: #2e2e34;
+  --md-block-bg: #1b1b1f;
+  --md-block-border: #2e2e34;
+  --md-quote-bg: #1d1d21;
+  --md-quote-border: #3a3a42;
+  --md-table-head-bg: #232327;
+  --md-table-border: #2e2e34;
+
+  /* 滚动条 */
+  --scrollbar-thumb: #4a4a52;
+}
+
+/* ── 全局基础样式 ── */
+* {
+  box-sizing: border-box;
+}
+
+/* button 在 UA 样式表里是 color:buttontext（显式值、不继承）——缺省即黑字，暗色主题下不可见。
+   复位为继承父级文字色，使未显式写 color 的按钮（含图标按钮，WsIcon 用 currentColor）跟随主题；
+   已显式写 color 的变体规则（.btn-danger 等）不受影响。2026-10-01 由区域视图切换按钮个案引出全量复位。 */
+button {
+  color: inherit;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: var(--fs-base);
+  line-height: var(--lh-base);
+  color: var(--text-primary);
+  background: var(--bg-app);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* 统一键盘焦点环：仅键盘导航时显示，鼠标点击不产生蓝框 */
+:focus-visible {
+  outline: 2px solid var(--ring-color);
+  outline-offset: 1px;
+  border-radius: 2px;
+}
+
+/* 文本选择色与强调色呼应 */
+::selection {
+  background: var(--accent-soft);
+  color: var(--text-primary);
+}
+
+/* 精致极简滚动条：细、透明底、hover 渐显 */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: var(--radius-pill);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* 按钮 / 输入基础重置 */
+button {
+  font-family: inherit;
+}
+input,
+select,
+textarea {
+  font-family: inherit;
+  color: inherit;
+}
+
+/* 数字输入隐藏原生 spinner（桌面工具惯例，批次101 P3 消除网页感残留） */
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* 全局输入控件聚焦兜底：未自定义 :focus 的文本输入统一获得 accent 边框 + 柔和光环，
+   组件级局部规则（如 .field input:focus）特异性更高可覆盖；checkbox/radio/range 排除（无边框控件），
+   容器级 focus（聊天输入栏 input-shell）由局部 :focus-within 接管，textarea 局部豁免 */
+input:not([type='checkbox']):not([type='radio']):not([type='range']):focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* 视觉隐藏但保留给读屏：仅供 aria-live / 跳过导航等无障碍播报（WCAG 4.1.3） */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* 全局淡入淡出过渡：通用瞬态提示/区块出现收起（供各组件 <Transition name="fade"> 复用） */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity var(--dur-base) var(--ease);
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+/* 减弱动态效果（应用配置总开关）：关闭动画(keyframes)；transition-duration 去 !important，
+   让组件级 data-reduce-motion 规则（更高特异性）接管为温和淡入，其余过渡仍近瞬移。
+   原系统 prefers-reduced-motion 媒体查询改为应用配置根属性（2026-08-23 可配置化）。 */
+:root[data-reduce-motion='on'] *,
+:root[data-reduce-motion='on'] *::before,
+:root[data-reduce-motion='on'] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms;
+  scroll-behavior: auto !important;
+}

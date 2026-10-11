@@ -1,0 +1,149 @@
+<template>
+  <div class="export-overlay" @click.self="$emit('close')">
+    <div ref="dialogRef" class="export-dialog" role="dialog" aria-modal="true" aria-labelledby="export-dialog-title" tabindex="-1">
+      <h3 id="export-dialog-title"><WsIcon name="item" size="sm" /> 导出</h3>
+
+      <div class="export-section">
+        <label class="export-label">格式</label>
+        <div class="export-formats">
+          <button v-for="f in formats" :key="f.value" class="export-fmt-btn" :class="{ active: selectedFormat === f.value }" @click="selectedFormat = f.value">
+            <WsIcon :name="f.icon" size="xs" /> {{ f.label }}
+          </button>
+        </div>
+      </div>
+
+      <div class="export-section">
+        <label class="export-label">范围</label>
+        <div class="export-formats">
+          <button class="export-fmt-btn" :class="{ active: scope === 'current' }" @click="scope = 'current'">当前{{ noun }}</button>
+          <button class="export-fmt-btn" :class="{ active: scope === 'all' }" @click="scope = 'all'">全部{{ noun }}</button>
+        </div>
+      </div>
+
+      <!-- includeTitle 语义 = 标题插入正文首行：txt / docx 支持（docx 于 2026-09-14 修正对齐）；
+           md 的标题语义是 frontmatter（下方独立勾选框），故 md 不显示本项 -->
+      <div v-if="selectedFormat !== 'md'" class="export-section">
+        <label class="export-check">
+          <input type="checkbox" v-model="includeTitle" />
+          包含{{ noun }}标题
+        </label>
+      </div>
+
+      <div v-if="selectedFormat === 'md'" class="export-section">
+        <label class="export-check">
+          <input type="checkbox" v-model="includeFrontmatter" />
+          包含元数据 frontmatter
+        </label>
+      </div>
+
+      <div class="export-actions">
+        <button class="btn-secondary" @click="$emit('close')">取消</button>
+        <button class="btn-primary" @click="doExport" :disabled="exporting">
+          {{ exporting ? '导出中...' : '导出' }}
+        </button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, onMounted, nextTick } from 'vue'
+import { WsIcon } from '@worldsea/ui-kit'
+import { useManuscriptExport } from '../composables/useManuscriptExport'
+import type { Entity } from '@worldsea/entity-core'
+import { useFocusTrap } from '@/composables/useFocusTrap'
+
+const props = defineProps<{
+  currentChapter: Entity | null
+  allChapters: Entity[]
+  /** 范围文案名词（导出对话在笔记本芽复用时的「笔记」等；缺省「章节」） */
+  noun?: string
+  /** 所属书籍（2026-09-14 书籍实体迭代）：传入时「全部{{noun}}」升级为整书
+   *  导出——文件名/文档标题=书名、md 书级 frontmatter；不传走旧合并逻辑 */
+  book?: Entity | null
+}>()
+
+const noun = computed(() => props.noun || '章节')
+
+const emit = defineEmits<{ close: [] }>()
+
+const dialogRef = ref<HTMLElement | null>(null)
+
+const { activate } = useFocusTrap(dialogRef, {
+  escapeDeactivates: true,
+  onEscape: () => emit('close'),
+})
+
+onMounted(() => {
+  nextTick(() => activate())
+})
+
+const { exportChapter, exportMultiple, exportBook } = useManuscriptExport()
+
+const formats = [
+  { value: 'txt' as const, label: 'TXT', icon: 'manuscript' },
+  { value: 'md' as const, label: 'Markdown', icon: 'edit' },
+  { value: 'docx' as const, label: 'DOCX', icon: 'manuscript' },
+]
+
+const selectedFormat = ref<'txt' | 'md' | 'docx'>('txt')
+const scope = ref<'current' | 'all'>('current')
+const includeTitle = ref(true)
+const includeFrontmatter = ref(true)
+const exporting = ref(false)
+
+async function doExport() {
+  exporting.value = true
+  try {
+    if (scope.value === 'current' && props.currentChapter) {
+      await exportChapter(props.currentChapter, selectedFormat.value, {
+        includeTitle: includeTitle.value,
+        includeFrontmatter: includeFrontmatter.value,
+      })
+    } else if (scope.value === 'all' && props.allChapters.length > 0) {
+      if (props.book) {
+        // 书籍工作区：全部章节 = 整书导出（文件名/标题=书名、md 书级 frontmatter）
+        await exportBook(props.book, props.allChapters, selectedFormat.value, {
+          includeTitle: includeTitle.value,
+          includeFrontmatter: includeFrontmatter.value,
+        })
+      } else {
+        await exportMultiple(props.allChapters, selectedFormat.value, {
+          includeTitle: includeTitle.value,
+          includeFrontmatter: includeFrontmatter.value,
+        })
+      }
+    }
+  } catch (err) {
+    console.error('Export failed:', err)
+  } finally {
+    exporting.value = false
+  }
+}
+</script>
+
+<style scoped>
+.export-overlay {
+  position: fixed; inset: 0; background: var(--color-overlay);
+  display: flex; align-items: center; justify-content: center; z-index: 300;
+}
+.export-dialog {
+  background: var(--modal-bg); border-radius: var(--radius-2xl); padding: 20px;
+  max-width: 400px; width: 90%;
+}
+.export-dialog h3 { margin: 0 0 16px; font-size: var(--font-size-lg); }
+.export-section { margin-bottom: 14px; }
+.export-label { display: block; font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); margin-bottom: 6px; color: var(--text-secondary); }
+.export-formats { display: flex; gap: 6px; }
+.export-fmt-btn {
+  padding: 6px 12px; border: 1px solid var(--border-color); border-radius: var(--radius-sm);
+  background: var(--input-bg); color: var(--text-color); font-size: var(--font-size-sm);
+  cursor: pointer; transition: background 0.1s, border-color 0.1s, color 0.1s, box-shadow 0.1s, transform 0.1s, opacity 0.1s, filter 0.1s;
+}
+.export-fmt-btn:hover { border-color: var(--primary); }
+.export-fmt-btn.active { background: var(--primary-light); border-color: var(--primary); color: var(--primary); }
+.export-check {
+  display: flex; align-items: center; gap: 6px; font-size: var(--font-size-sm); cursor: pointer;
+}
+.export-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+</style>

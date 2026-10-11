@@ -1,0 +1,32 @@
+# WorldSea 壳的 dsh overlay（B4-a 建立，C1-b 扩充）
+#
+# 目的：把「web profile 默认值与壳内实际可行性」不一致的条目校正到壳的形态。
+# 机制：用户补丁层覆盖 bundle 行（官方同款通道：`dsh web --patch <file>`；先例
+#   dsh/apps/web/tests/pin-browse-picker.overlay.yml）。只改运行期装配，**不动 dsh 树**。
+#
+# 用法：壳 spawn 时带 `--patch <仓根>/apps/tauri/dsh-overlay.yml`（见 apps/tauri/src-tauri/src/dsh_shell.rs）
+#
+# 条目：
+# 1) ui-sidebar-browser —— 打开 web profile 下默认禁用的「右栏内置浏览器」。
+#    该条目随 bundle 发布，但 disabled 是按 profile 名判定的表达式
+#    （packages/bundle/web-app/cordis.patch.yml：`ctx.get('profileContext')?.name !== 'desktop'`），
+#    只有名叫 desktop 的 profile 才启用；desktop profile 由 Electron 壳独占（CLI 拒绝管理），
+#    故这里覆盖 disabled 把它打开。
+- id: ui-sidebar-browser
+  disabled: false
+
+# 2) client-hmr —— 关闭 HMR 客户端行（C1-b，2026-09-24）。
+#    理由：HMR 走 `/plugins/events` 的 **SSE 长连**，而壳协议（worldsea://）的应答是缓冲体
+#    （Tauri UriSchemeResponder 无流式通道）→ 该行在壳内必然失败（boot 时一次 502 + 页面侧
+#    EventSource 反复重连）。HMR 只在「宿主重建 bundle」时有意义，打包形态的壳不需要；
+#    若将来要它，需要一条可流式的传输（C2 的 portless 通道是候选）。
+- id: client-hmr
+  disabled: true
+
+# 3) workspace-controller —— E1（2026-09-25）：把「首次使用默认工作区」的候选目录钉到单一可见根。
+#    该服务的 `documentsDirectory` 是「系统 Documents 的部署覆盖」；候选路径形状 = <documentsDirectory>/deepseek-harness/<leaf>。
+#    壳 spawn 时显式导出 WORLDSEA_WORKSPACE（= 解析后的工作区，E1 起 = %USERPROFILE%\WorldSea）→ 候选落在根内；
+#    未设该环境变量时保持 dsh 默认（Documents），不静默改变别处行为。
+- id: workspace-controller
+  config:
+    documentsDirectory: !!js process.env.WORLDSEA_WORKSPACE

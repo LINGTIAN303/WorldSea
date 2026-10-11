@@ -1,0 +1,34 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "types": [],
+    "paths": {
+      "@agent": ["../agent-runtime/src/index.ts"],
+      "@agent/*": ["../agent-runtime/src/*"],
+      "@worldsea/core-api-types": ["../core-api-types/src/index.ts"],
+      "@worldsea/entity-core": ["../entity-core/src/index.ts"],
+      "@worldsea/entity-core/*": ["../entity-core/src/*"],
+      "@worldsea/ui-kit": ["../ui-kit/src/index.ts"],
+      "@worldsea/ui-kit/*": ["../ui-kit/src/*"],
+      "@worldsea/agent-runtime": ["../agent-runtime/src/index.ts"],
+      "@worldsea/agent-runtime/*": ["../agent-runtime/src/*"],
+      "@worldsea/canvas-engine": ["../canvas-engine/src/index.ts"],
+      "@worldsea/canvas-engine/*": ["../canvas-engine/src/*"],
+      "@worldsea/font-kit": ["../font-kit/src/index.ts"],
+      "@worldsea/font-kit/*": ["../font-kit/src/*"],
+      "@worldsea/motion-kit": ["../motion-kit/src/index.ts"],
+      "@worldsea/motion-kit/*": ["../motion-kit/src/*"],
+      "@worldsea/theme-kit": ["../theme-kit/src/index.ts"],
+      "@worldsea/theme-kit/*": ["../theme-kit/src/*"]
+    }
+  },
+  "include": ["src/**/*.ts", "src/**/*.vue", "src/**/*.d.ts"],
+  "exclude": ["node_modules", "dist", "**/__tests__/**", "**/*.spec.ts"]
+}

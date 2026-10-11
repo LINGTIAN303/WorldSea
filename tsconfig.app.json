@@ -1,0 +1,35 @@
+{
+  "extends": "@vue/tsconfig/tsconfig.dom.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
+    "types": ["vite/client"],
+    "paths": {
+      "@/*": ["./src/*"],
+      "@worldsea/entity-core": ["./packages/entity-core/src/index.ts"],
+      "@worldsea/entity-core/*": ["./packages/entity-core/src/*"],
+      "@worldsea/plugin-sdk": ["./packages/plugin-sdk/src/index.ts"],
+      "@worldsea/plugin-sdk/*": ["./packages/plugin-sdk/src/*"],
+      "@worldsea/ui-kit": ["./packages/ui-kit/src/index.ts"],
+      "@worldsea/ui-kit/*": ["./packages/ui-kit/src/*"],
+      "@worldsea/canvas-engine": ["./packages/canvas-engine/src/index.ts"],
+      "@worldsea/canvas-engine/*": ["./packages/canvas-engine/src/*"],
+      "@worldsea/motion-kit": ["./packages/motion-kit/src/index.ts"],
+      "@worldsea/motion-kit/*": ["./packages/motion-kit/src/*"],
+      "@worldsea/font-kit": ["./packages/font-kit/src/index.ts"],
+      "@worldsea/font-kit/*": ["./packages/font-kit/src/*"],
+      "@worldsea/theme-kit": ["./packages/theme-kit/src/index.ts"],
+      "@worldsea/theme-kit/*": ["./packages/theme-kit/src/*"],
+      "@worldsea/shared-composables": ["./packages/shared-composables/src/index.ts"],
+      "@worldsea/shared-composables/*": ["./packages/shared-composables/src/*"],
+      "@worldsea/shared-composables/entity/*": ["./packages/shared-composables/src/entity/*"],
+      "@worldsea/shared-composables/ui/*": ["./packages/shared-composables/src/ui/*"]
+    },
+
+    /* Linting */
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "erasableSyntaxOnly": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["packages/ui-kit/src/**/*.ts", "packages/ui-kit/src/**/*.vue", "packages/entity-core/src/**/*.ts", "packages/plugin-sdk/src/**/*.ts", "packages/canvas-engine/src/**/*.ts", "packages/motion-kit/src/**/*.ts", "packages/font-kit/src/**/*.ts", "packages/shared-composables/src/**/*.ts", "packages/shared-composables/src/**/*.vue"]
+}

@@ -1,0 +1,44 @@
+{
+  "extends": "@vue/tsconfig/tsconfig.dom.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.tsbuildinfo",
+    "types": ["vite/client"],
+    "paths": {
+      "@/*": ["./src/*"],
+      // 共享运行时层
+      "@worldsea/core-api-types": ["../../packages/core-api-types/src/index.ts"],
+      // 共享 composables（Phase 3 迁入）
+      "@worldsea/shared-composables": ["../../packages/shared-composables/src/index.ts"],
+      "@worldsea/shared-composables/*": ["../../packages/shared-composables/src/*"],
+      // 业务无关的共享 UI/工具包
+      "@worldsea/entity-core": ["../../packages/entity-core/src/index.ts"],
+      "@worldsea/entity-core/*": ["../../packages/entity-core/src/*"],
+      "@worldsea/plugin-sdk": ["../../packages/plugin-sdk/src/index.ts"],
+      "@worldsea/plugin-sdk/*": ["../../packages/plugin-sdk/src/*"],
+      "@worldsea/ui-kit": ["../../packages/ui-kit/src/index.ts"],
+      // 子路径映射：与 vite alias 的 '@worldsea/ui-kit/' 前缀同口径（不依赖 node_modules 链接）
+      "@worldsea/ui-kit/*": ["../../packages/ui-kit/src/*"],
+      "@worldsea/canvas-engine": ["../../packages/canvas-engine/src/index.ts"],
+      "@worldsea/canvas-engine/*": ["../../packages/canvas-engine/src/*"],
+      "@worldsea/motion-kit": ["../../packages/motion-kit/src/index.ts"],
+      "@worldsea/font-kit": ["../../packages/font-kit/src/index.ts"],
+      "@worldsea/font-kit/*": ["../../packages/font-kit/src/*"],
+      "@worldsea/perf-kit": ["../../packages/perf-kit/src/index.ts"],
+      "@worldsea/perf-kit/*": ["../../packages/perf-kit/src/*"],
+      // 共享 UI（Phase 5.3 抽取，A2UI 渲染组件）
+      "@worldsea/shared-ui": ["../../packages/shared-ui/src/index.ts"],
+      "@worldsea/shared-ui/*": ["../../packages/shared-ui/src/*"],
+      "@worldsea/theme-kit": ["../../packages/theme-kit/src/index.ts"],
+      "@worldsea/theme-kit/*": ["../../packages/theme-kit/src/*"],
+      // WASM 包（算法降级用）
+      "@worldsea/core": ["../../worldsea-core/pkg/index.d.ts"],
+      "@worldsea/tactical-engine": ["../../tactical-engine/pkg/index.d.ts"]
+    },
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "erasableSyntaxOnly": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue"],
+  "exclude": ["node_modules", "dist", "src-tauri"]
+}

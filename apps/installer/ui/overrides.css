@@ -1,0 +1,253 @@
+/* ============================================================================
+ * WorldSea 安装向导 · 运行版覆盖样式
+ * 设计稿（docs/misc/installer-design）以「稿纸上的窗口」呈现；运行版窗口
+ * 即向导本身：去掉稿纸背景、圆角边框与阴影，按页面显隐切换 pane 内容。
+ * 各设计稿页内 <style> 的专有样式也合并于此，便于对照设计稿评审。
+ * ========================================================================== */
+
+/* ---- 一、窗口即向导：去掉稿纸效果 ---- */
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  display: block;
+  min-height: 0;
+  padding: 0;
+  background: var(--dsw-alias-bg-base);
+}
+
+.window {
+  width: 100%;
+  height: 100%;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* ---- 二、无边框窗口：拖动区 + 关闭按钮 ---- */
+.titlebar-drag {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 20;
+  width: 100%;
+  height: 10px;
+}
+
+.btn-close {
+  position: fixed;
+  top: 10px;
+  right: 12px;
+  z-index: 21;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--dsw-radius-xs);
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+}
+
+.btn-close:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+/* ---- 三、页面切换：sidebar 常驻，pane 按页显隐 ---- */
+/* 修复：.sidebar 的 display:flex 会覆盖 hidden 属性的 UA 样式，必须显式压制 */
+[hidden] {
+  display: none !important;
+}
+
+.pane-page {
+  display: none;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  /* 关键：允许 flex 子项压缩到视口内。缺省 min-height:auto 会让许可长文
+     把页脚撑出窗口外（welcome 内容短看不出，license 长文必现） */
+  min-height: 0;
+}
+
+.pane-page.active {
+  display: flex;
+}
+
+/* ---- 四、欢迎页专有：卖点列表 ---- */
+.feature-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.feature {
+  display: flex;
+  gap: 12px;
+}
+
+.feature-icon {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--dsw-radius-sm);
+  background: var(--dsw-alias-bg-layer-3);
+  color: var(--dsw-alias-brand-primary-new-colorprimary-new-color);
+}
+
+.feature-title {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+}
+
+.feature-desc {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+/* ---- 五、许可页专有：页脚四元素布局 ---- */
+.pane-foot {
+  gap: 8px;
+}
+
+.foot-step {
+  flex: none;
+}
+
+.foot-check {
+  margin-right: auto;
+}
+
+.foot-check .checkbox-text {
+  white-space: nowrap;
+}
+
+/* ---- 六、安装位置页专有：字段组 ---- */
+.field {
+  margin-bottom: 22px;
+}
+
+.field:last-child {
+  margin-bottom: 4px;
+}
+
+.field-label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+}
+
+.field-hint {
+  margin-top: 6px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.field .checkbox + .checkbox {
+  margin-top: 8px;
+}
+
+.foot-note b {
+  color: var(--dsw-alias-label-secondary);
+  font-weight: 500;
+}
+
+/* ---- 七、过程页专有（安装/卸载同构）：进度条与日志节奏 ---- */
+.pane-body.process-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-bottom: 4px;
+}
+
+.pane-body.process-body .progress {
+  flex: none;
+}
+
+.pane-body.process-body .log {
+  flex: 1;
+  min-height: 0;
+}
+
+.log-line[data-state='active'] span {
+  font-weight: 500;
+}
+
+/* 步骤失败：红色 ✕ + 红字 */
+.log-line[data-state='error'] {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.log-line[data-state='error']::before {
+  content: '✕';
+  flex: none;
+}
+
+/* ---- 八、完成页专有：徽章与标题同行 ---- */
+.head-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.pane-body.done-body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* 卸载完成页：中性徽章（不庆祝） */
+.result-badge[data-tone='neutral'] {
+  background: var(--dsw-alias-bg-layer-3);
+  color: var(--dsw-alias-label-secondary);
+}
+
+.kv dd[data-state='kept'] {
+  color: var(--dsw-alias-label-primary);
+}
+
+.kv dd[data-state='purged'] {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.notice b {
+  color: var(--dsw-alias-label-primary);
+  font-weight: 500;
+}
+
+/* ---- 九、卸载确认页专有 ---- */
+.pane-body.uconfirm-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.pane-body.uconfirm-body .field {
+  margin: 0;
+}
+
+.pane-body.uconfirm-body .field-label {
+  margin-bottom: 10px;
+}
+
+.btn-danger:focus-visible {
+  outline-color: var(--dsw-alias-state-error-primary);
+}
