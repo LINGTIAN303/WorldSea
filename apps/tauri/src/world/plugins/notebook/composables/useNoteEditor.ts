@@ -30,6 +30,10 @@ export function useNoteEditor(currentNote: Ref<Entity | null>, onContentChange?:
   const saveStatus = ref<SaveStatus>('saved')
   const wordCount = ref(0)
   let saveTimer: ReturnType<typeof setTimeout> | null = null
+  // 编辑器当前实际加载的笔记 id —— persistContent 的写入目标（与 props/currentNote 解耦：
+  // watch 触发的 loadNote 在「切走前落盘」时 props 已换新笔记，以 currentNote 为目标会把
+  // 旧笔记的未落库正文写到新笔记上——2026-10-11 修复「切换窗口串写」）
+  let loadedNoteId: string | null = null
 
   let mentionPopoverRef: { open: (clientRect: (() => DOMRect | null) | null) => void; close: () => void } | null = null
   let mentionCommand: ((props: { id: string; label?: string }) => void) | null = null
@@ -223,12 +227,19 @@ export function useNoteEditor(currentNote: Ref<Entity | null>, onContentChange?:
    * 自动保存类写入统一带 `skipUndo`：编辑器内容按「输入暂停」落库，每次都记撤销会迅速
    * 填满全局撤销上限（默认 20）并把用户真实操作的撤销历史挤掉。文本级撤销由 TipTap
    * 自身的 undo 栈负责，不进全局撤销栈。
+   *
+   * 【写入目标＝loadedNoteId，勿改回 currentNote】2026-10-11 修复「切换窗口串写」：
+   * loadNote 的「切走前落盘」被 watch 触发时 props（currentNote）已是新笔记——若以它为
+   * 目标，旧笔记的未落库正文会被写到**新笔记**上。properties 同理取 store 实时值，
+   * 而非 props 快照（快照可能在防抖窗口内过期）。
    */
   async function persistContent(html: string): Promise<void> {
-    if (!currentNote.value) return
-    await es.update(currentNote.value.id, {
+    if (!loadedNoteId) return
+    const live = es.entityMap.get(loadedNoteId)
+    if (!live) return // 实体已不在（被删除等）——无从落盘
+    await es.update(loadedNoteId, {
       properties: {
-        ...currentNote.value.properties,
+        ...live.properties,
         content: html,
       },
     }, 'user', { skipUndo: true })
@@ -251,18 +262,28 @@ export function useNoteEditor(currentNote: Ref<Entity | null>, onContentChange?:
       clearTimeout(saveTimer)
       saveTimer = null
     }
-    if (editor.value && currentNote.value && saveStatus.value === 'unsaved') {
-      const html = editor.value.getHTML()
-      persistContent(html)
+    // 切走前落盘：目标＝**已加载**笔记（loadedNoteId），勿改回 currentNote——
+    // watch 触发本次 loadNote 时 props 已是新笔记，以 currentNote 为目标会把旧笔记的
+    // 未落库正文写到新笔记上（2026-10-11 修复，回归测试锁定）。
+    if (editor.value && loadedNoteId && saveStatus.value === 'unsaved') {
+      void persistContent(editor.value.getHTML())
     }
     if (entity && editor.value) {
       // 纯文本归一：JSON 外部写入的 \n 在 HTML 语境会被折叠成空格，加载边界拆成 <p> 段
       const content = plainTextToEditorHtml((entity.properties.content as string) || '')
+      // 同一篇笔记的回流/外部更新**不重载**：内容一致（自动保存回流）或编辑器持焦
+      // （用户输入中）→ 直接短路。setContent 是全文档 replaceWith，会重置选区——
+      // 重载即「光标跳走」（2026-10-11 修复，回归测试锁定）。
+      if (loadedNoteId === entity.id && (content === editor.value.getHTML() || editor.value.isFocused)) {
+        return
+      }
       editor.value.commands.setContent(content, { emitUpdate: false })
       wordCount.value = editor.value.getText().length
+      loadedNoteId = entity.id
     } else if (editor.value) {
       editor.value.commands.setContent('', { emitUpdate: false })
       wordCount.value = 0
+      loadedNoteId = null
     }
     saveStatus.value = 'saved'
   }
@@ -283,7 +304,7 @@ export function useNoteEditor(currentNote: Ref<Entity | null>, onContentChange?:
       clearTimeout(saveTimer)
       saveTimer = null
     }
-    if (editor.value && currentNote.value && saveStatus.value === 'unsaved') {
+    if (editor.value && loadedNoteId && saveStatus.value === 'unsaved') {
       void persistContent(editor.value.getHTML())
     }
     editor.value?.destroy()

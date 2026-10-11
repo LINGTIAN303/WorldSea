@@ -18,6 +18,7 @@ import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } fr
 import { defineComponent, h, ref, nextTick, type Ref } from 'vue'
 import { mount } from '@vue/test-utils'
 import { createPinia, type Pinia } from 'pinia'
+import 'fake-indexeddb/auto'
 import { EditorContent } from '@tiptap/vue-3'
 import { useEntityStore, type Entity } from '@worldsea/entity-core'
 import { useChapterEditor } from '../composables/useChapterEditor'
@@ -44,6 +45,7 @@ async function drain(): Promise<void> {
 
 describe('编辑器生命周期 · 卸载先落盘后销毁（方案 A 回归）', () => {
   let pinia: Pinia
+  let es: ReturnType<typeof useEntityStore>
   type UpdateSpy = MockInstance<
     (id: string, changes: Partial<Entity>, source?: 'user' | 'agent' | 'import', opts?: { skipUndo?: boolean }) => Promise<void>
   >
@@ -51,7 +53,7 @@ describe('编辑器生命周期 · 卸载先落盘后销毁（方案 A 回归）
 
   beforeEach(() => {
     pinia = createPinia()
-    const es = useEntityStore(pinia)
+    es = useEntityStore(pinia)
     updateSpy = vi.spyOn(es, 'update').mockResolvedValue(undefined)
   })
 
@@ -75,7 +77,10 @@ describe('编辑器生命周期 · 卸载先落盘后销毁（方案 A 回归）
     expect(updateSpy, '未选章节：任何写入都不应发生').not.toHaveBeenCalled()
 
     // 进入编辑态：选中章节 → 编辑器载入内容 → 输入（脏态）
+    // 实体须在 store：persistContent 以 entityMap 的实时值作为基线（2026-10-11 起），
+    // 实体不在内存索引时跳过落盘（防「删后回写幽灵」）——故直驱前先 add。
     const chapter = makeEntity('ms-lifecycle-test', '<p>初稿内容</p>')
+    await es.add(chapter, 'user')
     current.value = chapter
     api!.loadChapter(chapter)
     expect(api!.editor.value?.getHTML()).toContain('初稿内容')
@@ -113,7 +118,10 @@ describe('编辑器生命周期 · 卸载先落盘后销毁（方案 A 回归）
     })
 
     const wrapper = mount(Host, { global: { plugins: [pinia] } })
+    // 实体须在 store：persistContent 以 entityMap 里的实时值作为 properties 基线（2026-10-11 起），
+    // 实体不在内存索引时跳过落盘（防「删后回写幽灵」）——故直驱前先 add。
     const note = makeEntity('nb-lifecycle-test', '<p>笔记内容</p>')
+    await es.add(note, 'user')
     currentNote.value = note
     api!.loadNote(note)
 
@@ -133,6 +141,7 @@ describe('编辑器生命周期 · 卸载先落盘后销毁（方案 A 回归）
     updateSpy!.mockClear()
     const wrapper2 = mount(Host, { global: { plugins: [pinia] } })
     const note2 = makeEntity('nb-lifecycle-test-2', '<p>干净笔记</p>')
+    await es.add(note2, 'user')
     currentNote.value = note2
     api!.loadNote(note2)
     wrapper2.unmount()

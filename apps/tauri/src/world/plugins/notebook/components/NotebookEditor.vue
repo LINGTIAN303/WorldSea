@@ -87,8 +87,11 @@ const editType = ref(String(props.note.properties?.noteType || 'markdown'))
 const editLanguage = ref(String(props.note.properties?.codeLanguage || 'javascript'))
 const editFolder = ref(String(props.note.properties?.folderId || ''))
 
-watch(() => props.note, (n) => {
-  if (!n) return
+// 仅切换笔记时重置本地编辑态（按 id 判断，勿按对象引用）——按引用会在保存回流
+// （store 按引用替换）时误重置，窄时序下可冲掉用户正在输入的标题（2026-10-11 修复）。
+watch(() => props.note?.id, (id, oldId) => {
+  const n = props.note
+  if (!n || !id || id === oldId) return
   editName.value = n.name || ''
   editContent.value = String(n.properties?.content || '')
   editType.value = String(n.properties?.noteType || 'markdown')

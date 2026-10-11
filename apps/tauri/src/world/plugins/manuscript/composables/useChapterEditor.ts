@@ -30,6 +30,11 @@ export function useChapterEditor(currentChapter: Ref<Entity | null>) {
   const saveStatus = ref<SaveStatus>('saved')
   const wordCount = ref(0)
   let saveTimer: ReturnType<typeof setTimeout> | null = null
+  // 编辑器当前实际加载的章节 id —— persistContent 的写入目标（与 currentChapter 解耦：
+  // ManuscriptView.select() 先换 current 再调 loadChapter，「切走前落盘」若以 currentChapter
+  // 为目标会把旧章节的未落库正文写到新章节上——2026-10-11 修复「切换窗口串写」，与
+  // useNoteEditor 同步修改）
+  let loadedChapterId: string | null = null
 
   let mentionPopoverRef: { open: (clientRect: (() => DOMRect | null) | null) => void; close: () => void } | null = null
   let mentionCommand: ((props: { id: string; label?: string }) => void) | null = null
@@ -209,12 +214,19 @@ export function useChapterEditor(currentChapter: Ref<Entity | null>) {
    * 自动保存类写入统一带 `skipUndo`：章节正文按「输入暂停」落库，每次都记撤销会迅速填满
    * 全局撤销上限（默认 20），把用户真实操作的撤销历史挤掉。文本级撤销由 TipTap 自身的
    * undo 栈与章节快照（useChapterSnapshots）负责，不进全局撤销栈。
+   *
+   * 【写入目标＝loadedChapterId，勿改回 currentChapter】2026-10-11 修复「切换窗口串写」：
+   * select() 先换 current 再调 loadChapter，落盘时 currentChapter 已是新章节——若以它为
+   * 目标，旧章节的未落库正文会被写到**新章节**上（实测复现，回归测试锁定）。properties
+   * 同理取 store 实时值，而非 props 快照（快照可能在防抖窗口内过期）。
    */
   async function persistContent(html: string, text: string): Promise<void> {
-    if (!currentChapter.value) return
-    await es.update(currentChapter.value.id, {
+    if (!loadedChapterId) return
+    const live = es.entityMap.get(loadedChapterId)
+    if (!live) return // 实体已不在（被删除等）——无从落盘
+    await es.update(loadedChapterId, {
       properties: {
-        ...currentChapter.value.properties,
+        ...live.properties,
         content: html,
         wordCount: text.length,
       },
@@ -239,17 +251,27 @@ export function useChapterEditor(currentChapter: Ref<Entity | null>) {
       clearTimeout(saveTimer)
       saveTimer = null
     }
-    if (editor.value && currentChapter.value && saveStatus.value === 'unsaved') {
-      persistContent(editor.value.getHTML(), editor.value.getText())
+    // 切走前落盘：目标＝**已加载**章节（loadedChapterId），勿改回 currentChapter——
+    // select() 调本次 loadChapter 时 current 已是新章节，以 currentChapter 为目标会把旧
+    // 章节的未落库正文写到新章节上（2026-10-11 修复，回归测试锁定）。
+    if (editor.value && loadedChapterId && saveStatus.value === 'unsaved') {
+      void persistContent(editor.value.getHTML(), editor.value.getText())
     }
     if (entity && editor.value) {
       // 纯文本归一：JSON 外部写入的 \n 在 HTML 语境会被折叠成空格，加载边界拆成 <p> 段
       const content = plainTextToEditorHtml((entity.properties.content as string) || '')
+      // 同一章节的重复加载**不重载**：内容一致（重复点选/回流）或编辑器持焦（用户输入中）
+      // → 直接短路。setContent 是全文档 replaceWith，会重置选区——重载即「光标跳走」。
+      if (loadedChapterId === entity.id && (content === editor.value.getHTML() || editor.value.isFocused)) {
+        return
+      }
       editor.value.commands.setContent(content, { emitUpdate: false })
       wordCount.value = editor.value.getText().length
+      loadedChapterId = entity.id
     } else if (editor.value) {
       editor.value.commands.setContent('', { emitUpdate: false })
       wordCount.value = 0
+      loadedChapterId = null
     }
     saveStatus.value = 'saved'
   }
@@ -269,7 +291,7 @@ export function useChapterEditor(currentChapter: Ref<Entity | null>) {
     }
     // 卸载落盘必须在销毁之前（见上方「编辑器生命周期自管」注释）。
     // 仅脏态才写：非脏时内容已在盘上，切视图不该产生无意义的重复写入。
-    if (editor.value && currentChapter.value && saveStatus.value === 'unsaved') {
+    if (editor.value && loadedChapterId && saveStatus.value === 'unsaved') {
       void persistContent(editor.value.getHTML(), editor.value.getText())
     }
     editor.value?.destroy()

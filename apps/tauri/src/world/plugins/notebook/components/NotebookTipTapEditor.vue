@@ -137,8 +137,11 @@ onMounted(() => {
   loadNote(props.note)
 })
 
-watch(() => props.note, (n) => {
-  if (n) loadNote(n)
+// 切换笔记才重载（按 id 判断，勿按对象引用）——实体每次更新（含自动保存回流）都会
+// 替换引用（useShallowArray 按引用替换），按引用监听会在每次落库后触发 loadNote →
+// setContent 重置选区 → 光标跳走（2026-10-11 修复「打字丢光标」，回归测试锁定）。
+watch(() => props.note?.id, (id, oldId) => {
+  if (id && id !== oldId) loadNote(props.note)
 })
 
 const headingLevel = computed(() => {
