@@ -10,6 +10,27 @@
       <select v-model="editType" class="nb-editor-type" @change="emitUpdate()">
         <option v-for="t in NOTE_TYPES" :key="t.value" :value="t.value">{{ t.icon }} {{ t.label }}</option>
       </select>
+      <button
+        class="nb-export-btn"
+        :title="editTags.length ? '编辑标签' : '添加标签'"
+        @click="startTagEdit"
+      ><WsIcon name="tag" size="sm" /></button>
+    </div>
+    <!-- 标签行（批 3 I8）：实体顶层 tags；有标签或正在输入时显示 -->
+    <div v-if="editTags.length > 0 || tagEditing" class="nb-editor-tags">
+      <span v-for="tag in editTags" :key="tag" class="nb-tag-chip">
+        {{ tag }}
+        <button class="nb-tag-del" :title="`移除标签 ${tag}`" @click="removeTag(tag)"><WsIcon name="close" size="2xs" /></button>
+      </span>
+      <input
+        ref="tagInputRef"
+        v-model="tagDraft"
+        class="nb-tag-input"
+        placeholder="新标签，回车添加"
+        @keydown.enter.prevent="addTag"
+        @keydown.escape="tagEditing = false; tagDraft = ''"
+        @blur="tagEditing = false; tagDraft = ''"
+      />
     </div>
     <div class="nb-editor-body">
       <ErrorBoundary message="编辑器加载失败">
@@ -25,6 +46,7 @@
           v-else
           :note="note"
           @contentChange="onContentChange"
+          @navigate="$emit('navigate', $event)"
         />
       </ErrorBoundary>
     </div>
@@ -54,7 +76,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, nextTick } from 'vue'
 import { WsIcon } from '@worldsea/ui-kit'
 import { useEntityStore, useRelationStore, useBidirectional } from '@worldsea/entity-core'
 import type { Relation } from '@worldsea/entity-core'
@@ -87,6 +109,33 @@ const editType = ref(String(props.note.properties?.noteType || 'markdown'))
 const editLanguage = ref(String(props.note.properties?.codeLanguage || 'javascript'))
 const editFolder = ref(String(props.note.properties?.folderId || ''))
 
+// ── 标签（批 3 I8）：实体顶层 tags；离散元数据变更，保留撤销 ──
+const editTags = ref<string[]>([...(props.note.tags ?? [])])
+const tagEditing = ref(false)
+const tagDraft = ref('')
+const tagInputRef = ref<HTMLInputElement | null>(null)
+
+function emitTags(next: string[]): void {
+  editTags.value = next
+  emit('update', { id: props.note.id, changes: { tags: next } })
+}
+
+function addTag(): void {
+  const tag = tagDraft.value.trim()
+  if (!tag) return
+  if (!editTags.value.includes(tag)) emitTags([...editTags.value, tag])
+  tagDraft.value = ''
+}
+
+function removeTag(tag: string): void {
+  emitTags(editTags.value.filter(t => t !== tag))
+}
+
+function startTagEdit(): void {
+  tagEditing.value = true
+  void nextTick(() => tagInputRef.value?.focus())
+}
+
 // 仅切换笔记时重置本地编辑态（按 id 判断，勿按对象引用）——按引用会在保存回流
 // （store 按引用替换）时误重置，窄时序下可冲掉用户正在输入的标题（2026-10-11 修复）。
 watch(() => props.note?.id, (id, oldId) => {
@@ -97,6 +146,9 @@ watch(() => props.note?.id, (id, oldId) => {
   editType.value = String(n.properties?.noteType || 'markdown')
   editLanguage.value = String(n.properties?.codeLanguage || 'javascript')
   editFolder.value = String(n.properties?.folderId || '')
+  editTags.value = [...(n.tags ?? [])]
+  tagEditing.value = false
+  tagDraft.value = ''
 })
 
 const backlinkNotes = computed(() => {
@@ -182,6 +234,28 @@ function onCodeRun(output: string): void {
 .nb-editor-type { padding: 4px 8px; border-radius: var(--radius-xs); border: 1px solid var(--color-border); background: var(--color-bg-base); color: var(--color-text-secondary); font-size: var(--font-size-sm); outline: none; }
 .nb-editor-folder option, .nb-editor-type option { background: var(--color-bg-surface); color: var(--color-text-primary); }
 .nb-editor-body { flex: 1; overflow: hidden; }
+
+/* 标签行（批 3 I8） */
+.nb-editor-tags { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 16px 0; align-items: center; }
+.nb-tag-chip {
+  display: inline-flex; align-items: center; gap: 2px;
+  padding: 2px 4px 2px 8px; border-radius: var(--radius-2xs);
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  color: var(--color-primary); font-size: var(--font-size-2xs);
+}
+.nb-tag-del {
+  display: flex; align-items: center; justify-content: center;
+  width: 14px; height: 14px; padding: 0; border: none; border-radius: var(--radius-2xs);
+  background: transparent; color: var(--color-primary); opacity: 0.6; cursor: pointer;
+  transition: opacity 0.15s, background 0.15s;
+}
+.nb-tag-del:hover { opacity: 1; background: color-mix(in srgb, var(--color-primary) 25%, transparent); }
+.nb-tag-input {
+  width: 110px; padding: 2px 6px; border: 1px solid var(--color-border);
+  border-radius: var(--radius-2xs); background: var(--color-bg-base);
+  color: var(--color-text-primary); font-size: var(--font-size-2xs); outline: none;
+}
+.nb-tag-input:focus { border-color: var(--color-primary); }
 
 .nb-link-picker-overlay { position: fixed; inset: 0; background: var(--overlay); z-index: 1000; display: flex; align-items: center; justify-content: center; }
 .nb-link-picker { background: var(--color-bg-surface); border-radius: var(--radius-mid); width: 360px; max-height: 400px; display: flex; flex-direction: column; box-shadow: 0 8px 32px rgba(0,0,0,0.2); }

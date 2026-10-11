@@ -73,6 +73,24 @@ describe('contentNormalize · markdown 渲染分支', () => {
       expect(html).toContain(marker)
     }
   })
+
+  it('Agent 任务列表语料：- [ ]/- [x] 规范化为 TipTap 任务节点（跨链路 I2）', () => {
+    const html = normalizeNoteContent('# 待办\n\n- [ ] 未完成项\n- [x] 已完成项')
+    expect(html).toContain('<ul data-type="taskList">')
+    expect(html).toContain('data-type="taskItem"')
+    expect(html).not.toContain('input')
+    // 勾选态分别落位
+    expect(html).toContain('data-checked="false"')
+    expect(html).toContain('data-checked="true"')
+    expect(html).toContain('未完成项')
+    expect(html).toContain('已完成项')
+  })
+
+  it('无 checkbox 的普通列表不被任务列表规范化触碰', () => {
+    const html = normalizeNoteContent('- 甲\n- 乙')
+    expect(html).not.toContain('data-type="taskList"')
+    expect(html).not.toContain('data-type="taskItem"')
+  })
 })
 
 describe('contentNormalize · HTML 放行分支（幂等 + 存量零变化）', () => {

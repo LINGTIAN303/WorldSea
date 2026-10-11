@@ -21,6 +21,7 @@
         <button class="tb-btn" :class="{ active: editor?.isActive('blockquote') }" @click="editor?.chain().focus().toggleBlockquote().run()" title="引用" aria-label="引用"><WsIcon name="quote" size="xs" /></button>
         <button class="tb-btn" :class="{ active: editor?.isActive('bulletList') }" @click="editor?.chain().focus().toggleBulletList().run()" title="无序列表" aria-label="无序列表"><WsIcon name="list" size="xs" /></button>
         <button class="tb-btn" :class="{ active: editor?.isActive('orderedList') }" @click="editor?.chain().focus().toggleOrderedList().run()" title="有序列表" aria-label="有序列表"><WsIcon name="list-ordered" size="xs" /></button>
+        <button class="tb-btn" :class="{ active: editor?.isActive('taskList') }" @click="editor?.chain().focus().toggleTaskList().run()" title="任务列表" aria-label="任务列表"><WsIcon name="task-plan" size="xs" /></button>
         <button class="tb-btn" @click="editor?.chain().focus().setHorizontalRule().run()" title="分割线" aria-label="分割线"><WsIcon name="minus" size="xs" /></button>
         <button class="tb-btn" @click="editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()" title="插入表格" aria-label="插入表格"><WsIcon name="table" size="xs" /></button>
         <button class="tb-btn" @click="imageInput?.click()" title="插入图片（本地文件，≤2MB）" aria-label="插入图片"><WsIcon name="image" size="xs" /></button>
@@ -51,14 +52,35 @@
       <span class="save-status" :class="saveStatus">{{ saveLabel }}</span>
       <span class="word-count">{{ wordCount }} 字</span>
     </div>
-    <div class="nb-tt-body">
-      <div v-if="!showPreview" class="nb-editor-wrap">
-        <EditorContent v-if="editor" :editor="editor" />
-        <textarea v-else v-model="fallbackContent" class="editor-fallback" aria-label="文本编辑器（备选）" @input="onFallbackInput" />
+    <!-- 定位锚层（批 3 走查修复）：TOC 按钮/面板挂这里（不随正文滚动）；滚动容器是内层 .nb-tt-body -->
+    <div class="nb-tt-wrap">
+      <div class="nb-tt-body">
+        <div v-if="!showPreview" class="nb-editor-wrap">
+          <EditorContent v-if="editor" :editor="editor" />
+          <textarea v-else v-model="fallbackContent" class="editor-fallback" aria-label="文本编辑器（备选）" @input="onFallbackInput" />
+          <BubbleToolbar :editor="editor" />
+        </div>
+        <div v-else class="nb-preview-wrap ws-nb-prose" v-html="previewHtml" @click="onPreviewClick"></div>
       </div>
-      <div v-else class="nb-preview-wrap" v-html="previewHtml"></div>
+      <!-- 目录（批 3 I5）：右下角悬浮按钮 + 标题层级面板 -->
+      <button class="nb-toc-btn" :class="{ active: showToc }" title="目录" aria-label="目录" @click="showToc = !showToc">
+        <WsIcon name="outline" size="xs" />
+      </button>
+      <div v-if="showToc && tocItems.length > 0" class="nb-toc-panel">
+        <div
+          v-for="item in tocItems"
+          :key="item.pos"
+          :class="['nb-toc-item', `lv${item.level}`]"
+          role="button"
+          tabindex="0"
+          @click="scrollToHeading(item.pos)"
+          @keydown.enter.prevent="scrollToHeading(item.pos)"
+        >{{ item.text }}</div>
+      </div>
     </div>
     <MentionPopover ref="mentionPopoverRef" @select="onMentionSelect" @close="() => {}" />
+    <!-- 双链选择器（批 3 I4）：仅 notebook 实体、排除当前笔记 -->
+    <MentionPopover ref="noteLinkPopoverRef" kind="notes" :exclude-id="note?.id" @select="onMentionSelect" @close="() => {}" />
     <SlashCommandMenu ref="slashCommandMenuRef" @select="onSlashCommandSelect" @close="() => {}" />
   </div>
 </template>
@@ -70,9 +92,12 @@ import { WsIcon } from '@worldsea/ui-kit'
 import { sanitizeMarkdownHtml } from '@worldsea/shared-ui/markdown'
 import MentionPopover from './MentionPopover.vue'
 import SlashCommandMenu from './SlashCommandMenu.vue'
+import BubbleToolbar from './BubbleToolbar.vue'
 import { useNoteEditor } from '../composables/useNoteEditor'
+import { findNoteLinkAnchor } from '../composables/noteLinkExt'
 import { SLASH_COMMANDS, type SlashCommandItem } from '../composables/slashCommandExtension'
 import { normalizeNoteContent } from '../contentNormalize'
+import '../prose.css'
 import { insertImageFilesInto } from '@/composables/imageInsert'
 import { toastSuccess, toastWarn } from '@/composables/useToast'
 import type { Entity } from '@worldsea/entity-core'
@@ -85,7 +110,7 @@ type SlashCommandPopoverApi = {
 }
 
 const props = defineProps<{ note: Entity }>()
-const emit = defineEmits<{ contentChange: [html: string] }>()
+const emit = defineEmits<{ contentChange: [html: string]; navigate: [noteId: string] }>()
 
 const showPreview = ref(false)
 const fallbackContent = ref(String(props.note.properties?.content || ''))
@@ -108,12 +133,22 @@ function onFallbackInput(e: Event) {
   emit('contentChange', normalizeNoteContent(val))
 }
 
+/** 预览态双链点击（编辑态为 Ctrl+点击，见 useNoteEditor 的 handleClick） */
+function onPreviewClick(e: MouseEvent): void {
+  const anchor = findNoteLinkAnchor(e.target)
+  if (!anchor) return
+  e.preventDefault()
+  const noteId = anchor.getAttribute('data-note-id')
+  if (noteId) emit('navigate', noteId)
+}
+
 const {
   editor,
   saveStatus,
   wordCount,
   loadNote,
   setMentionPopover,
+  setNoteLinkPopover,
   onMentionSelect,
   setSlashCommandPopover,
   setSlashCommandCallback,
@@ -121,13 +156,16 @@ const {
 } = useNoteEditor(
   computed(() => props.note),
   (html) => emit('contentChange', html),
+  (noteId) => emit('navigate', noteId),
 )
 
 const mentionPopoverRef = ref<{ open: (clientRect: (() => DOMRect | null) | null) => void; close: () => void } | null>(null)
+const noteLinkPopoverRef = ref<{ open: (clientRect: (() => DOMRect | null) | null) => void; close: () => void } | null>(null)
 const slashCommandMenuRef = ref<SlashCommandPopoverApi | null>(null)
 
 onMounted(() => {
   setMentionPopover(mentionPopoverRef.value)
+  setNoteLinkPopover(noteLinkPopoverRef.value)
   setSlashCommandPopover(slashCommandMenuRef.value)
   // 斜杠命令回调：`mention` 由 useNoteEditor 内部处理（插入 @），其余四条
   // （续写 / 润色 / 摘要 / 链接笔记）在笔记本芽尚无落地实现。此前从未注册回调 →
@@ -153,6 +191,42 @@ const headingLevel = computed(() => {
   }
   return '0'
 })
+
+// ── 目录（批 3 I5）：transaction 驱动重算；点击 scrollIntoView 定位 ──
+const showToc = ref(false)
+const tocTick = ref(0)
+let offTocTransaction: (() => void) | null = null
+watch(editor, (ed) => {
+  offTocTransaction?.()
+  offTocTransaction = null
+  if (!ed) return
+  const handler = () => { tocTick.value++ }
+  ed.on('transaction', handler)
+  offTocTransaction = () => ed.off('transaction', handler)
+}, { immediate: true })
+onBeforeUnmount(() => { offTocTransaction?.() })
+
+interface TocItem { pos: number; level: number; text: string }
+const tocItems = computed<TocItem[]>(() => {
+  void tocTick.value
+  const ed = editor.value
+  if (!ed) return []
+  const items: TocItem[] = []
+  ed.state.doc.descendants((node, pos) => {
+    if (node.type.name === 'heading') {
+      items.push({ pos, level: node.attrs.level as number, text: node.textContent })
+    }
+    return true
+  })
+  return items
+})
+
+function scrollToHeading(pos: number): void {
+  const ed = editor.value
+  if (!ed) return
+  const el = ed.view.nodeDOM(pos) as HTMLElement | null
+  el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
 
 const saveLabel = computed(() => {
   switch (saveStatus.value) {
@@ -224,82 +298,39 @@ onBeforeUnmount(() => {
 .save-status.unsaved { color: var(--color-warning); }
 .word-count { font-size: var(--font-size-xs); color: var(--color-text-tertiary); }
 
+/* 定位锚层：TOC 按钮固定于视口右下（不随正文滚动）；滚动容器 = 内层 .nb-tt-body */
+.nb-tt-wrap { flex: 1; min-height: 0; position: relative; display: flex; flex-direction: column; }
 .nb-tt-body { flex: 1; overflow: auto; padding: 16px 20px; }
 .nb-editor-wrap { height: 100%; }
-.nb-editor-wrap :deep(.tiptap) {
-  outline: none; min-height: 200px; font-family: var(--font-family-content);
-  font-size: var(--font-size-base); line-height: 1.7; color: var(--color-text-primary);
-}
-.nb-editor-wrap :deep(.tiptap h1) { font-size: var(--font-size-2xl); font-weight: var(--font-weight-bold); margin: 20px 0 12px; }
-.nb-editor-wrap :deep(.tiptap h2) { font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold); margin: 16px 0 10px; }
-.nb-editor-wrap :deep(.tiptap h3) { font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); margin: 12px 0 8px; }
-.nb-editor-wrap :deep(.tiptap p) { margin: 0 0 8px; }
-.nb-editor-wrap :deep(.tiptap blockquote) {
-  border-left: 3px solid var(--color-primary); padding-left: 12px; margin: 8px 0; color: var(--color-text-secondary);
-}
-.nb-editor-wrap :deep(.tiptap ul), .nb-editor-wrap :deep(.tiptap ol) { padding-left: 20px; margin: 8px 0; }
-.nb-editor-wrap :deep(.tiptap hr) { border: none; border-top: 1px solid var(--color-border-subtle); margin: 16px 0; }
-.nb-editor-wrap :deep(.tiptap code) { background: var(--color-bg-hover); padding: 2px 4px; border-radius: var(--radius-2xs); font-size: var(--font-size-sm); }
-.nb-editor-wrap :deep(.tiptap pre) {
-  background: var(--color-bg-hover); padding: 12px; border-radius: var(--radius-sm); overflow-x: auto;
-  font-size: var(--font-size-sm); margin: 8px 0;
-}
-.nb-editor-wrap :deep(.nb-mention) {
-  background: color-mix(in srgb, var(--color-primary) 15%, transparent);
-  color: var(--color-primary); padding: 1px 6px; border-radius: var(--radius-xs);
-  font-size: var(--font-size-sm); font-weight: var(--font-weight-medium); cursor: pointer;
-}
-.nb-editor-wrap :deep(.nb-mention:hover) { background: var(--color-primary); color: var(--on-accent); }
+/* 排版体系（标题/引用/列表/表格/代码块/任务列表等）统一由 prose.css 的 .ws-nb-prose 承载，
+   编辑区类名在 useNoteEditor 的 editorProps.attributes（'nb-editor-body tiptap ws-nb-prose'）注入 */
+.nb-editor-wrap :deep(.tiptap) { outline: none; min-height: 200px; }
 
-/* ── 图片（三期前置）：块级 img，宽度自适应不越界；选中态与表格选中同色 ── */
-.nb-editor-wrap :deep(.tiptap img) {
-  max-width: 100%; height: auto; display: block; margin: 8px 0;
-  border-radius: var(--radius-sm);
+/* 目录（批 3 I5）：右下角悬浮按钮 + 层级面板 */
+.nb-toc-btn {
+  position: absolute; right: 14px; bottom: 14px; z-index: 5;
+  width: 30px; height: 30px; padding: 0; border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm); background: var(--color-bg-surface);
+  color: var(--color-text-tertiary); cursor: pointer; display: flex; align-items: center; justify-content: center;
+  box-shadow: var(--shadow-sm); transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
-.nb-editor-wrap :deep(.tiptap img.ProseMirror-selectednode) {
-  outline: 2px solid var(--color-primary); outline-offset: 2px;
+.nb-toc-btn:hover, .nb-toc-btn.active { background: var(--color-bg-hover); color: var(--color-primary); border-color: var(--color-primary); }
+.nb-toc-panel {
+  position: absolute; right: 14px; bottom: 50px; z-index: 5;
+  width: 260px; max-height: 50%; overflow-y: auto;
+  background: var(--color-bg-surface); border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm); padding: 6px; box-shadow: var(--shadow-md);
 }
-.nb-preview-wrap :deep(img) { max-width: 100%; height: auto; border-radius: var(--radius-sm); }
-
-/* ── 表格（二期）：TipTap 官方建议的最小样式集 + 主题令牌化 ── */
-.nb-editor-wrap :deep(.tiptap .tableWrapper) { overflow-x: auto; margin: 8px 0; }
-.nb-editor-wrap :deep(.tiptap table) {
-  border-collapse: collapse; table-layout: fixed; width: 100%; overflow: hidden;
+.nb-toc-item {
+  padding: 4px 8px; border-radius: var(--radius-xs); cursor: pointer;
+  font-size: var(--font-size-xs); color: var(--color-text-secondary);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  transition: background 0.1s, color 0.1s;
 }
-.nb-editor-wrap :deep(.tiptap th),
-.nb-editor-wrap :deep(.tiptap td) {
-  border: 1px solid var(--color-border); padding: 4px 8px; vertical-align: top; position: relative;
-  min-width: var(--table-cell-min-width, 3em);
-}
-.nb-editor-wrap :deep(.tiptap th) {
-  background: var(--color-bg-muted); font-weight: var(--font-weight-semibold); text-align: left;
-}
-/* 多选单元格高亮（拖选 / shift 选区） */
-.nb-editor-wrap :deep(.tiptap .selectedCell::after) {
-  content: ''; position: absolute; inset: 0; z-index: 2; pointer-events: none;
-  background: color-mix(in srgb, var(--color-primary) 18%, transparent);
-}
-/* 列宽拖拽手柄（resizable: true） */
-.nb-editor-wrap :deep(.tiptap .column-resize-handle) {
-  position: absolute; right: -2px; top: 0; bottom: -2px; width: 4px; z-index: 20;
-  background: var(--color-primary); pointer-events: none;
-}
-.nb-editor-wrap :deep(.tiptap.resize-cursor) { cursor: col-resize; }
-
-.nb-preview-wrap { font-family: var(--font-family-content); font-size: var(--font-size-base); line-height: 1.7; color: var(--color-text-primary); }
-.nb-preview-wrap :deep(h1) { font-size: var(--font-size-2xl); font-weight: var(--font-weight-bold); margin: 20px 0 12px; }
-.nb-preview-wrap :deep(h2) { font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold); margin: 16px 0 10px; }
-.nb-preview-wrap :deep(h3) { font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); margin: 12px 0 8px; }
-.nb-preview-wrap :deep(blockquote) {
-  border-left: 3px solid var(--color-primary); padding-left: 12px; margin: 8px 0; color: var(--color-text-secondary);
-}
-.nb-preview-wrap :deep(code) { background: var(--color-bg-hover); padding: 2px 4px; border-radius: var(--radius-2xs); font-size: var(--font-size-sm); }
-.nb-preview-wrap :deep(pre) { background: var(--color-bg-hover); padding: 12px; border-radius: var(--radius-sm); overflow-x: auto; margin: 8px 0; }
-/* 预览侧表格：marked 渲染 GFM 表格（与编辑态同观感） */
-.nb-preview-wrap :deep(table) { border-collapse: collapse; width: 100%; margin: 8px 0; }
-.nb-preview-wrap :deep(th),
-.nb-preview-wrap :deep(td) { border: 1px solid var(--color-border); padding: 4px 8px; text-align: left; vertical-align: top; }
-.nb-preview-wrap :deep(th) { background: var(--color-bg-muted); font-weight: var(--font-weight-semibold); }
+.nb-toc-item:hover { background: var(--color-bg-hover); color: var(--color-primary); }
+.nb-toc-item.lv1 { font-weight: var(--font-weight-semibold); color: var(--color-text-primary); }
+.nb-toc-item.lv2 { padding-left: 20px; }
+.nb-toc-item.lv3 { padding-left: 32px; font-size: var(--font-size-2xs); }
 
 .editor-fallback { width: 100%; height: 100%; min-height: 200px; border: 1px solid var(--color-border-subtle); border-radius: var(--radius-sm); padding: 12px; font-family: var(--font-family-content); font-size: var(--font-size-base); line-height: 1.7; color: var(--color-text-primary); background: var(--color-bg-base); resize: vertical; outline: none; }
 .editor-fallback:focus { border-color: var(--color-primary); }

@@ -14,5 +14,7 @@ export interface NotebookEntity extends Entity {
     codeOutput?: string
     folderId?: string
     tags?: string[]
+    /** 置顶（批 3 I9）：侧栏置顶区 */
+    pinned?: boolean
   }
 }

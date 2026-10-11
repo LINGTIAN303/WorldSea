@@ -1,32 +1,28 @@
 import { ref, shallowRef, onMounted, onBeforeUnmount, type Ref } from 'vue'
 import { Editor } from '@tiptap/vue-3'
-import StarterKit from '@tiptap/starter-kit'
-import Mention from '@tiptap/extension-mention'
-import { TableKit } from '@tiptap/extension-table'
-import Image from '@tiptap/extension-image'
-import SlashCommandExtension, { SLASH_COMMANDS } from './slashCommandExtension'
-import type { SlashCommandItem } from './slashCommandExtension'
 import { pickImageFiles, insertImageFilesInto } from '@/composables/imageInsert'
 import { plainTextToEditorHtml } from '@/composables/plainTextToEditorHtml'
-import { useEntityStore } from '@worldsea/entity-core'
-import { entitySchemaRegistry } from '@worldsea/entity-core'
+import { useEntityStore, useRelationStore, useBidirectional } from '@worldsea/entity-core'
+import { buildNotebookExtensions, fireMentionCommand, fireSlashCommand, fireNoteLinkCommand, type MentionItem } from './editorExtensions'
+import { findNoteLinkAnchor } from './noteLinkExt'
+import type { SlashCommandItem } from './slashCommandExtension'
 import type { Entity } from '@worldsea/entity-core'
-import type { SuggestionProps, SuggestionKeyDownProps } from '@tiptap/suggestion'
 
 const AUTOSAVE_DELAY = 300
 
 type SaveStatus = 'saved' | 'saving' | 'unsaved'
 
-export interface MentionItem {
-  id: string
-  name: string
-  type: string
-  typeLabel: string
-  icon: string
-}
-
-export function useNoteEditor(currentNote: Ref<Entity | null>, onContentChange?: (html: string) => void) {
+/**
+ * @param onNavigate 双链跳转回调（编辑态 Ctrl+点击 / 预览态点击；NotebookTipTapEditor 转发到视图切换笔记）
+ */
+export function useNoteEditor(
+  currentNote: Ref<Entity | null>,
+  onContentChange?: (html: string) => void,
+  onNavigate?: (noteId: string) => void,
+) {
   const es = useEntityStore()
+  const relationStore = useRelationStore()
+  const { createBidirectional } = useBidirectional()
   const saveStatus = ref<SaveStatus>('saved')
   const wordCount = ref(0)
   let saveTimer: ReturnType<typeof setTimeout> | null = null
@@ -35,17 +31,29 @@ export function useNoteEditor(currentNote: Ref<Entity | null>, onContentChange?:
   // 旧笔记的未落库正文写到新笔记上——2026-10-11 修复「切换窗口串写」）
   let loadedNoteId: string | null = null
 
-  let mentionPopoverRef: { open: (clientRect: (() => DOMRect | null) | null) => void; close: () => void } | null = null
-  let mentionCommand: ((props: { id: string; label?: string }) => void) | null = null
+  type MentionPopoverApi = { open: (clientRect: (() => DOMRect | null) | null) => void; close: () => void }
+  let mentionPopoverRef: MentionPopoverApi | null = null
+  // 双链弹层（第二个 MentionPopover 实例，kind=notes；批 3 I4）
+  let noteLinkPopoverRef: MentionPopoverApi | null = null
+  // 弹层 kind：mention 与 `[[` 双链各用各的实例，select 时按 kind 分派命令句柄
+  type PopoverKind = 'mention' | 'noteLink'
+  let activePopoverKind: PopoverKind = 'mention'
 
-  function setMentionPopover(ref: { open: (clientRect: (() => DOMRect | null) | null) => void; close: () => void } | null) {
+  function setMentionPopover(ref: MentionPopoverApi | null) {
     mentionPopoverRef = ref
   }
 
+  function setNoteLinkPopover(ref: MentionPopoverApi | null) {
+    noteLinkPopoverRef = ref
+  }
+
   function onMentionSelect(item: MentionItem) {
-    if (mentionCommand) {
-      mentionCommand({ id: item.id, label: item.name })
+    if (activePopoverKind === 'noteLink') {
+      // 双链：回灌 suggestion 命令句柄 → 框架执行 insertNoteLink + 关系落库
+      fireNoteLinkCommand(item)
+      return
     }
+    fireMentionCommand(item)
   }
 
   type SlashCommandPopoverApi = {
@@ -56,7 +64,6 @@ export function useNoteEditor(currentNote: Ref<Entity | null>, onContentChange?:
   }
 
   let slashCommandPopoverRef: SlashCommandPopoverApi | null = null
-  let slashCommandRef: ((props: { id: string; label?: string }) => void) | null = null
   let slashCommandCallback: ((commandId: string) => void) | null = null
 
   function setSlashCommandPopover(ref: SlashCommandPopoverApi | null) {
@@ -68,13 +75,21 @@ export function useNoteEditor(currentNote: Ref<Entity | null>, onContentChange?:
   }
 
   function onSlashCommandSelect(item: SlashCommandItem) {
-    if (slashCommandRef) {
-      slashCommandRef({ id: item.id, label: item.label })
-    }
+    fireSlashCommand(item)
     if (item.id === 'mention' && editor.value) {
       setTimeout(() => {
         editor.value?.chain().focus().insertContent('@').run()
       }, 0)
+    } else if (item.id === 'task_list' && editor.value) {
+      // 空待办：JSON 片段插入（不依赖 HTML 解析）；光标落项内，`- [ ] ` 手敲输入规则亦可
+      editor.value.chain().focus().insertContent({
+        type: 'taskList',
+        content: [{
+          type: 'taskItem',
+          attrs: { checked: false },
+          content: [{ type: 'paragraph' }],
+        }],
+      }).run()
     } else if (slashCommandCallback) {
       slashCommandCallback(item.id)
     }
@@ -90,101 +105,41 @@ export function useNoteEditor(currentNote: Ref<Entity | null>, onContentChange?:
 
   onMounted(() => {
     editor.value = new Editor({
-      extensions: [
-        StarterKit,
-        // 表格（二期）：v3 官方四件套合集（Table/TableRow/TableHeader/TableCell）。
-        // resizable 让列宽可拖拽（HTML 产物带 colgroup 宽度）；表格结构操作由工具栏
-        // 的光标上下文组提供（见 NotebookTipTapEditor）。
-        TableKit.configure({ table: { resizable: true } }),
-        // 图片（三期前置）：块级节点；allowBase64 必开 —— 本地图片以 data URL 进正文
-        // （MVP 存储决策，见 imageInsert.ts）。导出 docx 的对应映射见 blocksToDocx。
-        Image.configure({ inline: false, allowBase64: true }),
-        Mention.configure({
-          HTMLAttributes: { class: 'nb-mention' },
-          suggestion: {
-            char: '@',
-            items: ({ query }: { query: string }) => {
-              const all = (es.entities ?? []).map(e => ({
-                id: e.id,
-                name: e.name,
-                type: e.type,
-                typeLabel: entitySchemaRegistry.getLabel(e.type),
-                icon: entitySchemaRegistry.getIconName(e.type) || 'clipboard-list',
-              }))
-              if (!query) return all.slice(0, 20)
-              const q = query.toLowerCase()
-              return all.filter(i =>
-                i.name.toLowerCase().includes(q) || i.typeLabel.toLowerCase().includes(q)
-              ).slice(0, 20)
-            },
-            render: () => {
-              return {
-                onStart: (props: SuggestionProps<MentionItem>) => {
-                  mentionCommand = props.command
-                  mentionPopoverRef?.open(props.clientRect ?? null)
-                },
-                onUpdate: (props: SuggestionProps<MentionItem>) => {
-                  mentionCommand = props.command
-                },
-                onExit: () => {
-                  mentionPopoverRef?.close()
-                  mentionCommand = null
-                },
-                onKeyDown: (props: SuggestionKeyDownProps) => {
-                  if (props.event.key === 'Escape') {
-                    mentionPopoverRef?.close()
-                    return true
-                  }
-                  return false
-                },
-              }
-            },
-          },
-          renderText: ({ node }) => {
-            return `@${node.attrs.label ?? node.attrs.id}`
-          },
-        }),
-        SlashCommandExtension.configure({
-          suggestion: {
-            char: '/',
-            items: ({ query }: { query: string }) => {
-              if (!query) return SLASH_COMMANDS
-              const q = query.toLowerCase()
-              return SLASH_COMMANDS.filter(item =>
-                item.label.toLowerCase().includes(q) ||
-                item.id.toLowerCase().includes(q) ||
-                item.description.toLowerCase().includes(q)
-              )
-            },
-            command: ({ editor, range }: { editor: any; range: any }) => {
-              editor.chain().focus().deleteRange(range).run()
-            },
-            render: (): any => {
-              return {
-                onStart: (props: SuggestionProps<SlashCommandItem>) => {
-                  slashCommandRef = props.command
-                  slashCommandPopoverRef?.open(props.clientRect ?? null, props.items)
-                },
-                onUpdate: (props: SuggestionProps<SlashCommandItem>) => {
-                  slashCommandRef = props.command
-                  slashCommandPopoverRef?.updateItems(props.items)
-                },
-                onExit: () => {
-                  slashCommandPopoverRef?.close()
-                  slashCommandRef = null
-                },
-                onKeyDown: (props: SuggestionKeyDownProps) => {
-                  return slashCommandPopoverRef?.onKeyDown(props.event) ?? false
-                },
-              }
-            },
-          },
-        }),
-      ],
+      extensions: buildNotebookExtensions({
+        openMentionPopover: (rect) => { activePopoverKind = 'mention'; mentionPopoverRef?.open(rect) },
+        closeMentionPopover: () => mentionPopoverRef?.close(),
+        openSlashPopover: (rect, items) => slashCommandPopoverRef?.open(rect, items),
+        updateSlashPopover: (items) => slashCommandPopoverRef?.updateItems(items),
+        closeSlashPopover: () => slashCommandPopoverRef?.close(),
+        onSlashKeyDown: (event) => slashCommandPopoverRef?.onKeyDown(event) ?? false,
+        openNoteLinkPopover: (rect) => { activePopoverKind = 'noteLink'; noteLinkPopoverRef?.open(rect) },
+        updateNoteLinkPopover: () => { /* 弹层为独立查询模式（自管过滤），无需外部 items 更新 */ },
+        closeNoteLinkPopover: () => noteLinkPopoverRef?.close(),
+        onNoteLinkKeyDown: (event) => {
+          // 弹层自带输入框/键盘导航（与 mention 同模式）；Escape 收层由弹层自处理，这里仅让 suggestion 让路
+          if (event.key === 'Escape') {
+            noteLinkPopoverRef?.close()
+            return true
+          }
+          return false
+        },
+        onNoteLinkInsert: (targetId) => { void linkCurrentTo(targetId) },
+        currentNoteId: () => loadedNoteId ?? currentNote.value?.id ?? null,
+      }),
       content: '',
       editorProps: {
         attributes: {
-          class: 'nb-editor-body tiptap',
+          class: 'nb-editor-body tiptap ws-nb-prose',
+        },
+        // 双链跳转：Ctrl/Cmd+点击 a[data-note-id] → 切换到目标笔记（预览态为直接点击，见 NotebookTipTapEditor）
+        handleClick: (_view, _pos, event) => {
+          const anchor = findNoteLinkAnchor(event.target)
+          if (!anchor) return false
+          if (!(event.ctrlKey || event.metaKey)) return false
+          const noteId = anchor.getAttribute('data-note-id')
+          if (!noteId) return false
+          onNavigate?.(noteId)
+          return true
         },
         // 粘贴 / 拖拽本地图片（截图贴笔记是高频场景）。闭包引用 editor shallowRef：
         // 此时尚在构造中，插入动作发生时 editor.value 必已就绪。
@@ -219,6 +174,22 @@ export function useNoteEditor(currentNote: Ref<Entity | null>, onContentChange?:
     saveTimer = setTimeout(async () => {
       await flushSave()
     }, AUTOSAVE_DELAY)
+  }
+
+  /**
+   * 双链关系落库（批 3 I4）：双向 note_link，幂等（存在性检查，与 migrateBacklinks 同口径）。
+   * 删除 mark 不清理关系（挂账：BacklinkPanel 展示侧容忍）。
+   */
+  async function linkCurrentTo(targetId: string): Promise<void> {
+    const sourceId = loadedNoteId ?? currentNote.value?.id
+    if (!sourceId || sourceId === targetId) return
+    const exists = relationStore.relations.some(
+      (r) => r.type === 'note_link' &&
+        ((r.sourceId === sourceId && r.targetId === targetId) ||
+          (r.sourceId === targetId && r.targetId === sourceId)),
+    )
+    if (exists) return
+    await createBidirectional({ type: 'note_link', sourceId, targetId })
   }
 
   /**
@@ -270,6 +241,7 @@ export function useNoteEditor(currentNote: Ref<Entity | null>, onContentChange?:
     }
     if (entity && editor.value) {
       // 纯文本归一：JSON 外部写入的 \n 在 HTML 语境会被折叠成空格，加载边界拆成 <p> 段
+      // （装载网关已把 md 归一为 HTML，此处为网关外的最后兜底——已是 HTML 的内容原样放行）
       const content = plainTextToEditorHtml((entity.properties.content as string) || '')
       // 同一篇笔记的回流/外部更新**不重载**：内容一致（自动保存回流）或编辑器持焦
       // （用户输入中）→ 直接短路。setContent 是全文档 replaceWith，会重置选区——
@@ -320,6 +292,7 @@ export function useNoteEditor(currentNote: Ref<Entity | null>, onContentChange?:
     getHTML,
     getText,
     setMentionPopover,
+    setNoteLinkPopover,
     onMentionSelect,
     setSlashCommandPopover,
     setSlashCommandCallback,

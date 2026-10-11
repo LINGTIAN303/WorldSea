@@ -27,6 +27,37 @@ import { renderMarkdownForEditor } from '@worldsea/shared-ui/markdown'
 import { plainTextToEditorHtml } from '@/composables/plainTextToEditorHtml'
 
 /**
+ * marked GFM 任务列表 → TipTap 任务列表节点形态（批 1 I2，2026-10-12）。
+ *
+ * marked 18 对 `- [ ] 待办` 的输出是 `<li><input disabled type="checkbox"> 文本</li>`
+ * （实证：无 class 无 data-*），而官方 TaskItem 只认 `li[data-type="taskItem"]`。
+ * 此处把渲染产物中的任务项规范化为 TipTap 形态（外层 ul 加 data-type=taskList、
+ * li 加 data-type/data-checked 并剥掉 input 元素）——编辑器装载即得可勾选待办。
+ * 仅含 checkbox 时才动 DOM（快速短路，普通内容零开销）；DOMParser 失败降级原样。
+ */
+function normalizeTaskListHtml(html: string): string {
+  if (!html.includes('checkbox')) return html
+  try {
+    const doc = new DOMParser().parseFromString(`<div id="__r">${html}</div>`, 'text/html')
+    const root = doc.getElementById('__r')
+    if (!root) return html
+    let touched = false
+    root.querySelectorAll('li').forEach((li) => {
+      const box = li.querySelector('input[type="checkbox"]')
+      if (!box) return
+      touched = true
+      li.setAttribute('data-type', 'taskItem')
+      li.setAttribute('data-checked', box.hasAttribute('checked') ? 'true' : 'false')
+      box.remove()
+      const parent = li.parentElement
+      if (parent && parent.tagName === 'UL') parent.setAttribute('data-type', 'taskList')
+    })
+    return touched ? root.innerHTML : html
+  } catch {
+    return html
+  }
+}
+/**
  * markdown 块级信号集，分两级（2026-10-11 收紧误伤）：
  *
  * 【强信号】单行命中即判定为 markdown —— 普通文本里几乎不可能出现：
@@ -82,7 +113,7 @@ function looksLikeMarkdown(content: string): boolean {
  */
 export function normalizeNoteContent(content: string): string {
   if (!content) return ''
-  if (looksLikeMarkdown(content)) return renderMarkdownForEditor(content)
+  if (looksLikeMarkdown(content)) return normalizeTaskListHtml(renderMarkdownForEditor(content))
   if (content.includes('<')) return content
   return plainTextToEditorHtml(content)
 }

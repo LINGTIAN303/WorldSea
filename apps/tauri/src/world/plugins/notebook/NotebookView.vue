@@ -42,6 +42,9 @@
               :searchMode="!!searchQuery"
               :pendingDeleteId="pendingDeleteFolderId"
               :folderToRename="folderToRename"
+              :pinnedNotes="pinnedNotes"
+              :recentNotes="recentNotes"
+              :searchQuery="searchQuery"
               @renameMode="clearFolderToRename"
               @selectNote="selectedNoteId = $event"
               @toggleFolder="toggleFolder"
@@ -54,6 +57,7 @@
               @duplicateNote="duplicateNote"
               @deleteNote="deleteNote"
               @reorderNotes="reorderNotes"
+              @togglePin="togglePin"
             />
             </div>
           </template>
@@ -274,17 +278,58 @@ const notebookNotes = computed(() =>
   entityStore.entities.filter((e): e is NotebookEntity => e.type === 'notebook')
 )
 
+// ── 置顶 + 最近打开（批 3 I9）──
+// 置顶 = properties.pinned（实体属性，随笔记走）；最近 = localStorage 记最近 5 个 id（跨会话）。
+const pinnedNotes = computed(() =>
+  notebookNotes.value.filter(n => n.properties?.pinned === true)
+)
+
+const RECENT_KEY = 'worldsea-notebook-recent'
+const RECENT_MAX = 5
+const recentIds = ref<string[]>(loadRecent())
+function loadRecent(): string[] {
+  try { return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]') } catch { return [] }
+}
+watch(selectedNoteId, (id) => {
+  if (!id) return
+  recentIds.value = [id, ...recentIds.value.filter(x => x !== id)].slice(0, RECENT_MAX)
+  try { localStorage.setItem(RECENT_KEY, JSON.stringify(recentIds.value)) } catch { /* 忽略 */ }
+})
+const recentNotes = computed(() =>
+  recentIds.value
+    .map(id => notebookNotes.value.find(n => n.id === id))
+    .filter((n): n is NotebookEntity => !!n)
+)
+
+function togglePin(noteId: string): void {
+  const note = notebookNotes.value.find(n => n.id === noteId)
+  if (!note) return
+  entityStore.update(noteId, {
+    properties: { ...note.properties, pinned: !note.properties?.pinned },
+  })
+}
+
 /** 正文以 TipTap HTML 存储，检索前剥标签，避免 `<p>`/`<strong>` 之类标签命中产生噪声 */
 function plainText(html?: string): string {
   return (html || '').replace(/<[^>]*>/g, ' ')
 }
 
+/**
+ * 搜索过滤（批 3 I8/F1）：`#标签` 语法按实体 tags 过滤（取首个 # 词），普通词走
+ * 标题/描述/正文（plainText 剥标签防标签噪声命中）。# 词可混排：先按 # 过滤再按普通词。
+ */
 const filteredNotes = computed(() => {
-  if (!searchQuery.value) return notebookNotes.value
-  const q = searchQuery.value.toLowerCase()
-  // 检索范围 = 标题 + 描述 + 正文（此前漏掉正文，导致正文里的词搜不到；
-  // Agent 侧 notebook(search_notes) 一直是搜正文的，两侧语义由此对齐）
-  return notebookNotes.value.filter((n) =>
+  let pool = notebookNotes.value
+  let textQuery = searchQuery.value
+  const tagMatch = textQuery.match(/#(\S+)/)
+  if (tagMatch) {
+    const tag = tagMatch[1].toLowerCase()
+    pool = pool.filter(n => (n.tags || []).some(t => t.toLowerCase().includes(tag)))
+    textQuery = textQuery.replace(/#\S+/g, '').trim()
+  }
+  if (!textQuery) return pool
+  const q = textQuery.toLowerCase()
+  return pool.filter((n) =>
     n.name.toLowerCase().includes(q) ||
     (n.description || '').toLowerCase().includes(q) ||
     plainText(n.properties?.content).toLowerCase().includes(q)

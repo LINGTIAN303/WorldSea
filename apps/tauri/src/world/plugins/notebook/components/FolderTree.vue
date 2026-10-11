@@ -4,7 +4,7 @@
       <div
         v-for="note in searchResults"
         :key="note.id"
-        class="ft-note-item"
+        class="ft-note-item ft-note-row"
         :class="{ active: selectedNoteId === note.id }"
         role="button"
         tabindex="0"
@@ -16,11 +16,38 @@
         @contextmenu.stop="openContextMenu($event, 'note', note)"
       >
         <span class="ft-note-icon"><WsIcon :name="getNoteIcon(note)" size="xs" /></span>
-        <span class="ft-note-name">{{ note.name }}</span>
+        <span class="ft-note-main">
+          <span class="ft-note-name">{{ note.name }}</span>
+          <span v-if="snippetOf(note)" class="ft-note-snippet" v-html="snippetOf(note)"></span>
+        </span>
       </div>
       <div v-if="searchResults.length === 0" class="ft-empty">无匹配笔记</div>
     </template>
     <template v-else>
+      <!-- 置顶组（批 3 I9）：仅当有置顶笔记时渲染；只读列表（点击打开，右键可取消置顶） -->
+      <div v-if="props.pinnedNotes.length > 0" class="ft-folder-group">
+        <div class="ft-folder-header" role="button" tabindex="0" @click.stop>
+          <span class="ft-folder-icon"><WsIcon name="star" size="xs" /></span>
+          <span class="ft-folder-name">置顶</span>
+          <span class="ft-folder-count">{{ props.pinnedNotes.length }}</span>
+        </div>
+        <div class="ft-folder-items">
+          <div
+            v-for="note in props.pinnedNotes"
+            :key="`pin_${note.id}`"
+            class="ft-note-item"
+            :class="{ active: selectedNoteId === note.id }"
+            role="button" tabindex="0"
+            @click="$emit('selectNote', note.id)"
+            @keydown.enter.prevent="$emit('selectNote', note.id)"
+            @contextmenu.stop="openContextMenu($event, 'note', note)"
+          >
+            <span class="ft-note-icon"><WsIcon :name="getNoteIcon(note)" size="xs" /></span>
+            <span class="ft-note-name">{{ note.name }}</span>
+          </div>
+        </div>
+      </div>
+
       <div :class="['ft-folder-group', { collapsed: collapsedFolders.has('') }]">
         <div
           class="ft-folder-header" role="button" tabindex="0"
@@ -113,6 +140,30 @@
           </div>
         </template>
       </draggable>
+
+      <!-- 最近打开（批 3 I9）：非搜索且存在记录时渲染；只读列表 -->
+      <div v-if="props.recentNotes.length > 0" class="ft-folder-group">
+        <div class="ft-folder-header" role="button" tabindex="0" @click.stop>
+          <span class="ft-folder-icon"><WsIcon name="clock" size="xs" /></span>
+          <span class="ft-folder-name">最近</span>
+          <span class="ft-folder-count">{{ props.recentNotes.length }}</span>
+        </div>
+        <div class="ft-folder-items">
+          <div
+            v-for="note in props.recentNotes"
+            :key="`recent_${note.id}`"
+            class="ft-note-item"
+            :class="{ active: selectedNoteId === note.id }"
+            role="button" tabindex="0"
+            @click="$emit('selectNote', note.id)"
+            @keydown.enter.prevent="$emit('selectNote', note.id)"
+            @contextmenu.stop="openContextMenu($event, 'note', note)"
+          >
+            <span class="ft-note-icon"><WsIcon :name="getNoteIcon(note)" size="xs" /></span>
+            <span class="ft-note-name">{{ note.name }}</span>
+          </div>
+        </div>
+      </div>
     </template>
 
     <Teleport to="body">
@@ -130,6 +181,7 @@
           <div class="ft-cm-item ft-cm-danger" role="button" tabindex="0" aria-label="删除" @click="ctxAction('delete-folder')" @keydown.enter.prevent="ctxAction('delete-folder')" @keydown.space.prevent="ctxAction('delete-folder')">删除</div>
         </template>
         <template v-else-if="ctxMenu.type === 'note'">
+          <div class="ft-cm-item" role="button" tabindex="0" aria-label="置顶" @click="ctxAction('toggle-pin')" @keydown.enter.prevent="ctxAction('toggle-pin')" @keydown.space.prevent="ctxAction('toggle-pin')">{{ ctxMenu.note?.properties?.pinned ? '取消置顶' : '置顶' }}</div>
           <div class="ft-cm-item" role="button" tabindex="0" aria-label="复制笔记" @click="ctxAction('duplicate-note')" @keydown.enter.prevent="ctxAction('duplicate-note')" @keydown.space.prevent="ctxAction('duplicate-note')">复制笔记</div>
           <div class="ft-cm-sep"></div>
           <div class="ft-cm-item ft-cm-danger" role="button" tabindex="0" aria-label="删除笔记" @click="ctxAction('delete-note')" @keydown.enter.prevent="ctxAction('delete-note')" @keydown.space.prevent="ctxAction('delete-note')">删除笔记</div>
@@ -176,6 +228,12 @@ const props = defineProps<{
   searchMode: boolean
   pendingDeleteId: string | null
   folderToRename: string | null
+  /** 批 3 I9：置顶笔记（非搜索模式时置顶组渲染于未分类之前） */
+  pinnedNotes: NotebookEntity[]
+  /** 批 3 I9：最近打开（置顶组之后） */
+  recentNotes: NotebookEntity[]
+  /** 批 3 F1：搜索词（条目摘要高亮用） */
+  searchQuery: string
 }>()
 
 const emit = defineEmits<{
@@ -191,6 +249,7 @@ const emit = defineEmits<{
   deleteNote: [noteId: string]
   reorderNotes: [folderId: string, noteIds: string[]]
   renameMode: []
+  togglePin: [noteId: string]
 }>()
 
 function getNoteIcon(note: NotebookEntity): string {
@@ -351,10 +410,35 @@ function ctxAction(action: string) {
     case 'delete-note':
       if (ctxMenu.note) emit('deleteNote', ctxMenu.note.id)
       break
+    case 'toggle-pin':
+      if (ctxMenu.note) emit('togglePin', ctxMenu.note.id)
+      break
     case 'create-folder':
       emit('createFolder')
       break
   }
+}
+
+/** 批 3 F1：搜索命中摘要（正文剥标签 → 命中词前后截取 → 关键词高亮 mark） */
+function snippetOf(note: NotebookEntity): string {
+  const q = props.searchQuery.replace(/#\S+/g, '').trim()
+  if (!q) return ''
+  const text = (note.properties?.content || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+  const lower = text.toLowerCase()
+  const idx = lower.indexOf(q.toLowerCase())
+  if (idx < 0) return ''
+  const pad = 28
+  const start = Math.max(0, idx - pad)
+  const end = Math.min(text.length, idx + q.length + pad)
+  const body = `${start > 0 ? '…' : ''}${text.slice(start, end)}${end < text.length ? '…' : ''}`
+  // HTML 转义后高亮（防正文注入）
+  const esc = body
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+  return esc.replace(new RegExp(escapeRegExp(q), 'gi'), (m) => `<mark>${m}</mark>`)
+}
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 function onKeyDown(ev: KeyboardEvent) {
@@ -402,6 +486,18 @@ onUnmounted(() => document.removeEventListener('keydown', onKeyDown))
   display: flex; align-items: center; gap: 6px; padding: 5px 8px 5px 28px;
   border-radius: var(--radius-xs); cursor: pointer; font-size: var(--font-size-sm);
   color: var(--color-text-secondary); transition: background 0.1s, border-color 0.1s, color 0.1s, box-shadow 0.1s, transform 0.1s, opacity 0.1s, filter 0.1s;
+}
+/* 搜索模式条目：名称 + 命中摘要两行（批 3 F1） */
+.ft-note-row { align-items: flex-start; }
+.ft-note-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ft-note-snippet {
+  font-size: var(--font-size-2xs); color: var(--color-text-tertiary);
+  overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  line-height: 1.4;
+}
+.ft-note-snippet :deep(mark) {
+  background: color-mix(in srgb, var(--color-primary) 25%, transparent);
+  color: var(--color-primary); padding: 0 1px; border-radius: 2px;
 }
 .ft-note-item:hover { background: var(--color-bg-hover); }
 .ft-note-item.active { background: color-mix(in srgb, var(--color-primary) 15%, transparent); color: var(--color-primary); }

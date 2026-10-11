@@ -1,5 +1,6 @@
 import { Extension } from '@tiptap/core'
 import suggestion from '@tiptap/suggestion'
+import type { SuggestionOptions } from '@tiptap/suggestion'
 
 export interface SlashCommandItem {
   id: string
@@ -15,9 +16,15 @@ export const SLASH_COMMANDS: SlashCommandItem[] = [
   { id: 'summarize', label: '摘要', icon: 'document', description: 'AI 生成内容摘要' },
   { id: 'link_note', label: '链接笔记', icon: 'link', description: '插入笔记间链接' },
   { id: 'mention', label: '提及实体', icon: 'at-sign', description: '插入 @ 提及实体' },
+  { id: 'task_list', label: '任务列表', icon: 'task-plan', description: '插入待办勾选项' },
 ]
 
-const SlashCommandExtension = Extension.create({
+export interface SlashCommandOptions {
+  /** Partial：editor 由运行时（addProseMirrorPlugins）注入，其余由 configure 处补齐 */
+  suggestion: Partial<SuggestionOptions<SlashCommandItem>>
+}
+
+const SlashCommandExtension = Extension.create<SlashCommandOptions>({
   name: 'notebookSlashCommand',
 
   addOptions() {
@@ -36,12 +43,7 @@ const SlashCommandExtension = Extension.create({
         command: ({ editor, range }: { editor: any; range: any }) => {
           editor.chain().focus().deleteRange(range).run()
         },
-        render: () => ({
-          onStart: () => {},
-          onUpdate: () => {},
-          onExit: () => {},
-          onKeyDown: () => false,
-        }),
+        render: () => ({}),
       },
     }
   },

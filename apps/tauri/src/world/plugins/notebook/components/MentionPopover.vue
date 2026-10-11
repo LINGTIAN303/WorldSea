@@ -42,6 +42,13 @@ interface MentionItem {
   icon: string
 }
 
+const props = defineProps<{
+  /** 'all' = 全部实体（@ 提及）；'notes' = 仅 notebook 实体（[[ 双链，批 3 I4） */
+  kind?: 'all' | 'notes'
+  /** 双链模式排除的笔记 id（= 当前笔记，不能链自己） */
+  excludeId?: string | null
+}>()
+
 const emit = defineEmits<{
   select: [item: MentionItem]
   close: []
@@ -55,12 +62,16 @@ const pos = ref({ x: 0, y: 0 })
 const inputRef = ref<HTMLInputElement | null>(null)
 
 const allItems = computed<MentionItem[]>(() => {
-  return (es.entities ?? []).map(e => ({
+  let pool = (es.entities ?? [])
+  if (props.kind === 'notes') {
+    pool = pool.filter(e => e.type === 'notebook' && e.id !== props.excludeId)
+  }
+  return pool.map(e => ({
     id: e.id,
     name: e.name,
     type: e.type,
-    typeLabel: entitySchemaRegistry.getLabel(e.type),
-    icon: entitySchemaRegistry.getIconName(e.type) || 'outline',
+    typeLabel: e.type === 'notebook' ? '笔记' : entitySchemaRegistry.getLabel(e.type),
+    icon: e.type === 'notebook' ? 'notebook' : (entitySchemaRegistry.getIconName(e.type) || 'outline'),
   }))
 })
 

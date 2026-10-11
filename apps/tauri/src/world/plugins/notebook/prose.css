@@ -1,0 +1,162 @@
+/**
+ * prose.css — 笔记本统一排版体系（批 1 V1，2026-10-12）。
+ *
+ * 编辑区（.tiptap）与预览态（v-html 容器）共用一套排版规则，挂载点 = .ws-nb-prose：
+ * ① 标题节奏 / 引用 / 列表（含任务列表）/ 链接 / 行内代码 / hr / 图片 / 表格；
+ * ② 阅读宽度约束（860px 居中）——观感主轴；
+ * ③ 代码块 NodeView（.ws-cb-*）与双主题令牌化。
+ *
+ * 为什么从组件 scoped 迁出：编辑区与预览的规则此前是两份近似拷贝（漂移温床，
+ * 本次预览「与编辑态同构」契约直接依赖两者一致）；且 NodeView 的 DOM 在
+ * scoped 作用域外，scoped :deep 链路脆弱。非 scoped + 类名前缀（ws-nb-）隔离。
+ */
+
+/* ── 阅读宽度与基础 ───────────────────────────────────────── */
+.ws-nb-prose {
+  max-width: 860px;
+  margin-inline: auto;
+  font-family: var(--font-family-content);
+  font-size: var(--font-size-base);
+  line-height: 1.75;
+  color: var(--color-text-primary);
+  word-break: break-word;
+}
+.ws-nb-prose > *:first-child { margin-top: 0; }
+
+/* ── 标题节奏 ─────────────────────────────────────────────── */
+.ws-nb-prose h1 { font-size: var(--font-size-2xl); font-weight: var(--font-weight-bold); margin: 24px 0 12px; line-height: 1.3; }
+.ws-nb-prose h2 { font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold); margin: 20px 0 10px; line-height: 1.35; padding-bottom: 4px; border-bottom: 1px solid var(--color-border-subtle); }
+.ws-nb-prose h3 { font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); margin: 16px 0 8px; }
+.ws-nb-prose h4, .ws-nb-prose h5, .ws-nb-prose h6 { font-size: var(--font-size-base); font-weight: var(--font-weight-semibold); margin: 12px 0 6px; }
+
+/* ── 段落 / 行内 ──────────────────────────────────────────── */
+.ws-nb-prose p { margin: 0 0 10px; }
+.ws-nb-prose strong { font-weight: var(--font-weight-semibold); color: var(--color-text-primary); }
+.ws-nb-prose a { color: var(--color-primary); text-decoration: none; border-bottom: 1px solid color-mix(in srgb, var(--color-primary) 40%, transparent); transition: border-color 0.15s, color 0.15s; }
+.ws-nb-prose a:hover { color: var(--color-primary); border-bottom-color: var(--color-primary); }
+/* 笔记双链（批 3 I4）：虚线下划线区分外链；编辑态 Ctrl+点击 / 预览态直接点击跳转 */
+.ws-nb-prose a.nb-nolink {
+  border-bottom-style: dashed;
+  background: color-mix(in srgb, var(--color-primary) 7%, transparent);
+  padding: 0 2px; border-radius: var(--radius-2xs);
+  cursor: pointer;
+}
+.ws-nb-prose code {
+  background: var(--color-bg-hover); padding: 2px 5px; border-radius: var(--radius-2xs);
+  font-size: var(--font-size-sm); font-family: var(--font-family-mono, Consolas, monospace);
+}
+.ws-nb-prose hr { border: none; border-top: 1px solid var(--color-border-subtle); margin: 20px 0; }
+
+/* ── 引用 ─────────────────────────────────────────────────── */
+.ws-nb-prose blockquote {
+  border-left: 3px solid color-mix(in srgb, var(--color-primary) 55%, transparent);
+  padding: 2px 0 2px 14px; margin: 12px 0;
+  color: var(--color-text-secondary);
+  background: color-mix(in srgb, var(--color-primary) 5%, transparent);
+  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
+}
+.ws-nb-prose blockquote p { margin: 6px 0; }
+.ws-nb-prose blockquote > *:last-child { margin-bottom: 0; }
+
+/* ── 列表 ─────────────────────────────────────────────────── */
+.ws-nb-prose ul, .ws-nb-prose ol { padding-left: 22px; margin: 8px 0; }
+.ws-nb-prose li { margin: 3px 0; }
+.ws-nb-prose li > p { margin: 2px 0; }
+.ws-nb-prose li::marker { color: var(--color-text-tertiary); }
+
+/* ── 任务列表（TipTap 官方 DOM：ul[data-type=taskList] > li[data-type=taskItem]）── */
+.ws-nb-prose ul[data-type='taskList'] { list-style: none; padding-left: 4px; }
+.ws-nb-prose ul[data-type='taskList'] li {
+  display: flex; align-items: flex-start; gap: 8px; margin: 4px 0;
+}
+.ws-nb-prose ul[data-type='taskList'] li > label { flex: 0 0 auto; margin-top: 3px; user-select: none; }
+.ws-nb-prose ul[data-type='taskList'] li > div { flex: 1 1 auto; min-width: 0; }
+.ws-nb-prose ul[data-type='taskList'] li > div > p { margin: 0; }
+.ws-nb-prose ul[data-type='taskList'] li[data-checked='true'] > div {
+  color: var(--color-text-tertiary); text-decoration: line-through;
+}
+.ws-nb-prose ul[data-type='taskList'] input[type='checkbox'] {
+  appearance: none; width: 15px; height: 15px; margin: 0; cursor: pointer;
+  border: 1.5px solid var(--color-border); border-radius: var(--radius-2xs);
+  background: var(--color-bg-base); vertical-align: middle;
+  transition: background 0.15s, border-color 0.15s;
+}
+.ws-nb-prose ul[data-type='taskList'] input[type='checkbox']:checked {
+  background: var(--color-primary); border-color: var(--color-primary);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 8.5l3 3 6-7'/%3E%3C/svg%3E");
+  background-size: 11px; background-position: center; background-repeat: no-repeat;
+}
+.ws-nb-prose ul[data-type='taskList'] input[type='checkbox']:hover { border-color: var(--color-primary); }
+
+/* ── 图片 ─────────────────────────────────────────────────── */
+.ws-nb-prose img {
+  max-width: 100%; height: auto; display: block; margin: 10px 0;
+  border-radius: var(--radius-sm);
+}
+.ws-nb-prose img.ProseMirror-selectednode {
+  outline: 2px solid var(--color-primary); outline-offset: 2px;
+}
+
+/* ── 表格 ─────────────────────────────────────────────────── */
+.ws-nb-prose .tableWrapper { overflow-x: auto; margin: 10px 0; }
+.ws-nb-prose table {
+  border-collapse: collapse; table-layout: fixed; width: 100%; overflow: hidden;
+  font-size: var(--font-size-sm);
+}
+.ws-nb-prose th, .ws-nb-prose td {
+  border: 1px solid var(--color-border); padding: 6px 10px;
+  vertical-align: top; position: relative; min-width: 3em;
+}
+.ws-nb-prose th {
+  background: var(--color-bg-muted); font-weight: var(--font-weight-semibold); text-align: left;
+}
+/* 斑马纹 + hover 行（编辑态选中单元格高亮优先级更高，置后覆盖背景层） */
+.ws-nb-prose tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--color-bg-muted) 45%, transparent); }
+.ws-nb-prose tbody tr:hover td { background: var(--color-bg-hover); }
+.ws-nb-prose .selectedCell::after {
+  content: ''; position: absolute; inset: 0; z-index: 2; pointer-events: none;
+  background: color-mix(in srgb, var(--color-primary) 18%, transparent);
+}
+.ws-nb-prose .column-resize-handle {
+  position: absolute; right: -2px; top: 0; bottom: -2px; width: 4px; z-index: 20;
+  background: var(--color-primary); pointer-events: none;
+}
+.ws-nb-prose.resize-cursor, .ws-nb-prose .resize-cursor { cursor: col-resize; }
+
+/* ── mention 徽标 ─────────────────────────────────────────── */
+.ws-nb-prose .nb-mention {
+  background: color-mix(in srgb, var(--color-primary) 15%, transparent);
+  color: var(--color-primary); padding: 1px 6px; border-radius: var(--radius-xs);
+  font-size: var(--font-size-sm); font-weight: var(--font-weight-medium); cursor: pointer;
+}
+.ws-nb-prose .nb-mention:hover { background: var(--color-primary); color: var(--on-accent); }
+
+/* ── 代码块 NodeView（结构样式在 CodeBlockView scoped；此处为视觉令牌化）──────── */
+.ws-nb-prose .ws-cb--selected .ws-cb-head,
+.ws-nb-prose .ws-cb--selected .ws-cb-pre { border-color: var(--color-primary); }
+
+/* 双层 overlay 关键约束：高亮层与输入层必须完全同盒（font/spacing/换行一致），
+   否则字符错位——这里以同规格强制。文本层透明，caret 保留主色。 */
+.ws-cb-pre .ws-cb-hl,
+.ws-cb-pre .ws-cb-input {
+  display: block; padding: 0; margin: 0;
+  font-family: var(--font-family-mono, Consolas, monospace);
+  font-size: var(--font-size-sm);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  tab-size: 4;
+  border: none; background: transparent;
+}
+.ws-cb-pre .ws-cb-hl { color: var(--color-text-secondary); pointer-events: none; min-height: 1.6em; }
+.ws-cb-pre .ws-cb-input { color: transparent; caret-color: var(--color-text-primary); min-height: 1.6em; }
+.ws-cb-pre .ws-cb-input::selection { background: color-mix(in srgb, var(--color-primary) 30%, transparent); }
+/* Prism 令牌着色（复用全站令牌，深浅主题跟随；不做全量主题色板） */
+.ws-cb-pre .token.keyword { color: var(--color-primary); font-weight: var(--font-weight-medium); }
+.ws-cb-pre .token.string, .ws-cb-pre .token.char, .ws-cb-pre .token.attr-value { color: var(--color-success); }
+.ws-cb-pre .token.comment, .ws-cb-pre .token.prolog, .ws-cb-pre .token.cdata { color: var(--color-text-tertiary); font-style: italic; }
+.ws-cb-pre .token.number, .ws-cb-pre .token.boolean, .ws-cb-pre .token.constant { color: var(--color-warning); }
+.ws-cb-pre .token.function, .ws-cb-pre .token.class-name { color: var(--color-primary); opacity: 0.85; }
+.ws-cb-pre .token.punctuation { color: var(--color-text-tertiary); }
+.ws-cb-pre .token.operator, .ws-cb-pre .token.entity, .ws-cb-pre .token.url { color: var(--color-text-secondary); }
+.ws-cb-pre .token.property, .ws-cb-pre .token.tag, .ws-cb-pre .token.attr-name { color: var(--color-warning); opacity: 0.9; }

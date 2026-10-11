@@ -1,0 +1,259 @@
+/**
+ * editorExtensions — 笔记本编辑器扩展集组装（批 1，2026-10-12）。
+ *
+ * 从 useNoteEditor 的内联扩展清单收敛至此，职责：
+ * ① 组装全部扩展（StarterKit 减 codeBlock 让位给增强版；任务列表；表格；图片；mention；斜杠命令）；
+ * ② **marked GFM 任务列表兼容**：装载网关把 Agent 写的 `- [ ] 待办` 渲染成
+ *    `<li><input disabled type="checkbox"> 文本</li>`（marked 18 实证形态，无 class 无 data-*），
+ *    官方 TaskItem 只认 `li[data-type="taskItem"]` —— 此处 extend parseHTML 兼容：匹配普通 li
+ *    中的 checkbox 标记并读出勾选态（勾选框元素本身不在 schema，解析时自然丢弃，无需删除）。
+ *
+ * hooks = mention/斜杠命令弹层的接线回调组（useNoteEditor 实现并转发到弹层组件实例）：
+ * suggestion 的 render 回调拿到的 clientRect 是「位置函数」，弹层组件暴露的是
+ * open(rect)/close() 方法 —— 原实现（useNoteEditor 内联）即由 render 回调转调，此处保持同语义。
+ */
+import StarterKit from '@tiptap/starter-kit'
+import Mention from '@tiptap/extension-mention'
+import { TaskList, TaskItem } from '@tiptap/extension-list'
+import { TableKit } from '@tiptap/extension-table'
+import Image from '@tiptap/extension-image'
+import type { Editor } from '@tiptap/core'
+import type { Entity } from '@worldsea/entity-core'
+import { entitySchemaRegistry, useEntityStore } from '@worldsea/entity-core'
+
+import CodeBlockEnhanced from './codeBlockExt'
+import SlashCommandExtension, { SLASH_COMMANDS, type SlashCommandItem } from './slashCommandExtension'
+import { tableInputRuleExtension, tablePasteExtension } from './tableInputRule'
+import { NoteLink, NoteLinkSuggestion, insertNoteLink, type NoteLinkCandidate } from './noteLinkExt'
+import { PluginKey } from '@tiptap/pm/state'
+
+/** 双链 suggestion 的独立插件键（与斜杠/mention 的 suggestion 并存） */
+const noteLinkPluginKey = new PluginKey('notebookNoteLinkSuggestion')
+
+export interface MentionItem {
+  id: string
+  name: string
+  type: string
+  typeLabel: string
+  icon: string
+}
+
+/** mention/斜杠/双链弹层接线回调组（useNoteEditor 实现；rect = suggestion 的 clientRect 位置函数） */
+export interface EditorExtensionHooks {
+  openMentionPopover: (rect: (() => DOMRect | null) | null) => void
+  closeMentionPopover: () => void
+  openSlashPopover: (rect: (() => DOMRect | null) | null, items: SlashCommandItem[]) => void
+  updateSlashPopover: (items: SlashCommandItem[]) => void
+  closeSlashPopover: () => void
+  onSlashKeyDown: (event: KeyboardEvent) => boolean
+  /** 双链弹层（复用 MentionPopover 实例；useNoteEditor 以弹层 kind 分派 select） */
+  openNoteLinkPopover: (rect: (() => DOMRect | null) | null, items: NoteLinkCandidate[]) => void
+  updateNoteLinkPopover: (items: NoteLinkCandidate[]) => void
+  closeNoteLinkPopover: () => void
+  onNoteLinkKeyDown: (event: KeyboardEvent) => boolean
+  /** 双链插入后的关系落库回调（useNoteEditor 内做幂等 note_link） */
+  onNoteLinkInsert: (targetId: string) => void
+  /** 当前笔记 id（双链选择器排除自身；null = 未打开笔记不出弹层） */
+  currentNoteId: () => string | null
+}
+
+/**
+ * 组装笔记本编辑器扩展集。
+ */
+export function buildNotebookExtensions(hooks: EditorExtensionHooks): any[] {
+  return [
+    StarterKit.configure({
+      // codeBlock 由增强版（NodeView：语言下拉/复制/高亮）接管
+      codeBlock: false,
+      // 编辑态链接不可点开（打断编辑流）；外链走预览态
+      link: { openOnClick: false },
+    }),
+    CodeBlockEnhanced,
+    // 任务列表：官方结构（li[data-type=taskItem]）+ marked GFM 兼容（实证形态：
+    // `<ul><li><input disabled type="checkbox"> 文本</li></ul>`，无 class 无 data-*）。
+    // 用 getAttrs 函数式匹配（jsdom 不支持 :has()；getAttrs 返回 false 则回落 bulletList 规则）。
+    // 内外层必须同时兼容——否则 ProseMirror 解析器对「taskItem 塞进 bulletList」整体回退。
+    TaskList.extend({
+      parseHTML() {
+        return [
+          { tag: 'ul[data-type="taskList"]' },
+          {
+            tag: 'ul',
+            priority: 60,
+            getAttrs: (el: HTMLElement) =>
+              el.querySelector('li input[type="checkbox"]') ? {} : false,
+          },
+        ]
+      },
+    }),
+    TaskItem.extend({
+      addAttributes() {
+        return {
+          checked: {
+            default: false,
+            keepOnSplit: false,
+            // 官方读 data-checked；marked 形态读 li 内 checkbox 的 checked 属性
+            parseHTML: (element: HTMLElement) => {
+              const dataChecked = element.getAttribute('data-checked')
+              if (dataChecked !== null) return dataChecked === '' || dataChecked === 'true'
+              const box = element.querySelector('input[type="checkbox"]')
+              return box?.hasAttribute('checked') ?? false
+            },
+          },
+        }
+      },
+      parseHTML() {
+        return [
+          { tag: `li[data-type="${this.name}"]`, priority: 51 },
+          {
+            tag: 'li',
+            priority: 60,
+            getAttrs: (el: HTMLElement) =>
+              el.querySelector('input[type="checkbox"]') ? {} : false,
+          },
+        ]
+      },
+    }).configure({ nested: true }),
+    TableKit.configure({ table: { resizable: true } }),
+    Image.configure({ inline: false, allowBase64: true }),
+    tableInputRuleExtension,
+    tablePasteExtension,
+    NoteLink,
+    NoteLinkSuggestion.configure({
+      suggestion: {
+        // 独立 pluginKey：与斜杠命令/mention 的 suggestion 插件并存（默认同 key 会崩）
+        pluginKey: noteLinkPluginKey,
+        char: '[[',
+        items: ({ query }: { query: string }) => {
+          const es = useEntityStore()
+          const selfId = hooks.currentNoteId()
+          const all = (es.entities ?? [])
+            .filter((e: Entity) => e.type === 'notebook' && e.id !== selfId)
+            .map((e: Entity) => ({
+              id: e.id,
+              name: e.name,
+              type: 'notebook',
+              typeLabel: '笔记',
+              icon: 'notebook',
+            }))
+          if (!query) return all.slice(0, 20)
+          const q = query.toLowerCase()
+          return all.filter(i => i.name.toLowerCase().includes(q)).slice(0, 20)
+        },
+        command: ({ editor, range, props }: { editor: Editor; range: { from: number; to: number }; props: NoteLinkCandidate }) => {
+          insertNoteLink(editor, range, props)
+          hooks.onNoteLinkInsert(props.id)
+        },
+        render: () => ({
+          onStart: (props) => {
+            noteLinkCommandRef = props.command
+            hooks.openNoteLinkPopover(props.clientRect ?? null, props.items)
+          },
+          onUpdate: (props) => {
+            hooks.updateNoteLinkPopover(props.items)
+          },
+          onExit: () => {
+            hooks.closeNoteLinkPopover()
+          },
+          onKeyDown: (props) => {
+            return hooks.onNoteLinkKeyDown(props.event)
+          },
+        }),
+      },
+    }),
+    Mention.configure({
+      HTMLAttributes: { class: 'nb-mention' },
+      suggestion: {
+        char: '@',
+        items: ({ query }: { query: string }) => {
+          const es = useEntityStore()
+          const all = (es.entities ?? []).map((e: Entity) => ({
+            id: e.id,
+            name: e.name,
+            type: e.type,
+            typeLabel: entitySchemaRegistry.getLabel(e.type),
+            icon: entitySchemaRegistry.getIconName(e.type) || 'clipboard-list',
+          }))
+          if (!query) return all.slice(0, 20)
+          const q = query.toLowerCase()
+          return all.filter(i =>
+            i.name.toLowerCase().includes(q) || i.typeLabel.toLowerCase().includes(q),
+          ).slice(0, 20)
+        },
+        render: () => ({
+          onStart: (props) => {
+            hooks.openMentionPopover(props.clientRect ?? null)
+            mentionCommand = props.command
+          },
+          onUpdate: (props) => {
+            mentionCommand = props.command
+          },
+          onExit: () => {
+            hooks.closeMentionPopover()
+            mentionCommand = null
+          },
+          onKeyDown: (props) => {
+            if (props.event.key === 'Escape') {
+              hooks.closeMentionPopover()
+              return true
+            }
+            return false
+          },
+        }),
+      },
+      renderText: ({ node }) => `@${node.attrs.label ?? node.attrs.id}`,
+    }),
+    SlashCommandExtension.configure({
+      suggestion: {
+        char: '/',
+        items: ({ query }: { query: string }) => {
+          if (!query) return SLASH_COMMANDS
+          const q = query.toLowerCase()
+          return SLASH_COMMANDS.filter(item =>
+            item.label.toLowerCase().includes(q) ||
+            item.id.toLowerCase().includes(q) ||
+            item.description.toLowerCase().includes(q),
+          )
+        },
+        command: ({ editor, range }: { editor: Editor; range: { from: number; to: number } }) => {
+          editor.chain().focus().deleteRange(range).run()
+        },
+        render: () => ({
+          onStart: (props) => {
+            slashCommandRef = props.command
+            hooks.openSlashPopover(props.clientRect ?? null, props.items)
+          },
+          onUpdate: (props) => {
+            slashCommandRef = props.command
+            hooks.updateSlashPopover(props.items)
+          },
+          onExit: () => {
+            hooks.closeSlashPopover()
+            slashCommandRef = null
+          },
+          onKeyDown: (props) => {
+            return hooks.onSlashKeyDown(props.event)
+          },
+        }),
+      },
+    }),
+  ]
+}
+
+/** mention/斜杠/双链的 suggestion 命令句柄（弹层 select 时由 useNoteEditor 分派调用） */
+let mentionCommand: ((props: { id: string; label?: string }) => void) | null = null
+let slashCommandRef: ((props: { id: string; label?: string }) => void) | null = null
+let noteLinkCommandRef: ((props: any) => void) | null = null
+
+export function fireMentionCommand(item: MentionItem): void {
+  mentionCommand?.({ id: item.id, label: item.name })
+}
+
+export function fireSlashCommand(item: SlashCommandItem): void {
+  slashCommandRef?.({ id: item.id, label: item.label })
+}
+
+/** 双链：弹层选中的条目回灌给 suggestion 命令句柄 → 框架执行 insertNoteLink + 关系落库 */
+export function fireNoteLinkCommand(item: { id: string; name: string }): void {
+  noteLinkCommandRef?.({ ...item })
+}

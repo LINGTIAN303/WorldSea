@@ -19,6 +19,7 @@ export {
   renderMarkdownForEditor,
   sanitizeMarkdownHtml,
   hasUnclosedFence,
+  escapeHtml,
 } from './markdownStream'
 export type {
   StreamRenderedHtml,
