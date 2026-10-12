@@ -15,7 +15,6 @@
  */
 import { Extension } from '@tiptap/core'
 import { Plugin, PluginKey, Selection } from '@tiptap/pm/state'
-import type { EditorState } from '@tiptap/pm/state'
 
 /** 单元格内转义的 `\|` 占位符（解析期间替换，防切列） */
 const ESCAPED_PIPE = '\u0000'
@@ -82,39 +81,15 @@ function isHeaderLikeRow(line: string): boolean {
   return parseTableRow(line) !== null && !isDividerRow(line)
 }
 
-interface RowContext {
-  /** 上一段落节点文本 */
-  prevText: string
-  /** 上一段落整节点（拿 nodeSize 定替换起点） */
-  prevNodeSize: number
-  /** 上一段落替换起点（全局 pos） */
-  replaceFrom: number
-  /** 当前段落内，输入点之前 + 本次输入的行文本 */
-  currentLine: string
-}
-
 /**
- * 从文档状态提取输入规则的上下文：仅当光标在段落内、且存在相邻的前一个段落。
- * 代码块/标题/引用/表格内一律返回 null（不触发转换）。
+ * 拆分隔行为单元格数组（按竖线；parseTableRow 对分隔行返回 null，不能复用）。
+ * 同时服务于「格数核对」与「每格完成度核对」（GFM 形态 :?-+:?）。
  */
-function inputRuleContext(state: EditorState, from: number, text: string): RowContext | null {
-  const { $from } = state.selection
-  if ($from.parent.type.name !== 'paragraph') return null
-  if ($from.depth < 2) return null
-  const docLevel = $from.node($from.depth - 1)
-  const index = $from.index($from.depth - 1)
-  if (index === 0) return null
-  const prevNode = docLevel.child(index - 1)
-  if (prevNode.type.name !== 'paragraph') return null
-
-  const paragraphStart = $from.start()
-  const currentLine = state.doc.textBetween(paragraphStart, from, '\n') + text
-  // 上一段落与当前段落同层相邻：prevEnd = 当前段 before - 1，prevStart = prevEnd - nodeSize
-  const currentBefore = $from.before($from.depth)
-  const prevEnd = currentBefore - 1
-  const replaceFrom = prevEnd - prevNode.nodeSize
-
-  return { prevText: prevNode.textContent, prevNodeSize: prevNode.nodeSize, replaceFrom, currentLine }
+function splitDividerCells(line: string): string[] {
+  let body = line.trim()
+  if (body.startsWith('|')) body = body.slice(1)
+  if (body.trimEnd().endsWith('|')) body = body.trimEnd().slice(0, -1)
+  return body.split('|').map(c => c.trim())
 }
 
 export const tableInputRuleExtension = Extension.create({
@@ -124,38 +99,71 @@ export const tableInputRuleExtension = Extension.create({
     return [
       new Plugin({
         key: new PluginKey('notebookTableInput'),
-        props: {
-          handleTextInput: (view, from, _to, text) => {
-            const { state } = view
-            const ctx = inputRuleContext(state, from, text)
-            if (!ctx) return false
-            const currentTrimmed = ctx.currentLine.trimEnd()
-            if (!isDividerRow(currentTrimmed)) return false
-            const prevTrimmed = ctx.prevText.trimEnd()
-            if (!isHeaderLikeRow(prevTrimmed)) return false
-            const header = parseTableRow(prevTrimmed)
-            const divider = parseTableRow(currentTrimmed)
-            if (!header || !divider || header.length !== divider.length || header.length < 2) return false
+        // 事务级兜底（批 3 走查修复）：此前用 handleTextInput，中文输入法（IME）组合输入
+        // 期间不触发 → `|` 从 IME 走时手敲表格永远不转。appendTransaction 覆盖一切输入方式
+        // （逐字/IME/拖放），且仅当「光标所在段 = 分隔行 + 上一段 = 等列表头」才转换
+        // （历史内容不被追溯转换的约束保持）。
+        appendTransaction: (transactions, _oldState, newState) => {
+          if (!transactions.some(tr => tr.docChanged)) return null
+          const { $from, empty } = newState.selection
+          if (!empty) return null
+          // 顶层段落 depth=1（doc>paragraph>text）——此前误写 depth<2 拒掉一切正常手敲
+          // （批 1 走查「表格不转」的真根因，图证：字面 | A | B | 三行不转而粘贴路径正常）
+          if ($from.parent.type.name !== 'paragraph') return null
+          const currentTrimmed = $from.parent.textContent.trimEnd()
+          if (!isDividerRow(currentTrimmed)) return null
+          // 【走查修复轮 2】「敲完」信号 = 显式闭合（尾 `|`）：
+          // 逐字输入 '| --- | -' 时格数已凑够但仍在途中——此前会提前触发（复现实锤，
+          // 且替换范围越界抛 Position -1 out of range）；现要求尾 `|` 收尾才判定，
+          // 用户敲完最后一个竖线的瞬间转换，符合直觉。
+          if (!currentTrimmed.endsWith('|')) return null
+          const docLevel = $from.node($from.depth - 1)
+          const index = $from.index($from.depth - 1)
+          if (index === 0) return null
+          const prevNode = docLevel.child(index - 1)
+          if (prevNode.type.name !== 'paragraph') return null
+          const prevTrimmed = prevNode.textContent.trimEnd()
+          if (!isHeaderLikeRow(prevTrimmed)) return null
+          const header = parseTableRow(prevTrimmed)
+          if (!header || header.length < 2) return null
+          // 分隔行：格数核对 + 每格 GFM 形态（:?-+:?）——含未写完格的拒绝
+          const dividerCells = splitDividerCells(currentTrimmed)
+          if (dividerCells.length !== header.length) return null
+          if (!dividerCells.every(c => /^:?-+:?$/.test(c))) return null
 
-            const { schema } = state
-            const tableType = schema.nodes.table
-            const rowType = schema.nodes.tableRow
-            const headerType = schema.nodes.tableHeader
-            if (!tableType || !rowType || !headerType) return false
+          const { schema } = newState
+          const tableType = schema.nodes.table
+          const rowType = schema.nodes.tableRow
+          const headerType = schema.nodes.tableHeader
+          const cellType = schema.nodes.tableCell
+          const paragraphType = schema.nodes.paragraph
+          if (!tableType || !rowType || !headerType || !cellType || !paragraphType) return null
 
-            const headerRow = rowType.create(
-              null,
-              header.map(cell => headerType.create(null, schema.text(cell || ' '))),
-            )
-            const tableNode = tableType.create(null, [headerRow])
+          // 【走查修复轮 2】格内容必须包 paragraph（cell 的 content spec 是 block+）：
+          // 直塞 text 会产出 `<th>A</th>` 非法结构——光标定位（Selection.near）找不到
+          // 合法文本位而落入降级选区（复现实锤 from=0）。官方 insertTable 同款 <p> 包裹。
+          const headerRow = rowType.create(
+            null,
+            header.map(cell => headerType.create(null, paragraphType.create(null, schema.text(cell || ' ')))),
+          )
+          // 附带一个空数据行：敲完分隔行后用户下一步就是写数据，光标直接落此行首格
+          const bodyRow = rowType.create(
+            null,
+            header.map(() => cellType.create(null, paragraphType.create())),
+          )
+          const tableNode = tableType.create(null, [headerRow, bodyRow])
 
-            const replaceTo = from + text.length
-            const tr = state.tr.replaceWith(ctx.replaceFrom, replaceTo, tableNode)
-            // 光标进表头首格（Selection.near 自动吸附到最近合法文本位）
-            tr.setSelection(Selection.near(tr.doc.resolve(ctx.replaceFrom + 1)))
-            view.dispatch(tr)
-            return true
-          },
+          // 替换范围 = 上一段起点 → 当前段终点。
+          // 【走查修复轮 2】原实现 replaceFrom = (段起点 - 1) - 上段 nodeSize，越界为 -1
+          // （复现实锤：`Position -1 out of range`，手敲路径从未成功过）；终点也误用段起点。
+          const currentBefore = $from.before($from.depth)
+          const replaceFrom = currentBefore - prevNode.nodeSize
+          const replaceTo = currentBefore + $from.parent.nodeSize
+          const tr = newState.tr.replaceWith(replaceFrom, replaceTo, tableNode)
+          // 光标进第一个数据行首格（以数据行为锚点，Selection.near 向后吸附到格内段落）
+          const dataRowPos = replaceFrom + 1 + headerRow.nodeSize
+          tr.setSelection(Selection.near(tr.doc.resolve(dataRowPos), 1))
+          return tr
         },
       }),
     ]

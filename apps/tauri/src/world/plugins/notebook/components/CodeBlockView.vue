@@ -87,7 +87,7 @@ function onLangChange(e: Event): void {
 }
 .ws-cb-copy:hover { background: var(--color-bg-hover); color: var(--color-text-secondary); }
 .ws-cb-pre {
-  position: relative; margin: 0; padding: 10px 12px;
+  position: relative; margin: 0; padding: 0;
   border: 1px solid var(--color-border-subtle); border-radius: 0 0 var(--radius-sm) var(--radius-sm);
   background: var(--color-bg-hover);
   overflow-x: auto; tab-size: 4;

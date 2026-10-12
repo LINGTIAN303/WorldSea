@@ -135,11 +135,14 @@
 .ws-nb-prose .ws-cb--selected .ws-cb-head,
 .ws-nb-prose .ws-cb--selected .ws-cb-pre { border-color: var(--color-primary); }
 
-/* 双层 overlay 关键约束：高亮层与输入层必须完全同盒（font/spacing/换行一致），
-   否则字符错位——这里以同规格强制。文本层透明，caret 保留主色。 */
+/* 双层 overlay 关键约束：两层必须完全同盒（font/spacing/换行一致），否则字符错位。
+   定位 = 高亮层 absolute 铺满、输入层 relative 在流内（撑起高度并覆盖其上）——
+   此前两层是普通 block 上下堆叠（走查缺陷：光标在下行、高亮字体在上行）。
+   padding 从 pre 移到两层自身（absolute inset:0 相对 padding box，两层自带上内边距才对齐）。 */
 .ws-cb-pre .ws-cb-hl,
 .ws-cb-pre .ws-cb-input {
-  display: block; padding: 0; margin: 0;
+  display: block; margin: 0;
+  padding: 10px 12px;
   font-family: var(--font-family-mono, Consolas, monospace);
   font-size: var(--font-size-sm);
   line-height: 1.6;
@@ -148,8 +151,14 @@
   tab-size: 4;
   border: none; background: transparent;
 }
-.ws-cb-pre .ws-cb-hl { color: var(--color-text-secondary); pointer-events: none; min-height: 1.6em; }
-.ws-cb-pre .ws-cb-input { color: transparent; caret-color: var(--color-text-primary); min-height: 1.6em; }
+.ws-cb-pre .ws-cb-hl {
+  position: absolute; inset: 0;
+  color: var(--color-text-secondary); pointer-events: none; min-height: 1.6em;
+}
+.ws-cb-pre .ws-cb-input {
+  position: relative;
+  color: transparent; caret-color: var(--color-text-primary); min-height: 1.6em;
+}
 .ws-cb-pre .ws-cb-input::selection { background: color-mix(in srgb, var(--color-primary) 30%, transparent); }
 /* Prism 令牌着色（复用全站令牌，深浅主题跟随；不做全量主题色板） */
 .ws-cb-pre .token.keyword { color: var(--color-primary); font-weight: var(--font-weight-medium); }

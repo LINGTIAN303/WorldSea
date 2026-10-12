@@ -9,8 +9,9 @@
  *    中的 checkbox 标记并读出勾选态（勾选框元素本身不在 schema，解析时自然丢弃，无需删除）。
  *
  * hooks = mention/斜杠命令弹层的接线回调组（useNoteEditor 实现并转发到弹层组件实例）：
- * suggestion 的 render 回调拿到的 clientRect 是「位置函数」，弹层组件暴露的是
- * open(rect)/close() 方法 —— 原实现（useNoteEditor 内联）即由 render 回调转调，此处保持同语义。
+ * 弹层组件暴露 open(rect)/close() 方法；**锚点 rect 由本模块自建**
+ * （makeCharAnchorRect，以「指令符」自身坐标为锚）——suggestion 传入的 props.clientRect
+ * 在真机退化为「光标锚」（弹层横向偏移到光标侧，2026-10-12 走查实锤），故不再采用。
  */
 import StarterKit from '@tiptap/starter-kit'
 import Mention from '@tiptap/extension-mention'
@@ -29,6 +30,28 @@ import { PluginKey } from '@tiptap/pm/state'
 
 /** 双链 suggestion 的独立插件键（与斜杠/mention 的 suggestion 并存） */
 const noteLinkPluginKey = new PluginKey('notebookNoteLinkSuggestion')
+
+/**
+ * 弹层锚点 rect —— 以「指令符」自身位置为锚（走查修复轮 4，2026-10-12）。
+ *
+ * 背景：suggestion v3 传给 render 回调的 `props.clientRect` 在真机上退化为
+ * 「光标 anchor 坐标」（其内部 getAnchorClientRect 路径）——弹层横向锚到**光标**
+ * 而非指令符，症状 = 弹层出现在「光标行的右侧、偏移一段距离」。此处改用
+ * `props.range.from`（= 指令符字符的文档位置）自取坐标：
+ * - x 对齐指令符左缘（不再随过滤输入的光标漂移）；
+ * - 返回「实时函数」——每次调用重新取当前坐标（滚动/布局变化自然跟随）；
+ * - 文档位置失效（如字符被删）时返回 null —— 调用方保持原位不乱跳。
+ */
+export function makeCharAnchorRect(editor: Editor, pos: number): () => DOMRect | null {
+  return () => {
+    try {
+      const coords = editor.view.coordsAtPos(pos)
+      return new DOMRect(coords.left, coords.top, 0, coords.bottom - coords.top)
+    } catch {
+      return null
+    }
+  }
+}
 
 export interface MentionItem {
   id: string
@@ -147,7 +170,8 @@ export function buildNotebookExtensions(hooks: EditorExtensionHooks): any[] {
         render: () => ({
           onStart: (props) => {
             noteLinkCommandRef = props.command
-            hooks.openNoteLinkPopover(props.clientRect ?? null, props.items)
+            // 锚点 = 指令符 `[[` 自身坐标（见 makeCharAnchorRect 头注释）
+            hooks.openNoteLinkPopover(makeCharAnchorRect(props.editor, props.range.from), props.items)
           },
           onUpdate: (props) => {
             hooks.updateNoteLinkPopover(props.items)
@@ -182,7 +206,8 @@ export function buildNotebookExtensions(hooks: EditorExtensionHooks): any[] {
         },
         render: () => ({
           onStart: (props) => {
-            hooks.openMentionPopover(props.clientRect ?? null)
+            // 锚点 = 指令符 `@` 自身坐标（见 makeCharAnchorRect 头注释）
+            hooks.openMentionPopover(makeCharAnchorRect(props.editor, props.range.from))
             mentionCommand = props.command
           },
           onUpdate: (props) => {
@@ -221,7 +246,8 @@ export function buildNotebookExtensions(hooks: EditorExtensionHooks): any[] {
         render: () => ({
           onStart: (props) => {
             slashCommandRef = props.command
-            hooks.openSlashPopover(props.clientRect ?? null, props.items)
+            // 锚点 = 指令符 `/` 自身坐标（见 makeCharAnchorRect 头注释）
+            hooks.openSlashPopover(makeCharAnchorRect(props.editor, props.range.from), props.items)
           },
           onUpdate: (props) => {
             slashCommandRef = props.command
