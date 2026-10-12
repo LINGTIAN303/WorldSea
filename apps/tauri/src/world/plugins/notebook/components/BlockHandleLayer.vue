@@ -15,7 +15,7 @@
       @click="onHandleClick"
       @dragstart="onDragStart"
       @dragend="onDragEnd"
-    ><WsIcon name="drag" size="xs" /></button>
+    ><WsIcon name="drag" size="sm" /></button>
     <div
       v-if="menuOpen"
       class="nb-block-menu"
@@ -75,6 +75,8 @@ let lastX = 0
 let lastY = 0
 /** 拖拽开始时高亮的源块 DOM（dragend 复原） */
 let dragSrcEl: HTMLElement | null = null
+/** 悬停指示背景所在的块 DOM（批 5 V4 增强，随 hover 块迁移；隐藏/解绑时移除） */
+let hoverBgEl: HTMLElement | null = null
 
 // ── 生命周期：绑定 / 解绑（editor 就绪且层挂载后）──
 watch(() => props.editor, (ed) => {
@@ -102,6 +104,7 @@ function unbind(): void {
   document.removeEventListener('keydown', onDocKeyDown, true)
   areaEl = null
   wrapEl = null
+  setHoverBg(null)
   cancelHide()
   if (moveRaf != null) { cancelAnimationFrame(moveRaf); moveRaf = null }
   if (scrollRaf != null) { cancelAnimationFrame(scrollRaf); scrollRaf = null }
@@ -144,11 +147,20 @@ function updateHover(x: number, y: number): void {
 }
 
 // ── 定位 ──
+/** 悬停块整块淡背景（Notion 式可见性增强：类规则在 prose.css；换块时迁移，同一元素幂等） */
+function setHoverBg(dom: HTMLElement | null): void {
+  if (hoverBgEl === dom) return
+  hoverBgEl?.classList.remove('nb-block-hover')
+  dom?.classList.add('nb-block-hover')
+  hoverBgEl = dom
+}
+
 function place(): void {
   const ed = props.editor
   if (!ed || !current || !wrapEl) return
   const dom = ed.view.nodeDOM(current.pos) as HTMLElement | null
   if (!dom) return
+  setHoverBg(dom)
   const r = dom.getBoundingClientRect()
   const wr = wrapEl.getBoundingClientRect()
   handleTop.value = Math.round(r.top - wr.top + 2)
@@ -187,6 +199,7 @@ function hideNow(): void {
   visible.value = false
   menuOpen.value = false
   current = null
+  setHoverBg(null)
 }
 
 // ── 手柄交互：点击 = 菜单；拖动 = 块重排（ProseMirror 外部拖拽源）──
@@ -275,10 +288,10 @@ function onDocKeyDown(e: KeyboardEvent): void {
   position: absolute; width: 22px; height: 26px; padding: 0;
   display: flex; align-items: center; justify-content: center;
   border: none; border-radius: var(--radius-xs); background: transparent;
-  color: var(--color-text-tertiary); cursor: grab; pointer-events: auto;
+  color: var(--color-text-secondary); cursor: grab; pointer-events: auto;
   transition: background 0.12s, color 0.12s;
 }
-.nb-block-handle:hover { background: var(--color-bg-hover); color: var(--color-text-secondary); }
+.nb-block-handle:hover { background: var(--color-bg-hover); color: var(--color-text-primary); }
 .nb-block-handle--drag { cursor: grabbing; background: var(--color-bg-hover); color: var(--color-primary); }
 .nb-block-menu {
   position: absolute; min-width: 132px; padding: 4px; pointer-events: auto;

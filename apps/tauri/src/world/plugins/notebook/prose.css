@@ -127,6 +127,17 @@
 /* 块拖拽中源块淡化（批 5 V4：手柄拖拽时） */
 .ws-nb-prose .nb-block-dragging { opacity: 0.45; }
 
+/* 块悬停指示（批 5 V4 增强：手柄出现时整块淡背景，Notion 式可见性）。
+   color-mix 按文字色自适应主题——亮色 ≈ 6% 墨色、暗色 ≈ 6% 亮色；过渡声明在
+   顶层块基态（.ws-nb-prose > *），类的增删两侧都能淡入淡出 */
+.ws-nb-prose > * { transition: background-color 0.12s ease; }
+.ws-nb-prose .nb-block-hover {
+  background-color: color-mix(in srgb, var(--color-text-primary) 6%, transparent);
+  border-radius: var(--radius-sm);
+}
+/* 兜底：NodeView 未包容器、类直接落 img 上时不裁图片圆角 */
+.ws-nb-prose img.nb-block-hover { background-color: transparent; border-radius: 0; }
+
 /* ── 表格 ─────────────────────────────────────────────────── */
 .ws-nb-prose .tableWrapper { overflow-x: auto; margin: 10px 0; }
 .ws-nb-prose table {
