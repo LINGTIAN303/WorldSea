@@ -85,9 +85,15 @@ watch(() => props.notes, (notes) => {
     type: nt.value,
     label: nt.label,
     icon: nt.icon,
-    items: notes.filter(n => (n.properties?.noteType || 'markdown') === nt.value),
+    items: notes.filter(n => noteTypeOf(n) === nt.value),
   })).filter(col => col.items.length > 0)
 }, { immediate: true })
+
+/** noteType 归一（批 5 F6）：未知/历史类型（如已移除的 canvas）兜底为 markdown——不掉出看板 */
+function noteTypeOf(note: NotebookEntity): string {
+  const t = note.properties?.noteType as string | undefined
+  return NOTE_TYPES.some(x => x.value === t) ? t! : 'markdown'
+}
 
 function getNoteIcon(note: NotebookEntity): string {
   const noteType = note.properties?.noteType || 'markdown'

@@ -6,7 +6,8 @@ export interface NotebookEntity extends Entity {
     content: string
     wordCount?: string
     sortOrder?: string
-    noteType: 'markdown' | 'code' | 'canvas' | 'reference'
+    // 批 5 F6：canvas 已移除（未实现占位）；历史数据如有残留以 markdown 语义兜底展示
+    noteType: 'markdown' | 'code' | 'reference'
     backlinks?: string[]
     forwardLinks?: string[]
     linkedEntities?: string[]

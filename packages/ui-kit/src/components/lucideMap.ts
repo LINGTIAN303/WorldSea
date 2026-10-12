@@ -29,6 +29,7 @@ import {
   ZoomOut, AlignCenterHorizontal, AlignCenterVertical,
   AlignHorizontalDistributeCenter, ImageDown, FileDown, SquareDashed,
   Bold, Italic, Strikethrough, Quote, ListOrdered, AtSign,
+  TextAlignStart, TextAlignCenter, TextAlignEnd,
 } from 'lucide-vue-next'
 // Tabler 图标混编：个别芽的图标由用户点名采用 Tabler（@tabler/icons-vue），与本表混编（2026-09-13）。
 // 组件 API 兼容：两者都接受 size / stroke-width（Tabler 的 stroke-width 经 attrs 落到 svg）。
@@ -273,6 +274,10 @@ const LUCIDE_MAP: Record<string, Component> = {
   quote: Quote,
   'list-ordered': ListOrdered,
   'at-sign': AtSign,
+  // 图片对齐（批 5 I7 笔记本芽）：文本对齐图标（lucide TextAlign 系）
+  'align-left': TextAlignStart,
+  'align-center': TextAlignCenter,
+  'align-right': TextAlignEnd,
 }
 
 export function resolveLucideIcon(name: string): Component | null {

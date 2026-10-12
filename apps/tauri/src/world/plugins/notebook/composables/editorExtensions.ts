@@ -17,12 +17,12 @@ import StarterKit from '@tiptap/starter-kit'
 import Mention from '@tiptap/extension-mention'
 import { TaskList, TaskItem } from '@tiptap/extension-list'
 import { TableKit } from '@tiptap/extension-table'
-import Image from '@tiptap/extension-image'
 import type { Editor } from '@tiptap/core'
 import type { Entity } from '@worldsea/entity-core'
 import { entitySchemaRegistry, useEntityStore } from '@worldsea/entity-core'
 
 import CodeBlockEnhanced from './codeBlockExt'
+import { NotebookImage } from './notebookImage'
 import SlashCommandExtension, { SLASH_COMMANDS, type SlashCommandItem } from './slashCommandExtension'
 import { tableInputRuleExtension, tablePasteExtension } from './tableInputRule'
 import { NoteLink, NoteLinkSuggestion, insertNoteLink, type NoteLinkCandidate } from './noteLinkExt'
@@ -138,7 +138,14 @@ export function buildNotebookExtensions(hooks: EditorExtensionHooks): any[] {
       },
     }).configure({ nested: true }),
     TableKit.configure({ table: { resizable: true } }),
-    Image.configure({ inline: false, allowBase64: true }),
+    // 图片（批 5 I7）：官方 Image + resize 引擎（四角手柄拖宽/等比，onCommit 落库 width/height）
+    // + 对齐（align 属性，编辑端 data-align[prose.css] / 落库 style 合成[notebookImage]）。
+    // 手柄样式见 prose.css 的 [data-resize-handle] 段。工具栏「图片组」在 NotebookTipTapEditor。
+    NotebookImage.configure({
+      inline: false,
+      allowBase64: true,
+      resize: { enabled: true, minWidth: 60, minHeight: 40, alwaysPreserveAspectRatio: true },
+    }),
     tableInputRuleExtension,
     tablePasteExtension,
     NoteLink,

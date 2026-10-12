@@ -22,7 +22,8 @@ export function apply(_ctx: unknown, api: WorldPluginApi) {
       { traitId: 'narrative' },
     ],
     ownFields: [
-      { key: 'noteType', label: '笔记类型', fieldType: 'select', options: ['markdown', 'code', 'canvas', 'reference'].map(s => ({ value: s, label: s })) },
+      // 批 5 F6：移除 canvas（未实现占位）；与 notebookConfig.NOTE_TYPES 保持一致
+      { key: 'noteType', label: '笔记类型', fieldType: 'select', options: ['markdown', 'code', 'reference'].map(s => ({ value: s, label: s })) },
       { key: 'backlinks', label: '反向链接', fieldType: 'text' },
       { key: 'forwardLinks', label: '正向链接', fieldType: 'text' },
       { key: 'linkedEntities', label: '关联实体', fieldType: 'text' },

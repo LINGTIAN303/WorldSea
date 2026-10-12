@@ -158,11 +158,13 @@ export function useNoteEditor(
         },
       },
       onUpdate: ({ editor: ed }) => {
+        // 批 5 F5（2026-10-12，「先量化再优化」）：**不要**在每键路径调 getHTML()。
+        // 实测（notebookPerf.bench）：大文档全量序列化 10k≈7ms / 50k≈38ms，而单键
+        // transaction 本身仅 ~0.6-1.1ms —— 每键 getHTML 是输入延迟的头号来源。
+        // contentChange 的 HTML 改由 flushSave（300ms 防抖）与卸载路径统一发出；
+        // 下游（NotebookEditor.editContent）仅是本地状态同步，无实时性依赖。
         const text = ed.getText()
         wordCount.value = text.length
-        if (onContentChange) {
-          onContentChange(ed.getHTML())
-        }
         scheduleAutosave()
       },
     })
@@ -219,6 +221,8 @@ export function useNoteEditor(
   async function flushSave() {
     if (!currentNote.value || !editor.value) return
     const html = editor.value.getHTML()
+    // 批 5 F5：contentChange 与落库同帧发出（替代原「每键」调用——见 onUpdate 注释）
+    if (onContentChange) onContentChange(html)
     saveStatus.value = 'saving'
     try {
       await persistContent(html)
@@ -277,7 +281,10 @@ export function useNoteEditor(
       saveTimer = null
     }
     if (editor.value && loadedNoteId && saveStatus.value === 'unsaved') {
-      void persistContent(editor.value.getHTML())
+      const html = editor.value.getHTML()
+      void persistContent(html)
+      // 批 5 F5：卸载路径同样补发 contentChange（防抖窗口内切走/切类型时下游拿到最新）
+      if (onContentChange) onContentChange(html)
     }
     editor.value?.destroy()
     editor.value = undefined
