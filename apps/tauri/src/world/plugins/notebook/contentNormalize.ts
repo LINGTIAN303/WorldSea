@@ -107,13 +107,106 @@ function looksLikeMarkdown(content: string): boolean {
   return bullet >= LIST_SIGNAL_MIN_LINES || ordered >= LIST_SIGNAL_MIN_LINES
 }
 
+// ── 文本表格修复（2026-10-12 走查修复） ──────────────────────────
+
+/** 行段：`<p>| … |</p>`（行首竖线 + 行尾竖线；段内不允许 HTML 标签，保守） */
+const TT_ROW = '<p>[ \\t]*\\|[^<]*\\|[ \\t]*</p>'
+/** 行间间隙：空白 +（至多一个）空段——覆盖 plainTextToEditorHtml 对空行的 `<p></p>` 产物 */
+const TT_GAP = '[ \\t\\r\\n]*(?:<p></p>[ \\t\\r\\n]*)?'
+
+function isDividerCell(c: string): boolean {
+  return /^:?-+:?$/.test(c)
+}
+
+function parseRowCells(text: string): string[] {
+  let t = text.trim()
+  if (t.startsWith('|')) t = t.slice(1)
+  if (t.endsWith('|')) t = t.slice(0, -1)
+  return t.split('|').map(s => s.trim())
+}
+
+/** 全空数据行（td 内无内容）：TipTap 保存态 `<td …><p></p></td>` 与裸 `<td></td>` 两态 */
+const TT_EMPTY_ROW = '<tr>(?:<td[^>]*>(?:\\s*<p>\\s*</p>\\s*)?</td>)+</tr>'
+
 /**
- * 笔记正文装载归一（幂等）：md 信号渲染 → HTML 放行 → 纯文本拆段。
+ * 文本表格修复：把「被降级/截断为连续文本段」的表格重排回真 `<table>`。
+ *
+ * 背景（2026-10-12 走查实锤）：Agent 写入的 md 表格若**行间带空行**（LLM 输出常见格式
+ * 漂移），GFM 不识别或**在空行处截断** → 渲染产物为逐行 `<p>| … |</p>` 文本段；
+ * 此后「含 `<` 幂等放行」使它永不再尝试转换（实例：「星海衍化」笔记多处表格为文本态，
+ * 编辑/预览双侧同显源码文本）。本修复在装载归一三个出口统一收口（marked 产物 /
+ * 存量 HTML 放行 / 纯文本拆段），存量与未来写入双覆盖。两条规则：
+ *
+ * 规则一（独立降级组）：连续 ≥3 行段，第 1 段表头、第 2 段分隔行（`:?-+:?` ≥2 格）、
+ *   第 3 段起数据行；各行**列数一致**、数据行中无整体呈分隔形态者 → 转完整 `<table>`。
+ * 规则二（空表 + 残留行）：表格**无任何内容 td**（表头 + 至多一个全空行；含 marked 的
+ *   `thead + 空 tbody` 与 TipTap 保存态两形态）+ 紧邻 ≥1 行段（无分隔行、列数 = 表头列数）
+ *   → 行段并入该表（替换/去除空行）。
+ * 任一不满足 → 原样保留。产物（`<table>`）不再匹配本模式（幂等）。
+ */
+export function repairTextTables(html: string): string {
+  if (!html || !/<p>[ \t]*\|/.test(html)) return html // 快速短路：无「段落行首竖线」直接返回
+  return repairEmptyTableTail(repairStandaloneGroups(html))
+}
+
+/** 规则一：独立降级组 → `<table>` */
+function repairStandaloneGroups(html: string): string {
+  const groupRe = new RegExp(`${TT_ROW}(?:${TT_GAP}${TT_ROW}){2,}`, 'g')
+  const rowRe = new RegExp(TT_ROW, 'g')
+  return html.replace(groupRe, (group) => {
+    const rows = group.match(rowRe) ?? []
+    const cells = rows.map(r => parseRowCells(r.slice(3, -4)))
+    const header = cells[0]
+    const divider = cells[1]
+    if (!divider || divider.length < 2 || !divider.every(isDividerCell)) return group
+    const cols = divider.length
+    if (header.length !== cols) return group
+    const body = cells.slice(2)
+    if (body.some(r => r.length !== cols)) return group
+    if (body.some(r => r.every(isDividerCell))) return group // 数据行整体呈分隔形态 → 组内多分隔行，保守不修
+    const th = header.map(c => `<th>${c}</th>`).join('')
+    const trs = body.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join('')}</tr>`).join('')
+    return `<table><thead><tr>${th}</tr></thead><tbody>${trs}</tbody></table>`
+  })
+}
+
+/** 规则二：无内容表格 + 紧邻行段组 → 行段并入表格（替换空行 / 插入空 tbody） */
+function repairEmptyTableTail(html: string): string {
+  const rowRe = new RegExp(TT_ROW, 'g')
+  const emptyRowRe = new RegExp(TT_EMPTY_ROW)
+  // 捕获：1=完整表格 HTML ｜2=紧邻行段组（≥1 行；行间与组前允许空白与至多一个空段）
+  const mergeRe = new RegExp(
+    `(<table[^>]*>(?:(?!<\\/table>)[\\s\\S])*?<\\/table>)[ \\t\\r\\n]*(?:<p></p>[ \\t\\r\\n]*)?` +
+    `(${TT_ROW}(?:[ \\t\\r\\n]*(?:<p></p>[ \\t\\r\\n]*)?${TT_ROW})*)`,
+    'g',
+  )
+  return html.replace(mergeRe, (m, table: string, group: string) => {
+    if (!/<tbody[\s>]/i.test(table)) return m
+    // 表内不得有内容 td（td 全空）；无 td = 仅表头，同属目标形态
+    const tdAll = table.match(/<td[^>]*>[\s\S]*?<\/td>/g) ?? []
+    const tdEmpty = table.match(/<td[^>]*>(?:\s*<p>\s*<\/p>\s*)?<\/td>/g) ?? []
+    if (tdAll.length !== tdEmpty.length) return m
+    const cols = (table.match(/<th[\s>]/g) ?? []).length
+    if (cols < 2) return m
+    const rows = group.match(rowRe) ?? []
+    const cells = rows.map(r => parseRowCells(r.slice(3, -4)))
+    if (cells.some(r => r.length !== cols)) return m
+    if (cells.some(r => r.every(isDividerCell))) return m // 行组自带分隔形态 → 交由规则一，勿并入
+    const dataTrs = cells.map(r => `<tr>${r.map(c => `<td><p>${c}</p></td>`).join('')}</tr>`).join('')
+    // 有空行 tr（TipTap 保存态）→ 由数据行替换；否则（marked 空 tbody / 仅表头）→ 插到 </tbody> 前
+    return emptyRowRe.test(table)
+      ? table.replace(emptyRowRe, dataTrs)
+      : table.replace(/<\/tbody>/i, `${dataTrs}</tbody>`)
+  })
+}
+
+/**
+ * 笔记正文装载归一（幂等）：md 信号渲染 → HTML 放行 → 纯文本拆段，出口统一过文本表格修复。
  * 三态顺序与理由见文件头注释。
  */
 export function normalizeNoteContent(content: string): string {
   if (!content) return ''
-  if (looksLikeMarkdown(content)) return normalizeTaskListHtml(renderMarkdownForEditor(content))
-  if (content.includes('<')) return content
-  return plainTextToEditorHtml(content)
+  if (looksLikeMarkdown(content)) return repairTextTables(normalizeTaskListHtml(renderMarkdownForEditor(content)))
+  if (content.includes('<')) return repairTextTables(content)
+  return repairTextTables(plainTextToEditorHtml(content))
 }

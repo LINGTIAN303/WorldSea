@@ -153,3 +153,105 @@ describe('contentNormalize · 保守信号反例集（防误伤）', () => {
     expect(html).toContain('<ul>')
   })
 })
+
+describe('contentNormalize · 文本表格修复（2026-10-12 走查：行间空行表格降级为文本段）', () => {
+  it('端到端｜整篇 md（表格行间带空行）→ marked 降级 → 修复回 <table>', () => {
+    // 根因形态复现：表格行间空行 → GFM 不识别；文档有标题信号 → 走 marked → 逐行 <p> 降级
+    const md = '# 设定\n\n| 区 | 母题 | 牵力性质 |\n\n| --- | --- | --- |\n\n| 持守区 | 留 | 聚 |\n\n| 斩断区 | 断 | 分 |'
+    const html = normalizeNoteContent(md)
+    expect(html).toContain('<table>')
+    expect(html).toContain('<th>区</th>')
+    expect(html).toContain('<td>持守区</td>')
+    expect(html).toContain('<td>分</td>')
+    expect(html).not.toContain('<p>| ')
+  })
+
+  it('存量数据｜<p>|…|</p> 连续段组（HTML 放行分支）→ 修复为 <table>', () => {
+    const stored = '<p>| 区 | 母题 |</p><p>| --- | --- |</p><p>| 持守区 | 留 |</p><p>| 斩断区 | 断 |</p>'
+    const html = normalizeNoteContent(stored)
+    expect(html).toContain('<table>')
+    expect(html).toContain('<th>母题</th>')
+    expect(html).toContain('<td>留</td>')
+    expect(html).toContain('<td>断</td>')
+    expect(html).not.toContain('<p>| ')
+  })
+
+  it('纯文本拆段分支｜行间空行（<p></p> 间隔）→ 跨空段修复', () => {
+    // 无任何 md 信号（无标题/列表）→ plainTextToEditorHtml 逐行拆段（空行 → <p></p>）
+    const txt = '| a | b |\n\n| --- | --- |\n\n| 1 | 2 |'
+    const html = normalizeNoteContent(txt)
+    expect(html).toContain('<table>')
+    expect(html).toContain('<th>a</th>')
+    expect(html).toContain('<td>1</td>')
+  })
+
+  it('幂等：修复产物再归一 → 原样返回', () => {
+    const once = normalizeNoteContent('<p>| a | b |</p><p>| --- | --- |</p><p>| 1 | 2 |</p>')
+    expect(once).toContain('<table>')
+    expect(normalizeNoteContent(once)).toBe(once)
+  })
+
+  it('反例｜连续竖线段但无分隔行 → 不修（保持文本）', () => {
+    const stored = '<p>| a | b |</p><p>| 1 | 2 |</p><p>| 3 | 4 |</p>'
+    expect(normalizeNoteContent(stored)).toBe(stored)
+  })
+
+  it('反例｜列数不一致 → 不修', () => {
+    const stored = '<p>| a | b |</p><p>| --- | --- |</p><p>| 1 | 2 | 3 |</p>'
+    expect(normalizeNoteContent(stored)).toBe(stored)
+  })
+
+  it('反例｜仅两段（表头 + 分隔，无数据行）→ 不修', () => {
+    const stored = '<p>| a | b |</p><p>| --- | --- |</p>'
+    expect(normalizeNoteContent(stored)).toBe(stored)
+  })
+
+  it('组前后普通段落零影响（只替换组本体，不吞上下文）', () => {
+    const stored = '<p>前言一段。</p><p>| a | b |</p><p>| --- | --- |</p><p>| 1 | 2 |</p><p>后记。</p>'
+    const html = normalizeNoteContent(stored)
+    expect(html).toContain('<p>前言一段。</p>')
+    expect(html).toContain('<table>')
+    expect(html).toContain('<p>后记。</p>')
+  })
+
+  it('行内容含 `|` 与中文标点（真实语料形态）→ 正确切格', () => {
+    const stored = '<p>| 区 | 宿命底色 | 星位（登记合计） |</p><p>| --- | --- | --- |</p><p>| 持守区 | 守者必先失其所守 | 戍垣、承钟、抱磐、长明（80） |</p>'
+    const html = normalizeNoteContent(stored)
+    expect(html).toContain('<th>宿命底色</th>')
+    expect(html).toContain('<td>守者必先失其所守</td>')
+    expect(html).toContain('<td>戍垣、承钟、抱磐、长明（80）</td>')
+  })
+})
+
+describe('contentNormalize · 半转换修复（空表 + 残留数据行 → 并入，2026-10-12 真实数据实锤）', () => {
+  it('TipTap 保存态｜表头 + 全空行 + 后随数据行组 → 空行由数据行替换', () => {
+    const stored = '<table style="min-width: 125px;"><colgroup><col style="min-width: 25px;"><col style="min-width: 25px;"></colgroup><tbody><tr><th colspan="1" rowspan="1"><p>星位</p></th><th colspan="1" rowspan="1"><p>结构</p></th></tr><tr><td colspan="1" rowspan="1"><p></p></td><td colspan="1" rowspan="1"><p></p></td></tr></tbody></table><p>| 截川 | 一字横切 |</p><p>| 落刃 | 锐角前突 |</p>'
+    const html = normalizeNoteContent(stored)
+    expect(html).toContain('<td><p>截川</p></td>')
+    expect(html).toContain('<td><p>锐角前突</p></td>')
+    expect(html).not.toContain('<p>| ')
+  })
+
+  it('marked 原生｜thead + 空 tbody + 后随单行数据 → 插入 tbody', () => {
+    const stored = '<table><thead><tr><th>a</th><th>b</th></tr></thead><tbody></tbody></table><p>| 1 | 2 |</p>'
+    const html = normalizeNoteContent(stored)
+    expect(html).toContain('<td><p>1</p></td>')
+    expect(html).toContain('<td><p>2</p></td>')
+    expect(html).not.toContain('<p>| ')
+  })
+
+  it('反例｜表格已有内容 td + 后随行段 → 不并（防误伤）', () => {
+    const stored = '<table><tbody><tr><th><p>a</p></th></tr><tr><td><p>x</p></td></tr></tbody></table><p>| 1 | 2 |</p>'
+    expect(normalizeNoteContent(stored)).toBe(stored)
+  })
+
+  it('反例｜列数不符 → 不并', () => {
+    const stored = '<table><tbody><tr><th><p>a</p></th><th><p>b</p></th></tr></tbody></table><p>| 1 | 2 | 3 |</p>'
+    expect(normalizeNoteContent(stored)).toBe(stored)
+  })
+
+  it('反例｜行组自带分隔行 → 不并入（交由规则一处理的形态，此处单组<3行故均不转）', () => {
+    const stored = '<table><tbody><tr><th><p>a</p></th></tr></tbody></table><p>| --- |</p><p>| 1 |</p>'
+    expect(normalizeNoteContent(stored)).toBe(stored)
+  })
+})

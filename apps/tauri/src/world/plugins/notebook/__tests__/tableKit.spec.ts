@@ -87,6 +87,20 @@ describe('TableKit · 装配', () => {
     expect(countRows(html)).toBe(2)
     expect(countCells(html)).toBe(4)
   })
+
+  it('装载网关文本表格修复产物（thead/tbody + 裸文本单元格）经 setContent 还原完整表格（2026-10-12 修复链路）', () => {
+    const ed = makeEditor()
+    // repairTextTables 规则一产物形态（与 marked 表格产物同构：thead/tbody + 裸文本 th/td）
+    const repaired =
+      '<table><thead><tr><th>区</th><th>母题</th></tr></thead><tbody><tr><td>持守区</td><td>留</td></tr><tr><td>斩断区</td><td>断</td></tr></tbody></table>'
+    ed.commands.setContent(repaired)
+    const html = ed.getHTML()
+    expect(html).toContain('<table')
+    expect(countRows(html)).toBe(3) // 表头 1 + 数据 2
+    expect(html.match(/<th[ >]/g)?.length).toBe(2)
+    expect(html).toContain('持守区')
+    expect(html).toContain('断')
+  })
 })
 
 describe('TableKit · 结构命令（工具栏依赖的六个操作）', () => {
