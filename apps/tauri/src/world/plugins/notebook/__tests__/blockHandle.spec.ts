@@ -4,15 +4,16 @@
  * - findTopBlock：任意文档位置 → 顶层块（含嵌套：列表/表格内 → 归其顶层容器）；
  * - moveBlockBy：相邻交换（含首/尾边界 no-op）；
  * - duplicateBlock / deleteBlock：文档变换正确；
- * - blockSlice：拖拽 slice 形态（开区间、单节点）。
+ * - blockSlice：拖拽 slice 形态（开区间、单节点）；
+ * - resolveHandleSurface：事件面查找与挂载点解耦（2026-10-13 修复回归）。
  *
  * 鼠标追踪 / 手柄定位 / HTML5 拖放手势依赖布局与真实事件（jsdom 不可仿真），
- * 归属真机走查；此处锁「文档变换正确性」。
+ * 归属真机走查；此处锁「文档变换正确性 + 事件面解析」。
  */
 import { describe, it, expect, afterEach } from 'vitest'
 import { Editor } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
-import { findTopBlock, moveBlockBy, duplicateBlock, deleteBlock, blockSlice, indexOfBlock } from '../composables/blockHandle'
+import { findTopBlock, moveBlockBy, duplicateBlock, deleteBlock, blockSlice, indexOfBlock, resolveHandleSurface } from '../composables/blockHandle'
 
 function makeEditor(html: string): Editor {
   const ed = new Editor({ extensions: [StarterKit], content: html })
@@ -140,5 +141,42 @@ describe('blockSlice / indexOfBlock', () => {
     expect(indexOfBlock(doc, 0)).toBe(0)
     expect(indexOfBlock(doc, doc.child(0).nodeSize)).toBe(1)
     expect(indexOfBlock(doc, -1)).toBe(-1)
+  })
+})
+
+// ── 事件面解析（2026-10-13 修复回归）─────────────────────────
+// 真机零表现缺陷：手柄层挂载点是 .nb-tt-body 的【兄弟】节点，旧实现
+// closest('.nb-tt-body') 查祖先链必落空 → mousemove 监听从未挂上。
+describe('resolveHandleSurface · 事件面查找与挂载点解耦', () => {
+  function buildDom(layerPlacement: 'sibling' | 'inside'): { wrap: HTMLElement; body: HTMLElement; layer: HTMLElement } {
+    const wrap = document.createElement('div')
+    wrap.className = 'nb-tt-wrap'
+    const body = document.createElement('div')
+    body.className = 'nb-tt-body'
+    wrap.appendChild(body)
+    const layer = document.createElement('div')
+    if (layerPlacement === 'inside') body.appendChild(layer)
+    else wrap.appendChild(layer) // 兄弟节点（真实挂载结构）
+    return { wrap, body, layer }
+  }
+
+  it('layer 是 body 的兄弟节点（真实结构）→ wrap 与 area 都解析到', () => {
+    const { wrap, body, layer } = buildDom('sibling')
+    const s = resolveHandleSurface(layer)
+    expect(s.wrap).toBe(wrap)
+    expect(s.area).toBe(body)
+  })
+
+  it('layer 在 body 内（嵌套挂法）→ 同样解析到（兼容）', () => {
+    const { wrap, body, layer } = buildDom('inside')
+    const s = resolveHandleSurface(layer)
+    expect(s.wrap).toBe(wrap)
+    expect(s.area).toBe(body)
+  })
+
+  it('无 .nb-tt-wrap 祖先 / 传入 null → 双 null', () => {
+    const layer = document.createElement('div')
+    expect(resolveHandleSurface(layer)).toEqual({ wrap: null, area: null })
+    expect(resolveHandleSurface(null)).toEqual({ wrap: null, area: null })
   })
 })

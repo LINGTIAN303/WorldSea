@@ -106,3 +106,26 @@ export function blockSlice(doc: PMNode, blockPos: number): Slice | null {
   if (idx < 0) return null
   return new Slice(Fragment.from(doc.child(idx)), 0, 0)
 }
+
+// ── 事件面解析（2026-10-13 修复）─────────────────────────────
+
+export interface HandleSurface {
+  /** 定位锚层（手柄坐标参照系，position:relative） */
+  wrap: HTMLElement | null
+  /** 鼠标追踪面（编辑器事件面 .nb-tt-body） */
+  area: HTMLElement | null
+}
+
+/**
+ * 解析手柄层的定位锚与鼠标追踪面。
+ *
+ * 关键（真机零表现缺陷的根因）：手柄层挂载点是 .nb-tt-body 的【兄弟】节点
+ * （与 TOC 同层，见 NotebookTipTapEditor 模板）——closest('.nb-tt-body') 只查
+ * 祖先链，必落空 → mousemove 监听从未挂上。area 一律从 wrap 内 querySelector
+ * 向下找，与挂载位置解耦；layer 在 body 内的挂法也兼容。
+ */
+export function resolveHandleSurface(layerEl: Element | null): HandleSurface {
+  const wrap = (layerEl?.closest('.nb-tt-wrap') ?? null) as HTMLElement | null
+  const area = (wrap?.querySelector('.nb-tt-body') ?? null) as HTMLElement | null
+  return { wrap, area }
+}

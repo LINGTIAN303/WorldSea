@@ -41,7 +41,7 @@
 import { ref, nextTick, watch, onBeforeUnmount } from 'vue'
 import { WsIcon } from '@worldsea/ui-kit'
 import type { Editor } from '@tiptap/core'
-import { findTopBlock, moveBlockBy, duplicateBlock, deleteBlock, blockSlice } from '../composables/blockHandle'
+import { findTopBlock, moveBlockBy, duplicateBlock, deleteBlock, blockSlice, resolveHandleSurface } from '../composables/blockHandle'
 
 const props = defineProps<{ editor: Editor | undefined }>()
 
@@ -86,9 +86,11 @@ watch(() => props.editor, (ed) => {
 }, { immediate: true })
 
 function bind(): void {
-  // layer 在 .nb-tt-wrap 内（NotebookTipTapEditor 模板）；鼠标追踪面 = 编辑区 .nb-tt-body
-  wrapEl = layerRef.value?.closest('.nb-tt-wrap') as HTMLElement | null
-  areaEl = layerRef.value?.closest('.nb-tt-body') as HTMLElement | null
+  // 事件面与挂载点解耦（2026-10-13 修复）：layer 是 .nb-tt-body 的兄弟节点
+  // （与 TOC 同层），closest 查祖先链必落空 → 用 resolveHandleSurface 向下找
+  const { wrap, area } = resolveHandleSurface(layerRef.value)
+  wrapEl = wrap
+  areaEl = area
   areaEl?.addEventListener('mousemove', onAreaMouseMove)
   areaEl?.addEventListener('mouseleave', scheduleHide)
   document.addEventListener('scroll', onScrollCapture, true)
