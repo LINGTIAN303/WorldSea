@@ -1,16 +1,12 @@
 ﻿<template>
   <div class="nb-graph">
-    <!-- 空态（批 4 V7）：无笔记 → 引导新建；有笔记无链接 → 引导去写双链 -->
+    <!-- 空态（批 4 V7，走查修正=去按钮、引导语承载动作）：无笔记 / 有笔记无链接 分流 -->
     <WsEmpty
       v-if="noEdges"
       title="知识图谱"
-      :description="allNotes.length ? '在笔记中输入 [[ 即可创建双链，链接关系将在此可视化' : '创建笔记并为它们添加双链后，关系将在此可视化'"
+      :description="allNotes.length ? '在笔记中输入 [[ 即可创建双链，链接关系将在此可视化' : '点击工具栏「+ 笔记」创建笔记，并为它们添加双链后，关系将在此可视化'"
     >
       <template #icon><WsIcon name="link" size="xl" /></template>
-      <template #action>
-        <button v-if="!allNotes.length" class="nb-empty-btn" @click="$emit('create')">+ 新建笔记</button>
-        <button v-else class="nb-empty-btn" @click="$emit('goto-edit')">去写笔记</button>
-      </template>
     </WsEmpty>
     <div v-else ref="containerRef" class="ng-canvas"></div>
   </div>
@@ -25,7 +21,7 @@ import { useSmallCanvasGraph, type SGNode, type SGEdge } from '@worldsea/ui-kit'
 import type { NotebookEntity } from '../types'
 
 const props = defineProps<{ notes: NotebookEntity[] }>()
-const emit = defineEmits<{ select: [id: string]; create: []; 'goto-edit': [] }>()
+const emit = defineEmits<{ select: [id: string] }>()
 
 const relationStore = useRelationStore()
 const entityStore = useEntityStore()
@@ -114,7 +110,4 @@ function buildGraph(): void {
 <style scoped>
 .nb-graph { height: 100%; background: var(--color-bg-base); display: flex; flex-direction: column; }
 .ng-canvas { width: 100%; height: 100%; }
-/* 空态引导按钮（批 4 V7）：与 NotebookView 空态同款口径 */
-.nb-empty-btn { padding: 6px 16px; border-radius: var(--radius-xs); border: 1px solid var(--color-primary); background: transparent; color: var(--color-primary); font-size: var(--font-size-sm); cursor: pointer; transition: background 0.15s; }
-.nb-empty-btn:hover { background: color-mix(in srgb, var(--color-primary) 10%, transparent); }
 </style>

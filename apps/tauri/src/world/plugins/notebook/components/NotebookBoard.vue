@@ -1,16 +1,13 @@
 <template>
   <div class="nb-board">
-    <!-- 空态（批 4 V7）：搜索无结果 / 一篇都没有 分流；后者带引导动作 -->
+    <!-- 空态（批 4 V7，走查修正=去按钮、引导语承载动作）：搜索无结果 / 一篇都没有 分流 -->
     <WsEmpty v-if="notes.length === 0 && searching" preset="no-result" title="没有匹配的笔记" />
     <WsEmpty
       v-else-if="notes.length === 0"
       title="创建你的第一篇笔记"
-      description="看板按笔记类型分列，拖拽卡片即可切换类型"
+      description="点击工具栏「+ 笔记」开始；看板按笔记类型分列，拖拽卡片即可切换类型"
     >
       <template #icon><WsIcon name="notebook" size="xl" /></template>
-      <template #action>
-        <button class="nb-empty-btn" @click="$emit('create')">+ 新建笔记</button>
-      </template>
     </WsEmpty>
     <div v-else class="nb-board-columns">
       <div v-for="col in columns" :key="col.type" class="nb-board-col">
@@ -78,7 +75,7 @@ interface BoardColumn {
 }
 
 const props = defineProps<{ notes: NotebookEntity[]; searching?: boolean }>()
-const emit = defineEmits<{ select: [id: string]; create: [] }>()
+const emit = defineEmits<{ select: [id: string] }>()
 
 const entityStore = useEntityStore()
 const columns = ref<BoardColumn[]>([])
@@ -136,9 +133,6 @@ function onColChange(colType: string, evt: any) {
 
 <style scoped>
 .nb-board { padding: 16px; overflow: auto; height: 100%; display: flex; flex-direction: column; }
-/* 空态引导按钮（批 4 V7）：与 NotebookView 空态同款口径 */
-.nb-empty-btn { padding: 6px 16px; border-radius: var(--radius-xs); border: 1px solid var(--color-primary); background: transparent; color: var(--color-primary); font-size: var(--font-size-sm); cursor: pointer; transition: background 0.15s; }
-.nb-empty-btn:hover { background: color-mix(in srgb, var(--color-primary) 10%, transparent); }
 .nb-board-columns { flex: 1; min-height: 0; display: flex; gap: 16px; }
 .nb-board-col { min-width: 240px; max-width: 320px; flex: 1; display: flex; flex-direction: column; background: var(--color-bg-surface); border-radius: var(--radius-mid); border: 1px solid var(--color-border-subtle); }
 .nb-col-header { display: flex; align-items: center; gap: 6px; padding: 10px 12px; border-bottom: 1px solid var(--color-border-subtle); color: var(--color-text-secondary); font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); }

@@ -56,7 +56,10 @@
       <span class="word-count">{{ wordCount }} 字</span>
     </div>
     <!-- 定位锚层（批 3 走查修复）：TOC 按钮/面板挂这里（不随正文滚动）；滚动容器是各 pane -->
-    <!-- 批 4 V8/I10：三态视图（编辑 / 分栏 / 预览）。v-show 保持编辑器 DOM 常在（切换不重建编辑器视图、不丢光标/选区） -->
+    <!-- 批 4 V8/I10 三态视图（编辑 / 分栏 / 预览），按状态严格隔离（走查修正）：
+         ① 预览 = v-if 按状态挂载——编辑态预览完全不渲染（DOM 不存在、previewHtml 不求值）。
+         ② 编辑器 = v-show 有意常驻——卸载编辑器 DOM 会销毁 TipTap 视图（丢光标/选区/撤销上下文），
+            这是技术硬约束；display:none 不绘制，无渲染开销。 -->
     <div class="nb-tt-wrap">
       <div class="nb-tt-body" :class="{ 'nb-tt-body--split': viewMode === 'split' }">
         <div v-show="viewMode !== 'preview'" ref="editPaneRef" class="nb-split-pane nb-split-pane--editor">
@@ -66,7 +69,7 @@
             <BubbleToolbar :editor="editor" />
           </div>
         </div>
-        <div v-show="viewMode !== 'edit'" ref="previewPaneRef" class="nb-split-pane nb-split-pane--preview">
+        <div v-if="viewMode !== 'edit'" ref="previewPaneRef" class="nb-split-pane nb-split-pane--preview">
           <div class="nb-preview-wrap ws-nb-prose" v-html="previewHtml" @click="onPreviewClick"></div>
         </div>
       </div>
@@ -226,6 +229,8 @@ onBeforeUnmount(() => { offTocTransaction?.() })
 
 interface TocItem { pos: number; level: number; text: string }
 const tocItems = computed<TocItem[]>(() => {
+  // 面板关闭 → 不遍历（此前每次按键 transaction 都全文档 descendants 扫一遍；tocTick 在重开时保证最新）
+  if (!showToc.value) return []
   void tocTick.value
   const ed = editor.value
   if (!ed) return []
@@ -328,9 +333,16 @@ function attachSplitSync(): void {
 }
 
 watch(viewMode, (mode) => {
-  if (mode !== 'edit') previewTick.value++ // 进入即刷一次（修复「预览陈旧」）
+  // 编辑态零预览活动（走查修正·严格状态隔离）：取消挂起的防抖刷新
+  // （覆盖「分栏打字后 250ms 内切回编辑」的残留计时器场景；预览 DOM 已随 v-if 卸载）
+  if (mode !== 'edit') {
+    previewTick.value++ // 进入即刷一次（修复「预览陈旧」）
+  } else if (previewTimer) {
+    clearTimeout(previewTimer)
+    previewTimer = null
+  }
   void nextTick(() => {
-    attachSplitSync()
+    attachSplitSync() // 仅 split 模式挂双向监听；其余模式（含切离）解除
     if (mode === 'split') {
       syncOwner = null
       applySync('editor') // 首次进入：以编辑侧为准对齐一次
