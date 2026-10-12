@@ -46,21 +46,29 @@
         <button class="tb-btn" @click="editor?.chain().focus().redo().run()" :disabled="!editor?.can().redo()" title="重做" aria-label="重做"><WsIcon name="redo" size="xs" /></button>
       </div>
       <div class="toolbar-spacer"></div>
-      <button class="nb-preview-toggle" :class="{ active: showPreview }" @click="showPreview = !showPreview" :title="showPreview ? '切回编辑' : '切换到预览'">
-        <WsIcon :name="showPreview ? 'edit' : 'eye'" size="xs" /> {{ showPreview ? '编辑' : '预览' }}
-      </button>
+      <!-- 三态视图切换（批 4 V8）：编辑 / 分栏 / 预览 -->
+      <div class="nb-view-switch" role="group" aria-label="视图模式">
+        <button class="nb-vs-btn" :class="{ active: viewMode === 'edit' }" title="编辑模式" @click="viewMode = 'edit'">编辑</button>
+        <button class="nb-vs-btn" :class="{ active: viewMode === 'split' }" title="分栏实时预览" @click="viewMode = 'split'">分栏</button>
+        <button class="nb-vs-btn" :class="{ active: viewMode === 'preview' }" title="预览模式" @click="viewMode = 'preview'">预览</button>
+      </div>
       <span class="save-status" :class="saveStatus">{{ saveLabel }}</span>
       <span class="word-count">{{ wordCount }} 字</span>
     </div>
-    <!-- 定位锚层（批 3 走查修复）：TOC 按钮/面板挂这里（不随正文滚动）；滚动容器是内层 .nb-tt-body -->
+    <!-- 定位锚层（批 3 走查修复）：TOC 按钮/面板挂这里（不随正文滚动）；滚动容器是各 pane -->
+    <!-- 批 4 V8/I10：三态视图（编辑 / 分栏 / 预览）。v-show 保持编辑器 DOM 常在（切换不重建编辑器视图、不丢光标/选区） -->
     <div class="nb-tt-wrap">
-      <div class="nb-tt-body">
-        <div v-if="!showPreview" class="nb-editor-wrap">
-          <EditorContent v-if="editor" :editor="editor" />
-          <textarea v-else v-model="fallbackContent" class="editor-fallback" aria-label="文本编辑器（备选）" @input="onFallbackInput" />
-          <BubbleToolbar :editor="editor" />
+      <div class="nb-tt-body" :class="{ 'nb-tt-body--split': viewMode === 'split' }">
+        <div v-show="viewMode !== 'preview'" ref="editPaneRef" class="nb-split-pane nb-split-pane--editor">
+          <div class="nb-editor-wrap">
+            <EditorContent v-if="editor" :editor="editor" />
+            <textarea v-else v-model="fallbackContent" class="editor-fallback" aria-label="文本编辑器（备选）" @input="onFallbackInput" />
+            <BubbleToolbar :editor="editor" />
+          </div>
         </div>
-        <div v-else class="nb-preview-wrap ws-nb-prose" v-html="previewHtml" @click="onPreviewClick"></div>
+        <div v-show="viewMode !== 'edit'" ref="previewPaneRef" class="nb-split-pane nb-split-pane--preview">
+          <div class="nb-preview-wrap ws-nb-prose" v-html="previewHtml" @click="onPreviewClick"></div>
+        </div>
       </div>
       <!-- 目录（批 3 I5）：右下角悬浮按钮 + 标题层级面板 -->
       <button class="nb-toc-btn" :class="{ active: showToc }" title="目录" aria-label="目录" @click="showToc = !showToc">
@@ -86,13 +94,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { EditorContent } from '@tiptap/vue-3'
 import { WsIcon } from '@worldsea/ui-kit'
 import { sanitizeMarkdownHtml } from '@worldsea/shared-ui/markdown'
 import MentionPopover from './MentionPopover.vue'
 import SlashCommandMenu from './SlashCommandMenu.vue'
 import BubbleToolbar from './BubbleToolbar.vue'
+import { mapScrollTop, collectHeadingOffsets } from '../composables/splitScrollSync'
 import { useNoteEditor } from '../composables/useNoteEditor'
 import { findNoteLinkAnchor } from '../composables/noteLinkExt'
 import { SLASH_COMMANDS, type SlashCommandItem } from '../composables/slashCommandExtension'
@@ -112,7 +121,9 @@ type SlashCommandPopoverApi = {
 const props = defineProps<{ note: Entity }>()
 const emit = defineEmits<{ contentChange: [html: string]; navigate: [noteId: string] }>()
 
-const showPreview = ref(false)
+/** 三态视图（批 4 V8/I10）：编辑 / 分栏 / 预览 */
+type EditorViewMode = 'edit' | 'split' | 'preview'
+const viewMode = ref<EditorViewMode>('edit')
 const fallbackContent = ref(String(props.note.properties?.content || ''))
 
 // 图片插入（工具栏按钮 → 隐藏文件选择器）；粘贴 / 拖拽走 useNoteEditor 的 handlePaste/handleDrop
@@ -181,7 +192,10 @@ onMounted(() => {
 // 替换引用（useShallowArray 按引用替换），按引用监听会在每次落库后触发 loadNote →
 // setContent 重置选区 → 光标跳走（2026-10-11 修复「打字丢光标」，回归测试锁定）。
 watch(() => props.note?.id, (id, oldId) => {
-  if (id && id !== oldId) loadNote(props.note)
+  if (id && id !== oldId) {
+    loadNote(props.note)
+    if (viewMode.value !== 'edit') previewTick.value++ // 切笔记立即刷预览（不等防抖窗口）
+  }
 })
 
 const headingLevel = computed(() => {
@@ -200,7 +214,11 @@ watch(editor, (ed) => {
   offTocTransaction?.()
   offTocTransaction = null
   if (!ed) return
-  const handler = () => { tocTick.value++ }
+  const handler = () => {
+    tocTick.value++
+    // 批 4 V8：分栏/预览模式下防抖刷新预览（编辑模式不刷，省性能）
+    if (viewMode.value !== 'edit') schedulePreviewRefresh()
+  }
   ed.on('transaction', handler)
   offTocTransaction = () => ed.off('transaction', handler)
 }, { immediate: true })
@@ -236,12 +254,99 @@ const saveLabel = computed(() => {
   }
 })
 
+// ── 分栏实时预览（批 4 V8/I10）──
+// 旧实现 previewHtml 无文档级响应依赖（getHTML() 非响应式）→ 预览内容只在首次求值时生成（陈旧）。
+// 现由 previewTick 驱动：切模式时立即刷新、编辑中防抖刷新（250ms，避免逐键重算全文）。
+const previewTick = ref(0)
+let previewTimer: ReturnType<typeof setTimeout> | null = null
+
+function schedulePreviewRefresh(): void {
+  if (previewTimer) clearTimeout(previewTimer)
+  previewTimer = setTimeout(() => {
+    previewTimer = null
+    previewTick.value++
+  }, 250)
+}
+
 const previewHtml = computed(() => {
   // 编辑器产物是 HTML（非 markdown）——历史实现 marked.parse(getHTML()) 是概念错位：
   // HTML passthrough 靠运气，而未解析的外部 md 文本反而会在预览「突然」渲染，与编辑态
   // 自相矛盾。现与编辑态同源：HTML 经 DOMPurify 消毒直渲染（2026-10-11 装载网关配套）。
+  void previewTick.value
   return sanitizeMarkdownHtml(editor.value?.getHTML() || '')
 })
+
+// ── 分栏滚动同步（批 4 V8/I10）：标题锚点映射 + 双向防环 ──
+const editPaneRef = ref<HTMLElement | null>(null)
+const previewPaneRef = ref<HTMLElement | null>(null)
+let syncOwner: 'editor' | 'preview' | null = null
+let syncAt = 0
+let detachSplitSync: (() => void) | null = null
+
+function applySync(source: 'editor' | 'preview'): void {
+  const ed = editPaneRef.value
+  const pv = previewPaneRef.value
+  if (!ed || !pv) return
+  const from = source === 'editor' ? ed : pv
+  const to = source === 'editor' ? pv : ed
+  const target = mapScrollTop(
+    collectHeadingOffsets(from),
+    collectHeadingOffsets(to),
+    Math.max(0, from.scrollHeight - from.clientHeight),
+    Math.max(0, to.scrollHeight - to.clientHeight),
+    from.scrollTop,
+  )
+  // 差值过小时跳过赋值：避免生成无意义的 scroll 回声（防环第二道保险）
+  if (Math.abs(to.scrollTop - target) > 2) to.scrollTop = target
+}
+
+function onPaneScroll(source: 'editor' | 'preview'): void {
+  const now = performance.now()
+  // 另一侧刚带动我（150ms 回声窗内）→ 忽略；这是防环第一道保险
+  if (syncOwner !== source && now - syncAt < 150) return
+  syncOwner = source
+  syncAt = now
+  applySync(source)
+}
+
+/** 仅分栏模式挂双向滚动监听；切走或卸载时解除 */
+function attachSplitSync(): void {
+  detachSplitSync?.()
+  detachSplitSync = null
+  if (viewMode.value !== 'split') return
+  const ed = editPaneRef.value
+  const pv = previewPaneRef.value
+  if (!ed || !pv) return
+  const onEd = () => onPaneScroll('editor')
+  const onPv = () => onPaneScroll('preview')
+  ed.addEventListener('scroll', onEd, { passive: true })
+  pv.addEventListener('scroll', onPv, { passive: true })
+  detachSplitSync = () => {
+    ed.removeEventListener('scroll', onEd)
+    pv.removeEventListener('scroll', onPv)
+  }
+}
+
+watch(viewMode, (mode) => {
+  if (mode !== 'edit') previewTick.value++ // 进入即刷一次（修复「预览陈旧」）
+  void nextTick(() => {
+    attachSplitSync()
+    if (mode === 'split') {
+      syncOwner = null
+      applySync('editor') // 首次进入：以编辑侧为准对齐一次
+    }
+  })
+})
+
+// 预览 v-html 整体替换会重置滚动位 → 更新前保存、更新后恢复（分栏跟随编辑时尤其重要）
+let previewScrollSave = 0
+watch(previewTick, () => {
+  previewScrollSave = previewPaneRef.value?.scrollTop ?? 0
+})
+watch(previewHtml, () => {
+  const pv = previewPaneRef.value
+  if (pv && viewMode.value !== 'edit') pv.scrollTop = previewScrollSave
+}, { flush: 'post' })
 
 function setHeading(e: Event) {
   const val = parseInt((e.target as HTMLSelectElement).value, 10)
@@ -254,6 +359,8 @@ function setHeading(e: Event) {
 
 onBeforeUnmount(() => {
   setSlashCommandCallback(null as any)
+  if (previewTimer) clearTimeout(previewTimer)
+  detachSplitSync?.()
 })
 </script>
 
@@ -286,22 +393,29 @@ onBeforeUnmount(() => {
   padding: 2px 6px; border: 1px solid var(--color-border); border-radius: var(--radius-xs);
   font-size: var(--font-size-sm); background: var(--color-bg-base); color: var(--color-text-primary);
 }
-.nb-preview-toggle {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 2px 8px; border: 1px solid var(--color-border); border-radius: var(--radius-xs);
-  font-size: var(--font-size-xs); background: transparent; color: var(--color-text-secondary); cursor: pointer;
+/* 三态视图切换（批 4 V8）：编辑 / 分栏 / 预览 分段控件 */
+.nb-view-switch { display: inline-flex; border: 1px solid var(--color-border); border-radius: var(--radius-xs); overflow: hidden; }
+.nb-vs-btn {
+  padding: 3px 10px; border: none; background: transparent;
+  color: var(--color-text-secondary); font-size: var(--font-size-xs); cursor: pointer;
+  transition: background 0.15s, color 0.15s;
 }
-.nb-preview-toggle.active { background: color-mix(in srgb, var(--color-primary) 15%, transparent); color: var(--color-primary); border-color: var(--color-primary); }
+.nb-vs-btn + .nb-vs-btn { border-left: 1px solid var(--color-border); }
+.nb-vs-btn:hover { background: var(--color-bg-hover); }
+.nb-vs-btn.active { background: color-mix(in srgb, var(--color-primary) 15%, transparent); color: var(--color-primary); }
 .save-status { font-size: var(--font-size-xs); margin-right: 8px; }
 .save-status.saved { color: var(--color-text-tertiary); }
 .save-status.saving { color: var(--color-primary); }
 .save-status.unsaved { color: var(--color-warning); }
 .word-count { font-size: var(--font-size-xs); color: var(--color-text-tertiary); }
 
-/* 定位锚层：TOC 按钮固定于视口右下（不随正文滚动）；滚动容器 = 内层 .nb-tt-body */
+/* 定位锚层：TOC 按钮固定于视口右下（不随正文滚动） */
 .nb-tt-wrap { flex: 1; min-height: 0; position: relative; display: flex; flex-direction: column; }
-.nb-tt-body { flex: 1; overflow: auto; padding: 16px 20px; }
-.nb-editor-wrap { height: 100%; }
+/* 视图容器（批 4 V8/I10）：panes 型布局——单栏时 pane 占满；分栏时左右各半、preview 侧出分隔线 */
+.nb-tt-body { flex: 1; min-height: 0; display: flex; }
+.nb-split-pane { flex: 1 1 0; min-width: 0; overflow: auto; padding: 16px 20px; }
+.nb-tt-body--split .nb-split-pane--preview { border-left: 1px solid var(--color-border-subtle); }
+.nb-editor-wrap { min-height: 100%; }
 /* 排版体系（标题/引用/列表/表格/代码块/任务列表等）统一由 prose.css 的 .ws-nb-prose 承载，
    编辑区类名在 useNoteEditor 的 editorProps.attributes（'nb-editor-body tiptap ws-nb-prose'）注入 */
 .nb-editor-wrap :deep(.tiptap) { outline: none; min-height: 200px; }

@@ -1,26 +1,15 @@
 <template>
   <div class="folder-tree" @contextmenu.prevent="openContextMenu($event, 'empty')">
     <template v-if="searchMode">
-      <div
+      <NoteTreeItem
         v-for="note in searchResults"
         :key="note.id"
-        class="ft-note-item ft-note-row"
-        :class="{ active: selectedNoteId === note.id }"
-        role="button"
-        tabindex="0"
-        :aria-current="selectedNoteId === note.id ? 'true' : undefined"
-        :aria-label="`打开笔记 ${note.name}`"
-        @click="$emit('selectNote', note.id)"
-        @keydown.enter.prevent="$emit('selectNote', note.id)"
-        @keydown.space.prevent="$emit('selectNote', note.id)"
-        @contextmenu.stop="openContextMenu($event, 'note', note)"
-      >
-        <span class="ft-note-icon"><WsIcon :name="getNoteIcon(note)" size="xs" /></span>
-        <span class="ft-note-main">
-          <span class="ft-note-name">{{ note.name }}</span>
-          <span v-if="snippetOf(note)" class="ft-note-snippet" v-html="snippetOf(note)"></span>
-        </span>
-      </div>
+        :note="note"
+        :active="selectedNoteId === note.id"
+        :search-query="searchQuery"
+        @select="$emit('selectNote', $event)"
+        @menu="openContextMenu($event, 'note', note)"
+      />
       <div v-if="searchResults.length === 0" class="ft-empty">无匹配笔记</div>
     </template>
     <template v-else>
@@ -31,20 +20,15 @@
           <span class="ft-folder-name">置顶</span>
           <span class="ft-folder-count">{{ props.pinnedNotes.length }}</span>
         </div>
-        <div class="ft-folder-items">
-          <div
+        <div class="ft-folder-items ft-folder-items--flat">
+          <NoteTreeItem
             v-for="note in props.pinnedNotes"
             :key="`pin_${note.id}`"
-            class="ft-note-item"
-            :class="{ active: selectedNoteId === note.id }"
-            role="button" tabindex="0"
-            @click="$emit('selectNote', note.id)"
-            @keydown.enter.prevent="$emit('selectNote', note.id)"
-            @contextmenu.stop="openContextMenu($event, 'note', note)"
-          >
-            <span class="ft-note-icon"><WsIcon :name="getNoteIcon(note)" size="xs" /></span>
-            <span class="ft-note-name">{{ note.name }}</span>
-          </div>
+            :note="note"
+            :active="selectedNoteId === note.id"
+            @select="$emit('selectNote', $event)"
+            @menu="openContextMenu($event, 'note', note)"
+          />
         </div>
       </div>
 
@@ -59,24 +43,15 @@
           <span class="ft-folder-name">未分类</span>
           <span class="ft-folder-count">{{ unfiledList.length }}</span>
         </div>
-        <div class="ft-folder-items">
+        <div class="ft-folder-items ft-folder-items--guide">
           <draggable :list="unfiledList" item-key="id" group="notebook-notes" ghost-class="ft-note-ghost" @change="onNoteChange($event, '__unfiled__')">
             <template #item="{ element }">
-              <div
-                class="ft-note-item"
-                :class="{ active: selectedNoteId === element.id }"
-                role="button"
-                tabindex="0"
-                :aria-current="selectedNoteId === element.id ? 'true' : undefined"
-                :aria-label="`打开笔记 ${element.name}`"
-                @click="$emit('selectNote', element.id)"
-                @keydown.enter.prevent="$emit('selectNote', element.id)"
-                @keydown.space.prevent="$emit('selectNote', element.id)"
-                @contextmenu.stop="openContextMenu($event, 'note', element)"
-              >
-                <span class="ft-note-icon"><WsIcon :name="getNoteIcon(element)" size="xs" /></span>
-                <span class="ft-note-name">{{ element.name }}</span>
-              </div>
+              <NoteTreeItem
+                :note="element"
+                :active="selectedNoteId === element.id"
+                @select="$emit('selectNote', $event)"
+                @menu="openContextMenu($event, 'note', element)"
+              />
             </template>
           </draggable>
         </div>
@@ -116,24 +91,15 @@
                 :title="pendingDeleteId === folder.id ? '再次点击确认删除' : '删除文件夹'"
               >{{ pendingDeleteId === folder.id ? '确认?' : '×' }}</button>
             </div>
-            <div class="ft-folder-items">
+            <div class="ft-folder-items ft-folder-items--guide">
               <draggable :list="getNoteList(folder.id)" item-key="id" group="notebook-notes" ghost-class="ft-note-ghost" @change="onNoteChange($event, folder.id)">
                 <template #item="{ element }">
-                  <div
-                    class="ft-note-item"
-                    :class="{ active: selectedNoteId === element.id }"
-                    role="button"
-                    tabindex="0"
-                    :aria-current="selectedNoteId === element.id ? 'true' : undefined"
-                    :aria-label="`打开笔记 ${element.name}`"
-                    @click="$emit('selectNote', element.id)"
-                    @keydown.enter.prevent="$emit('selectNote', element.id)"
-                    @keydown.space.prevent="$emit('selectNote', element.id)"
-                    @contextmenu.stop="openContextMenu($event, 'note', element)"
-                  >
-                    <span class="ft-note-icon"><WsIcon :name="getNoteIcon(element)" size="xs" /></span>
-                    <span class="ft-note-name">{{ element.name }}</span>
-                  </div>
+                  <NoteTreeItem
+                    :note="element"
+                    :active="selectedNoteId === element.id"
+                    @select="$emit('selectNote', $event)"
+                    @menu="openContextMenu($event, 'note', element)"
+                  />
                 </template>
               </draggable>
             </div>
@@ -148,20 +114,15 @@
           <span class="ft-folder-name">最近</span>
           <span class="ft-folder-count">{{ props.recentNotes.length }}</span>
         </div>
-        <div class="ft-folder-items">
-          <div
+        <div class="ft-folder-items ft-folder-items--flat">
+          <NoteTreeItem
             v-for="note in props.recentNotes"
             :key="`recent_${note.id}`"
-            class="ft-note-item"
-            :class="{ active: selectedNoteId === note.id }"
-            role="button" tabindex="0"
-            @click="$emit('selectNote', note.id)"
-            @keydown.enter.prevent="$emit('selectNote', note.id)"
-            @contextmenu.stop="openContextMenu($event, 'note', note)"
-          >
-            <span class="ft-note-icon"><WsIcon :name="getNoteIcon(note)" size="xs" /></span>
-            <span class="ft-note-name">{{ note.name }}</span>
-          </div>
+            :note="note"
+            :active="selectedNoteId === note.id"
+            @select="$emit('selectNote', $event)"
+            @menu="openContextMenu($event, 'note', note)"
+          />
         </div>
       </div>
     </template>
@@ -202,6 +163,7 @@
 import { ref, watch, reactive, nextTick, onMounted, onUnmounted } from 'vue'
 import draggable from 'vuedraggable'
 import { WsIcon } from '@worldsea/ui-kit'
+import NoteTreeItem from './NoteTreeItem.vue'
 import type { NotebookEntity } from '../types'
 
 interface NotebookFolder {
@@ -251,17 +213,6 @@ const emit = defineEmits<{
   renameMode: []
   togglePin: [noteId: string]
 }>()
-
-function getNoteIcon(note: NotebookEntity): string {
-  const noteType = note.properties?.noteType || 'markdown'
-  const iconMap: Record<string, string> = {
-    markdown: 'edit',
-    code: 'keyboard',
-    canvas: 'palette',
-    reference: 'manuscript',
-  }
-  return iconMap[noteType] || 'edit'
-}
 
 function sortByOrder(a: NotebookEntity, b: NotebookEntity): number {
   return (a.properties?.sortOrder || '0').localeCompare(b.properties?.sortOrder || '0', undefined, { numeric: true })
@@ -419,27 +370,7 @@ function ctxAction(action: string) {
   }
 }
 
-/** 批 3 F1：搜索命中摘要（正文剥标签 → 命中词前后截取 → 关键词高亮 mark） */
-function snippetOf(note: NotebookEntity): string {
-  const q = props.searchQuery.replace(/#\S+/g, '').trim()
-  if (!q) return ''
-  const text = (note.properties?.content || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
-  const lower = text.toLowerCase()
-  const idx = lower.indexOf(q.toLowerCase())
-  if (idx < 0) return ''
-  const pad = 28
-  const start = Math.max(0, idx - pad)
-  const end = Math.min(text.length, idx + q.length + pad)
-  const body = `${start > 0 ? '…' : ''}${text.slice(start, end)}${end < text.length ? '…' : ''}`
-  // HTML 转义后高亮（防正文注入）
-  const esc = body
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-  return esc.replace(new RegExp(escapeRegExp(q), 'gi'), (m) => `<mark>${m}</mark>`)
-}
-
-function escapeRegExp(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
+// 搜索命中摘要 snippetOf/escapeRegExp 已迁至 NoteTreeItem.vue（批 4 V5 条目组件化）
 
 function onKeyDown(ev: KeyboardEvent) {
   if (ev.key === 'Escape' && ctxMenu.show) closeContextMenu()
@@ -479,37 +410,21 @@ onUnmounted(() => document.removeEventListener('keydown', onKeyDown))
   font-weight: var(--font-weight-semibold); animation: pulse var(--dur-pulse) infinite;
 }
 .ft-folder-items { overflow: hidden; transition: max-height 0.2s ease; }
+/* 层级导引线（批 4 V5）：文件夹/未分类组的子项列表左侧竖线；置顶/最近组仅缩进对齐无线 */
+.ft-folder-items--guide { margin-left: 15px; border-left: 1px solid var(--color-border-subtle); }
+.ft-folder-items--flat { margin-left: 15px; }
 .ft-folder-group.collapsed .ft-folder-items { max-height: 0; }
 .ft-folder-group:not(.collapsed) .ft-folder-items { max-height: 2000px; }
 
-.ft-note-item {
-  display: flex; align-items: center; gap: 6px; padding: 5px 8px 5px 28px;
-  border-radius: var(--radius-xs); cursor: pointer; font-size: var(--font-size-sm);
-  color: var(--color-text-secondary); transition: background 0.1s, border-color 0.1s, color 0.1s, box-shadow 0.1s, transform 0.1s, opacity 0.1s, filter 0.1s;
-}
-/* 搜索模式条目：名称 + 命中摘要两行（批 3 F1） */
-.ft-note-row { align-items: flex-start; }
-.ft-note-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.ft-note-snippet {
-  font-size: var(--font-size-2xs); color: var(--color-text-tertiary);
-  overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
-  line-height: 1.4;
-}
-.ft-note-snippet :deep(mark) {
-  background: color-mix(in srgb, var(--color-primary) 25%, transparent);
-  color: var(--color-primary); padding: 0 1px; border-radius: 2px;
-}
-.ft-note-item:hover { background: var(--color-bg-hover); }
-.ft-note-item.active { background: color-mix(in srgb, var(--color-primary) 15%, transparent); color: var(--color-primary); }
-.ft-note-icon { font-size: var(--font-size-base); }
-.ft-note-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 条目本体样式已迁至 NoteTreeItem.vue（批 4 V5 条目组件化） */
 
 .ft-rename-input {
   flex: 1; min-width: 0; padding: 1px 4px; font-size: var(--font-size-sm);
   border: 1px solid var(--color-primary); border-radius: var(--radius-2xs);
   background: var(--color-bg-base); color: var(--color-text-primary); outline: none;
 }
-.ft-note-ghost { opacity: 0.3; }
+/* ghost 类作用于 NoteTreeItem 根元素（子组件 scope），须 :deep 穿透才命中 */
+:deep(.ft-note-ghost) { opacity: 0.3; }
 .ft-folder-ghost { opacity: 0.3; border: 1px dashed var(--color-primary); border-radius: var(--radius-sm); }
 .ft-empty { padding: 12px; text-align: center; font-size: var(--font-size-sm); color: var(--color-text-tertiary); }
 

@@ -100,15 +100,27 @@
         <NotebookBoard
           v-else-if="currentMode === 'board'"
           :notes="filteredNotes"
+          :searching="!!searchQuery"
           @select="selectedNoteId = $event"
+          @create="createNote()"
         />
         <NotebookGraph
           v-else-if="currentMode === 'graph'"
           :notes="filteredNotes"
           @select="selectedNoteId = $event"
+          @create="createNote()"
+          @goto-edit="currentMode = 'editor'"
         />
-        <WsEmpty v-else title="选择或创建一个笔记开始">
+        <!-- 主区空态（批 4 V7）：区分「一篇都没有」与「未选中」两种处境，动作直达新建 -->
+        <WsEmpty
+          v-else
+          :title="notebookNotes.length ? '选择一篇笔记开始' : '创建你的第一篇笔记'"
+          :description="notebookNotes.length ? '从左侧列表选择，或新建一篇' : '记录想法、素材与知识，支持 Markdown 排版'"
+        >
           <template #icon><WsIcon name="notebook" size="xl" /></template>
+          <template #action>
+            <button class="nb-empty-btn" @click="createNote()">+ 新建笔记</button>
+          </template>
         </WsEmpty>
       </div>
     </div>
@@ -637,7 +649,9 @@ async function migrateBacklinks(): Promise<void> {
 .nb-fi-cancel:hover { background: color-mix(in srgb, var(--color-danger) 15%, transparent); color: var(--color-danger); border-color: var(--color-danger); }
 
 .nb-main { flex: 1; overflow: auto; background: var(--color-bg-base); }
-.nb-empty { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--color-text-tertiary); font-size: var(--font-size-base); }
+/* 空态引导按钮（批 4 V7）：与工具栏 .nb-action-btn 同款口径 */
+.nb-empty-btn { padding: 6px 16px; border-radius: var(--radius-xs); border: 1px solid var(--color-primary); background: transparent; color: var(--color-primary); font-size: var(--font-size-sm); cursor: pointer; transition: background 0.15s; }
+.nb-empty-btn:hover { background: color-mix(in srgb, var(--color-primary) 10%, transparent); }
 
 /* 素材预览浮层（Teleport body，z 走全局令牌） */
 .nb-file-preview-overlay {

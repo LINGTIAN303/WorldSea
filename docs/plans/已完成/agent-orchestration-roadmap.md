@@ -160,7 +160,7 @@
 - [x] 设计 `MemoryAccessor` 接口（解耦 memory-archive，可迁移到 Rust trait）
 - [x] 实现 `MemoryNode` 节点（4 种动作：recall/inject/archive/auto）
 - [x] 短期记忆：`ShortTermMemoryHelper` trim 策略（token 估算 + 保留 system/首条user/最近N条）
-- [x] 将 [memory-archive](../../../packages/memory-archive) 接入 Orchestrator（通过 `NodeContext.memory` 可选字段注入）
+- [x] 将 memory-archive 接入 Orchestrator（通过 `NodeContext.memory` 可选字段注入；注：memory-archive 包已随 E8 冻结物理删除，链接移除）
 - [ ] 工作记忆：ReAct 循环内的观察缓冲（推迟到阶段 0.7 实现，已在 0.7 完成）
 - [x] 长期记忆：通过 `MemoryAccessor.recall()` 检索跨会话记忆
 - [x] 事件扩展：`memory_recall` / `memory_inject` / `memory_archive` / `memory_trim` 4 类事件

@@ -5,4 +5,4 @@
 > 本目录 = 旧自研 Agent 空间的界面设计证据（UI 矩阵审计 + 重设计稿 + 悬停菜单原型）。
 > 该 Agent 面已于 2026-09 由 dsh 整体接管（E7/E8 物理删除），**现行 Agent 界面 = dsh 原生界面**；
 > 现行产品域 UI 源码 = `apps/tauri/src`。本目录仅作设计追溯，引用见
-> [Agent 面冻结清单](../../details/架构/Agent面冻结清单.md) 与 [索引](../../index/README.md)。
+> [Agent 面冻结清单](../details/架构/Agent面冻结清单.md) 与 [索引](../index/README.md)。

@@ -1,24 +1,31 @@
 ﻿<template>
   <div class="nb-graph">
-    <div v-if="noEdges" class="nb-graph-placeholder">
-      <div class="nb-gp-icon"><WsIcon name="link" size="xl" /></div>
-      <div class="nb-gp-text">知识图谱</div>
-      <div class="nb-gp-desc">创建笔记间链接以在此查看</div>
-    </div>
+    <!-- 空态（批 4 V7）：无笔记 → 引导新建；有笔记无链接 → 引导去写双链 -->
+    <WsEmpty
+      v-if="noEdges"
+      title="知识图谱"
+      :description="allNotes.length ? '在笔记中输入 [[ 即可创建双链，链接关系将在此可视化' : '创建笔记并为它们添加双链后，关系将在此可视化'"
+    >
+      <template #icon><WsIcon name="link" size="xl" /></template>
+      <template #action>
+        <button v-if="!allNotes.length" class="nb-empty-btn" @click="$emit('create')">+ 新建笔记</button>
+        <button v-else class="nb-empty-btn" @click="$emit('goto-edit')">去写笔记</button>
+      </template>
+    </WsEmpty>
     <div v-else ref="containerRef" class="ng-canvas"></div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
-import { WsIcon } from '@worldsea/ui-kit'
+import { WsEmpty, WsIcon } from '@worldsea/ui-kit'
 import { useRelationStore, useEntityStore } from '@worldsea/entity-core'
 import type { Relation } from '@worldsea/entity-core'
 import { useSmallCanvasGraph, type SGNode, type SGEdge } from '@worldsea/ui-kit'
 import type { NotebookEntity } from '../types'
 
 const props = defineProps<{ notes: NotebookEntity[] }>()
-const emit = defineEmits<{ select: [id: string] }>()
+const emit = defineEmits<{ select: [id: string]; create: []; 'goto-edit': [] }>()
 
 const relationStore = useRelationStore()
 const entityStore = useEntityStore()
@@ -105,10 +112,9 @@ function buildGraph(): void {
 </script>
 
 <style scoped>
-.nb-graph { height: 100%; background: var(--color-bg-base); }
+.nb-graph { height: 100%; background: var(--color-bg-base); display: flex; flex-direction: column; }
 .ng-canvas { width: 100%; height: 100%; }
-.nb-graph-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
-.nb-gp-icon { color: var(--color-text-tertiary); margin-bottom: 12px; }
-.nb-gp-text { font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); color: var(--color-text-primary); margin-bottom: 4px; }
-.nb-gp-desc { font-size: var(--font-size-sm); color: var(--color-text-secondary); }
+/* 空态引导按钮（批 4 V7）：与 NotebookView 空态同款口径 */
+.nb-empty-btn { padding: 6px 16px; border-radius: var(--radius-xs); border: 1px solid var(--color-primary); background: transparent; color: var(--color-primary); font-size: var(--font-size-sm); cursor: pointer; transition: background 0.15s; }
+.nb-empty-btn:hover { background: color-mix(in srgb, var(--color-primary) 10%, transparent); }
 </style>
