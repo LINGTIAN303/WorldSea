@@ -1,14 +1,8 @@
-// C1-a（2026-09-24）：WS 凭据中转 —— UI 页 origin 是 worldsea.localhost，而 mux WebSocket
-// 必须以「宿主 authority + dsh-auth cookie + same-origin」的面貌到达宿主（否则连接被
-// /api 围栏 403 / 凭据 401 拒绝；围栏代码见 dsh packages/client/connection/src/api-request-trust.ts）。
-// WebView 无法给 WS 握手补 Cookie/Origin 头，故壳内起一条 loopback 中转：改写握手首部后
-// 双向透传字节（不解析 WS 帧）。
-//
-// 口径（见 docs/plans/2026-09-24-C1-Tauri原生desktop载体批计划.md §三）：
-// - 纯壳侧实现，不触 dsh/（fork 台账保持空）；
-// - 仅服务 `/<secret>/api/remote.mux`：secret 是每进程随机前缀（注入在页面的 streamBaseUrl 里），
-//   使中转不是通用代理——本机其它进程即使知道端口也无法借它带上宿主凭据；
-// - 随壳进程退出回收（Drop 置停止位 + 监听线程非阻塞轮询）。
+// WS 凭据中转 —— UI 页 origin 是 worldsea.localhost，而 mux WebSocket 必须以「宿主 authority + dsh-auth cookie + same-origin」
+// 的面貌到达宿主（否则连接被 /api 围栏 403 / 凭据 401 拒绝；围栏代码见 dsh packages/client/connection/src/api-request-trust.ts）。
+// WebView 无法给 WS 握手补 Cookie/Origin 头，故壳内起一条 loopback 中转：改写握手首部后双向透传字节（不解析 WS 帧）。
+// 口径（见 docs/plans/2026-09-24-C1-Tauri原生desktop载体批计划.md §三）：纯壳侧实现，不触 dsh/（fork 台账保持空）；仅服务 `/<secret>/api/remote.mux`
+// ——secret 是每进程随机前缀（注入在页面的 streamBaseUrl 里），使中转不是通用代理（本机其它进程无法借它带上宿主凭据）；随壳进程退出回收（Drop 置停止位）。
 
 use std::io::{BufRead, BufReader, Write};
 use std::net::{Shutdown, TcpListener, TcpStream};

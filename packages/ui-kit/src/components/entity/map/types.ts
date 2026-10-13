@@ -1,8 +1,7 @@
 /**
  * RegionMap 共用类型定义
- *
- * 注：RegionEntity 此处保留 any，是为了与父组件 props.regions: any[]
- * 保持一致，避免在地图模块内引入 entity-core 的完整类型链。
+ * 注：RegionEntity 此处保留 any，是为了与父组件 props.regions: any[] 保持一致，
+ * 避免在地图模块内引入 entity-core 的完整类型链。
  */
 
 // 2D 点

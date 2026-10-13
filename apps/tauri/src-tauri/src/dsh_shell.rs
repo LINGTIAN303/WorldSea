@@ -1,5 +1,4 @@
-// B2 壳接入（2026-09-23）：Tauri 壳承载 dsh —— spawn dsh host（node）+ 就绪探测 + WebView 导航 + 退出回收。
-//
+// 壳承载 dsh —— spawn dsh host（node）+ 就绪探测 + WebView 导航 + 退出回收。
 // 口径（见 docs/plans/2026-09-23-dsh接管Agent面-大重构准备.md §六）：
 // - 只 spawn + 探测 + 导航；不改 dsh 树、不手写协议客户端（界面 100% 保留）。
 // - 就绪信号 = 启动器打印的 `dsh web: http://127.0.0.1:<port>/?token=…`。
@@ -85,7 +84,7 @@ fn generate_pipe_path() -> String {
 }
 
 /// 定位仓内 dsh 树：`WORLDSEA_DSH_ROOT` 优先；否则按 CARGO_MANIFEST_DIR 上溯（dev 口径）。
-/// G3 起对 `acl_fix` 可见（上游 ACL 脚本的树内相对路径由它拼出）。
+/// 上游 ACL 脚本的树内相对路径（acl_fix.rs 用）也由它拼出。
 pub(crate) fn resolve_dsh_root() -> Result<PathBuf, String> {
     let bin_rel = ["apps", "cli", "lib", "bin.js"];
     if let Some(raw) = std::env::var_os("WORLDSEA_DSH_ROOT") {
@@ -113,9 +112,9 @@ pub(crate) fn resolve_dsh_root() -> Result<PathBuf, String> {
 }
 
 /// 启动 dsh host 并等就绪；返回（子进程句柄, 带 token 的 URL, 管道路径, 工作区横幅文案, 解析后的 DSH_HOME）。
-/// 管道路径仅在默认（C2 零 TCP）模式生成；`WORLDSEA_TCP_HOST=1` 走 legacy（无管道）。
-/// 横幅文案仅在「工作区不可供给且未关闭横幅」时非空（C4-b 起由 index 注入带出）；
-/// DSH_HOME 字符串供注入面透传（`__WORLDSEA_DSH_HOME__`，D3-c2b）。
+/// 管道路径仅在默认（零 TCP）模式生成；`WORLDSEA_TCP_HOST=1` 走 legacy（无管道）。
+/// 横幅文案仅在「工作区不可供给且未关闭横幅」时非空（由 index 注入带出）；
+/// DSH_HOME 字符串供注入面透传（`__WORLDSEA_DSH_HOME__`）。
 pub fn spawn_and_wait_ready(
     app: &tauri::AppHandle,
 ) -> Result<(Child, String, Option<String>, Option<String>, String), String> {
@@ -123,9 +122,9 @@ pub fn spawn_and_wait_ready(
     let port = free_loopback_port()?;
     let node = std::env::var("WORLDSEA_NODE").unwrap_or_else(|_| "node".to_string());
     let bin = root.join("apps").join("cli").join("lib").join("bin.js");
-    // 传输模式：默认管道（零 TCP）；`WORLDSEA_TCP_HOST=1` = C1 legacy 形态（对照口，冻结）
+    // 传输模式：默认管道（零 TCP）；`WORLDSEA_TCP_HOST=1` = legacy TCP 形态（对照口，冻结）
     let pipe_path = if std::env::var_os("WORLDSEA_TCP_HOST").is_some() {
-        println!("[DSH-SHELL] WORLDSEA_TCP_HOST=1：legacy TCP 模式（宿主按端口监听，壳走 C1 转发链）");
+        println!("[DSH-SHELL] WORLDSEA_TCP_HOST=1：legacy TCP 模式（宿主按端口监听，壳走协议层转发链）");
         None
     } else {
         Some(generate_pipe_path())
@@ -144,7 +143,7 @@ pub fn spawn_and_wait_ready(
     };
     std::fs::create_dir_all(&home).map_err(|e| format!("创建 DSH_HOME 失败：{e}"))?;
 
-    // C4-a：默认工作区 = 用户 profile 下的专用目录（`WORLDSEA_WORKSPACE` 可覆盖）。
+    // 默认工作区 = 用户 profile 下的专用目录（`WORLDSEA_WORKSPACE` 可覆盖）。
     // 此前把 dsh 树本身当 cwd——既非产品语义（工作区应是用户的目录），也必踩 D: 盘 ACL 的沙箱前提。
     let workspace = resolve_workspace(app)?;
     let workspace_notice = announce_workspace(app, &workspace);
@@ -163,7 +162,7 @@ pub fn spawn_and_wait_ready(
         home.display(),
         workspace.display()
     );
-    // 壳 overlay（B4-a）：打开 web 下默认禁用的右栏内置浏览器等「desktop 才启用」的条目。
+    // 壳 overlay：打开 web 下默认禁用的右栏内置浏览器等「desktop 才启用」的条目。
     // 位置固定为 `<仓根>/apps/tauri/dsh-overlay.yml`（dsh 树在仓根，故取其父目录）；缺失则跳过。
     let overlay = root
         .parent()
@@ -193,10 +192,10 @@ pub fn spawn_and_wait_ready(
         .stderr(Stdio::piped());
     // DSH_HOME 一律显式传入（默认=应用数据目录下的隔离 home，或 WORLDSEA_DSH_HOME 覆盖）
     command.env("DSH_HOME", &home);
-    // E1（2026-09-25）：把**解析后的**工作区显式交给 dsh（overlay 的 `workspace-controller.documentsDirectory`
+    // 把**解析后的**工作区显式交给 dsh（overlay 的 `workspace-controller.documentsDirectory`
     // 读它 → 「首次使用默认工作区」候选落在单一可见根内，不再指向 Documents\deepseek-harness）
     command.env("WORLDSEA_WORKSPACE", &workspace);
-    // C5（凭证批）：凭据取向 = 库优先 + env 兜底（判定、留痕与反证开关见 dsh_credentials.rs）
+    // 凭据取向 = 库优先 + env 兜底（判定、留痕与反证开关见 dsh_credentials.rs）
     crate::dsh_credentials::apply_credential_env(&mut command, &home);
     // GUI 模式（windows_subsystem=windows）下 spawn node 会闪现控制台窗口，隐藏之
     crate::proc_quiet::hide_console(&mut command);
@@ -216,7 +215,7 @@ pub fn spawn_and_wait_ready(
                         .to_string();
                     let _ = tx.send(url);
                 } else if !line.trim().is_empty() {
-                    // 宿主侧日志就地可见（排障必需）：C2-b 起宿主负责管道载体与流 lane，
+                    // 宿主侧日志就地可见（排障必需）：宿主负责管道载体与流 lane，
                     // 其排障行（pipe-transport / 协议违规）只在宿主 stdout 上。
                     println!("[DSH-HOST] {line}");
                 }
@@ -240,7 +239,7 @@ pub fn spawn_and_wait_ready(
         }
         Ok(_) => {
             let _ = child.kill();
-            Err("dsh 在打印就绪 URL 前退出（详见应用日志；常见原因：profile 依赖缺失，见 B2 批次发现）".to_string())
+            Err("dsh 在打印就绪 URL 前退出（详见应用日志；常见原因：profile 依赖缺失）".to_string())
         }
         Err(_) => {
             let _ = child.kill();
@@ -249,11 +248,11 @@ pub fn spawn_and_wait_ready(
     }
 }
 
-/// B2 壳接入装配（C1-a 起含协议桥；C2-b 起默认管道传输）：spawn 宿主 → 等就绪 → 桥（可回退直连）
-/// → 挂句柄 + 心跳守护。具体导航与回退分支见 `dsh_bridge::attach`；口径与批次见
-/// docs/plans/2026-09-23-dsh接管Agent面-大重构准备.md §六 与 C2 批计划 §五。
+/// 壳接入装配（含协议桥，默认管道传输）：spawn 宿主 → 等就绪 → 桥（可回退直连）
+/// → 挂句柄 + 心跳守护。具体导航与回退分支见 `dsh_bridge::attach`；
+/// 口径见 docs/plans/2026-09-23-dsh接管Agent面-大重构准备.md §六。
 pub fn install(app: &tauri::AppHandle, window: Option<&WebviewWindow>) {
-    // C6-fix（2026-09-24）：宿主 spawn / 就绪等待**移入后台线程**——setup 不再被阻塞（此前 ~12s）。
+    // 宿主 spawn / 就绪等待**移入后台线程**——setup 不再被阻塞（此前 ~12s）。
     // 根因（CDP 实测）：Tauri 对 frontendDist（启动页）的**初始导航**排在 setup 之后执行；
     // setup 被本函数同步阻塞期间窗口始终为空文档（黑屏），结束后初始导航又被紧随的 dsh 导航
     // 瞬间替换 → 启动页从未可见。后台化后：窗口立即可见 → 启动页展示 → 宿主就绪 → attach（导航）。
@@ -307,7 +306,7 @@ pub fn watch_child(app: tauri::AppHandle) {
         if state.has_exited() {
             tracing::error!("dsh shell: dsh 子进程已退出（未随应用关停）");
             eprintln!("[DSH-SHELL] dsh 子进程已退出（未随应用关停）");
-            // C1-c：附一条系统通知——窗口可能被收进托盘，错误页在屏幕上看不见（通知失败不影响主流程）
+            // 附一条系统通知——窗口可能被收进托盘，错误页在屏幕上看不见（通知失败不影响主流程）
             {
                 use tauri_plugin_notification::NotificationExt;
                 if let Err(e) = app

@@ -10,11 +10,9 @@ import SchemaRenderer from '../SchemaRenderer.vue'
 import EntityDetailForm from '../../detail/EntityDetailForm.vue'
 
 /**
- * 芽声明默认详情布局的**通道**守卫（裁定 ⑤：芽声明默认 + 用户按类型覆写）。
+ * 芽声明默认详情布局的**通道**守卫（裁定：芽声明默认 + 用户按类型覆写）。锁的是"传到了"而不是
+ * "声明了"：GEV 侧看到内容件真的收到该形态，SchemaRenderer 侧看到参数原样下传（schema 驱动的芽不直挂 GEV）。
  * 详细见 docs/details/注释/packages/plugin-sdk/实体详情内容形态.md §七
- *
- * 锁的是"传到了"而不是"声明了"：GEV 侧看到内容件真的收到该形态，
- * SchemaRenderer 侧看到参数原样下传给 GEV（schema 驱动的芽不直挂 GEV）。
  */
 
 let pinia: Pinia

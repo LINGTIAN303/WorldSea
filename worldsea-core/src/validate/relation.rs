@@ -1,12 +1,8 @@
 use crate::models::relation::{Relation, RelationTypeSchema};
 use crate::validate::entity::ValidationReport;
 
-/// 验证关系数据的合法性，包括 ID、类型、源/目标实体等基本字段，以及可选的 Schema 约束检查
-///
-/// 参数:
-/// - `relation`: 待验证的关系引用
-/// - `schema`: 可选的关系类型 Schema，提供类型匹配和属性约束校验
-///
+/// 验证关系数据的合法性：ID、类型、源/目标实体等基本字段，及可选的 Schema 约束检查
+/// - `relation`: 待验证的关系引用；`schema`: 可选的关系类型 Schema，提供类型匹配和属性约束校验
 /// 返回: 包含所有验证结果的 `ValidationReport`
 #[must_use]
 pub fn validate_relation(

@@ -1,10 +1,7 @@
 /**
  * io_export — 导入/导出工具（新版）
- *
- * 接入 ExportController + ImportController + Serializer 体系。
- * 保留与旧代码兼容的 exportData / parseImportData 接口。
- *
- * Phase 8a：从根 src/core/io_export.ts 下沉到 entity-core/core/io/
+ * 接入 ExportController + ImportController + Serializer 体系；保留与旧代码兼容的 exportData / parseImportData 接口。
+ * 从根 src/core/io_export.ts 下沉到 entity-core/core/io/。
  */
 
 import { ExportController, defaultFormatEncoder } from './ExportController'

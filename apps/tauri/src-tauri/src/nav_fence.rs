@@ -1,20 +1,14 @@
-// C3-b（2026-09-24）：壳级导航/新窗栅栏——WebView2 事件层（主框架 NavigationStarting + NewWindowRequested）。
-//
-// 定位：页内 JS 守卫（C1-c′，镜像 Electron 语义）可被绕过或失效；本层在壳内、不经页面，
-// 补上「程序化 `location` 赋值」等缺口（C1-c′ 登记项转正）。
-// **事件面选择**（C3 批计划 §三 裁定 ②）：`NavigationStarting` = **主框架**；iframe 走
-// `FrameNavigationStarting` —— 本批**不挂**后者，避免误伤内置浏览器面板与文档预览。
+// 壳级导航/新窗栅栏——WebView2 事件层（主框架 NavigationStarting + NewWindowRequested）。
+// 定位：页内 JS 守卫可被绕过或失效；本层在壳内、不经页面，补上「程序化 `location` 赋值」等缺口。
+// 事件面：`NavigationStarting` = **主框架**；iframe 走 `FrameNavigationStarting`——不挂后者，
+// 避免误伤内置浏览器面板与文档预览。
 // 反证开关：`WORLDSEA_NO_NAV_FENCE=1` 关闭本层（JS 守卫仍在）。
 
 /// 主框架导航是否放行（纯函数：单测与探针共用同一判据）。
-///
-/// 放行面：
-/// - 自家 UI：`http(s)://worldsea.localhost`（Windows workaround 形态）与 `worldsea://localhost`（canonical）；
-/// - 壳自有资产页：`tauri://localhost` / `http(s)://tauri.localhost`（`frontendDist = shell-loading`
-///   兜底页——启动期与失败态都靠它，**必须放行**；实测拦它会得到空窗口）；
-/// - legacy 回退页：`http://127.0.0.1:<port>/?token=…`（`WORLDSEA_LEGACY_DIRECT` 或桥失败时的直连导航）；
-/// - 壳错误页（`data:`）与空页（`about:`）。
-/// 其余一律拦（http(s) 交系统浏览器，见 [`external_target`]）。
+/// 放行面：自家 UI `http(s)://worldsea.localhost` 与 `worldsea://localhost`（canonical）；
+/// 壳自有资产页 `tauri://localhost` / `http(s)://tauri.localhost`（启动兜底页——启动期与失败态都靠它，
+/// **必须放行**，实测拦它会得到空窗口）；legacy 回退页 `http://127.0.0.1:<port>/?token=…`；
+/// 壳错误页（`data:`）与空页（`about:`）。其余一律拦（http(s) 交系统浏览器，见 [`external_target`]）。
 pub(crate) fn navigation_allowed(url: &str) -> bool {
     let Ok(parsed) = tauri::Url::parse(url) else {
         return false;

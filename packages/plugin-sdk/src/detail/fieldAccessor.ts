@@ -1,13 +1,9 @@
 import type { Entity } from '@worldsea/entity-core'
 
 /**
- * 字段读写定位（纯函数）。详细见 docs/details/注释/packages/plugin-sdk/实体详情表单.md
- *
- * trait 编译出的 schema 字段里，有几个的**真值落在实体顶层**而非 `properties`：
- * `identifiable` 给 `title`/`description`、`taggable` 给 `tags`、`visual` 给 `coverImage`，
- * 而 `Entity` 顶层有 `name`/`description`/`tags`/`coverImage`/`coverPosition`/`coverZoom`/`avatar`。
- * 此前详情按 `properties[key]` 一律取值，于是**每个实体都白挂 2-3 条恒为「—」的字段行**
- * （标题、描述、标签各一份，真值其实在标题栏与标签里）。这里做一次收口。
+ * 字段读写定位（纯函数）。trait 编译的 schema 字段里，几个**真值落在实体顶层**而非 `properties`
+ * （`identifiable` 给 `title`/`description`、`taggable` 给 `tags`、`visual` 给 `coverImage`）；此前一律按
+ * `properties[key]` 取值，白挂 2-3 条恒为「—」的字段行。详细见 docs/details/注释/packages/plugin-sdk/实体详情表单.md
  */
 const TOP_LEVEL_FIELD: Record<string, keyof Entity> = {
   title: 'name',

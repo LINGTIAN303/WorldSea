@@ -8,9 +8,8 @@ import EntityDetailPanel from '../EntityDetailPanel.vue'
 
 /**
  * 抽屉遮罩行为守卫。背景见 docs/details/注释/packages/plugin-sdk/实体详情内容形态.md §11.4
- *
- * 遮罩原本带 `pointer-events:none`，而模板上挂着 `@click="close"`——**点空白关抽屉这件事以前不存在**。
- * 现在做成可配置，缺省仍是穿透；这条守卫同时锁住两档的差别与「缺省零变化」。
+ * 遮罩原本带 `pointer-events:none` 而模板挂 `@click="close"`——点空白关抽屉以前不存在；
+ * 现做成可配置、缺省仍穿透；本守卫同时锁两档差别与「缺省零变化」。
  */
 
 let pinia: Pinia

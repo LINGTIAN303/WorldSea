@@ -1,16 +1,7 @@
 <!--
-  DataTable —— 通用数据表格（只读展示 + 可选单元格内联编辑）
-
-  设计意图：A2UI 的 EditableTable 原本是 A2UIComponent.vue 内联的模板分支，无法在
-  A2UI 上下文之外复用。此处抽为独立组件，A2UI 分支改为消费它，芽视图（如文件预览的
-  xlsx 渲染）同样消费 —— 单一来源。
-
-  两个与 A2UI 解耦的关键点：
-  1. 本组件**不认识绑定表达式**；值由 `resolveCell` 传入（A2UI 传 resolveBinding）。
-     默认原样取 `row[col.key]`，且**不做字符串强制转换** —— 与 A2UI 原实现一致，
-     非字符串值交由模板插值按 Vue 语义显示。
-  2. 样式令牌使用 `var(--agent-x, var(--color-y))` 回退链：Agent 输出上下文保留
-     agent 主题覆盖，普通视图（workbench）自动落回标准令牌。
+  DataTable —— 通用数据表格（只读展示 + 可选单元格内联编辑），由 A2UIComponent 内联的 EditableTable
+  分支抽出（A2UI 分支与芽视图 xlsx 渲染共用，单一来源）。与 A2UI 解耦：①不认识绑定表达式——值由
+  `resolveCell` 传入，默认原样取 `row[col.key]`、不做字符串强转；②样式令牌走 `var(--agent-x, var(--color-y))` 回退链。
 -->
 <template>
   <div class="ws-dt-wrap">

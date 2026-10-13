@@ -1,23 +1,8 @@
-//! 文件系统命令层（Phase A 迁移：内容插件数据落盘）
-//!
-//! 供 entity-core 的 FileStorageBackend 使用（JSON 文件落盘存储实体/关系/文件）。
-//! 对应前端调用：apps/tauri 内 `packages/entity-core` FileStorageBackend.ts
-//! 的 cmd_fs_write / cmd_fs_read / cmd_fs_list / cmd_fs_delete。
-//!
-//! 设计：纯文件操作，无业务逻辑；路径由前端 FileStorageBackend 内部构造
-//! （应用数据目录下），与终端命令层（TerminalService）一样直接暴露。
-//!
-//! 任务29/M2 定位（兜底防线）：本命令层为**应用层直通**——消费方（项目存储
-//! FileStorageBackend、WorkspacePanel、WorkdirSelect）路径来自可信前端，故不做
-//! workdir 边界；Agent 工具侧的边界（workdir 词法边界 + E1 受保护目录写守卫）在
-//! TS 工具层 packages/agent-runtime/src/tools/workspace-boundary.ts 执行。
-//! 本层仅保留敏感目录写防护（sensitive_dir_reason / ensure_write_allowed）作为
-//! 全链路最后兜底。已知限制：shell 类工具的内容级写入无法词法拦截（记录于方案文档）。
-//!
-//! **E1 裁定（用户 2026-09-25，5A）：保留宽口径**——产品域 `cmd_fs_*` **不设 workdir 边界**（仅拒
-//! `~/.ssh` / `~/.gnupg` / 系统目录）：本地创作工具语义（导出/导入可写任意位置）+ 前端可信；
-//! dsh 侧仍是**严沙箱**（只放行 cwd + tmp）——两套写规则**并存是显式设计**，非缺陷（见
-//! docs/plans/2026-09-25-E1-目录口径批计划.md §一）。
+//! 文件系统命令层：供 entity-core 的 FileStorageBackend 使用（JSON 文件落盘存储实体/关系/文件），
+//! 对应前端 cmd_fs_write / cmd_fs_read / cmd_fs_list / cmd_fs_delete；纯文件操作，路径由前端构造（应用数据目录下）。
+//! 定位（兜底防线）：**应用层直通**——消费方路径来自可信前端，故不做 workdir 边界；Agent 工具侧的边界
+//! （workdir 词法边界 + 受保护目录写守卫）在 packages/agent-runtime/src/tools/workspace-boundary.ts 执行，
+//! 本层仅保留敏感目录写防护作全链路最后兜底；目录口径裁定（用户 2026-09-25）见 docs/details/注释/tauri/fs-commands.md。
 
 use base64::Engine;
 use serde::Serialize;
@@ -95,9 +80,8 @@ pub async fn cmd_fs_write(
             }
         }
     }
-    // encoding = "base64"：content 为裸 base64 字符串，解码后写二进制 —— 与
-    // cmd_fs_read 的 encoding=base64 对称（图片资产目录化 2026-09-14：前端把
-    // 图片文件转 base64 后落盘 {entityDataDir}/assets/）。缺省行为不变（UTF-8 文本）。
+    // encoding = "base64"：content 为裸 base64 字符串，解码后写二进制 —— 与 cmd_fs_read 的
+    // encoding=base64 对称（前端把图片资产转 base64 后落盘 {entityDataDir}/assets/）。缺省行为不变（UTF-8 文本）。
     if encoding.as_deref() == Some("base64") {
         let bytes = base64::engine::general_purpose::STANDARD
             .decode(content.as_bytes())
@@ -126,12 +110,10 @@ pub async fn cmd_fs_read(
     }
 }
 
-/// 在系统文件资源管理器中打开指定路径（目录或文件）—— 「打开项目文件夹」/「用默认程序打开」
-///
-/// Windows 用 `explorer`（无需等待退出）；macOS 用 `open`；Linux 用 `xdg-open`。
+/// 在系统文件资源管理器中打开指定路径（目录或文件）——「打开项目文件夹」/「用默认程序打开」。
+/// Windows 用 `explorer`（无需等待退出）；macOS 用 `open`；Linux 用 `xdg-open`；
 /// 传文件路径时由系统按默认关联程序打开（pptx 等无内置渲染器的格式走此降级出口）。
-///
-/// 接受**正斜杠**路径：Windows 的 explorer 对 `/` 解析异常，故在此统一归一化为反斜杠
+/// 接受**正斜杠**路径：Windows 的 explorer 对 `/` 解析异常，故统一归一化为反斜杠
 /// （此前由调用方各自 replace 兜底，集中到本命令后调用方可直接传前端统一格式）。
 #[tauri::command]
 pub async fn cmd_open_in_explorer(path: String) -> Result<(), String> {
@@ -265,7 +247,7 @@ pub async fn cmd_fs_copy(src: String, dest: String) -> Result<(), String> {
     Ok(())
 }
 
-/// 递归复制目录（D 项项目备份用；目标父目录自动创建；返回复制文件数与字节数）
+/// 递归复制目录（项目备份用；目标父目录自动创建；返回复制文件数与字节数）
 fn copy_dir_recursive(src: &Path, dest: &Path) -> std::io::Result<(u64, u64)> {
     fs::create_dir_all(dest)?;
     let mut files = 0u64;

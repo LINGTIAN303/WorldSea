@@ -5,10 +5,8 @@
 <script setup lang="ts">
 /**
  * overlay 型载体的共用遮罩。详细见 docs/details/注释/packages/plugin-sdk/实体详情内容形态.md §11.4
- *
- * 缺省**穿透**（`pointer-events:none`）——抽屉/弹层开着仍能直接点列表，与批次 2 之前一致。
- * 档位是两层：全局默认 + 按实体类型覆写，解析只在 `backdropFor()` 一处；
- * 「点空白关闭」只在拦截档成立，所以处理器与样式必须一起看档位，别各写一半。
+ * 缺省**穿透**（`pointer-events:none`）——抽屉/弹层开着仍能直接点列表；档位两层（全局默认+按类型覆写）
+ * 只在 `backdropFor()` 解析一处；「点空白关闭」只在拦截档成立，处理器与样式必须一起看档位。
  */
 import { computed } from 'vue'
 import { useDetailLayoutStore } from '@worldsea/entity-core'

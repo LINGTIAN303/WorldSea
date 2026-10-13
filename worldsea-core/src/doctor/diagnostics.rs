@@ -35,13 +35,9 @@ pub struct TypeCount {
   pub count: usize,
 }
 
-/// 对世界数据执行全面诊断，包括类型分布统计、引用完整性检查和实体验证
-///
-/// 参数:
-/// - `entities`: 实体列表
-/// - `relations`: 关系列表
+/// 对世界数据执行全面诊断：类型分布统计、引用完整性检查和实体验证
+/// - `entities`/`relations`: 实体与关系列表
 /// - `entity_schemas`: 可选的实体类型 Schema 列表，用于字段级验证
-///
 /// 返回: 包含统计信息和健康状态的 `DiagnosticSummary`
 #[must_use]
 pub fn run_diagnostics(

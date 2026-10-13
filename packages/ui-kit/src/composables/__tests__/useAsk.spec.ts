@@ -2,9 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { useAsk, type AskQuestion } from '../useAsk'
 
 /**
- * useAsk 批量提问状态机契约（Q1，2026-09-20）
- *
- * 覆盖五态 + 两条边界（对齐 dsh `QuestionComposer` 语义）：
+ * useAsk 批量提问状态机契约（2026-09-20）。覆盖五态 + 两条边界（对齐 dsh `QuestionComposer` 语义）：
  * ① 单选点选即前进 ② 多选 toggle + 继续 ③ 自定义（单选覆盖 / 多选补充）
  * ④ 跳过（空答案） ⑤ 取消（整批拒绝）；边界：未答未跳过拦截 / dismiss 按 askId 关闭
  */

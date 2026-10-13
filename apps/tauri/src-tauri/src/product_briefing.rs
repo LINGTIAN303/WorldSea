@@ -1,14 +1,8 @@
-//! D2 预设化走查批（2026-10-07）：`/entity` 就绪卡的数据面（**纯插件形态**）。
-//!
+//! `/entity` 就绪卡的数据面（**纯插件形态**）。
 //! 链路：console 客户端贡献位（`commandUi.register`，图标/中文名/短提示由贡献位原生承载，零 dsh 改动）
 //! → 壳 IPC [`cmd_product_briefing`] → 本命令**只读**创作数据 → 客户端 Modal 弹卡。
-//!
-//! **数据与文案分治**：本命令只出结构化事实（`kind` 码 + 数值），文案（含各段降级语）由客户端组装——
-//! 改措辞不需重编译 Rust。`kind` 码：project `ok|none`；snapshot `ok|missing|noProject`；
-//! data `ok|uninitialized|noProject`。
-//!
-//! 「当前项目」口径 = dsh 工作区注册表的**默认项目标记**（D2-b2 同源：`global.defaultWorkspaceId`，
-//! 工作台切项目即切标记）；会话 cwd 与工作区根同构（D2 批计划 §1.1），故不向客户端要 cwd。
+//! **数据与文案分治**：本命令只出结构化事实（`kind` 码 + 数值），文案（含各段降级语）由客户端组装——改措辞不需重编译 Rust；
+//! kind 码：project `ok|none`；snapshot `ok|missing|noProject`；data `ok|uninitialized|noProject`。「当前项目」= dsh 工作区注册表默认项目标记（cwd 与工作区根同构，不向客户端要 cwd）。
 
 use std::path::Path;
 

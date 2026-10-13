@@ -5,9 +5,8 @@ import { useResizable } from '../useResizable'
 
 /**
  * 拖宽的帧合并守卫。背景见 docs/plans/2026-10-02-实体详情表单地基与形态批计划.md §七之六
- *
- * jsdom 的 `requestAnimationFrame` 由内部计时器驱动，测试里等不到也数不清，
- * 所以换成手动队列：**登记**与**落地**分离，才能断言「N 次 move 只落 1 次宽度」。
+ * jsdom 的 `requestAnimationFrame` 由内部计时器驱动，等不到也数不清——换成手动队列：
+ * **登记**与**落地**分离，才能断言「N 次 move 只落 1 次宽度」。
  */
 
 type Cb = FrameRequestCallback

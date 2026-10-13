@@ -12,13 +12,9 @@ export interface ModalShortcutOptions {
 }
 
 /**
- * 弹窗快捷键组合器（自挂监听弹窗的统一收编入口）：
- *  1. Esc 关闭收编进注册表 modal 层（scope 优先级天然高于 view/global，
- *     不再被 view 层命中消费阻断——批7 修复"弹窗 Esc 关不掉"）；
- *  2. 弹窗打开期间接入注册表弹窗深度（view/global 层全部失效，防穿透），
- *     关闭/卸载时出栈（守卫标记防重复与泄漏）。
- *
- * 新弹窗一律用本组合器替代「show 时 addEventListener('keydown') 手挂 Esc 监听」。
+ * 弹窗快捷键组合器（自挂监听弹窗的统一收编入口）：① Esc 关闭收编进注册表 modal 层（scope 优先级
+ * 天然高于 view/global，不被命中消费阻断——修复「弹窗 Esc 关不掉」）；② 弹窗打开期间接入注册表弹窗深度
+ * （view/global 层全部失效防穿透），关闭/卸载时出栈。新弹窗一律用本组合器替代手挂 keydown 监听。
  */
 export function useModalShortcuts(
   show: Ref<boolean> | (() => boolean),

@@ -1,12 +1,7 @@
 /**
- * GEV 表单保存模式回归测试（「角色模板创建静默失败」修复）
- *
- * 历史缺陷：`openFormWithDefaults(defaults)` 造的是 `id: ''` 的预填假实体，
- * 而 `onFormSave` 按「editingEntity 是否非空」判编辑——空 id 被送进更新分支去
- * `entityStore.update('')`，既不记 undo 也命不中任何实体 ⇒ 表单关掉但实体根本不落地，
- * 连「已创建」提示都不弹（唯一调用者：CharacterList 的模板创建）。
- *
- * 锁定契约：预填新建走 add 且 id 由本人生成；**弹窗不再承担编辑存量实体**（裁定：编辑单轨归抽屉）。
+ * GEV 表单保存模式回归测试（「角色模板创建静默失败」修复）。历史缺陷：`openFormWithDefaults(defaults)`
+ * 造 `id: ''` 假实体，`onFormSave` 按 editingEntity 非空判编辑 → 空 id 进更新分支 `entityStore.update('')`，
+ * 不记 undo 也命不中实体 ⇒ 表单关了实体没落地。锁定：预填新建走 add 且 id 由本人生成；弹窗不承担编辑存量实体。
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import 'fake-indexeddb/auto'
@@ -28,7 +23,7 @@ async function drain() {
 beforeEach(() => {
   pinia = createPinia()
   setActivePinia(pinia)
-  // GEV 的工具条控件经 Teleport 注入 R3 落点，jsdom 里先把四个落点挂上
+  // GEV 的工具条控件经 Teleport 注入统一工具条落点，jsdom 里先把四个落点挂上
   for (const id of targets) {
     const el = document.createElement('div')
     el.id = id

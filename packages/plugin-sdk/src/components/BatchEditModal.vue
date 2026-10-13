@@ -61,7 +61,7 @@
         <div v-if="filtered.length === 0" class="be-empty">无匹配实体</div>
       </div>
 
-      <!-- Delete confirm dialog -->
+      <!-- 删除确认弹窗 -->
       <div v-if="showDeleteConfirm" class="be-dialog-overlay" @click.self="showDeleteConfirm = false">
         <div class="be-dialog">
           <h4 class="be-dialog-danger-title">批量删除</h4>
@@ -73,7 +73,7 @@
         </div>
       </div>
 
-      <!-- Tag editor dialog -->
+      <!-- 标签编辑弹窗 -->
       <div v-if="showTagEditor" class="be-dialog-overlay" @click.self="showTagEditor = false">
         <div class="be-dialog">
           <h4>批量修改标签</h4>
@@ -93,7 +93,7 @@
         </div>
       </div>
 
-      <!-- Rename dialog -->
+      <!-- 重命名弹窗 -->
       <div v-if="showRename" class="be-dialog-overlay" @click.self="showRename = false">
         <div class="be-dialog">
           <h4>批量重命名</h4>

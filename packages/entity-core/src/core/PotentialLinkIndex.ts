@@ -1,5 +1,5 @@
 /**
- * 潜在链接索引（Passive Index）——自 AutoLinkEngine 减压抽出（2026-10-07，① 批）。
+ * 潜在链接索引（Passive Index）——自 AutoLinkEngine 减压抽出（2026-10-07）。
  * 纯内存存储，无外部依赖；引擎 re-export 保原导出面。
  */
 

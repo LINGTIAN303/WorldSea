@@ -15,9 +15,7 @@ import {
 } from './WsFontPack'
 import JSZip from 'jszip'
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
+// ── 类型 ──
 
 export interface FontVariantEntry {
   weight: number
@@ -47,9 +45,7 @@ export interface FontLibraryEntry {
 
 export const MAX_FONT_STORAGE = 400 * 1024 * 1024
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+// ── 辅助函数 ──
 
 /**
  * 从字体二进制的 OS/2 表中解析 weight（usWeightClass），
@@ -126,7 +122,7 @@ function parseFontStyleFromBuffer(buffer: ArrayBuffer): string {
     // 检查 OS/2 fsSelection
     if (os2Offset >= 0 && os2Offset + 64 <= buffer.byteLength) {
       const fsSelection = view.getUint16(os2Offset + 62)
-      // bit 0 = ITALIC, bit 9 = OBLIQUE
+      // 位0=ITALIC（斜体）、位9=OBLIQUE（倾斜）
       if (fsSelection & 0x0001) return 'italic'
       if (fsSelection & 0x0200) return 'oblique'
     }
@@ -145,10 +141,8 @@ function parseFontStyleFromBuffer(buffer: ArrayBuffer): string {
 }
 
 /**
- * 从字体二进制的 name 表中解析真实的 family 名。
- * 优先使用 nameID=1 (Family Name)，回退到 nameID=4 (Full Name)。
- * FontFace.family 属性返回的是构造时传入的值而非字体内部元数据，
- * 因此不能用它来探测字体真实 family 名。
+ * 从字体二进制 name 表解析真实 family 名（nameID=1 优先，回退 nameID=4）。
+ * FontFace.family 返回的是构造时传入值而非字体内部元数据，不能用于探测。
  */
 function parseFontFamilyFromBuffer(buffer: ArrayBuffer): string | null {
   try {
@@ -270,8 +264,8 @@ export interface CssFontFaceInfo {
 }
 
 /**
- * Parses all @font-face URLs, weights and styles out of a CSS string
- * (typically returned by the windfonts API).
+ * 从 CSS 文本解析全部 @font-face 的 URL、weight 与 style
+ * （输入通常来自 windfonts API）。
  */
 export function extractFontUrlsFromCss(cssText: string): CssFontFaceInfo[] {
   const results: CssFontFaceInfo[] = []
@@ -292,10 +286,6 @@ export function extractFontUrlsFromCss(cssText: string): CssFontFaceInfo[] {
   }
   return results
 }
-
-// ---------------------------------------------------------------------------
-// installFromWsfont
-// ---------------------------------------------------------------------------
 
 export async function installFromWsfont(
   buffer: ArrayBuffer,
@@ -355,10 +345,6 @@ export async function installFromWsfont(
   return { entry, manifest }
 }
 
-// ---------------------------------------------------------------------------
-// installFromRawFont
-// ---------------------------------------------------------------------------
-
 const EXT_FORMAT_MAP: Record<string, string> = {
   ttf: 'truetype',
   otf: 'opentype',
@@ -413,10 +399,6 @@ export async function installFromRawFont(
 
   return { entry }
 }
-
-// ---------------------------------------------------------------------------
-// installFromWindfonts
-// ---------------------------------------------------------------------------
 
 export async function installFromWindfonts(
   family: string,
@@ -492,10 +474,6 @@ export async function installFromWindfonts(
   return { entry }
 }
 
-// ---------------------------------------------------------------------------
-// restoreFromDB
-// ---------------------------------------------------------------------------
-
 export async function restoreFromDB(entry: FontLibraryEntry): Promise<boolean> {
   const cachedKeys = new Set(await listDBKeys())
   let restored = false
@@ -531,36 +509,28 @@ export async function restoreFromDB(entry: FontLibraryEntry): Promise<boolean> {
       await loadFont(variant.registryId)
       restored = true
     } catch {
-      // Skip variants that fail to restore
+      // 跳过恢复失败的变体
     }
   }
 
   return restored
 }
 
-// ---------------------------------------------------------------------------
-// removeFontData
-// ---------------------------------------------------------------------------
-
 export async function removeFontData(entry: FontLibraryEntry): Promise<void> {
   for (const variant of entry.variants) {
     try {
       unloadFont(variant.registryId)
     } catch {
-      // Font may not be loaded, ignore
+      // 字体可能未加载，忽略
     }
 
     try {
       await removeFromDB(variant.registryId)
     } catch {
-      // Entry may not exist in DB, ignore
+      // 条目可能不在 DB 中，忽略
     }
   }
 }
-
-// ---------------------------------------------------------------------------
-// installFromZip
-// ---------------------------------------------------------------------------
 
 const FONT_EXTENSIONS = new Set(['ttf', 'otf', 'woff', 'woff2'])
 

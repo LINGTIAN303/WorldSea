@@ -1,9 +1,7 @@
 /**
  * ioServices — io 模块依赖注入接口
- *
- * Phase 8a：将 io_export 链从 app 层下沉到 entity-core 时，
- * 需要将浏览器副作用（下载）和 app 层校验（validatePack）
- * 剥离为可注入接口，保持 entity-core 的纯逻辑性质。
+ * 将 io_export 链从 app 层下沉到 entity-core 时，需要将浏览器副作用（下载）
+ * 和 app 层校验（validatePack）剥离为可注入接口，保持 entity-core 的纯逻辑性质。
  */
 
 /** 下载器接口（剥离 document.createElement / URL.createObjectURL 副作用） */

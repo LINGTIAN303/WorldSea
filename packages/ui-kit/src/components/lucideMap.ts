@@ -274,7 +274,7 @@ const LUCIDE_MAP: Record<string, Component> = {
   quote: Quote,
   'list-ordered': ListOrdered,
   'at-sign': AtSign,
-  // 图片对齐（批 5 I7 笔记本芽）：文本对齐图标（lucide TextAlign 系）
+  // 图片对齐（笔记本芽用）：文本对齐图标（lucide TextAlign 系）
   'align-left': TextAlignStart,
   'align-center': TextAlignCenter,
   'align-right': TextAlignEnd,

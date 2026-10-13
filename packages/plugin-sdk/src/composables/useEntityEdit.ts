@@ -83,7 +83,7 @@ export function useEntityEdit(selectedEntity: Ref<Entity | null>) {
       const updated = store.entities.find(e => e.id === entity.id)
       if (updated) selectedEntity.value = updated
       toastSuccess('已保存')
-      // AutoLink 索引由 entityStore.update 统一接线（① 批），此处不再重复触发
+      // AutoLink 索引由 entityStore.update 统一接线，此处不再重复触发
     } catch (err) {
       toastError('保存失败')
       console.error('[useEntityEdit] save error:', err)

@@ -1,44 +1,40 @@
-// C1-b（2026-09-24）：协议转发核心——路径/方法闸门、缓存策略、index 插桩、失败降级。
-// 从 dsh_bridge.rs 拆出（它留桥状态与装配）：本文件只管「一次请求怎么转发、什么时候不转发」。
-//
-// 口径（见 docs/plans/2026-09-24-C1-Tauri原生desktop载体批计划.md §五 C1-b）：
+// 协议转发核心——路径/方法闸门、缓存策略、index 插桩、失败降级。从 dsh_bridge.rs 拆出（它留桥状态与装配）：
+// 本文件只管「一次请求怎么转发、什么时候不转发」。口径（见 docs/plans/2026-09-24-C1-Tauri原生desktop载体批计划.md §五）：
 // - 闸门在壳侧先过一遍（白名单 404 / 越权 405 / 越界 403），宿主自己仍会按其静态伺服语义再判一次；
-// - MIME 与静态伺服语义由**宿主**负责（index 走 frontend-static 的 fallback 座），壳只透传 content-type；
-// - index 与 /plugins/* 强制 `no-store`（每进程内容，见 C1-a 事实 12）；
-// - index 取宿主渲染结果 → **零注入复刻**，壳只在 `<head>` 后补注入脚本（顺序契约见 inject_shell_scripts）；
-// - 入口级失败（桥未就绪 / 转发失败）给**HTML 错误页**；子资源失败保留宿主状态码并落档。
+// - MIME 与静态伺服语义由**宿主**负责（index 走 frontend-static 的 fallback 座），壳只透传 content-type；index 与 /plugins/* 强制 `no-store`（每进程内容）；
+// - index 零注入复刻，壳只在 `<head>` 后补注入脚本（顺序契约见 inject_shell_scripts）；入口级失败给**HTML 错误页**，子资源失败保留宿主状态码并落档。
 
 /// 一次转发的目标与开关（由 DshBridge 组装；测试可直接构造）。
 pub(crate) struct ProxyCfg {
-    /// 上游传输面：C2 默认 IPC 管道（零 TCP）；legacy TCP 为 `WORLDSEA_TCP_HOST=1` 对照口。
+    /// 上游传输面：默认 IPC 管道（零 TCP）；legacy TCP 为 `WORLDSEA_TCP_HOST=1` 对照口。
     pub upstream: Upstream,
     /// 注入页面的传输写法（互斥三态；见 [`TransportInject`]）。
     pub transport: TransportInject,
     /// 反证开关：`WORLDSEA_NO_SHELL_BRIDGE=1` 时不注入壳桥（`__WORLDSEA_SHELL__`；
     /// 依赖它的「打开设置」必须显式降级，见 menu.rs 的缺桥提示）
     pub inject_shell_bridge: bool,
-    /// C6：无边框窗口栏注入（`WORLDSEA_NO_TITLEBAR=1` 反证关；`WORLDSEA_FRAMED=1` 原生边框态亦关）
+    /// 无边框窗口栏注入（`WORLDSEA_NO_TITLEBAR=1` 反证关；`WORLDSEA_FRAMED=1` 原生边框态亦关）
     pub titlebar: bool,
     /// 诊断开关：`WORLDSEA_SHELL_DIAG=1`
     pub diag: bool,
-    /// A（2026-09-25）：Agent 面能力伺服注入（`WORLDSEA_NO_CAPABILITY_BRIDGE=1` 反证关）
+    /// Agent 面能力伺服注入（`WORLDSEA_NO_CAPABILITY_BRIDGE=1` 反证关）
     pub capabilities: bool,
     /// 测试钩子：命中该前缀直接 404（验「资源失败 → 非白屏」降级链）
     pub deny_path: Option<String>,
     /// 逃生口：`WORLDSEA_BRIDGE_OPEN=1` 关闭路径白名单（白名单误伤时的退路）
     pub open_paths: bool,
-    /// C4-b：工作区不可供给时的横幅文案（`None` = 可供给或已按 `WORLDSEA_NO_WORKSPACE_NOTICE=1` 关闭）
+    /// 工作区不可供给时的横幅文案（`None` = 可供给或已按 `WORLDSEA_NO_WORKSPACE_NOTICE=1` 关闭）
     pub workspace_notice: Option<String>,
-    /// D3-c2b：壳解析后的 DSH_HOME（= spawn 时注入宿主 env 的同值）——页面常量 `__WORLDSEA_DSH_HOME__`，
+    /// 壳解析后的 DSH_HOME（= spawn 时注入宿主 env 的同值）——页面常量 `__WORLDSEA_DSH_HOME__`，
     /// console「插件数据面」在未覆盖时据此显示缺省生效值。
     pub dsh_home: Option<String>,
 }
 
 /// 上游传输面（两种形态产出同构的「状态 / 头 / 体」）。
 pub(crate) enum Upstream {
-    /// C1 现役形态（legacy 对照口，冻结）：loopback TCP + 壳 cookie。
+    /// legacy 对照形态（冻结）：loopback TCP + 壳 cookie。
     Tcp { port: u16, cookie: String, client: reqwest::blocking::Client },
-    /// C2 默认：IPC 管道（cookie 同样由壳持有；`Host` 由管道客户端合成 `127.0.0.1`）。
+    /// 默认形态：IPC 管道（cookie 同样由壳持有；`Host` 由管道客户端合成 `127.0.0.1`）。
     Pipe { client: std::sync::Arc<crate::dsh_pipe::PipeClient>, cookie: String },
 }
 
@@ -56,14 +52,11 @@ struct UpstreamAnswer {
 /// 允许的方法：协议面只服务页面自用（读 + RPC 的 POST 写）。其余一律 405。
 const ALLOWED_METHODS: [&str; 3] = ["GET", "HEAD", "POST"];
 
-/// 路径白名单前缀（`/` 与 `/index.html` 另按精确匹配放行）。
-/// 清单**枚举自 dsh 源码**的全部注册路由 + dist 根内文件：
+/// 路径白名单前缀（`/` 与 `/index.html` 另按精确匹配放行）。清单**枚举自 dsh 源码**的全部注册路由 + dist 根内文件：
 /// - `webServer.register`：`/plugins`（前缀，模块包 + `/plugins/events` HMR 事件）、`/open-in-app/apps`（精确）、
-///   `/open-in-app/icon`（前缀）、`/oauth/callback`（账户 OAuth 回调）；
-/// - `connection.fetch.register`：`/api/file`（落在 `/api` 下）；
+///   `/open-in-app/icon`（前缀）、`/oauth/callback`（账户 OAuth 回调）；`connection.fetch.register`：`/api/file`（落在 `/api` 下）；
 /// - `frontend-static` 兜底座：dist 根的 `assets/`、`favicon*.svg`、`manifest.webmanifest`、`preview*`、index。
-/// 新增宿主路由时的动作：加进本表 + 补 `allowlist_covers_enumerated_host_routes` 用例；
-/// 漏掉会在壳日志留 `404（路径白名单外）` 行，可用 `WORLDSEA_BRIDGE_OPEN=1` 先放行排查。
+/// 新增宿主路由时的动作：加进本表 + 补 `allowlist_covers_enumerated_host_routes` 用例；漏掉会在壳日志留 `404（路径白名单外）` 行，可用 `WORLDSEA_BRIDGE_OPEN=1` 先放行排查。
 const ALLOWED_PREFIXES: [&str; 8] = [
     "/assets/",
     "/plugins/",
@@ -99,8 +92,8 @@ const PASSABLE_REQUEST_HEADERS: [&str; 5] = [
     "if-modified-since",
 ];
 
-/// C3-c：index 响应的 CSP 最小子集（三条「页面根本不用」的指令；其余面见 C3 批计划 §八 取证清单）。
-/// D1-a 起工作台页（`/workspace`）同口径复用——两处 index 的安全头单点定义在本文。
+/// index 响应的 CSP 最小子集（三条「页面根本不用」的指令；其余面待取证后另议）。
+/// 工作台页（`/workspace`）同口径复用——两处 index 的安全头单点定义在本文。
 pub(crate) const CSP_INDEX: &str = "object-src 'none'; base-uri 'self'; form-action 'none'";
 
 /// 路径是否在白名单内（`open` = 逃生口放行全部）。
@@ -262,9 +255,8 @@ pub(crate) fn proxy(cfg: &ProxyCfg, request: &http::Request<Vec<u8>>) -> http::R
     if no_store {
         builder = builder.header("cache-control", "no-store");
     }
-    // C3-c（2026-09-24）：CSP 最小子集——只下「页面根本不用」的三条指令（无插件对象嵌入、
-    // 不改写 base 源、无表单提交），其余面（script/style/connect/frame/img）待取证清单另议（C3 批计划 §八）。
-    // 头由壳加（页面由壳协议伺服）：实测核对见 c3-c 验收（探针读响应头）。
+    // CSP 最小子集——只下「页面根本不用」的三条指令（无插件对象嵌入、不改写 base 源、无表单提交），
+    // 其余面（script/style/connect/frame/img）待取证后另议。头由壳加（页面由壳协议伺服）：探针读响应头可实测核对。
     if is_index {
         builder = builder.header("content-security-policy", CSP_INDEX);
     }

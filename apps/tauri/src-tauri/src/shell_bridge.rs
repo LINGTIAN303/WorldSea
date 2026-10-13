@@ -1,9 +1,7 @@
-// C1-c（2026-09-24）：壳桥的 Rust 侧——页面经 Tauri IPC 调用的壳命令。
-//
-// 为什么可行：我们的页面（`http://worldsea.localhost/`）落在 Tauri 的 `is_local_url` 白名单内
+// 壳桥的 Rust 侧——页面经 Tauri IPC 调用的壳命令。
+// 为什么可行：页面（`http://worldsea.localhost/`）落在 Tauri 的 `is_local_url` 白名单内
 // （自定义协议页），`__TAURI_INTERNALS__.invoke` 直达应用命令；应用自定义命令不属插件 ACL，
 // 无需 capability 项（先例：旧前端调 cmd_notify / cmd_secure_store 等）。
-//
 // JS 侧见 `dsh_shell_bridge.js`（注入在 index 的 `<head>` 后，先于全部模块脚本）。
 
 /// 页面请求在系统浏览器打开外链（壳持有 opener 插件；避免页面把整个应用导航走）。
@@ -22,16 +20,16 @@ pub fn cmd_shell_bridge_report(message: String) {
     println!("[DSH-SHELL] bridge(page): {text}");
 }
 
-/// C4-b：一键修复工作区权限（页面横幅按钮 / 「设置 → 修复工作区权限…」菜单共用）。
-/// **只在用户显式点击时执行**；G3 起为**可回滚修复**（主路径=上游 rc.2 脚本 / 兜底=icacls 备份+授权；
+/// 一键修复工作区权限（页面横幅按钮 / 「设置 → 修复工作区权限…」菜单共用）。
+/// **只在用户显式点击时执行**；为**可回滚修复**（主路径=上游 rc.2 脚本 / 兜底=icacls 备份+授权；
 /// 恢复命令落 `<工作区>/.acl-recovery/restore-command.txt`）——语义与设计见 `acl_fix` 头注。
 #[tauri::command]
 pub fn cmd_fix_workspace_acl(app: tauri::AppHandle) -> Result<crate::acl_fix::FixOutcome, String> {
     crate::acl_fix::fix_workspace_permissions(&app)
 }
 
-/// C6（2026-09-24）：窗口栏的窗口动作（最小化 / 最大化⇄还原 / 关闭 / 起拖 / 查询最大化）。
-/// G1（2026-09-29）：加「全屏切换」——走应用命令而非 Tauri 窗口插件，ACL 面不增长（守 C3 纪律）。
+/// 窗口栏的窗口动作（最小化 / 最大化⇄还原 / 关闭 / 起拖 / 查询最大化 / 全屏切换）。
+/// 「全屏切换」走应用命令而非 Tauri 窗口插件，ACL 面不增长。
 /// 「关闭」与系统关闭按钮同语义（托盘激活时隐藏到托盘，见 `lib.rs` 的 CloseRequested 处理）。
 /// 返回值统一携带最大化**与全屏**两态——窗口栏据此切换按钮图标，并置 `html[data-fullscreen]`
 /// 交 dsh 把浮层内缩从 52px 回落到 20px（挂载时查询即恢复，故全屏中重载不退回窗口态 CSS）。
@@ -82,13 +80,11 @@ pub fn cmd_shell_window_action(
     })
 }
 
-/// 进入全屏前先脱最大化（G1 收尾批修，2026-09-30）。
-///
+/// 进入全屏前先脱最大化。
 /// 为什么：tao 的 Windows 全屏（`set_fullscreen(Borderless)`）**不脱最大化**——直接在最大化窗上
 /// `SetWindowPos` 到监视器矩形会被 Windows 的「最大化约束」顶回工作区（用户实测：全屏后留下任务栏
-/// 原位置的条带），并残留 `is_maximized()=true` 的「max+全屏」坏组合（几何快照/切换逻辑都会读到
-/// 坏值：实测全屏窗 `outer_position` 读回 -32000 最小化占位）。三处全屏入口（F11 命令 / 菜单
-/// 「视图 → 全屏」/ 工作台窗页内 F11）统一走本逻辑。
+/// 原位置的条带），并残留 `is_maximized()=true` 的「max+全屏」坏组合（实测全屏窗 `outer_position`
+/// 读回 -32000 最小化占位）。三处全屏入口（F11 命令 / 菜单「视图 → 全屏」/ 工作台窗页内 F11）统一走本逻辑。
 pub(crate) fn set_fullscreen_safely(window: &tauri::WebviewWindow, enable: bool) -> Result<(), tauri::Error> {
     if enable && window.is_maximized()? {
         window.unmaximize()?;

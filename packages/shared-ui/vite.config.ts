@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite'
 import { resolve } from 'path'
 
-// 2026-09-27 E8：Agent UI 组件层退场后，shared-ui 仅承载产品级 markdown 模块
+// shared-ui 仅承载产品级 markdown 模块
 export default defineConfig({
   build: {
     lib: {

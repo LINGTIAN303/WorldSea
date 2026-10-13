@@ -32,12 +32,9 @@
 
 <script setup lang="ts">
 /**
- * L1 载体·浮层小窗：可拖动的随手窗，**不拦列表点击**（所以没有遮罩）。详细见
- * docs/details/注释/packages/plugin-sdk/实体详情内容形态.md §十
- *
- * 位置只活在会话内、不落盘：窗口尺寸会变，存过坐标下次开可能直接跑到屏幕外。
- * 拖动条就是共用的表头（`DetailShell` 的 `draggable`），关闭/编辑按钮自己 `@mousedown.stop`，
- * 所以点它们不会顺手把窗拖走。
+ * L1 载体·浮层小窗：可拖动的随手窗，不拦列表点击（所以没有遮罩）；位置只活在会话内、不落盘
+ * （窗口尺寸会变，存过坐标下次开可能跑出屏幕外）；拖动条＝共用表头（`DetailShell` 的 `draggable`，
+ * 关闭/编辑按钮自带 `@mousedown.stop` 不带拖窗）。详细见 docs/details/注释/packages/plugin-sdk/实体详情内容形态.md §十
  */
 import { onBeforeUnmount, reactive, watch } from 'vue'
 import DetailShell from './DetailShell.vue'

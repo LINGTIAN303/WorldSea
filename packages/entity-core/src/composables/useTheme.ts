@@ -14,13 +14,10 @@ export interface ThemeDefinition {
 }
 
 // ── 主题模型（2026-09-13 收束）：主题 = 底色 × 强调色 两轴 ──
-// - 底色（light/dark/system）：App 壳三态唯一控制（apps/tauri/src/components/ui/useTheme.ts → data-theme）
-// - 强调色：本模块六色预设 ACCENT_PRESETS，深浅各定一个主值；派生令牌（hover/soft/
-//   soft-border/grad-to/ring/on-accent）用 color-mix 随主值自动跟随。
-// - 原六预设主题（aurora-abyss/light/forge-ember/ink-scroll/crystal-prism/cosmic）的
-//   mode+accent 语义由两轴组合承接（旧 id 经 THEME_ID_MIGRATIONS 迁移）；风格包
-//   （纹理/图标/动效）已随 theme-kit 退役删除——2026-09-13 取证：--texture-*、
-//   data-interaction-mode、--ease-enter 等在仓库内零消费点，从未真实生效。
+// 底色（light/dark/system）：App 壳三态唯一控制（apps/tauri/src/components/ui/useTheme.ts → data-theme）。
+// 强调色：本模块六色预设 ACCENT_PRESETS，深浅各定一个主值；派生令牌（hover/soft/soft-border/grad-to/ring/on-accent）用 color-mix 随主值自动跟随。
+// 原六预设主题（aurora-abyss/light/forge-ember/ink-scroll/crystal-prism/cosmic）的 mode+accent 语义由两轴组合承接（旧 id 经 THEME_ID_MIGRATIONS 迁移）。
+// 风格包（纹理/图标/动效）已随 theme-kit 退役删除——2026-09-13 取证：--texture-*、data-interaction-mode 等在仓库内零消费点，从未真实生效。
 const STORAGE_KEY = 'worldsea-theme'
 const CUSTOM_THEMES_KEY = 'worldsea-custom-themes'
 const OVERRIDES_KEY = 'worldsea-theme-overrides'
@@ -180,10 +177,8 @@ function applyAccentStyle(p: AccentPreset | null): void {
 }
 
 /**
- * 切换强调色（收束后的「主题」第二轴）。
- * 1) 剔除 userOverrides 中的 accent 系内联键（预设语义 = 重置强调色，Pro 编辑器的手动强调色被预设覆盖）；
- * 2) 清内联动态令牌并重放其余覆盖（圆角/密度等用户令牌借此在启动与切换时恢复）；
- * 3) 注入/移除深浅双段强调色规则；
+ * 切换强调色（收束后的「主题」第二轴）：1) 剔除 userOverrides 中的 accent 系内联键（预设语义 = 重置强调色，手动强调色被预设覆盖）；
+ * 2) 清内联动态令牌并重放其余覆盖（圆角/密度等用户令牌借此在启动与切换时恢复）；3) 注入/移除深浅双段强调色规则；
  * 4) 记账 currentThemeId + 持久化（幂等，可安全重复调用）。
  */
 function setAccent(id: string): void {

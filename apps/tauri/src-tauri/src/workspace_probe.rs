@@ -1,12 +1,8 @@
-// C4-a（2026-09-24）：工作区「可供给性」探针——无副作用判定 dsh 的 Windows ACL 沙箱能否在该目录完成供给。
-//
+// 工作区「可供给性」探针——无副作用判定 dsh 的 Windows ACL 沙箱能否在该目录完成供给。
 // 依据（dsh 上游 packages/sandbox/sandbox-windows-acl/README.zh.md「已验证边界」）：供给是一次
-// 「DACL + Low 完整性标签」的 SetNamedSecurityInfoW 合并应用，要求调用者在目录上有 **WRITE_OWNER**
-// （所有者只隐式拿到 READ_CONTROL / WRITE_DAC）；只授予 Modify 的目录会被拒（Win32 5 = ACCESS_DENIED），
-// 于是该工作区里**每条命令都在沙箱初始化阶段失败**（前台后台一视同仁）。
-//
-// 探测方式：以 `WRITE_OWNER` 为期望访问打开目录句柄（`FILE_FLAG_BACKUP_SEMANTICS` 才能开目录）——
-// **只做访问检查，不改任何 ACL**。非 Windows 平台无此前置（POSIX 走 group/setsid 语义），直接视为可供给。
+// 「DACL + Low 完整性标签」的 SetNamedSecurityInfoW 合并应用，要求调用者在目录上有 **WRITE_OWNER**；
+// 只授予 Modify 的目录会被拒（Win32 5 = ACCESS_DENIED），该工作区里**每条命令都在沙箱初始化阶段失败**。
+// 探测方式：以 `WRITE_OWNER` 为期望访问打开目录句柄（`FILE_FLAG_BACKUP_SEMANTICS`）——只做访问检查不改 ACL；非 Windows 平台视为可供给。
 
 use std::path::Path;
 

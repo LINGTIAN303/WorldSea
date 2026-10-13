@@ -1,10 +1,9 @@
 import type { NormalizedFieldType } from './fieldType'
 
 /**
- * 控件映射表：归一类型 → 该用哪种控件。详细见 docs/details/注释/packages/plugin-sdk/实体详情表单.md
- *
- * 表是**数据**，`FieldControl.vue` 按 `kind` 渲染——新增一种类型只需在此加一行 + 需要时加一个件，
- * 不必再往字段行里追加 `v-else-if` 分支（那正是抽屉/弹窗/批量编辑各自长出一套的原因）。
+ * 控件映射表：归一类型 → 该用哪种控件。表是**数据**，`FieldControl.vue` 按 `kind` 渲染——
+ * 新增一种类型只需在此加一行 + 需要时加一个件，不必再往字段行里追加 `v-else-if` 分支
+ * （那正是抽屉/弹窗/批量编辑各自长出一套的原因）。详细见 docs/details/注释/packages/plugin-sdk/实体详情表单.md
  */
 export type ControlKind =
   | 'text'

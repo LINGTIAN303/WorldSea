@@ -1,13 +1,8 @@
-// C2-b（2026-09-24）：IPC 管道传输客户端——宿主管道载体的壳侧对端（`--ipc-pipe` 模式）。
-//
+// IPC 管道传输客户端——宿主管道载体的壳侧对端（`--ipc-pipe` 模式）。壳在此层只做「帧 + 多路复用」，
+// 不解析 HTTP/WS——流语义（open/item/end/error/uplink/abort）由宿主的管道载体直连 `typertGateway.wireStream.open` 完成。
 // 帧格式与宿主侧 `dsh/packages/bundle/web-app/src/pipe-transport.ts` **严格同构**：
-//   `u32be(length) + u8(kind) + payload`；J = JSON 控制帧，B = 二进制体帧（payload = `u32be(id) + bytes`，
-//   且严格跟随其声明帧）。一条连接多路复用全部请求（id → 一元响应）与 mux 流（id → 下行事件）。
-// 连接形态：Windows 命名管道（`\\.\pipe\…`，std 以文件形态打开）/ POSIX Unix 域套接字。
-//
-// 口径（C2 批计划 §五 C2-b）：壳在此层只做「帧 + 多路复用」，不解析 HTTP/WS——流的语义
-// （open/item/end/error/uplink/abort）由宿主的管道载体直连 `typertGateway.wireStream.open` 完成。
-// 反证开关：`WORLDSEA_TCP_HOST=1` 走 legacy（TCP + WS 中转），不走这里。
+// `u32be(length) + u8(kind) + payload`；J = JSON 控制帧，B = 二进制体帧（payload = `u32be(id) + bytes`，且严格跟随其声明帧）；
+// 一条连接多路复用全部请求（id → 一元响应）与 mux 流（id → 下行事件）；连接形态：Windows 命名管道 / POSIX Unix 域套接字。反证开关：`WORLDSEA_TCP_HOST=1` 走 legacy（TCP + WS 中转）。
 
 use std::collections::HashMap;
 // Windows 非测试构建下读写都走 `dsh_pipe_io` 的轮询循环，这里不再引用这两个 trait
@@ -28,7 +23,7 @@ pub(crate) const KIND_BINARY: u8 = 0x42;
 pub(crate) const FRAME_HEADER_BYTES: usize = 5;
 /// 单帧上限（与宿主一致：320 MiB，覆盖 300 MiB 的 /api 体上限）。
 pub(crate) const MAX_FRAME_BYTES: usize = 320 * 1024 * 1024;
-/// 一元请求超时（与 C1 的 reqwest 口径一致）。
+/// 一元请求超时（与转发链的 reqwest 超时口径一致）。
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(60);
 /// hello 握手等待上限（宿主连接后立即发送）。
 const HELLO_TIMEOUT: Duration = Duration::from_secs(5);
@@ -58,9 +53,9 @@ pub type StreamSink = Arc<dyn Fn(StreamEvent) + Send + Sync>;
 pub(crate) struct Inner {
     /// 写线程入口（整帧字节直接进队列，序即连接上的写序）。
     pub(crate) writer: Sender<Vec<u8>>,
-    /// 帧写锁（F1，2026-09-25）：宿主按「控帧 + 体帧」**单槽配对**读，
-    /// 而壳侧代理是**每请求一线程**并发发 POST —— 不加锁会让两条 `req`+体帧交错
-    /// （J1 J2 B1 B2），宿主判协议违规并**整条断链**（真机实测：页面 reload 触发）。
+    /// 帧写锁：宿主按「控帧 + 体帧」**单槽配对**读，
+    /// 而壳侧代理是**每请求一线程**并发发 POST —— 不加锁会让两条 `req`+体帧交错，
+    /// 宿主判协议违规并**整条断链**（真机实测：页面 reload 触发）。
     /// 约定：**成对帧必须在同一临界区内写完**；单帧写入也走本锁。
     pub(crate) write_lock: Mutex<()>,
     /// 待决一元请求：id → 结果通道。
@@ -294,7 +289,7 @@ impl PipeClient {
         self.inner.writer.send(frame).map_err(|_| "管道写线程已退出".to_string())
     }
 
-    /// **成组写帧**（F1）：同一临界区内按序写完 —— 用于「控帧 + 体帧」这类必须相邻的帧对。
+    /// **成组写帧**：同一临界区内按序写完 —— 用于「控帧 + 体帧」这类必须相邻的帧对。
     fn write_frames(&self, frames: &[(u8, Vec<u8>)]) -> Result<(), String> {
         let _guard = self.inner.write_lock.lock().map_err(|_| "帧写锁不可用".to_string())?;
         for (kind, payload) in frames {
@@ -313,14 +308,10 @@ fn with_id(id: u32, bytes: &[u8]) -> Vec<u8> {
 }
 
 /// 拨号：Windows = 命名管道按**同步**文件形态打开（并发读写约束由 [`PipeClient::over_pipe`] 的
-/// 单线程轮询承担）；POSIX = Unix 域套接字。
-///
-/// 〔Windows 命名管道的两条硬约束（实测 2026-09-24，活体管道上逮到）〕
+/// 单线程轮询承担）；POSIX = Unix 域套接字。〔Windows 命名管道的两条硬约束（实测 2026-09-24，活体管道上逮到）〕
 /// ① **同步句柄上的并发读写会被文件对象串行化**：后台读线程阻塞在 ReadFile 时，另一线程的写永不落地
-///    （症状＝「hello 收到、请求永不到达、无报错」；`try_clone` 复制同一文件对象，救不了）——
-///    故管道侧用单线程轮询 IO；
-/// ② **带 `FILE_FLAG_OVERLAPPED` 打开的句柄不能交给 std 的 File**：std 走同步 NT 调用，
-///    遇 STATUS_PENDING 直接 `rtabort!`（std issue #81357，实测进程被 abort）——此路不可走。
+///    （症状＝「hello 收到、请求永不到达、无报错」；`try_clone` 救不了）——故管道侧用单线程轮询 IO；
+/// ② **带 `FILE_FLAG_OVERLAPPED` 打开的句柄不能交给 std 的 File**：std 走同步 NT 调用，遇 STATUS_PENDING 直接 `rtabort!`（std issue #81357）——此路不可走。
 #[cfg(windows)]
 fn dial_pipe(path: &str) -> Result<std::fs::File, String> {
     std::fs::OpenOptions::new()

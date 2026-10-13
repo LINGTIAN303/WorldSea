@@ -1,11 +1,6 @@
-//! 工作流定义校验
-//!
-//! 负责在 `WorkflowDefinition` 持久化/执行前发现结构性问题：
-//!   * 节点 id 唯一性
-//!   * 边引用的节点存在性
-//!   * 必含 `start` 与 `end` 节点
-//!   * DAG 无环（Kahn 拓扑排序）
-//!   * 起点可达性（孤立节点）
+//! 工作流定义校验：在 `WorkflowDefinition` 持久化/执行前发现结构性问题
+//! （节点 id 唯一性、边引用的节点存在性、必含 `start`/`end` 节点、
+//! DAG 无环（Kahn 拓扑排序）、起点可达性（孤立节点））。
 
 use crate::workflow::types::WorkflowDefinition;
 use std::collections::{HashMap, HashSet, VecDeque};

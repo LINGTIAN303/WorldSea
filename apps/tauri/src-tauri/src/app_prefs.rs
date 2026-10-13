@@ -1,13 +1,8 @@
-// E2-a（2026-09-24）：应用级偏好真源（主题）+ 壳自有面的色板。
-//
-// 2026-09-30 arch 拆分：dsh 主题桥外迁 app_prefs_dsh.rs、测试外迁 app_prefs_tests.rs（本文件保留真源/文件 IO/壳自有面/广播/产品域）。
-// 口径（见 docs/details/架构/一致性盘点.md §三）：
-// - **真源** = `<app_data>/worldsea/prefs.json` 的 `theme`（`light|dark|system`）——壳是应用级偏好的所有者；
-// - **产品页**：`/workspace` index 注入 `__WORLDSEA_THEME__`（真源值，防闪脚本优先用它）与
-//   `__WORLDSEA_SET_THEME__`（写回桥）；壳改动后广播 `worldsea:theme-changed` 事件，产品页据此重应用；
-// - **dsh 页**：主题由它自己的 boot 脚本按 **host 侧 durable 偏好** 画 → 壳在桥就绪时**反向读一次做种子**
-//   （不夺用户已在 dsh 里做的选择），此后真源为准、每次改动写回 `POST /api/settings/update`；
-// - **壳自有面**（HTML 错误页 / 不白屏安全网 / 工作区横幅）：按 [`dark_now`] 取亮暗两套值。
+// 应用级偏好真源（主题）+ 壳自有面的色板。口径（见 docs/details/架构/一致性盘点.md §三）：
+// - 真源 = `<app_data>/worldsea/prefs.json` 的 `theme`（`light|dark|system`）；dsh 主题桥在 app_prefs_dsh.rs、测试在 app_prefs_tests.rs。
+// - 产品页：`/workspace` index 注入 `__WORLDSEA_THEME__`（真源值，防闪脚本优先用）与写回桥 `__WORLDSEA_SET_THEME__`；
+//   壳改动后广播 `worldsea:theme-changed`。dsh 页按其 boot 脚本自画，壳在桥就绪时反向读一次做种子（不夺用户选择），
+//   此后真源为准、每次改动写回 `POST /api/settings/update`。壳自有面（HTML 错误页 / 安全网 / 横幅）：按 [`dark_now`] 取亮暗两套值。
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -111,7 +106,7 @@ pub fn load(app: &tauri::AppHandle) -> Option<String> {
     }
 }
 
-/// 写真源（保留文件内其它字段——E9 起prefs.json 不再只有 theme；目录不存在则创建）。
+/// 写真源（保留文件内其它字段——prefs.json 还有缩放与产品域设置；目录不存在则创建）。
 pub fn save(app: &tauri::AppHandle, value: &str) -> Result<(), String> {
     if !valid(value) {
         return Err(format!("未知主题值 {value}（可用：light / dark / system）"));
@@ -142,7 +137,7 @@ fn write_prefs(app: &tauri::AppHandle, value: &serde_json::Value) -> Result<(), 
         .map_err(|e| format!("写入 {path:?} 失败：{e}"))
 }
 
-/// 缩放档位按窗口持久化（E9 #7，2026-09-27）：`prefs.json` 的 `zoom.<窗口label>`。
+/// 缩放档位按窗口持久化：`prefs.json` 的 `zoom.<窗口label>`。
 /// 口径与 menu.rs 一致：值 = ×10 档位（5..=20，步进 0.1）；Tauri 只有 `set_zoom` 无 getter，
 /// 故「菜单改档位写档位、窗口创建/启动读档位恢复」。
 pub fn load_zoom(app: &tauri::AppHandle, label: &str) -> Option<i32> {
@@ -224,14 +219,14 @@ pub fn cmd_theme_set(
     Ok(value)
 }
 
-/// D3-a（2026-09-28）：产品域设置节（dsh 侧设置页「WorldSea 产品域」经 `cmd_product_prefs_*`
+/// 产品域设置节（dsh 侧设置页「WorldSea 产品域」经 `cmd_product_prefs_*`
 /// 读写；壳启动按它决定说明书/薄指针生成，工作台 boot 按它决定快照导出）。
 /// 真源 = `prefs.json` 的 `product_domain` 节，camelCase 与 JS 侧直通。
-/// 缺省口径：说明书生成开（D2-c 行为不变）、薄指针关（首版保守，用户在页面打开）、快照 auto。
+/// 缺省口径：说明书生成开、薄指针关（首版保守，用户在页面打开）、快照 auto。
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProductDomainPrefs {
-    /// 启动时确保工作区根有 WORLDSEA.md（D2-c 说明书）。
+    /// 启动时确保工作区根有 WORLDSEA.md（说明书）。
     pub manual_generation: bool,
     /// 启动时确保工作区根有薄指针 AGENTS.md（dsh agent-instructions 自动注入 → 注入链闭环）。
     pub agents_pointer: bool,

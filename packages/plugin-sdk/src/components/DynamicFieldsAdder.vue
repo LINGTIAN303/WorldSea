@@ -113,10 +113,10 @@ function onSmartAdd(data: {
 }
 
 function removeField(key: string) {
-  // Remove value
+  // 移除值
   const { [key]: _, ...rest } = props.modelValue || {}
   emit('update:modelValue', rest)
-  // Remove definition
+  // 移除字段定义
   emit('update:fieldDefs', props.fieldDefs.filter(d => d.key !== key))
 }
 </script>

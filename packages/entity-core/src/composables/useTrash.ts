@@ -9,9 +9,7 @@ export function useTrash() {
   const trashStore = useTrashStore()
 
   /**
-   * 软删除实体：从存储中移除，但将数据放入回收站。
-   * 关联关系也会被移除并放入回收站。
-   *
+   * 软删除实体：从存储中移除，但将数据放入回收站（关联关系同样移除并放入回收站）。
    * @deprecated 使用 entityStore.remove() 代替，它已内置软删除（放入回收站）+ undo + 事件
    */
   async function softDeleteEntity(

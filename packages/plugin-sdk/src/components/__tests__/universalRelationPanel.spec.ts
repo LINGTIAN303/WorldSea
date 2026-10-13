@@ -1,9 +1,7 @@
 /**
- * UniversalRelationPanel「合并批」行为测试（2026-10-08）。
- *
- * 锁三件：① tabDefs 提供分组语义名（芽声明 label 覆盖注册表裸 label）；② 只有被 tabDefs
- * 覆盖的分组才有定向「＋」，点击打开定向添加浮层；③ 行跳转走 ws-navigate 契约
- * （{ entityType, entityId }）——此前手写 6 类视图映射直调 store 的旧路已归一。
+ * UniversalRelationPanel 行为测试（2026-10-08 合并改造）。锁三件：① tabDefs 提供分组语义名
+ * （芽声明 label 覆盖注册表裸 label）；② 只有被 tabDefs 覆盖的分组才有定向「＋」，点击打开定向添加浮层；
+ * ③ 行跳转走 ws-navigate 契约（{ entityType, entityId }）——此前手写 6 类视图映射直调 store 的旧路已归一。
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import 'fake-indexeddb/auto'

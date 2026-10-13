@@ -16,11 +16,9 @@
 
 <script setup lang="ts">
 /**
- * 实体封面面板（详情「封面」Tab 内容件，2026-10-05）。
- * coverImage 是顶层承载字段（fieldAccessor.TOP_LEVEL_FIELD），此前在新建弹窗里
- * 作为普通属性字段落 properties.coverImage（死值）——现升级为独立 Tab：ImageField
- * 直接编辑，每次变更即时 entityStore.update 顶层补丁（undo 链自动记录）。
- * 不走抽屉编辑态草稿：封面是轻量视觉设置，即时反馈比草稿/保存两段式更自然。
+ * 实体封面面板（详情「封面」Tab 内容件，2026-10-05）：ImageField 直接编辑顶层
+ * coverImage/coverPosition/coverZoom，每次变更即时 entityStore.update（undo 链自动记录）。
+ * 不走抽屉编辑态草稿——封面是轻量视觉设置，即时反馈比草稿/保存两段式更自然。
  */
 import ImageField from './ImageField.vue'
 import { useEntityStore, type Entity } from '@worldsea/entity-core'

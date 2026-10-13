@@ -126,9 +126,9 @@ const emit = defineEmits<{
   'save': [data: { name: string; description: string; properties: Record<string, any>; tags: string[]; _entityRefFields?: FormFieldDef[]; _autoLinkFields?: FormFieldDef[]; _coverPosition?: string; _coverZoom?: number }]
 }>()
 
-// Esc 关闭收编 useModalShortcuts（modal 层，批7 修复 view 层消费阻断弹窗 Esc）。
+// Esc 关闭收编 useModalShortcuts（modal 层；修复 view 层命中消费阻断弹窗 Esc）。
 // 【顺序约束】必须在 props 声明之后——组合器的 watch immediate 会同步求值 getter，
-// 放在 props 前会触发 TDZ ReferenceError 使 setup 抛错、Vue 渲染树损坏（批7 复盘教训）。
+// 放在 props 前会触发 TDZ ReferenceError 使 setup 抛错、Vue 渲染树损坏（踩坑复盘教训）。
 useModalShortcuts(() => props.modelValue, { id: 'entity-form.close', onEscape: () => close() })
 
 const fieldOrderStore = useFieldOrderStore()

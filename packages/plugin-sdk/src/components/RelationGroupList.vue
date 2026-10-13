@@ -57,10 +57,9 @@
 
 <script setup lang="ts">
 /**
- * 关联分组列表（2026-10-08 Tab 优化批自 UniversalRelationPanel 抽出）：原先
- * 内嵌版与浮出版各一份 40+ 行同构模板，任何渲染改动都要写两遍——「先减压再加能力」
- * （与详情线抽 DetailShell 同一纪律）。本件只渲分组列表：拖拽排序 emit 顺序给宿主落盘，
- * 折叠直接改 group.collapsed（对象同一引用，行为与抽出前一致），行操作全部上报。
+ * 关联分组列表（2026-10-08 自 UniversalRelationPanel 抽出）：原先内嵌版与浮出版各一份 40+ 行
+ * 同构模板，改动要写两遍——「先减压再加能力」（与抽 DetailShell 同一纪律）。本件只渲分组列表：
+ * 拖拽排序 emit 顺序给宿主落盘，折叠直接改 group.collapsed（对象同一引用），行操作全部上报。
  */
 import { ref } from 'vue'
 import { WsIcon, WsEmpty } from '@worldsea/ui-kit'

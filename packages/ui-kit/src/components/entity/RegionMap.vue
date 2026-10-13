@@ -134,7 +134,7 @@ function hideTooltip() {
   tooltip.value.show = false
 }
 
-// === Composables ===
+// === 组合式函数（composables）===
 // 注：closeCtx 为函数声明，会被提升，可在此处引用
 const borderErase = useBorderErase({
   getRegions,

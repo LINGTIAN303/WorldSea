@@ -1,11 +1,8 @@
 use crate::models::pack::{WorldSeaPack, PACK_VERSION};
 use crate::validate::entity::ValidationReport;
 
-/// 验证 `WorldSea` 包数据的合法性，包括版本号、导出时间戳和序列化器数据
-///
-/// 参数:
+/// 验证 `WorldSea` 包数据的合法性：版本号、导出时间戳和序列化器数据
 /// - `pack`: 待验证的包引用
-///
 /// 返回: 包含所有验证结果的 `ValidationReport`
 #[must_use]
 pub fn validate_pack(pack: &WorldSeaPack) -> ValidationReport {

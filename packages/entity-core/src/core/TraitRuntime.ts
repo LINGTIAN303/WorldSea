@@ -1,6 +1,5 @@
 /**
  * Trait 运行时系统
- *
  * 提供 defineTrait / defineEntity / defineFacet 工厂函数，
  * compileEntitySchema 编译器，以及 traitRegistry / facetRegistry 注册表。
  */

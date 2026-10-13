@@ -4,9 +4,7 @@ import { useResizable } from '../composables'
 /**
  * 详情载体（L1）的共用外壳逻辑：标签页状态 + 宽度调节。
  * 详细见 docs/details/注释/packages/plugin-sdk/实体详情内容形态.md §十
- *
- * 抽屉与栏式整页共用一份——两个载体只差**容器**（遮罩浮层 vs 与列表同排分栏），
- * 而「当前在哪一页、能不能拖宽」不该各写一遍（1a 的四套字段控件就是各写一遍长出来的）。
+ * 抽屉与栏式只差**容器**，「当前在哪一页、能不能拖宽」不该各写一遍（「四套字段控件」的前车之鉴）。
  */
 export interface DetailTab {
   id: string

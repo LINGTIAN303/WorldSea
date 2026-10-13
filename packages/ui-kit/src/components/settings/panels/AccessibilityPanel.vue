@@ -26,7 +26,7 @@
 
 <script setup lang="ts">
 /**
- * AccessibilityPanel — 设置「无障碍」Tab（2026-09-06 自 apps/tauri 迁入 ui-kit，补完 Phase 8d）。
+ * AccessibilityPanel — 设置「无障碍」Tab（2026-09-06 自 apps/tauri 迁入 ui-kit）。
  * 面板三契约：goToCard / searchQuery 过滤 / dirty 上报（动效开关变更时上报设置弹窗）。
  */
 import { ref, watch } from 'vue'

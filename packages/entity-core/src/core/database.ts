@@ -111,7 +111,7 @@ export class WorldDatabase extends Dexie {
       file_contents: 'id',
       project_settings: 'key',
     })
-    // v9: Artifact 多版本 + 回滚（C1）— 新增 artifacts + artifact_versions 表
+    // v9: Artifact 多版本 + 回滚 — 新增 artifacts + artifact_versions 表
     this.version(9).stores({
       entities: 'id, type, name, *tags, updatedAt, [type+updatedAt], [type+name]',
       relations: 'id, type, sourceId, targetId, pairId, createdAt',
@@ -128,8 +128,7 @@ export class WorldDatabase extends Dexie {
 
 /**
  * 旧的全局数据库实例。
- *
- * ⚠️ 仅用于数据迁移（ProjectMigration.ts），新代码不应直接使用。
+ * ⚠️ 仅用于数据迁移（ProjectMigration.ts），新代码不应直接使用；
  * 新代码应通过 ProjectManager.getCurrentProjectDb() 获取项目级数据库。
  */
 export const db = new WorldDatabase()

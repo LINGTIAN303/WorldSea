@@ -142,9 +142,9 @@ const KEYFRAME_DEFS: KeyframeDefinition[] = [
   to { transform: scale(4); opacity: 0; }
 }`,
   },
-  // ─── Loading Animations (8 types) ───
+  // ─── 加载动画（8 种）───
 
-  // 1. 旋转圆环 — border + gradient classic spinner
+  // 1. 旋转圆环 — border + gradient 经典旋转器
   {
     name: 'ws-loader-spin-ring',
     css: `@keyframes ws-loader-spin-ring {
@@ -152,7 +152,7 @@ const KEYFRAME_DEFS: KeyframeDefinition[] = [
 }`,
   },
 
-  // 2. 脉冲圆点 — single dot scale pulse (stagger via animation-delay on each dot)
+  // 2. 脉冲圆点 — 单点缩放脉冲（各点用 animation-delay 交错）
   {
     name: 'ws-loader-pulse-dot',
     css: `@keyframes ws-loader-pulse-dot {
@@ -161,7 +161,7 @@ const KEYFRAME_DEFS: KeyframeDefinition[] = [
 }`,
   },
 
-  // 3. 弹跳柱条 — bar stretch bounce (stagger via animation-delay on each bar)
+  // 3. 弹跳柱条 — 柱条拉伸回弹（各条用 animation-delay 交错）
   {
     name: 'ws-loader-bounce-bar',
     css: `@keyframes ws-loader-bounce-bar {
@@ -170,7 +170,7 @@ const KEYFRAME_DEFS: KeyframeDefinition[] = [
 }`,
   },
 
-  // 4. 波纹圆圈 — concentric ripple expand
+  // 4. 波纹圆圈 — 同心波纹扩散
   {
     name: 'ws-loader-ripple-ring',
     css: `@keyframes ws-loader-ripple-ring {
@@ -179,7 +179,7 @@ const KEYFRAME_DEFS: KeyframeDefinition[] = [
 }`,
   },
 
-  // 5. 渐变旋转器 — conic-gradient spin
+  // 5. 渐变旋转器 — conic-gradient 旋转
   {
     name: 'ws-loader-conic-spin',
     css: `@keyframes ws-loader-conic-spin {
@@ -187,7 +187,7 @@ const KEYFRAME_DEFS: KeyframeDefinition[] = [
 }`,
   },
 
-  // 6. 打字指示器 — typing dot bounce (stagger via animation-delay)
+  // 6. 打字指示器 — 打字点弹跳（用 animation-delay 交错）
   {
     name: 'ws-loader-typing-dot',
     css: `@keyframes ws-loader-typing-dot {
@@ -196,7 +196,7 @@ const KEYFRAME_DEFS: KeyframeDefinition[] = [
 }`,
   },
 
-  // 7. 骨架屏微光 — shimmer sweep
+  // 7. 骨架屏微光 — shimmer 扫光
   {
     name: 'ws-loader-shimmer',
     css: `@keyframes ws-loader-shimmer {
@@ -205,7 +205,7 @@ const KEYFRAME_DEFS: KeyframeDefinition[] = [
 }`,
   },
 
-  // 8. DNA 双螺旋 — helix rotate
+  // 8. DNA 双螺旋 — 螺旋旋转
   {
     name: 'ws-loader-dna-rotate',
     css: `@keyframes ws-loader-dna-rotate {

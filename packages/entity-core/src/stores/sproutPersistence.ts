@@ -1,11 +1,7 @@
 /**
- * 芽开关 / 芽分组的持久化层（localStorage 回退 + 项目库副本）+ **芽 id 归一化小迁移**。
- *
- * 抽出于 settingsStore（2026-09-27 E6）：该文件受 400/538 行冻结基线约束，且这段逻辑与 store
- * 状态无关。本模块不持状态、不与 settingsStore 互相 import——默认清单按结构泛型传入。
- *
- * 归一化：改名/剪芽之后，历史持久化数据仍带旧 id（如 `official.workflow`）或已剪芽 id
- * （`official.module-builder`）。加载时按「别名表 → 清单外丢弃」归一，**有改动才写回**（一次性迁移）。
+ * 芽开关 / 芽分组的持久化层（localStorage 回退 + 项目库副本）+ **芽 id 归一化小迁移**；抽出于 settingsStore（彼时受行数冻结基线约束且逻辑与 store 状态无关），
+ * 本模块不持状态、不与 settingsStore 互相 import。归一化：改名/剪芽后历史持久化数据仍带旧 id（如 `official.workflow`）或已剪芽 id（`official.module-builder`），
+ * 加载时按「别名表 → 清单外丢弃」归一，**有改动才写回**（一次性迁移）。
  */
 import { getProjectManager } from '../core'
 
@@ -14,7 +10,7 @@ const STORAGE_KEY_SPROUT_GROUPS = 'worldsea_sprout_groups'
 
 /** 旧芽 id → 现 id（改名类批次一次性归一；只增不改，条目长期留存）。 */
 const SPROUT_ID_ALIASES: Record<string, string> = {
-  // 2026-09-26 E5：「创作编排」由 official.workflow 改名
+  // 2026-09-26：「创作编排」由 official.workflow 改名
   'official.workflow': 'official.orchestration',
 }
 

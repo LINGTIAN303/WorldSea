@@ -1,9 +1,8 @@
-// @worldsea/entity-core - Entity engine core package
-// 内置关系定义注册（side-effect）：原载入点（src/App.vue → 后迁入 governor 启动模块）随端分离
-// 迁移与旧结构下线消失，而新端启动装配从未接过 ⇒ relationshipRegistry 长期空表，
-// 徽章等「注册表驱动」的面静默失效。接在包入口一处，app / 各包 / 测试 import 本包即一致
-// （2026-10-08 修复）。加载后同步 V2 → 旧版 registry（relationSchemaRegistry 仍有消费者，
-// 如 canvas-engine 图数据标签）——即老载入点的同款两步。
+// @worldsea/entity-core — 实体引擎核心包
+// 包入口挂载内置关系定义注册（side-effect）：原载入点随端分离迁移消失，新端启动装配
+// 从未接过 ⇒ relationshipRegistry 长期空表、徽章等注册表驱动面静默失效（2026-10-08 修复）。
+// 接在包入口一处，app / 各包 / 测试 import 本包即一致；加载后同步 V2 → 旧版 registry
+// （relationSchemaRegistry 仍有消费者，如 canvas-engine 图数据标签）——老载入点同款两步。
 import './relations'
 import { syncToLegacyRegistry } from './core/RelationshipRegistry'
 syncToLegacyRegistry()
@@ -52,13 +51,13 @@ export {
   getDialogApi,
   registerSettingsApi,
   getSettingsApi,
-  // Phase 5a: ProjectFS 依赖注入服务接口
+  // ProjectFS 依赖注入服务接口
   registerProjectSwitcherApi,
   getProjectSwitcherApi,
-  // Phase 5a: 项目文件系统导出/导入
+  // 项目文件系统导出/导入
   exportProjectToDir,
   importProjectFromDir,
-  // Trait System V2
+  // Trait 系统 V2
   traitRegistry,
   facetRegistry,
   entitySchemaRegistryV2,
@@ -66,11 +65,11 @@ export {
   defineFacet,
   defineEntity,
   compileEntitySchema,
-  // Relationship Registry V2
+  // 关系注册表 V2
   relationshipRegistry,
   defineRelation,
   syncToLegacyRegistry,
-  // AutoLink Engine
+  // AutoLink 引擎
   semanticHintRegistry,
   autoLinkStrategyRegistry,
   registerDefaultStrategies,
@@ -81,9 +80,9 @@ export {
   inferDirectTargetFromKey,
   userFieldMappingStore,
   autoLinkDecisionStore,
-  // Phase 8a: 事件总线
+  // 事件总线
   eventBus,
-  // Phase 8a: io 模块
+  // io 模块
   serializerRegistry,
   SerializerRegistry,
   PACK_VERSION,
@@ -103,7 +102,7 @@ export {
   getPackValidator,
   registerAppVersionProvider,
   getAppVersionProvider,
-  // Phase 3: 公式引擎
+  // 公式引擎
   evaluateFormula,
   extractFieldRefs,
   registerFormulaAutoRecalc,
@@ -137,14 +136,14 @@ export type {
   ConfirmApi,
   DialogApi,
   SettingsApi,
-  // Phase 5a: ProjectFS 依赖注入服务接口
+  // ProjectFS 依赖注入服务接口
   ProjectSwitcherApi,
-  // Phase 5a: 项目文件系统导出/导入
+  // 项目文件系统导出/导入
   ProjectManifest,
   ProjectCache,
   ExportProgressCallback,
   ImportProgressCallback,
-  // Phase 8a: 事件总线类型
+  // 事件总线类型
   EntityCreateEvent,
   EntityUpdateEvent,
   EntityDeleteEvent,
@@ -158,7 +157,7 @@ export type {
   EventName,
   EventHandler,
   Unsubscribe,
-  // Phase 8a: io 模块类型
+  // io 模块类型
   WorldSeaManifest,
   WorldSeaPack,
   ImportReport,

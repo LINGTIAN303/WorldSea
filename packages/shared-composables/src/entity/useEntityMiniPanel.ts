@@ -19,8 +19,7 @@ const currentState = ref<MiniPanelState | null>(null)
 /**
  * 打开实体卡片小窗
  * @param entityId 实体 ID
- * @param trigger 触发元素位置（用于浮窗锚点定位）
- * @param meta 可选的实体元信息（entityType/name），用于浮窗标题
+ * @param trigger 触发元素位置（用于浮窗锚点定位）；meta 可选实体元信息（entityType/name），用于浮窗标题
  */
 function open(entityId: string, trigger: TriggerRect, meta?: { entityType?: string; name?: string }): void {
   currentState.value = {

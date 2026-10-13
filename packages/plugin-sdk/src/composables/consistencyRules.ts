@@ -1,11 +1,7 @@
 /**
  * consistencyRules — 一致性检查纯函数规则集（2026-10-02 自 entity-core 迁入并增强）。
- *
- * 迁入原因：引用/选项类检查需要 `normalizeFieldType` 做字段类型归一（漂移唯一定义处），
- * 而它在 plugin-sdk——依赖方向（plugin-sdk → entity-core）决定了 schema 派生逻辑只能住这边。
- * 详见 docs/details/注释/packages/plugin-sdk/一致性检查.md
- *
- * 纯函数 + 纯数据入参（stores 在 useConsistencyChecker 里解包），便于单测与未来复用。
+ * 迁入原因：引用/选项类检查要 `normalizeFieldType` 做类型归一（漂移唯一定义处），而依赖方向
+ * （plugin-sdk → entity-core）决定它只能住这边；纯函数 + 纯数据入参（stores 在 useConsistencyChecker 解包）。详见 docs/details/注释/packages/plugin-sdk/一致性检查.md
  */
 
 import { normalizeFieldType, isArrayValueField } from '../detail/fieldType'

@@ -1,8 +1,6 @@
 /**
- * AutoLinkSuggestions —— ① 批护栏（2026-10-07）
- *
- * 确认必须走标准双向管线（成对 / 进 relationStore 即时可见）、带判重；
- * 忽略 / 确认必须落决策（重建索引不复活）。
+ * AutoLinkSuggestions 守卫（2026-10-07）：确认必须走标准双向管线（成对/进 relationStore
+ * 即时可见）、带判重；忽略/确认必须落决策（重建索引不复活）。
  * 等待口径：确认链路含 fake-indexeddb 异步写 → 一律用 vi.waitFor 等状态落地，不能用 flushPromises 猜。
  */
 import 'fake-indexeddb/auto'
@@ -87,7 +85,7 @@ afterEach(() => {
   wrapper = undefined
 })
 
-describe('AutoLinkSuggestions —— 确认 / 忽略管线（① 批）', () => {
+describe('AutoLinkSuggestions —— 确认 / 忽略管线', () => {
   it('确认：关系经标准管线建立（store 即时可见；若定义反向则成对）', async () => {
     const w = await mountPanel()
     const rs = useRelationStore()

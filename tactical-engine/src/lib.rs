@@ -349,7 +349,7 @@ impl TacticalEngine {
             String::new()
         };
         if !result.is_empty() {
-            // Note: we can't push to events here since this is &self, but the caller should check
+            // 此处为 &self，无法写入 self.events；胜者经返回值带出，事件由调用方经 drain_events 消费
         }
         Ok(JsValue::from_str(&result))
     }

@@ -208,7 +208,7 @@ fn index_injected_with_contract_order_and_no_store() {
     let text = body_text(&response);
     let transport = text.find("worldsea-shell:transport").expect("缺传输注入");
     let base = text.find("<base href=\"./\">").expect("宿主 <base> 丢了");
-    // 针取**宿主行专属串**（不是裸键名）：A 批（能力伺服）起，壳注入脚本也会提到同一键名，
+    // 针取**宿主行专属串**（不是裸键名）：壳注入脚本也会提到同一键名，
     // 裸针会被提前命中 → 顺序断言假红（2026-09-25 实测踩到）。
     let boot = text.find(r#"globalThis["__DSH_BOOT__"]=[]"#).expect("宿主 head 行丢了");
     let ready = text.find("__DSH_BOOT_READY__ ??= Promise.withResolvers()").expect("宿主尾行丢了");
@@ -220,7 +220,7 @@ fn index_injected_with_contract_order_and_no_store() {
     assert!(text.contains("worldsea-shell:boot-watchdog"), "安全网必须常驻注入");
 }
 
-/// C4-b：工作区不可供给时 index 带出横幅脚本与文案；可供给（None）时不带。
+/// 工作区不可供给时 index 带出横幅脚本与文案；可供给（None）时不带。
 #[test]
 fn index_carries_workspace_notice_only_when_warned() {
     let (port, _seen) = fake_upstream();
@@ -236,7 +236,7 @@ fn index_carries_workspace_notice_only_when_warned() {
     assert!(text.contains("cmd_fix_workspace_acl"), "横幅脚本应带修复入口");
 }
 
-/// D3-c2b：壳解析出的 DSH_HOME 以页面常量透传（console 数据面据此显示缺省生效值）；未提供（None）时不注入。
+/// 壳解析出的 DSH_HOME 以页面常量透传（console 数据面据此显示缺省生效值）；未提供（None）时不注入。
 #[test]
 fn index_carries_dsh_home_only_when_provided() {
     let (port, _seen) = fake_upstream();
@@ -372,20 +372,20 @@ fn injection_switches_gate_each_script_independently() {
     assert!(text.contains("worldsea-shell:boot-watchdog"));
     assert!(text.contains("worldsea-shell:bridge"));
     assert!(text.contains("worldsea-shell:titlebar"));
-    // 摘 transport（C1-a 反证开关 / C2 沿用）：只少这一件
+    // 摘 transport（反证开关）：只少这一件
     let mut no_transport = cfg(port);
     no_transport.transport = TransportInject::None;
     let text = body_text(&proxy(&no_transport, &req("GET", "/")));
     assert!(!text.contains("worldsea-shell:transport"));
     assert!(text.contains("worldsea-shell:boot-watchdog"));
     assert!(text.contains("worldsea-shell:bridge"));
-    // 摘壳桥（C1-c 反证开关）：设置入口必须显式降级（menu.rs 的缺桥提示由 JS 侧兜底）
+    // 摘壳桥（反证开关）：设置入口必须显式降级（menu.rs 的缺桥提示由 JS 侧兜底）
     let mut no_bridge = cfg(port);
     no_bridge.inject_shell_bridge = false;
     let text = body_text(&proxy(&no_bridge, &req("GET", "/")));
     assert!(!text.contains("worldsea-shell:bridge"));
     assert!(text.contains("worldsea-shell:boot-watchdog"));
-    // 摘窗口栏（C6 反证开关 WORLDSEA_NO_TITLEBAR / WORLDSEA_FRAMED）：只少这一件
+    // 摘窗口栏（反证开关 WORLDSEA_NO_TITLEBAR / WORLDSEA_FRAMED）：只少这一件
     let mut no_titlebar = cfg(port);
     no_titlebar.titlebar = false;
     let text = body_text(&proxy(&no_titlebar, &req("GET", "/")));
@@ -396,7 +396,7 @@ fn injection_switches_gate_each_script_independently() {
 
 #[test]
 fn titlebar_script_wires_expected_commands_and_contract() {
-    // C6→D1-b：窗口栏脚本的命令接线必须与 Rust 侧注册一致；dsh 适配标记与空间切换接线缺一不可
+    // 窗口栏脚本的命令接线必须与 Rust 侧注册一致；dsh 适配标记与空间切换接线缺一不可
     let (port, _seen) = fake_upstream();
     let text = body_text(&proxy(&cfg(port), &req("GET", "/")));
     for command in ["cmd_shell_window_action", "cmd_shell_popup_menu", "cmd_shell_space_switch"] {
@@ -404,12 +404,12 @@ fn titlebar_script_wires_expected_commands_and_contract() {
     }
     assert!(text.contains("data-windows-titlebar"), "窗口栏必须置 dsh 的 Windows 形态标记（留白/圆角/连色）");
     assert!(text.contains("--dsh-windows-titlebar-height"), "窗口栏高度须经 dsh 变量驱动");
-    // G1：全屏桥——F11 走的壳命令臂与 dsh 的全屏形态标记缺一不可（缺则全屏时浮层仍内缩 52px）。
+    // 全屏桥——F11 走的壳命令臂与 dsh 的全屏形态标记缺一不可（缺则全屏时浮层仍内缩 52px）。
     // 断言打到**调用形状**而非裸字面量：脚本头注也提到这两个词，裸 contains 会被注释满足而恒绿。
     assert!(text.contains("windowAction('toggle-fullscreen')"), "窗口栏缺少全屏切换动作接线（G1）");
     assert!(text.contains("setAttribute('data-fullscreen'"), "窗口栏必须桥接 dsh 的全屏形态标记（G1）");
     assert!(text.contains("Agent 空间"), "窗口栏切换控件文案缺位");
-    // D1-b：切换不再走页内占位页（工作台是独立窗口）——旧占位页字符串必须消失
+    // 切换不再走页内占位页（工作台是独立窗口）——旧占位页字符串必须消失
     assert!(!text.contains("worldsea-workbench"), "页内占位页应已退役（D1-b 双窗）");
     // 反证：关掉后整段脚本不存在
     let mut off = cfg(port);
@@ -520,7 +520,7 @@ fn guard_helpers_are_pure_and_total() {
     assert!(!needs_no_store("/api/x"));
 }
 
-// ── C2-b：管道上游（零 TCP）的转发语义 —— 与 TCP 路径同构，另验注入面与失败降级 ──
+// ── 管道上游（零 TCP）的转发语义 —— 与 TCP 路径同构，另验注入面与失败降级 ──
 
 #[test]
 fn pipe_index_injects_stream_hook_and_transport_line() {

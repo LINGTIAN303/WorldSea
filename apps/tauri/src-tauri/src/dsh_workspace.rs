@@ -1,11 +1,8 @@
-// C4（2026-09-24）：工作区取向与「可供给性」提示——从 dsh_shell.rs 拆出（行数门禁）。
-//
-// 三件：① 默认工作区解析（用户 profile 下的专用目录；`WORLDSEA_WORKSPACE` 可覆盖）；
-// ② 启动探测 + 日志 + 系统通知（不可供给时把横幅文案带出去）；③ 一键修复（**用户显式点击才执行**）。
-// 机制与依据（dsh 的 ACL 沙箱要目录上的 WRITE_OWNER）见 workspace_probe.rs 与
-// docs/plans/2026-09-24-C4-壳侧工作区批计划.md §二。
-// D2-a（2026-09-27）追加第四件：dsh 工作区**列表转发**（`cmd_dsh_workspace_list`）——
-// 「项目 = dsh workspace」同源模型（D2 批计划 §1.1）的产品域数据源，见文件尾段。
+// 工作区取向与「可供给性」提示（从 dsh_shell.rs 拆出）。四件：
+// ① 默认工作区解析（用户 profile 下的专用目录；`WORLDSEA_WORKSPACE` 可覆盖）；
+// ② 启动探测 + 日志 + 系统通知（不可供给时把横幅文案带出去）；③ 一键修复（用户显式点击才执行，见 [`crate::acl_fix`]）；
+// ④ dsh 工作区列表转发（`cmd_dsh_workspace_list`，见文件尾段）。
+// 机制与依据（dsh 的 ACL 沙箱要目录上的 WRITE_OWNER）见 workspace_probe.rs 与 docs/plans/2026-09-24-C4-壳侧工作区批计划.md §二。
 
 use std::path::{Path, PathBuf};
 
@@ -21,7 +18,7 @@ pub(crate) fn strip_verbatim_prefix(path: PathBuf) -> PathBuf {
     }
 }
 
-/// 默认工作区（C4-a）：`WORLDSEA_WORKSPACE` 显式指定 > `%USERPROFILE%\WorldSea`（POSIX `$HOME/WorldSea`）
+/// 默认工作区：`WORLDSEA_WORKSPACE` 显式指定 > `%USERPROFILE%\WorldSea`（POSIX `$HOME/WorldSea`）
 /// > 应用数据目录下 `workspace`。缺失即创建——用户 profile 下的目录 ACL 天然含用户完全控制，
 /// dsh 的 Windows ACL 沙箱才供给得动。
 pub(crate) fn resolve_workspace(app: &tauri::AppHandle) -> Result<PathBuf, String> {
@@ -42,7 +39,7 @@ pub(crate) fn resolve_workspace(app: &tauri::AppHandle) -> Result<PathBuf, Strin
     Ok(candidate)
 }
 
-/// 工作区可供给性探测（C4-a）：日志一行；不可供给时补一条系统通知。
+/// 工作区可供给性探测：日志一行；不可供给时补一条系统通知。
 /// 返回横幅文案（不可供给且未按 `WORLDSEA_NO_WORKSPACE_NOTICE=1` 关掉时），供 index 注入带出。
 pub(crate) fn announce_workspace(app: &tauri::AppHandle, workspace: &Path) -> Option<String> {
     let probe = crate::workspace_probe::check(workspace);
@@ -70,17 +67,14 @@ pub(crate) fn announce_workspace(app: &tauri::AppHandle, workspace: &Path) -> Op
     Some(format!("工作区不可供给：{}", probe.describe(workspace)))
 }
 
-/// C4-b：一键修复工作区权限——G3（2026-10-01）起升级为**可回滚修复**并迁至 [`crate::acl_fix`]
+/// 一键修复工作区权限——已升级为**可回滚修复**并迁至 [`crate::acl_fix`]
 /// （主路径 = 上游 rc.2 的 `diagnose-windows-sandbox-acl` 脚本；兜底 = icacls 备份 + 授权）。
 /// 本模块只保留取向解析（[`resolve_workspace`]）与启动提示（[`announce_workspace`]）。
 
-// ── D2-a：dsh 工作区列表转发（2026-09-27）─────────────────────────────────────
-//
-// 数据源 = `$DSH_HOME/storages/workspace.json`（**壳直读存储文件**，C5 凭证库同款先例）。
-// 为什么不走 dsh API：workspace 命名空间只有 create/rename/delete/排序与会话归档 +
-// `follow` 订阅流（AsyncIterable）——没有一次性 list；壳转发订阅流得不偿失，直读最务实。
-// 结构（unit v2）：`global.workspaceIds`（**UI 列表顺序**）+ `tables.workspaces.<id>{path,title,...}`。
-// 防御性解析：JSON 损坏 / 缺字段 → 跳过该条或空列表（产品侧项目列表为空可容忍，不炸壳）；
+// ── dsh 工作区列表转发 ────────────────────────────────────────────────────────
+// 数据源 = `$DSH_HOME/storages/workspace.json`（**壳直读存储文件**，凭证库同款先例）。为什么不走 dsh API：
+// workspace 命名空间只有 create/rename/delete/排序与会话归档 + `follow` 订阅流（AsyncIterable）——没有一次性的 list；壳转发订阅流得不偿失，直读最务实。
+// 结构（unit v2）：`global.workspaceIds`（**UI 列表顺序**）+ `tables.workspaces.<id>{path,title,...}`；JSON 损坏 / 缺字段 → 跳过该条或空列表（产品侧项目列表为空可容忍，不炸壳）。
 // ★ 内部格式耦合登记：`tables` 结构属 dsh 内部存储，dsh 追版（fork:check 后）须真机回归本命令。
 
 /// 工作区条目（产品域「项目」的同源视图：title = 项目名、path = 项目目录）。
@@ -89,7 +83,7 @@ pub struct DshWorkspace {
     pub id: String,
     pub title: String,
     pub path: String,
-    /// dsh 的 `global.defaultWorkspaceId` 指向（D2-b2：产品域「默认项目」标记同源化）。
+    /// dsh 的 `global.defaultWorkspaceId` 指向（产品域「默认项目」标记同源化）。
     #[serde(default)]
     pub is_default: bool,
 }

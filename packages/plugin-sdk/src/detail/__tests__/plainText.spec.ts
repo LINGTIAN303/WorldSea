@@ -2,11 +2,9 @@ import { describe, it, expect } from 'vitest'
 import { stripMarkdownSyntax, toDisplayText, toPlainText } from '../fieldValue'
 
 /**
- * 只读展示的 markdown 去语法守卫。详细见
- * docs/details/注释/packages/plugin-sdk/实体详情内容形态.md §六补
- *
- * 这组用例两半：**该洗掉的洗掉** 与 **不该动的别动**。
- * 后半同样重要——把「2 * 3」或 `snake_case` 啃掉，比留着星号更像 BUG。
+ * 只读展示的 markdown 去语法守卫。详细见 docs/details/注释/packages/plugin-sdk/实体详情内容形态.md §六补
+ * 这组用例两半：**该洗掉的洗掉** 与 **不该动的别动**；后半同样重要——
+ * 把「2 * 3」或 `snake_case` 啃掉，比留着星号更像 BUG。
  */
 
 describe('该洗掉的洗掉', () => {

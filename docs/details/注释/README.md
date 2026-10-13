@@ -13,10 +13,24 @@
 
 ## 模块清单
 
+### worldsea-core（worldsea-core）
+
+| 代码文件 | 详细注释文档 | 摘要 |
+|---|---|---|
+| src/lib.rs | [lib.md](worldsea-core/lib.md) | 库概览：模块总览（含 algo/schema/workflow）、feature 矩阵、快速上手示例（ValidationReport 警告统计口径，2026-10-13 注释整改迁入） |
+
 ### tauri（apps/tauri）
 
 | 代码文件 | 详细注释文档 | 摘要 |
 |---|---|---|
+| src-tauri/src/lib.rs | [lib.md](tauri/lib.md) | 壳进程入口长注存档：WebView2 Runtime 152 间歇性崩溃记录（现象/排除项/对策），代码内留 5 行摘要 |
+| src-tauri/src/fs_commands.rs | [fs-commands.md](tauri/fs-commands.md) | 文件系统命令层定位（应用层直通、兜底防线）与目录口径裁定：产品域宽口径 vs dsh 严沙箱并存是显式设计（2026-10-13 注释整改迁入） |
+| src-tauri/src/office_commands.rs | [office-commands.md](tauri/office-commands.md) | 本机 LibreOffice 转换设计缘由：前端渲染还原度差、缓存键（路径+mtime+size 哈希）与 DefaultHasher 稳定性注记（2026-10-13 注释整改迁入） |
+| src-tauri/src/workspace_dist.rs | [workspace-dist.md](tauri/workspace-dist.md) | 工作台静态伺服口径：产物不嵌二进制、与 dsh 桥无关、同源、GET/HEAD 闸门 + 越界复核、缓存与 index 注入（2026-10-13 注释整改迁入） |
+| src-tauri/src/acl_fix.rs | [acl-fix.md](tauri/acl-fix.md) | 可回滚工作区权限修复（rc.2 形态）：主路径/兜底双路线口径与实测取证（2026-10-13 注释整改迁入） |
+| src-tauri/src/dsh_bridge.rs | [dsh-bridge.md](tauri/dsh-bridge.md) | worldsea 协议层代理宿主完整口径：UI origin/传输面分离与自定义协议落形（2026-10-13 注释整改迁入） |
+| src-tauri/src/channel_order.rs | [channel-order.md](tauri/channel-order.md) | Channel 投递全序修复：Tauri Channel 双路径乱序的取证链与根治方案（2026-10-13 注释整改迁入） |
+| src-tauri/src/proc_quiet.rs | [proc-quiet.md](proc-quiet.md) | GUI 模式隐藏子进程控制台窗口：CREATE_NO_WINDOW 方案与 6 处接入点（2026-10-13 注释整改迁入） |
 | src/core/coreBackend.ts | [coreBackend.md](tauri/coreBackend.md) | coreBackend Phase 3 端分离：移除 WASM、纯 invoke 路径、签名兼容；2026-08-06 收敛为 api/ 领域拆分聚合（re-export） |
 | src/main.ts | [main.md](tauri/main.md) | Tauri 端入口：端分离策略、Phase 3/4 演进说明 |
 | vite.config.ts | [vite-config.md](tauri/vite-config.md) | Tauri 端 Vite 配置：IPC 直连设计原则、WASM 算法降级、端口与构建触发 |
@@ -46,6 +60,7 @@
 | src/components/settings/panels/SproutsPanel.vue | — | 芽管理面板（26 个世界观芽开关 + 分类筛选 + 拖拽排序；2026-09-10 由 PluginsPanel 更名；原 27 个，`official.module-builder` 已于 2026-09-25 随「自定义模块」整体剪除） |
 | src/components/settings/settings-panels.css | [settings-panels-convention.md](packages/ui-kit/settings-panels-convention.md) | 设置面板统一约定（三契约/基座样式/scoped 陷阱/卡片清单） |
 | src/index.ts | [index.md](packages/ui-kit/index.md) | ui-kit FACADE 包说明（聚合/委托导出） |
+| src/composables/useAsk.ts | [useAsk.md](packages/ui-kit/useAsk.md) | 提问面板批量问题协议（对齐 dsh ask_user_question：单选/多选/自定义/跳过/取消）（2026-10-13 注释整改迁入） |
 
 > ~~BuiltinToolsPanel.vue~~（builtin-tools-panel.md）、~~AgentPluginsPanel.vue~~（agent-plugins-panel.md）
 > 已于 2026-09-27 E8 随旧 Agent 工具面退场（零挂载孤儿）。
@@ -86,6 +101,8 @@
 | src/core/events.ts | [events.md](packages/entity-core/core/events.md) | 事件总线 + 生命周期事件（跨模块通信基础设施） |
 | src/core/formula-auto.ts | [formula-auto.md](packages/entity-core/core/formula-auto.md) | Formula 自动重算（监听 field:change） |
 | src/core/formula.ts | [formula.md](packages/entity-core/core/formula.md) | 轻量公式引擎（四则/比较/逻辑/聚合，无 eval 沙箱） |
+| src/core/IngestNormalizers.ts | [IngestNormalizers.md](packages/entity-core/core/IngestNormalizers.md) | 实体装载边界归一器：多写入方格式不受控，进 store 前按类型归一一次，幂等约束（2026-10-13 注释整改迁入） |
+| src/stores/entityStore.ts | [entityStore.md](packages/entity-core/stores/entityStore.md) | loadByType 历史缺陷记录全文（2026-10-13 注释整改迁入） |
 | src/core/io/ExportController.ts | [ExportController.md](packages/entity-core/core/io/ExportController.md) | 统一导出调度器（Serializer 遍历组装 WorldSeaPack） |
 | src/core/io/ImportController.ts | [ImportController.md](packages/entity-core/core/io/ImportController.md) | 统一导入调度器（拓扑排序恢复，overwrite/merge） |
 | src/core/io/PackageBuilder.ts | [PackageBuilder.md](packages/entity-core/core/io/PackageBuilder.md) | .ws 包构建器（ZIP 归档 + 媒体内嵌） |
@@ -130,6 +147,18 @@
 `detailLayout` prop 进入三级合并（首批样例 characters→段落式、items→摘要式）；**1b-2 续批**＝命名预设与详情覆写**分轴**（`loadPreset` 去掉 `resetToBuiltin` 破坏、只重排不增删字段）+ 设置五卡（含分组草稿卡）+「布局管理」弹窗退场（CRUD 收进设置，弹窗 preset-bar 只留切换）；**只读面分工**＝段落式真渲染，其余四式走 `stripMarkdownSyntax` 去语法留内容（收敛点 `toDisplayText`，编辑态仍显示源文）；**1b-2 设置 Tab**＝`apps/tauri/src/ui/settings/panels/DetailSettingsPanel.vue` 三卡（形态/顺序与可见性/配置），读写一律走 `useDetailLayout` 只留一条合并路径，实现留 app 侧避免 plugin-sdk↔ui-kit 成环；**批次 2 第一刀（2026-10-04）**＝L1 载体注册表 `carriers.ts` + `ColumnDetailView`（栏式整页），两容器共用 `useDetailChrome`/`carrier-chrome.css`（`.dp-shell` 前缀），载体覆写分键 `worldsea_detail_carriers`，缺省抽屉＝未声明零变化；**走查后补刀（同日 `fc950bc`）**＝`panel-id` 必须带载体名（共用一把键时"宽度各记各的"是假的）+ `useResizable` 拖宽按帧落地、上界起拖时锁定，另如实登记一条被反证否决的"优化"（Vue 编译器 cacheHandler 本已稳定模板内联箭头身份）与抽屉遮罩点击死码（后按裁定做成**全局可配置一档**，缺省穿透）；**档 B 九枚芽默认栏式已落地**并配静态守卫 `apps/tauri/src/world/plugins/__tests__/sproutCarrierDeclaration.spec.ts`；**批次 2 四式已齐**（§十二）＝居中弹层 / 沉浸页 / 浮层小窗 + `DetailShell`/`DetailBackdrop` 两个共用件先抽再加、`CarrierMode` 三值、载体不再对外单独导出 |
 
 > ~~src/agent-descriptor.ts~~（pluginSdkDescriptor）已于 2026-09-27 E8 随 Agent 工具目录退场。
+
+### packages/core-api-types（packages/core-api-types）
+
+| 代码文件 | 详细注释文档 | 摘要 |
+|---|---|---|
+| src/index.ts | [index.md](packages/core-api-types/index.md) | coreBackend 双端共享契约类型包：定位、Core* 前缀类型归属与双端同步约定（2026-10-13 注释整改迁入） |
+
+### packages/theme-kit（packages/theme-kit）
+
+| 代码文件 | 详细注释文档 | 摘要 |
+|---|---|---|
+| src/index.ts | [index.md](packages/theme-kit/index.md) | 包退役说明：主题收束为「底色 × 强调色」两轴后的职责去向与取证（2026-10-13 注释整改迁入） |
 
 ### 已随旧 Agent 面退场的模块（2026-09-27 E8，git 历史可找回）
 

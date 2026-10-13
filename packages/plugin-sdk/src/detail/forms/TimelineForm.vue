@@ -13,11 +13,9 @@
 
 <script setup lang="ts">
 /**
- * 内容形态·时间轴式（derived）：把散在各处的日期字段聚成一条轴。
+ * 内容形态·时间轴式（derived）：把散在各处的日期字段聚成一条轴。节点顺序**沿用字段顺序**
+ * 而非按日期排：`datable` 的日期常是「约 1420 年」这类非 ISO 串，字典序会排错位置还看似有理。
  * 详细见 docs/details/注释/packages/plugin-sdk/实体详情内容形态.md
- *
- * 节点顺序**沿用字段顺序**而不是按日期排：`datable` 提供的日期常是「约 1420 年」这类
- * 非ISO 串，字典序排序会把它们排到错误位置还看起来很有道理——宁可按用户排的序如实呈现。
  */
 import { computed } from 'vue'
 import type { Entity } from '@worldsea/entity-core'

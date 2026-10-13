@@ -1,14 +1,14 @@
 // ui-kit 包说明（FACADE：聚合/委托各包导出，自身不含业务逻辑），详细见 docs/details/注释/packages/ui-kit/index.md
-// Ws* Components（Pure UI Atoms）— 原生于 ui-kit，当前从 src/ui/ re-export，见 docs/details/注释/packages/ui-kit/index.md
+// Ws* 组件（纯 UI 原子）— 原生于 ui-kit，见 docs/details/注释/packages/ui-kit/index.md
 export { default as WsIcon } from './components/WsIcon.vue'
 export { default as TuiButton } from './components/TuiButton.vue'
 export { default as WsEmpty } from './components/WsEmpty.vue'
 export { default as WsSpinner } from './components/WsSpinner.vue'
-// R 批 R-0：文件类型图标（vscode-great-icons 资产下沉——apps 文件树/tab/预览头与对话区行段两端共用）
+// 文件类型图标（vscode-great-icons 资产下沉——apps 文件树/tab/预览头与对话区行段两端共用）
 export { default as FileIcon } from './components/FileIcon.vue'
 export { fileIconDataOf } from './assets/fileIcons'
 
-// Phase 8c: 图标注册表（从根 src/assets/iconRegistry.ts 下沉）
+// 图标注册表（从根 src/assets/iconRegistry.ts 下沉）
 export {
   getIcon,
   hasIcon,
@@ -21,7 +21,7 @@ export type {
   IconCategory,
 } from './assets/iconRegistry'
 
-// Phase 8d: settings 模块共用工具与类型（从根 src/ui/settings/utils.ts 下沉）
+// settings 模块共用工具与类型（从根 src/ui/settings/utils.ts 下沉）
 export {
   matchKeywords,
   SHORTCUT_CATALOG,
@@ -37,12 +37,7 @@ export type {
   FontLayerConfig,
 } from './components/settings/utils'
 
-// ----------------------------------------------------------------------------
-// App-Level UI Components — native to ui-kit
-// Shell, layout, navigation, and application-level UI
-// Currently re-exported from src/ui/; will eventually move into
-// packages/ui-kit/src/components/
-// ----------------------------------------------------------------------------
+// App 级 UI 组件（壳层 / 布局 / 导航 / 反馈）——已原生于 ui-kit 的 components/ 目录
 export { default as RichTextEditor } from './components/editor/RichTextEditor.vue'
 export { default as FloatingPanel } from './components/layout/FloatingPanel.vue'
 export { default as ColorPickerDialog } from './components/editor/ColorPickerDialog.vue'
@@ -74,8 +69,8 @@ export { default as FontPreviewPanel } from './components/font/FontPreviewPanel.
 export { default as AnimatedFontExportPanel } from './components/font/AnimatedFontExportPanel.vue'
 
 // ----------------------------------------------------------------------------
-// Data Composables — delegated to @worldsea/entity-core
-// Smart field links, auto-create entities, bidirectional relations, etc.
+// 数据类 composables — 委托自 @worldsea/entity-core
+// 智能字段联动、自动建实体、双向关联等
 // ----------------------------------------------------------------------------
 export {
   useSmartFieldLink,
@@ -91,8 +86,8 @@ export {
 } from '@worldsea/entity-core/composables'
 
 // ----------------------------------------------------------------------------
-// Canvas Composables — delegated to @worldsea/canvas-engine
-// Canvas state, graph data, algorithms, geometry, etc.
+// 画布类 composables — 委托自 @worldsea/canvas-engine
+// 画布状态、图数据、算法、几何等
 // ----------------------------------------------------------------------------
 export { useCanvas, type CanvasState } from '@worldsea/canvas-engine/core'
 export {
@@ -119,10 +114,8 @@ export {
 } from '@worldsea/canvas-engine/geometry'
 
 // ----------------------------------------------------------------------------
-// App Composables — native to ui-kit
-// Toast notifications, floating panels, file system project management
-// - useToast / useFloatingPanel: 已迁移至本地 ./composables/
-// - useFileSystemProject: Phase 5a 已下沉到 @worldsea/entity-core/composables
+// 应用级 composables — ui-kit 原生
+// Toast 通知、浮层面板、文件系统项目管理等
 // ----------------------------------------------------------------------------
 export {
   toasts,
@@ -179,7 +172,7 @@ export { useModalShortcuts } from './composables/useModalShortcuts'
 export { useFileSystemProject } from '@worldsea/entity-core/composables'
 
 // ----------------------------------------------------------------------------
-// Phase 7 下沉的纯工具 composables（从 src/composables/ 迁入）
+// 纯工具 composables（自根 src/composables/ 迁入）：
 // 全局事件注册、文本选择监听、右键菜单状态管理
 // ----------------------------------------------------------------------------
 export { useGlobalEvents } from './composables/useGlobalEvents'
@@ -189,8 +182,8 @@ export {
 } from './composables/useTextSelection'
 
 // ----------------------------------------------------------------------------
-// Motion Composables — delegated to @worldsea/motion-kit
-// Animation tokens, keyframes, transitions, reduced-motion, text layout
+// 动效类 composables — 委托自 @worldsea/motion-kit
+// 动画 token、关键帧、过渡、减弱动效、文本排版
 // ----------------------------------------------------------------------------
 export {
   type DurationToken,
@@ -234,8 +227,8 @@ export {
 } from '@worldsea/motion-kit'
 
 // ----------------------------------------------------------------------------
-// Font Composables — delegated to @worldsea/font-kit
-// Font tokens, registry, loader, renderer, text-to-image export
+// 字体类 composables — 委托自 @worldsea/font-kit
+// 字体 token、注册表、加载器、渲染器、文字转图导出
 // ----------------------------------------------------------------------------
 export {
   type FontSizeToken,
@@ -322,8 +315,8 @@ export {
 } from '@worldsea/font-kit'
 
 // ----------------------------------------------------------------------------
-// Animation Capture — delegated to @worldsea/motion-kit
-// Frame capture, GIF encoding, animation capture composable
+// 动画采集 — 委托自 @worldsea/motion-kit
+// 帧采集、GIF 编码、采集 composable
 // ----------------------------------------------------------------------------
 export {
   type GifFrame,

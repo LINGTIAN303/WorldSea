@@ -73,11 +73,11 @@ export type {
   SettingsApi,
 } from './serviceProvider'
 
-// Phase 5: 依赖注入服务接口（ProjectFS 解耦所需）
+// 依赖注入服务接口（ProjectFS 解耦所需）
 export { registerProjectSwitcherApi, getProjectSwitcherApi } from './ProjectSwitcherApi'
 export type { ProjectSwitcherApi } from './ProjectSwitcherApi'
 
-// Phase 5: 项目文件系统导出/导入（从根 src/core/ProjectFS.ts 迁移）
+// 项目文件系统导出/导入（从根 src/core/ProjectFS.ts 迁移）
 export {
   exportProjectToDir,
   importProjectFromDir,
@@ -175,7 +175,7 @@ export type { UserFieldMapping } from './AutoLinkEngine'
 export { autoLinkDecisionStore } from './AutoLinkDecisions'
 export type { AutoLinkDecision, AutoLinkDecisionValue } from './AutoLinkDecisions'
 
-// Phase 3: 公式引擎（从 src/modules/runtime/ 下沉）
+// 公式引擎（从 src/modules/runtime/ 下沉）
 export { evaluateFormula, extractFieldRefs } from './formula'
 export {
   registerFormulaAutoRecalc,

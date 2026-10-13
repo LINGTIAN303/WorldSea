@@ -1,14 +1,8 @@
-// D1-a 下半（2026-09-24）：工作台（产品域）静态伺服——壳 `worldsea` 协议的 `/workspace` 前缀分支。
-//
-// 口径（见 docs/plans/2026-09-24-D1-产品域落位批计划.md §三 D1-a / §五 R1）：
-// - 产物**不嵌入二进制**（22MB 级）：运行时从磁盘目录读（`WORLDSEA_WORKSPACE_DIST` 可覆盖；
-//   缺省 = dev 口径 `<crate>/../workspace-dist`）；目录缺失给可辨认错误页（非空白）。
-// - 与 dsh 桥**无关**：宿主（dsh）未就绪也能伺服——路由在 lib.rs 的协议闭包里先判前缀。
-// - 同源：工作台页与 dsh 页同落 `worldsea://localhost`，主题等 localStorage 天然互通。
-// - 闸门：只服务 GET/HEAD；前缀内路径逐段拒绝越界段（`.`/`..`/`\`/盘符/NUL），
-//   落盘前再走 canonicalize 包含性复核（符号链接逃逸）。
-// - 缓存：`assets/` 为内容哈希名 → immutable；index 与其余 no-store（重构建后重启壳即生效）。
-// - index 注入：`dsh_inject::inject_workspace_scripts`（「不白屏」安全网，root=#app）。
+// 工作台（产品域）静态伺服——壳 `worldsea` 协议的 `/workspace` 前缀分支。
+// 口径：产物**不嵌入二进制**（22MB 级），运行时从磁盘读（`WORLDSEA_WORKSPACE_DIST` 可覆盖，缺省 dev 口径，
+// 目录缺失给可辨认错误页）；与 dsh 桥**无关**（宿主未就绪也能伺服）；与 dsh 页同源，localStorage 天然互通。
+// 闸门：只服务 GET/HEAD；前缀内路径逐段拒绝越界段 + canonicalize 包含性复核（符号链接逃逸）；
+// 缓存：`assets/` 内容哈希名 → immutable，index 与其余 no-store；index 注入「不白屏」安全网——详见 docs/details/注释/tauri/workspace-dist.md。
 
 use std::path::{Path, PathBuf};
 
@@ -41,8 +35,7 @@ fn serve_disk(request: &http::Request<Vec<u8>>) -> http::Response<Vec<u8>> {
     }
 }
 
-/// 产物根目录：`WORLDSEA_WORKSPACE_DIST` 优先；否则 dev 口径 `apps/tauri/workspace-dist`。
-/// （打包形态的产物落位见 D1 批计划 §五 R1，收口时定。）
+/// 产物根目录：`WORLDSEA_WORKSPACE_DIST` 优先；否则 dev 口径 `apps/tauri/workspace-dist`（打包形态的产物落位待收口定）。
 fn dist_root() -> Result<PathBuf, String> {
     let build_hint = "先在 apps/tauri 执行 `node node_modules/vite/bin/vite.js build --config workspace/vite.config.ts`；或用 WORLDSEA_WORKSPACE_DIST 指定目录";
     if let Some(raw) = std::env::var_os("WORLDSEA_WORKSPACE_DIST") {
@@ -123,7 +116,7 @@ fn serve(root: &Path, request: &http::Request<Vec<u8>>) -> http::Response<Vec<u8
         .header("content-type", mime_for(&rel))
         .header("cache-control", cache_control_for(&rel));
     if is_index {
-        // C3-c 最小子集（与 dsh 页同口径，定义收口在 dsh_proxy::CSP_INDEX）
+        // CSP 最小子集（与 dsh 页同口径，定义收口在 dsh_proxy::CSP_INDEX）
         builder = builder.header("content-security-policy", crate::dsh_proxy::CSP_INDEX);
     }
     if is_index {

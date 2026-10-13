@@ -1,4 +1,4 @@
-/** 项目切换服务接口（entity-core 定义、根项目注册实现，Phase 5 依赖注入解耦），详细见 docs/details/注释/packages/entity-core/core/ProjectSwitcherApi.md */
+/** 项目切换服务接口（entity-core 定义、根项目注册实现，依赖注入解耦），详细见 docs/details/注释/packages/entity-core/core/ProjectSwitcherApi.md */
 
 /** 项目切换服务接口（ProjectFS 所需的最小子集） */
 export interface ProjectSwitcherApi {

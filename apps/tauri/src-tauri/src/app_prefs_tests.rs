@@ -1,4 +1,4 @@
-// 2026-09-30 arch 拆分：原 app_prefs.rs 内联测试外迁（`#[path]` 子模块，见 app_prefs.rs 尾部声明）。
+// app_prefs.rs 的测试（`#[path]` 子模块，见 app_prefs.rs 尾部声明）。
 use super::*;
 
 #[test]

@@ -1,22 +1,8 @@
-// C1-a/C1-b/C2-b（2026-09-24）：`worldsea` 协议层代理宿主（候选 A）——Tauri 原生 desktop 载体的 UI 面。
-//
-// 口径（见 docs/plans/2026-09-24-C1-*.md §三/§四/§五 与 docs/plans/2026-09-24-C2-真无端口传输批计划.md §五）：
-// - UI origin 与传输面分离：页面走壳注册的自定义协议；**C2 起传输面默认走 IPC 管道（零 TCP）**，
-//   `WORLDSEA_TCP_HOST=1` 可切回 C1 的 legacy 形态（loopback TCP + WS 中转；对照口，冻结）；
-// - **零注入复刻 index**：index 直接取宿主渲染结果（`__DSH_BOOT__` 等由宿主注入），
-//   壳只在 `<head>` 后补注入脚本（`__DSH_TRANSPORT__` 只合并不覆盖 = 裁定 ④ 的「传输基址单点」，
-//   C2 起该单点改注入 `openStream` 钩子——传输形态换掉，接缝不变）；
-// - 转发 `/api` 时按 Electron 桌面版同构处理：删掉页面的 origin/cookie/sec-fetch-*，补壳侧凭据
-//   （带 303 换来的 `dsh-auth-*` cookie）；管道模式由 `PipeClient` 合成 `Host: 127.0.0.1`；
-// - 协议名 `worldsea`，Windows 落形见〔自定义协议落形〕。
-//
-// 〔自定义协议落形〕wry 在 Windows 走 workaround（wry custom_protocol_workaround）：
-//   `worldsea://localhost/…` ⇄ `http://worldsea.localhost/…`。故 authority 必须是 `localhost`
-//   （否则会落到真实 TLD 且非安全上下文）；页面导航目标 = workaround 形态，处理器收到的
-//   request URI 已被 wry 还原成 `worldsea://localhost/…`。
-//
-// 转发细节（闸门 / 缓存策略 / 插桩 / 失败降级）在 `dsh_proxy.rs`；管道客户端在 `dsh_pipe.rs`；
-// 页面流桥命令在 `dsh_stream.rs`；本文件只管桥状态与装配。
+// `worldsea` 协议层代理宿主——Tauri 原生 desktop 载体的 UI 面；转发细节在 `dsh_proxy.rs`，管道客户端在 `dsh_pipe.rs`，页面流桥命令在 `dsh_stream.rs`，完整口径（含自定义协议落形）详见 docs/details/注释/tauri/dsh-bridge.md。
+// - UI origin 与传输面分离：页面走壳注册的自定义协议；传输面默认走 IPC 管道（零 TCP），`WORLDSEA_TCP_HOST=1` 切回 legacy 对照口；
+// - 零注入复刻 index：壳只在 `<head>` 后补注入脚本（传输基址单点；管道模式改注入 `openStream` 钩子——传输形态换掉，接缝不变）；
+// - 转发 `/api` 按 Electron 桌面版同构：删掉页面的 origin/cookie/sec-fetch-*，补壳侧凭据（带 303 换来的 `dsh-auth-*` cookie）；
+// - 〔自定义协议落形〕wry 在 Windows 走 workaround：`worldsea://localhost/…` ⇄ `http://worldsea.localhost/…`（authority 必须 localhost）。
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -31,7 +17,7 @@ use crate::dsh_relay::WsRelay;
 /// 页面导航目标（Windows workaround 形态；macOS/Linux 对应 `worldsea://localhost/`）。
 pub const APP_URL: &str = "http://worldsea.localhost/";
 
-/// 桥状态：转发开关（含传输面）+ 管道客户端（C2；流桥命令使用）+ legacy 的 WS 中转（保持回收语义）。
+/// 桥状态：转发开关（含传输面）+ 管道客户端（流桥命令使用）+ legacy 的 WS 中转（保持回收语义）。
 pub struct DshBridge {
     cfg: ProxyCfg,
     summary: String,
@@ -46,7 +32,7 @@ impl DshBridge {
         self.summary.clone()
     }
 
-    /// 管道客户端（C2 流桥命令用）；非管道模式为 None。
+    /// 管道客户端（流桥命令用）；非管道模式为 None。
     pub fn pipe(&self) -> Option<Arc<PipeClient>> {
         self.pipe.clone()
     }
@@ -70,7 +56,7 @@ impl DshBridge {
 /// 绑定桥：303 换 cookie → （管道模式）连宿主管道 / （legacy）起 WS 中转 → 造转发配置。
 /// 全部失败都返回可读原因（调用方回退直连）。
 /// `pipe_path` = 壳本次 spawn 传给宿主的 `--ipc-pipe` 值（由 `dsh_shell` 生成）；`None` = legacy TCP。
-/// `dsh_home` = 壳解析后的 DSH_HOME（=宿主 env 同值）——注入面据此放 `__WORLDSEA_DSH_HOME__`（D3-c2b）。
+/// `dsh_home` = 壳解析后的 DSH_HOME（=宿主 env 同值）——注入面据此放 `__WORLDSEA_DSH_HOME__`。
 pub fn prepare(
     ready_url: &str,
     pipe_path: Option<&str>,
@@ -80,16 +66,16 @@ pub fn prepare(
     let diag = diag_enabled();
     let inject_transport = std::env::var_os("WORLDSEA_NO_TRANSPORT_INJECT").is_none();
     let inject_shell_bridge = std::env::var_os("WORLDSEA_NO_SHELL_BRIDGE").is_none();
-    // A（2026-09-25）：Agent 面能力伺服（缺省注入；`WORLDSEA_NO_CAPABILITY_BRIDGE=1` 反证关）
+    // Agent 面能力伺服（缺省注入；`WORLDSEA_NO_CAPABILITY_BRIDGE=1` 反证关）
     let capabilities = std::env::var_os("WORLDSEA_NO_CAPABILITY_BRIDGE").is_none();
-    // C6：无边框窗口栏（缺省注入；`WORLDSEA_NO_TITLEBAR=1` 反证关；`WORLDSEA_FRAMED=1` 原生边框态亦不注入）
+    // 无边框窗口栏（缺省注入；`WORLDSEA_NO_TITLEBAR=1` 反证关；`WORLDSEA_FRAMED=1` 原生边框态亦不注入）
     let framed = std::env::var_os("WORLDSEA_FRAMED").is_some();
     let titlebar = !framed && std::env::var_os("WORLDSEA_NO_TITLEBAR").is_none();
     let deny_path = std::env::var("WORLDSEA_DENY_PATH").ok().filter(|value| !value.is_empty());
     let open_paths = std::env::var_os("WORLDSEA_BRIDGE_OPEN").is_some();
-    // C4-b：工作区不可供给的横幅文案（探测在 dsh_shell 侧完成，这里只做透传）
+    // 工作区不可供给的横幅文案（探测在 dsh_shell 侧完成，这里只做透传）
     let workspace_notice = workspace_notice.map(str::to_string);
-    // D3-c2b：DSH_HOME（解析在 dsh_shell 侧完成）——页面常量注入用，同样只做透传
+    // DSH_HOME（解析在 dsh_shell 侧完成）——页面常量注入用，同样只做透传
     let dsh_home = dsh_home.map(str::to_string);
     if !inject_transport {
         eprintln!("[DSH-SHELL] bridge: 传输注入已按 WORLDSEA_NO_TRANSPORT_INJECT 关闭（反证模式：流面必须显式降级）");
@@ -240,9 +226,9 @@ fn exchange_cookie(ready_url: &str) -> Result<String, String> {
 }
 
 /// 装配：桥成功 → 记桥状态 + 导航到壳协议页；桥失败或显式 `WORLDSEA_LEGACY_DIRECT=1`
-/// → 回退直连 loopback（B2/B3 行为），两条路都不静默。
+/// → 回退直连 loopback，两条路都不静默。
 /// `pipe_path` 由 `dsh_shell` 生成并随 spawn 传入宿主（legacy 对照模式下为 None）。
-/// `dsh_home` = 壳解析后的 DSH_HOME（D3-c2b：注入面透传为页面常量 `__WORLDSEA_DSH_HOME__`）。
+/// `dsh_home` = 壳解析后的 DSH_HOME（注入面透传为页面常量 `__WORLDSEA_DSH_HOME__`）。
 pub fn attach(
     app: &tauri::AppHandle,
     window: Option<&WebviewWindow>,
@@ -260,7 +246,7 @@ pub fn attach(
             Ok(bridge) => {
                 println!("[DSH-SHELL] bridge ready: {}", bridge.describe());
                 app.manage(bridge);
-                // E2：主题真源与 dsh 对齐（首次反向读做种子；已有真源则以真源为准写回 dsh）
+                // 主题真源与 dsh 对齐（首次反向读做种子；已有真源则以真源为准写回 dsh）
                 crate::app_prefs_dsh::init_after_bridge(app);
                 if let Some(window) = window {
                     navigate_to_app(window);
@@ -345,7 +331,7 @@ fn schedule_reload_if_requested(window: Option<&WebviewWindow>) {
 
 /// 把窗口导航到壳协议页面（UI origin = `worldsea://localhost` / 其 Windows workaround 形态）。
 pub fn navigate_to_app(window: &WebviewWindow) {
-    // C6：启动页（splash，`apps/tauri/splash/` 构建产物）就绪淡出——先触发兜底页的淡出钩子
+    // 启动页（splash，`apps/tauri/splash/` 构建产物）就绪淡出——先触发兜底页的淡出钩子
     // `__wsSplash.ready()`（→ bootState='ready' → 600ms 追平旧版观感），再导航替换整页；
     // 钩子不存在（错误页 / 旧兜底页）时静默跳过，代价仅多等 700ms。
     let _ = window.eval(

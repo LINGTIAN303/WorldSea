@@ -1,12 +1,9 @@
 // @vitest-environment jsdom
+
 /**
- * 工作区横幅注入脚本（apps/tauri/src-tauri/src/dsh_workspace_notice.js）的 jsdom 测试。
- *
- * 为什么直测这份 JS：横幅是「工作区不可供给」时唯一的一等用户交互面（修复 / 忽略），
- * Rust 侧 `include_str!` 注入同一份源码但看不见 DOM 行为与样式；本件同时锁样式契约——
- * 吃 dsh 设计令牌（--dsw-*，缺省时回退自包含色值）+ 让位壳级窗口栏
- * （`--dsh-windows-titlebar-height` 32px，全屏 `html[data-fullscreen]` 归零）。
- * 每个断言都对一处变异敏感（反证口径）。
+ * 工作区横幅注入脚本（apps/tauri/src-tauri/src/dsh_workspace_notice.js）的 jsdom 测试：横幅是
+ * 「工作区不可供给」时唯一的一等用户交互面（修复 / 忽略），Rust 侧 `include_str!` 注入同一份源码但看不见 DOM 行为；
+ * 本件锁样式契约——dsh 设计令牌（--dsw-*）+ 让位壳级窗口栏（全屏归零）；每个断言对一处变异敏感（反证口径）。
  */
 
 import { readFileSync } from 'node:fs'

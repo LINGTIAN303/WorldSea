@@ -1,14 +1,7 @@
 /**
- * GEV 跨视图跳转选中的行为面（ws-navigate 接缝修复，2026-10-08）。
- *
- * 两条通道：
- * 1. 即时事件通道——`ws-select-entity` 派发时视图已挂载（同视图跳转）；
- * 2. 挂起位兜底——`uiStore.selectedEntityId` 在挂载时读回（跨视图跳转时新视图挂载
- *    晚于事件派发，事件收不到，见 Shell.onWsNavigate）。
- * 类型不符必须 no-op（`selectById` 内置 `props.entityType` 判定）。
- *
- * 挂载样板抄 genericEntityViewConditionalSlot.spec（fake-indexeddb + es.add 真写库，
- * 让 onMounted 的 loadAll 能读回；entityMap.set 直接种会在 loadAll 时被清掉）。
+ * GEV 跨视图跳转选中的行为面（ws-navigate 接缝修复，2026-10-08）：同视图跳转走即时事件
+ * `ws-select-entity`（派发时视图已挂载）；跨视图跳转靠挂起位兜底——`uiStore.selectedEntityId` 挂载时读回
+ * （新视图挂载晚于派发、事件收不到，见 Shell.onWsNavigate；类型不符 no-op；挂载样板抄 conditionalSlot.spec，es.add 真写库供 loadAll 读回）。
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import 'fake-indexeddb/auto'

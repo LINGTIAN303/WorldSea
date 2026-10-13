@@ -1,11 +1,9 @@
 // @vitest-environment jsdom
+
 /**
- * 窗口栏注入脚本（apps/tauri/src-tauri/src/dsh_titlebar.js）的行为测试（C6，2026-09-24；
- * D1-b 起切换控件改走壳命令，占位页退役）。
- *
- * 为什么要直测这份 JS：窗口栏是用户可见的一等壳件（拖拽 / 双击最大化 / 三控制按钮 / 空间切换 /
- * ⋯ 菜单），且是注入到页面的**唯一**交互点——Rust 单测看不见它，故在此以 jsdom 载入同一份文件
- * （Rust 侧 include_str! 注入同一份源码）做行为断言，每个用例都对一处变异敏感（反证口径）。
+ * 窗口栏注入脚本（apps/tauri/src-tauri/src/dsh_titlebar.js）的行为测试：窗口栏是用户可见的一等壳件
+ * （拖拽 / 双击最大化 / 三控制按钮 / 空间切换 / ⋯ 菜单），且是注入到页面的**唯一**交互点——Rust 单测看不见它，
+ * 故以 jsdom 载入同一份文件（Rust 侧 include_str! 注入同一份源码）做行为断言，每个用例对一处变异敏感（反证口径）。
  */
 
 import { readFileSync } from 'node:fs'
@@ -110,7 +108,7 @@ describe('窗口栏：装配前置', () => {
   })
 })
 
-describe('窗口栏：空间切换（D1-b：交壳做双窗互斥）', () => {
+describe('窗口栏：空间切换（交壳做双窗互斥）', () => {
   it('点切换控件 → 调 cmd_shell_space_switch(workbench)，本窗文案不翻转（本窗恒为 Agent 空间）', async () => {
     calls = []
     const toggle = bar().querySelector('.wstb-toggle') as HTMLElement
@@ -198,7 +196,7 @@ describe('窗口栏：「⋯」popup 菜单', () => {
   })
 })
 
-describe('窗口栏：侧栏开关键捞回（E9）', () => {
+describe('窗口栏：侧栏开关键捞回', () => {
   it('占位槽存在且紧跟切换胶囊（DOM 顺序 = 视觉「胶囊右侧」）', () => {
     const toggle = bar().querySelector('.wstb-toggle') as Element
     const slot = bar().querySelector('.wstb-sidebar-slot')
@@ -225,14 +223,12 @@ describe('窗口栏：侧栏开关键捞回（E9）', () => {
   })
 })
 
-/* ── 全屏桥（G1，2026-09-29）──
-   语义取自上游：`data-fullscreen` = 「原生窗口控件已隐藏」（dsh/apps/desktop/src/preload-platform.ts
+/* ── 全屏桥 ── 语义取自上游：`data-fullscreen` = 「原生窗口控件已隐藏」（dsh/apps/desktop/src/preload-platform.ts
    注 + main.ts 的 enter/leave-full-screen 真源），**与最大化无关**；上游 Windows 全屏只重置
-   --dsh-frame-overlay-top(→20px) 与 --dsh-frame-chrome-top(→0)，不重置 --dsh-windows-titlebar-height，
-   故 dsh 自己那条 32px 带仍在。我方栏 z-index 高于 dsh 浮层 → 只能「隐藏栏 + 置属性」，
-   保留栏而置属性会让浮层顶部被栏盖住（无中间态）。 */
-describe('窗口栏：全屏桥（G1）', () => {
-  /** 造一个 dsh 侧栏键替身并用 resize 触发钉住（首装轮询在 E9 组已命中并停止，故走 resize 重对齐路径） */
+   --dsh-frame-overlay-top(→20px) 与 --dsh-frame-chrome-top(→0)，不重置 --dsh-windows-titlebar-height。
+   我方栏 z-index 高于 dsh 浮层 → 只能「隐藏栏 + 置属性」，保留栏而置属性会让浮层顶部被栏盖住（无中间态）。 */
+describe('窗口栏：全屏桥', () => {
+  /** 造一个 dsh 侧栏键替身并用 resize 触发钉住（首装轮询在「侧栏开关键捞回」组已命中并停止，故走 resize 重对齐路径） */
   function fakeSidebarToggle(): HTMLElement {
     const fake = document.createElement('button')
     fake.setAttribute('aria-keyshortcuts', 'Control+B')
@@ -371,14 +367,11 @@ describe('窗口栏：全屏桥（G1）', () => {
   })
 })
 
-/* ── 窗口控制键与空间切换键（G1 收尾，2026-09-30）──
-   对齐工作台窗 `TitleBar.vue:139-148` 的四键口径（Ctrl+M 最小化 / F10 最大化还原 / F11 全屏 /
-   Ctrl+W 关闭；F11 已在上组），并接 Ctrl+Tab 切空间（全屏下唯一通路）。
-   相位 = **冒泡**：dsh runtime=web（`client/dom.ts`：data-platform 缺席 → web）——`page.close`
-   在 web 档是 Ctrl+Alt+W，裸 Ctrl+W/F10/Ctrl+M/Ctrl+Tab 均无上游默认绑定；冒泡让「上游已处理
-   （defaultPrevented）」与「终端区局部语义」先走：终端里 Ctrl+M＝回车、Ctrl+W＝删词、F10 是
-   TUI 功能键，一律不抢（`.xterm` 容器内让行）；Ctrl+Tab 无终端语义，终端聚焦时也可切。 */
-describe('窗口栏：窗口控制键与空间切换键（G1 收尾）', () => {
+/* ── 窗口控制键与空间切换键 ── 对齐工作台窗 `TitleBar.vue:139-148` 的四键口径（Ctrl+M 最小化 /
+   F10 最大化还原 / F11 全屏（已在上组）/ Ctrl+W 关闭），并接 Ctrl+Tab 切空间（全屏下唯一通路）。
+   相位 = **冒泡**：dsh runtime=web 档裸 Ctrl+W/F10/Ctrl+M/Ctrl+Tab 均无上游默认绑定；冒泡让「上游已处理
+   （defaultPrevented）」与「终端区局部语义」先走：终端里 Ctrl+M＝回车、Ctrl+W＝删词、F10 是 TUI 功能键，一律不抢；Ctrl+Tab 无终端语义，终端聚焦时也可切。 */
+describe('窗口栏：窗口控制键与空间切换键', () => {
   /** 从指定目标派发（冒泡到 window；capture 让行用例需要非 window 目标，见该用例注） */
   function fireKeyOn(target: EventTarget, key: string, init: KeyboardEventInit = {}): KeyboardEvent {
     const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init })
@@ -469,22 +462,22 @@ describe('窗口栏：窗口控制键与空间切换键（G1 收尾）', () => {
   })
 })
 
-/* G1-c（2026-09-30）：工作台窗全屏隐栏的**接线锁**——隐栏的真实行为在真机走查看，这里只钉接线
+/* 工作台窗全屏隐栏的**接线锁**——隐栏的真实行为在真机走查看，这里只钉接线
    不漂移（类名绑定 / 隐栏 CSS / 全屏态读取三个锚点；任一处被摘掉即报红）。 */
-describe('工作台窗全屏隐栏接线（G1-c，跨文件契约）', () => {
+describe('工作台窗全屏隐栏接线（跨文件契约）', () => {
   it('TitleBar.vue：全屏态绑定 is-fullscreen 类 + 隐栏 CSS + 从窗口读全屏态 + 进全屏先脱最大化', () => {
     const vue = readFileSync(join(process.cwd(), 'apps/tauri/src/ui/layout/TitleBar.vue'), 'utf8')
     expect(vue).toContain("'is-fullscreen': fullscreen")
     expect(vue).toContain('.titlebar.is-fullscreen')
     expect(vue).toContain('isFullscreen()')
-    // G1 收尾批修：tao 全屏不脱最大化 → 任务栏条/坏组合；进全屏前须 unmaximize
+    // tao 全屏不脱最大化 → 任务栏条/坏组合；进全屏前须 unmaximize
     expect(vue).toContain('unmaximize()')
     expect(vue).toContain('isMaximized()')
   })
 })
 
 /* 须置于文件末尾：本组做二次真实安装（清幂等标记 + 摘旧 DOM），会再挂一份监听器 */
-describe('窗口栏：全屏桥挂载恢复（G1）', () => {
+describe('窗口栏：全屏桥挂载恢复', () => {
   it('挂载时壳回 fullscreen:true → 直接落全屏形态（全屏中重载不退回窗口态 CSS，对齐上游 main.ts:244）', async () => {
     delete (globalThis as { __WORLDSEA_TITLEBAR__?: unknown }).__WORLDSEA_TITLEBAR__
     document.getElementById('worldsea-titlebar')?.remove()

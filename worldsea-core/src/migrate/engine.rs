@@ -30,11 +30,7 @@ pub struct MigrationSnapshot {
 }
 
 /// 检查指定版本是否可以被迁移到当前版本
-///
-/// 参数:
-/// - `from_version`: 当前包的版本号
-///
-/// 返回: 如果可以迁移返回 `true`，否则返回 `false`
+/// - `from_version`: 当前包的版本号；返回 `true` 表示可迁移
 #[must_use]
 pub const fn is_migratable(from_version: u32) -> bool {
   if from_version == 0 {
@@ -56,12 +52,8 @@ pub const fn is_migratable(from_version: u32) -> bool {
   true
 }
 
-/// 将包数据从指定版本迁移到当前支持的最新版本，并在每步迁移前保存快照
-///
-/// 参数:
-/// - `pack_data`: 包数据的 JSON 值，迁移过程中会被原地修改
-/// - `from_version`: 当前包的版本号
-///
+/// 将包数据从指定版本迁移到当前支持的最新版本，每步迁移前保存快照
+/// - `pack_data`: 包数据的 JSON 值，会被原地修改；`from_version`: 当前包的版本号
 /// 返回: 包含迁移步骤、结果和快照的 `(MigrationResult, Vec<MigrationSnapshot>)`
 #[must_use]
 pub fn migrate_pack_with_snapshots(
@@ -106,16 +98,8 @@ pub fn migrate_pack_with_snapshots(
 }
 
 /// 使用快照回滚到指定版本
-///
-/// 参数:
-/// - `snapshots`: 迁移过程中保存的快照列表
-/// - `target_version`: 要回滚到的版本号
-///
-/// 返回: 回滚后的数据，如果找不到对应版本的快照则返回错误
-///
-/// # Errors
-///
-/// Returns `CoreError` if no snapshot for the target version is found.
+/// - `snapshots`: 迁移过程中保存的快照列表；`target_version`: 要回滚到的版本号
+/// 返回: 回滚后的数据；找不到对应版本的快照时返回 `CoreError`
 pub fn rollback_to_version(
   snapshots: &[MigrationSnapshot],
   target_version: u32,
@@ -128,11 +112,7 @@ pub fn rollback_to_version(
 }
 
 /// 将包数据从指定版本迁移到当前支持的最新版本
-///
-/// 参数:
-/// - `pack_data`: 包数据的 JSON 值，迁移过程中会被原地修改
-/// - `from_version`: 当前包的版本号
-///
+/// - `pack_data`: 包数据的 JSON 值，会被原地修改；`from_version`: 当前包的版本号
 /// 返回: 包含迁移步骤和结果的 `MigrationResult`
 #[must_use]
 pub fn migrate_pack(pack_data: &mut serde_json::Value, from_version: u32) -> MigrationResult {

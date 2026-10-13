@@ -30,12 +30,8 @@ pub struct PluginManifestIssue {
   pub warnings: Vec<String>,
 }
 
-/// 检查插件系统的健康状态，包括清单校验、权限检查和依赖冲突检测
-///
-/// 参数:
-/// - `manifests`: 插件清单列表
-/// - `active_ids`: 当前活跃的插件 ID 列表
-///
+/// 检查插件系统的健康状态：清单校验、权限检查和依赖冲突检测
+/// - `manifests`: 插件清单列表；`active_ids`: 当前活跃的插件 ID 列表
 /// 返回: 包含插件健康状态的 `PluginHealthReport`
 #[must_use]
 pub fn check_plugin_health(

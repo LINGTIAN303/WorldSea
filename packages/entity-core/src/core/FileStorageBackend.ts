@@ -112,10 +112,9 @@ export class FileStorageBackend implements StorageBackend {
   private _pendingWrites = new Set<Promise<unknown>>()
 
   /**
-   * 每实体写操作队列（tail promise）。
-   * 键为实体 id，值为该实体最后一次写操作的尾部 promise。
-   * 用于删除前等待同实体 in-flight 写入落盘，消除"写入尚未完成、删除已执行、
-   * 随后 in-flight 写入把文件写回"的竞态（实体删除后复活的根因）。
+   * 每实体写操作队列（tail promise）：键为实体 id，值为该实体最后一次写操作的尾部 promise。
+   * 用于删除前等待同实体 in-flight 写入落盘，消除「写入尚未完成、删除已执行、
+   * 随后 in-flight 写入把文件写回」的竞态（实体删除后复活的根因）。
    */
   private _entityWriteQueues = new Map<string, Promise<unknown>>()
 

@@ -1,14 +1,8 @@
-// C1-c（2026-09-24）：原生菜单（壳件最小集：文件 / 编辑 / 视图 / 设置）。
-//
-// 口径（C1 批计划 §五 C1-c + 裁定 ③「壳件最小集：菜单 + 通知」）：
-// - 菜单由壳持有，页面无关；编辑族用 muda 预定义项（Windows 上合成标准编辑快捷键 → WebView2 处理）；
-// - 视图族走壳侧窗口/缩放原语（`set_zoom` 无 getter，故壳自持档位）；
-// - 「打开设置」没有 URL 路由可用（dsh 客户端无路由），经壳桥在页面里点开侧栏设置入口；
-//   桥缺席时**显式降级**：页面右下角出示红条提示（不静默），见 SETTINGS_FALLBACK_JS。
-// E9（2026-09-27）：#6 动作目标改**焦点窗优先**（产品窗聚焦时 Ctrl+R 刷的是工作台窗，不再恒打 main；
-//   「打开设置」例外——设置唯一承接方在 dsh 侧，恒 main）· #7 缩放档位按窗口持久化到 prefs.json
-//   （app_prefs::load_zoom/save_zoom；主窗启动与工作台窗创建时经 restore_zoom 恢复）·
-//   #9 通知自检项（系统通知端到端验证；生产者语义留 D2）。
+// 原生菜单（壳件最小集：文件 / 编辑 / 视图 / 设置）。
+// 菜单由壳持有、页面无关；编辑族用 muda 预定义项（Windows 上合成标准编辑快捷键 → WebView2 处理）；
+// 视图族走壳侧窗口/缩放原语（`set_zoom` 无 getter，故壳自持档位，缩放档位按窗口持久化到 prefs.json）；
+// 「打开设置」无 URL 路由可用，经壳桥点开侧栏设置入口；桥缺席时**显式降级**：页面右下角红条提示（不静默）。
+// 动作目标「焦点窗优先」（产品窗聚焦时 Ctrl+R 刷的是工作台窗；「打开设置」例外恒 main——设置唯一承接方在 dsh 侧）。
 
 use tauri::menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder};
 use tauri::{AppHandle, Manager};
@@ -19,10 +13,10 @@ const ID_ZOOM_OUT: &str = "worldsea.zoom-out";
 const ID_ZOOM_RESET: &str = "worldsea.zoom-reset";
 const ID_FULLSCREEN: &str = "worldsea.fullscreen";
 const ID_SETTINGS: &str = "worldsea.settings";
-/// C4-b：一键修复工作区权限（与页面横幅同一命令；点击即执行，结果走系统通知）。
+/// 一键修复工作区权限（与页面横幅同一命令；点击即执行，结果走系统通知）。
 const ID_FIX_WORKSPACE: &str = "worldsea.fix-workspace";
-/// E9 #9：通知自检——系统通知端到端验证（两窗 ACL 均放行 cmd_notify 但长期零生产者；
-/// 菜单给一个随时可触发的验证口，生产者语义〔Agent 长任务提醒〕留 D2 事件通道）。
+/// 通知自检——系统通知端到端验证（两窗 ACL 均放行 cmd_notify 但长期零生产者；
+/// 菜单给一个随时可触发的验证口，生产者〔Agent 长任务提醒〕后续经事件通道接入）。
 const ID_NOTIFY_TEST: &str = "worldsea.notify-test";
 
 const ZOOM_MIN_INDEX: i32 = 5; // 0.5
@@ -30,8 +24,8 @@ const ZOOM_MAX_INDEX: i32 = 20; // 2.0
 const ZOOM_STEP: f64 = 0.1;
 
 /// 组装菜单并登记为 **popup 资源**。
-/// C6（2026-09-24）：无边框形态下 Win32 菜单栏**视觉消失**（实测，见 C6 批计划 §〇）——
-/// 不再 `set_menu`；菜单改由窗口栏「⋯」按钮经 [`cmd_shell_popup_menu`] 在按钮处弹出。
+/// 无边框形态下 Win32 菜单栏**视觉消失**（实测）——不再 `set_menu`；
+/// 菜单改由窗口栏「⋯」按钮经 [`cmd_shell_popup_menu`] 在按钮处弹出。
 pub fn install(app: &AppHandle) {
     match build(app) {
         Ok(menu) => {
@@ -46,7 +40,7 @@ pub fn install(app: &AppHandle) {
 /// popup 菜单载体（`Menu` 内部为共享句柄，存进状态供命令取用；事件仍走 app 级 `on_menu_event`）。
 pub struct PopupMenu(pub tauri::menu::Menu<tauri::Wry>);
 
-/// C6：窗口栏「⋯」按钮 → 在页面坐标 (x, y) 处弹出菜单（坐标 = 页面 CSS 像素，相对窗口左上角；
+/// 窗口栏「⋯」按钮 → 在页面坐标 (x, y) 处弹出菜单（坐标 = 页面 CSS 像素，相对窗口左上角；
 /// `Position::Logical` 由 Tauri 按缩放因子换算成物理坐标）。
 /// 弹出是 Win32 模态循环（阻塞至菜单关闭）——页面侧 fire-and-forget，不 await。
 #[tauri::command]
@@ -78,16 +72,11 @@ fn build(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
         .separator()
         .item(&PredefinedMenuItem::select_all(app, None)?)
         .build()?;
-    // G1-e（2026-09-29）：**菜单项一律不带 `accelerator`**——G1-d 已查实该列在壳内全不生效
-    // （菜单是 popup 资源、从未 `set_menu`，而 Windows 下 Tauri 只在 `set_menu` 过的菜单上装
-    // 加速键：`msg_hook` → `TranslateAcceleratorW` 遍历 `MenuManager.menus` stash，该 stash 只由
-    // `AppHandle::set_menu` / `Window::set_menu` / 建窗器显式菜单三处填充）。原先标注的
-    // `Ctrl+R` / `Ctrl+=` / `Ctrl+-` / `Ctrl+0` / `F11` / `Ctrl+,` 按下去毫无反应、纯属误导。
-    // **不要因为「看起来该有快捷键」而加回来**：加了不生效；即便将来把加速键路由修好（例如改调
-    // `set_menu`），`F11` 会与注入脚本的页面侧监听（`dsh_titlebar.js`）**双重触发** → 全屏切两次
-    // = 看似失灵。真通的键只有两个，且各自有独立承接方：`F11`（注入脚本页面侧监听，G1）与
-    // `Ctrl+Shift+W`（`tauri-plugin-global-shortcut`，OS 层）。编辑族用 muda 预定义项，其标准键
-    // 由 WebView2 自行处理（不依赖加速键路由），故无此问题。
+    // 菜单项一律不带 `accelerator`：已查实该列在壳内全不生效（菜单是 popup 资源、从未 `set_menu`，
+    // 而 Windows 下 Tauri 只在 `set_menu` 过的菜单上装加速键），原先标注的 Ctrl+R / Ctrl+= 等按下去毫无反应、纯属误导。
+    // **不要因为「看起来该有快捷键」而加回来**：即便将来把加速键路由修好，`F11` 会与注入脚本的
+    // 页面侧监听（`dsh_titlebar.js`）双重触发 → 全屏切两次。真通的键只有两个：`F11`（注入脚本页面侧监听）
+    // 与 `Ctrl+Shift+W`（`tauri-plugin-global-shortcut`，OS 层）；编辑族用 muda 预定义项，标准键由 WebView2 自行处理。
     let view = SubmenuBuilder::new(app, "视图")
         .item(&MenuItemBuilder::with_id(ID_RELOAD, "重新加载").build(app)?)
         .separator()
@@ -107,7 +96,7 @@ fn build(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
 }
 
 fn handle(app: &AppHandle, id: &str) {
-    // E9 #6：「打开设置」恒打 main（设置唯一承接方在 dsh 侧）；其余动作**焦点窗优先**——
+    // 「打开设置」恒打 main（设置唯一承接方在 dsh 侧）；其余动作**焦点窗优先**——
     // 产品窗聚焦时 Ctrl+R/Ctrl+= 作用于工作台窗，不再恒打 dsh 窗。无焦点窗回落 main。
     let window = if id == ID_SETTINGS {
         app.get_webview_window("main")
@@ -139,7 +128,7 @@ fn handle(app: &AppHandle, id: &str) {
         }
         ID_FULLSCREEN => {
             let next = !window.is_fullscreen().unwrap_or(false);
-            // G1 收尾批修：与 F11 命令共用「进全屏先脱最大化」助手（tao 全屏不脱最大化 → 任务栏条/坏组合）
+            // 与 F11 命令共用「进全屏先脱最大化」助手（tao 全屏不脱最大化 → 任务栏条/坏组合）
             if let Err(e) = crate::shell_bridge::set_fullscreen_safely(&window, next) {
                 eprintln!("[DSH-SHELL] 菜单：全屏切换失败：{e}");
             } else if let Err(e) = window.eval(&sync_fullscreen_js(next)) {
@@ -158,10 +147,10 @@ fn handle(app: &AppHandle, id: &str) {
                 .notification()
                 .builder()
                 .title("WorldSea 通知自检")
-                .body("系统通知链路正常——Agent 长任务完成提醒将经由本通道（生产者接续见 D2）。")
+                .body("系统通知链路正常——Agent 长任务完成提醒将经由本通道（生产者后续接入）。")
                 .show();
             match result {
-                Ok(()) => println!("[DSH-SHELL] 菜单：通知自检已发送（E9 #9 链路验证）"),
+                Ok(()) => println!("[DSH-SHELL] 菜单：通知自检已发送（链路验证）"),
                 Err(e) => eprintln!("[DSH-SHELL] 菜单：通知自检失败：{e}"),
             }
         }
@@ -183,7 +172,7 @@ fn handle(app: &AppHandle, id: &str) {
     }
 }
 
-/// 动作目标窗（E9 #6）：**焦点窗优先**，无焦点窗回落 main。
+/// 动作目标窗：**焦点窗优先**，无焦点窗回落 main。
 fn target_window(app: &AppHandle) -> Option<tauri::WebviewWindow> {
     app.webview_windows()
         .into_iter()
@@ -221,14 +210,11 @@ const OPEN_SETTINGS_JS: &str = r#"(function () {
   (document.body || document.documentElement).appendChild(box);
 })()"#;
 
-/// G1（2026-09-29）：全屏态回传页面。
-///
-/// 菜单是壳侧发起的 `set_fullscreen`，页面无从得知；派发 CustomEvent 交注入的窗口栏脚本
-/// （`dsh_titlebar.js`）独占 DOM 效果——置 `html[data-fullscreen]`（dsh 据此把浮层内缩
-/// 52px→20px）+ 隐藏窗口栏 + 解除侧栏键的内联钉住。事件名是壳两侧的共享字面量，
-/// `src/__tests__/titlebar.spec.ts` 有跨文件契约用例守着，改名两侧一起红。
-/// 页面侧另有 F11 通路（走 `cmd_shell_window_action` 的返回值），两条路径汇聚到同一函数。
-/// 无监听者时（`WORLDSEA_NO_TITLEBAR` / `WORLDSEA_FRAMED` 反证开关，或工作台窗的旧前端）派发无害。
+/// 全屏态回传页面：菜单是壳侧发起的 `set_fullscreen`，页面无从得知；派发 CustomEvent 交注入的窗口栏脚本
+/// （`dsh_titlebar.js`）独占 DOM 效果——置 `html[data-fullscreen]`（dsh 据此内缩浮层）+ 隐藏窗口栏
+/// + 解除侧栏键的内联钉住。事件名是壳两侧的共享字面量，`src/__tests__/titlebar.spec.ts` 有跨文件
+/// 契约用例守着，改名两侧一起红；页面侧另有 F11 通路（走 `cmd_shell_window_action` 的返回值），
+/// 两条路径汇聚到同一函数。无监听者时（`WORLDSEA_NO_TITLEBAR` / `WORLDSEA_FRAMED` 反证开关等）派发无害。
 fn sync_fullscreen_js(on: bool) -> String {
     format!("window.dispatchEvent(new CustomEvent('worldsea:fullscreen', {{ detail: {on} }}))")
 }

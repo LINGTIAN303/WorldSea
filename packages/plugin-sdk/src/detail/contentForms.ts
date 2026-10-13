@@ -7,15 +7,9 @@ import SummaryForm from './forms/SummaryForm.vue'
 import TimelineForm from './forms/TimelineForm.vue'
 
 /**
- * L2 内容形态注册表：同一份字段数据在容器里**怎么编排**。详细见
- * docs/details/注释/packages/plugin-sdk/实体详情内容形态.md
- *
- * 范式沿用大纲白板的 `FormDefinition`（`apps/tauri/src/world/plugins/outline/board/forms/registry.ts`），
- * 两处有意的差别：
- * 1. 形态件**在仓内注册**，不是芽运行时注册——芽要改的是 `detailLayout.contentForm` 这个 id，
- *    而不是把一个组件塞进详情面（那会让「用户可选的形态」变成「代码里长出来的形态」）。
- * 2. 只有 `configSchema`，没有并行的 `defaultConfig`：默认值由 schema 的 `default` 派生，
- *    两份配置迟早漂移（1a 的 fieldType 三套命名就是前车之鉴）。
+ * L2 内容形态注册表：同一份字段数据在容器里**怎么编排**。范式沿用大纲白板 `FormDefinition`，两处有意差别：
+ * ①形态件**在仓内注册**而非芽运行时注册——芽只改 `detailLayout.contentForm` 这个 id（否则「用户可选的形态」
+ * 会变成「代码里长出来的形态」）；②只有 `configSchema` 无并行 `defaultConfig`，默认值由 schema `default` 派生（两份配置迟早漂移，fieldType 三套命名是前车之鉴）。详细见 docs/details/注释/packages/plugin-sdk/实体详情内容形态.md
  */
 
 /** derived＝只呈现（编辑时回落分组式）；inline＝可就地编辑 */
@@ -85,7 +79,7 @@ export function resolveContentConfig(
 
 /**
  * 本次实际渲染的形态：未注册的 id 也要有东西可渲染，派生型在编辑态回分组式。
- * 编辑走的是同一套行内控件（批次 1a 的单轨），派生型只做呈现，不承载写入。
+ * 编辑走的是同一套行内单轨，派生型只做呈现，不承载写入。
  */
 export function activeContentForm(form: string, editing: boolean): string {
   const def = registry.get(form)

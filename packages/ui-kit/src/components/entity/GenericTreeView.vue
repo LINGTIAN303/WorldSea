@@ -285,7 +285,7 @@ function findNode(node: any, targetId: string): boolean {
   flex-shrink: 0;
 }
 .tree-children {
-  /* depth is managed via paddingLeft on tree-row */
+  /* 层级缩进由 .tree-row 的 paddingLeft 管理，此处不另设 */
 }
 .tree-row.drag-before {
   border-top: 2px solid var(--primary, #4f46e5) !important;

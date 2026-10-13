@@ -7,11 +7,9 @@ import { draftValue } from './draftKeys'
 import { toDisplayText, toPlainText } from './fieldValue'
 
 /**
- * 内容形态的取数与归类（纯函数）。
+ * 内容形态的取数与归类（纯函数）。各形态只是「同一批字段怎么排」的差别，
+ * 所以归类口径放在这里共用，避免每个形态各自判一遍、判出三种结果。
  * 详细见 docs/details/注释/packages/plugin-sdk/实体详情内容形态.md
- *
- * 各形态只是「同一批字段怎么排」的差别，所以归类口径放在这里共用，
- * 避免每个形态各自判一遍、判出三种结果。
  */
 
 /** 长文本族（段落式的主角、摘要式里要被截断的部分） */

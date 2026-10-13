@@ -1,14 +1,8 @@
 //! 安全存储命令（cmd_secure_store / cmd_secure_load / cmd_secure_delete）
-//!
-//! 背景：前端 `packages/agent-runtime/src/providers/key-store.ts` 在 Tauri 环境优先走 Keyring
-//! （`cmd_secure_store`），但 Tauri 端此前从未注册这些命令 → Keyring 检测失败 → 每次都降级到
-//! localStorage 加密存储（且每次都打 `cmd_secure_store not found` 警告）。前端降级后 key 仍可
-//! 存取，但存于浏览器 localStorage，且不符合桌面应用「密钥落系统数据目录」的惯例。
-//!
-//! 本模块补齐这三个命令：用 SQLite（应用数据目录 `secure_store.db`）持久化，key→value 明文落库。
-//! 说明：此处按前端 `key-store.ts` 的降级层次，value 本身由前端 AES-GCM 加密后再交本命令存储
-//! （前端 `storeApiKey` 先 encrypt 再 tauriStore）。因此本命令不做二次加密，仅做持久化——
-//! 保持与 Web 降级路径一致的安全级别。若未来需要强 Keyring（系统凭据管理器），可在此替换实现。
+//! 用 SQLite（应用数据目录 `secure_store.db`）持久化，key→value 明文落库：value 由前端
+//! `key-store.ts`（AES-GCM）加密后再交本命令存储，故本命令不做二次加密、仅做持久化——
+//! 保持与 Web 降级路径一致的安全级别；若未来需要系统凭据管理器（Keyring），可在此替换实现。
+//! 此前 Tauri 端未注册这些命令 → 前端每次降级 localStorage 并打警告；补齐后密钥按桌面惯例落应用数据目录。
 
 use std::sync::Arc;
 

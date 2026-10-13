@@ -13,11 +13,9 @@ import ImmersiveDetailView from '../ImmersiveDetailView.vue'
 import FloatingDetailView from '../FloatingDetailView.vue'
 
 /**
- * L1 载体分发的挂载守卫。详细见
- * docs/details/注释/packages/plugin-sdk/实体详情内容形态.md §十
- *
- * 最要紧的是第一例：**未声明未覆写时必须还是右栏抽屉、根容器不加分栏类**——
- * 「缺省零变化」是这一批对 26 个芽的唯一承诺，写歪了就是全库观感事故。
+ * L1 载体分发的挂载守卫。详细见 docs/details/注释/packages/plugin-sdk/实体详情内容形态.md §十
+ * 最要紧的是第一例：未声明未覆写时必须还是右栏抽屉、根容器不加分栏类——
+ * 「缺省零变化」是本批对 26 个芽的唯一承诺，写歪了就是全库观感事故。
  */
 
 let pinia: Pinia

@@ -1,5 +1,5 @@
 /**
- * 建实体入口子开关门控护栏（② 批，2026-10-07）
+ * 建实体入口子开关门控护栏（2026-10-07）
  * 实体引用控件按 autoCreateEntityRefEnabled、关系选择器按 autoCreateSelectorEnabled：
  * 关闭时「+ 创建」入口不出现。
  */

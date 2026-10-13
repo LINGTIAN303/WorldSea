@@ -8,7 +8,7 @@ export { useFieldOrderStore } from './fieldOrderStore'
 export { useDetailLayoutStore, type DetailLayoutOverride, type DetailTabOverride } from './detailLayoutStore'
 export { useTrashStore, type TrashItem } from './trashStore'
 export { useArtifactStore } from './artifactStore'
-// 共享 stores（Phase 4 从根 src/stores/ 下沉到 entity-core）
+// 共享 stores（从根 src/stores/ 下沉到 entity-core）
 export { useFontStore } from './fontStore'
 export type {
   FontLayer,

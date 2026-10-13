@@ -1,13 +1,7 @@
 /**
- * GEV 条件 #list 槽行为验证（组织芽卡片视图的实现机制）
- *
- * OrganizationView 用 `<template v-if="viewMode === 'tree'" #list>` 实现卡片/树切换：
- * 卡片模式不提供槽 → GEV 默认 EntityCard 网格浮现；树模式提供槽 → 自绘树接管。
- * 本测试锁两条契约：
- * 1. 槽的条件提供能实时切换默认卡片 ↔ 自绘内容（Vue 动态槽机制）；
- * 2. GEV 的 hasListSlot 派生在槽增删后保持新鲜（context.slots 非响应式对象，
- *    computed 读取它可能缓存过期——本例若过期，树模式下 .entity-grid 会丢
- *    has-custom-list 布局类、分页器判定也会用旧值）。
+ * GEV 条件 #list 槽行为验证：OrganizationView 用 `<template v-if="viewMode === 'tree'" #list>` 做卡片/树切换
+ * （无槽→默认 EntityCard 网格，有槽→自绘树接管）。锁：①槽的条件提供能实时切换默认卡片 ↔ 自绘内容（Vue 动态槽机制）；
+ * ②hasListSlot 在槽增删后保持新鲜（context.slots 非响应式，computed 缓存过期会丢 has-custom-list 类、分页判定用旧值）。
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import 'fake-indexeddb/auto'

@@ -1,14 +1,8 @@
-// A（2026-09-25）：壳侧能力桥——类型化能力注册表 + 调用 ACL + 中转 + 审计。
-//
-// 口径（见 docs/plans/2026-09-25-双Cordis-DA批计划.md §二）：
-// - 三侧角色：**product**（工作台窗 = 世界语义提供方）/ **agent**（主窗 = Agent 面）/
-//   **shell**（壳自身：注册表 + ACL + 中转 + 审计；v1 只做桥不做提供方，扩展位=PROVIDERS 收编）。
-// - **提供方 = 注册时调用的窗口 label**（不可冒名）；同 id 异提供方 → 拒绝；同提供方重复 → 覆盖。
-// - 调用：ACL 校验 → 在提供方窗口 `eval` 派发 `__WORLDSEA_CAPABILITY_CALL__(callId, id, args)`
-//   → 提供方回执 `cmd_capability_result`。用 eval 派发（E2 已验证的模式，两窗皆通）而非事件/Channel：
-//   两端同一套派发协议、Rust 侧一条路径，不新增前端监听面。
-// - 超时 10s：`std::thread::sleep` 兜底（不引 tokio/time）；错误码前缀结构化，便于前端判别。
-// - 审计：登记与每次调用打 `[WORLDSEA-CAP]` 壳日志。
+// 壳侧能力桥——类型化能力注册表 + 调用 ACL + 中转 + 审计。口径（见 docs/plans/2026-09-25-双Cordis-DA批计划.md §二）：
+// - 三侧角色：product（工作台窗 = 世界语义提供方）/ agent（主窗 = Agent 面）/ shell（壳自身：注册表 + ACL + 中转 + 审计；v1 只做桥不做提供方，扩展位 = PROVIDERS 收编）。
+// - 提供方 = 注册时调用的窗口 label（不可冒名）；同 id 异提供方 → 拒绝；同提供方重复 → 覆盖。
+// - 调用：ACL 校验 → 在提供方窗口 `eval` 派发 `__WORLDSEA_CAPABILITY_CALL__(callId, id, args)` → 提供方回执 `cmd_capability_result`；
+//   用 eval 派发（两窗皆通）而非事件/Channel：两端同一套派发协议、Rust 侧一条路径，不新增前端监听面。超时 10s（`std::thread::sleep` 兜底）；错误码前缀结构化；登记与每次调用打 `[WORLDSEA-CAP]` 壳日志。
 
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
@@ -18,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::Manager;
 
-/// 允许作为提供方/调用方的窗口 label（v1 两窗；壳自身作为提供方的扩展位在 D2 启用）。
+/// 允许作为提供方/调用方的窗口 label（v1 两窗；壳自身作为提供方为预留扩展位）。
 pub const PROVIDERS: [&str; 2] = ["main", "workspace"];
 /// 调用超时（提供方未回执即判超时；壳不阻塞——invoke 是 async 命令）。
 pub const CALL_TIMEOUT: Duration = Duration::from_secs(10);
@@ -276,7 +270,7 @@ pub fn cmd_capability_register(
     Ok(ids.len())
 }
 
-/// 命令：撤登记（提供方撤回自己的能力；`C` 批起：拆树/卸插件时收口声明面）。
+/// 命令：撤登记（提供方撤回自己的能力；拆树/卸插件时收口声明面）。
 #[tauri::command]
 pub fn cmd_capability_unregister(
     window: tauri::WebviewWindow,

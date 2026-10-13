@@ -93,7 +93,7 @@ const { getAll } = useShortcuts()
 const modalResizable = useResizable({ panelId: 'modal-shortcut-help', defaultWidth: 480, minWidth: 320 })
 
 // Esc 关闭收编 useModalShortcuts（modal 层 + 弹窗深度 + 叠层栈序），
-// 替代原先「window 监听 + registry 手动注册」双路径（I1 根因修复的演进版）。
+// 替代原先「window 监听 + registry 手动注册」双路径（根因修复的演进版）。
 useModalShortcuts(() => props.show, { id: 'help.shortcuts.close-esc', onEscape: () => emit('close') })
 
 const SCOPE_ORDER = ['global', 'view', 'editor', 'modal']

@@ -1,6 +1,5 @@
 /**
  * useConsistencyChecker — 一致性检查 composable（2026-10-02 自 entity-core 迁入）。
- *
  * 职责仅剩「解包 stores/registries → 喂纯函数」：全部检查规则见 consistencyRules.ts
  * （纯函数 + 纯数据入参，单测不依赖 pinia）。迁入原因见该文件头注。
  */

@@ -26,11 +26,9 @@
 
 <script setup lang="ts">
 /**
- * L1 载体·栏式整页：详情与列表**同排分栏**，不是压在列表上的浮层。详细见
- * docs/details/注释/packages/plugin-sdk/实体详情内容形态.md §十
- *
- * 与抽屉的差别只有一处——容器：在流内占一格、无遮罩、不改根容器就看不到它。
- * 属性/事件/槽名/暴露面逐一对齐，GEV 才敢用一个 `<component :is>` 分发。
+ * L1 载体·栏式整页：详情与列表**同排分栏**而非浮层，与抽屉只差容器——
+ * 在流内占一格、无遮罩、不改根容器就看不到它；属性/事件/槽/暴露面与其他载体逐一对齐。
+ * 详细见 docs/details/注释/packages/plugin-sdk/实体详情内容形态.md §十
  */
 import DetailShell from './DetailShell.vue'
 import { useDetailChrome, type DetailTab } from '../detail/useDetailChrome'

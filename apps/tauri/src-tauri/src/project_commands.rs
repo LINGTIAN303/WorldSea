@@ -1,11 +1,8 @@
-//! 项目命令层（Phase A/B 迁移：数据层链路打通）
-//!
-//! 前端 useProjectSwitcher 在初始化/切换项目时经下列命令获取应用数据目录、
+//! 项目命令层：前端 useProjectSwitcher 在初始化/切换项目时经下列命令获取应用数据目录、
 //! 绑定项目目录与清理项目数据目录。
 //!
-//! W6（2026-09-18 工作区与环境对齐 dsh）：原 `cmd_switch_project` 空壳（只打日志返回 Ok）
-//! 已删除——会话库自 Phase A 起为**全局单库**（按 `project_id` 列归属 + 前端按项目过滤），
-//! 不存在「切换后端数据库」动作，保留空壳只会造成"已切换"的错觉。
+//! 原 `cmd_switch_project` 空壳（只打日志返回 Ok）已删除——会话库为**全局单库**
+//! （按 `project_id` 列归属 + 前端按项目过滤），不存在「切换后端数据库」动作，保留空壳只会造成"已切换"的错觉。
 
 use tauri::Manager;
 
@@ -24,9 +21,9 @@ pub async fn cmd_get_app_data_dir(app: tauri::AppHandle) -> Result<String, Strin
     Ok(dir.to_string_lossy().replace('\\', "/"))
 }
 
-/// 获取用户主目录路径（§六 全局层迁移；E1 起创作数据根 = `<home>/WorldSea`）
+/// 获取用户主目录路径（创作数据根 = `<home>/WorldSea`）
 ///
-/// 全局规则（`<home>/WorldSea/rules`）与个人技能导入区（`<home>/WorldSea/skills`）的载体根（E1 单一可见根）。
+/// 全局规则（`<home>/WorldSea/rules`）与个人技能导入区（`<home>/WorldSea/skills`）的载体根（单一可见根）。
 /// 前端 `getHomeDirCached` 缓存后供 globalRulesDirSync / RulesPanel 使用（双端一致）。
 #[tauri::command]
 pub async fn cmd_get_home_dir(app: tauri::AppHandle) -> Result<String, String> {

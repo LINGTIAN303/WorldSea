@@ -3,7 +3,6 @@ import { ref, watch } from 'vue'
 
 /**
  * 详情布局的用户覆写（按实体类型）。详细见 docs/details/注释/packages/plugin-sdk/实体详情表单.md
- *
  * 与 `fieldOrderStore`（`worldsea_field_orders`，服务弹窗的字段预设）**分键存放**：
  * 那份的语义是「一类型多套预设命名」，这份是「详情长什么样」，混用会互相搅动。
  */
@@ -45,7 +44,7 @@ export const useDetailLayoutStore = defineStore('detailLayout', () => {
   )
 
   /** 抽屉遮罩行为，**全局一条**（不是按实体类型）：`passthrough`＝开着抽屉仍能直接点列表（缺省，
-   *  与批次 2 之前的观感一致）；`blocking`＝遮罩拦住点击、点空白关抽屉。 */
+   *  与可配置化之前的观感一致）；`blocking`＝遮罩拦住点击、点空白关抽屉。 */
   const backdropMode = ref<'passthrough' | 'blocking'>(
     localStorage.getItem(BACKDROP_KEY) === 'blocking' ? 'blocking' : 'passthrough',
   )

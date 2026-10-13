@@ -16,14 +16,8 @@ pub struct SqliteStore {
 impl SqliteStore {
   /// 打开指定路径的 `SQLite` 数据库文件
   ///
-  /// 如果文件不存在则自动创建。打开后会设置 WAL 日志模式和启用外键约束，并初始化数据表。
-  ///
-  /// - `path` - 数据库文件路径
-  /// - 返回打开成功的 `SqliteStore` 实例，失败时返回 `CoreError`
-  ///
-  /// # Errors
-  ///
-  /// Returns `CoreError` if the database cannot be opened or PRAGMA setup fails.
+  /// 文件不存在则自动创建；打开后设置 WAL 日志模式、启用外键约束并初始化数据表。
+  /// - `path` - 数据库文件路径；失败时返回 `CoreError`
   pub fn open(path: &str) -> Result<Self, CoreError> {
     if path.is_empty() {
       return Err(CoreError::InvalidArgument("数据库路径不能为空".to_string()));
@@ -58,10 +52,6 @@ impl SqliteStore {
   /// 适用于测试或临时场景，数据不会持久化到磁盘。同样会设置 WAL 模式、启用外键约束并初始化数据表。
   ///
   /// - 返回内存数据库的 `SqliteStore` 实例，失败时返回 `CoreError`
-  ///
-  /// # Errors
-  ///
-  /// Returns `CoreError` if the in-memory database cannot be created or PRAGMA setup fails.
   pub fn open_in_memory() -> Result<Self, CoreError> {
     let conn = Connection::open_in_memory()
       .map_err(|e| CoreError::storage(format!("SQLite 内存数据库创建失败: {e}")))?;
@@ -211,13 +201,7 @@ impl SqliteStore {
   /// 写入或替换一个实体
   ///
   /// 如果同 id 的实体已存在则覆盖，否则插入新记录。
-  ///
-  /// - `entity` - 要写入的实体引用
-  /// - 返回写入成功或错误
-  ///
-  /// # Errors
-  ///
-  /// Returns `CoreError` if the lock cannot be acquired or the insert fails.
+  /// - `entity` - 要写入的实体引用；失败时返回 `CoreError`
   pub fn put_entity(&self, entity: &Entity) -> Result<(), CoreError> {
     if entity.id.is_empty() {
       return Err(CoreError::InvalidArgument("实体 ID 不能为空".to_string()));
@@ -254,10 +238,6 @@ impl SqliteStore {
   ///
   /// - `id` - 实体唯一标识
   /// - 返回 Some(Entity) 表示找到，None 表示不存在，查询失败时返回 `CoreError`
-  ///
-  /// # Errors
-  ///
-  /// Returns `CoreError` if the lock cannot be acquired or the query preparation fails.
   #[allow(clippy::significant_drop_tightening)]
   pub fn get_entity(&self, id: &str) -> Result<Option<Entity>, CoreError> {
     let conn = self.conn.lock().map_err(|e| CoreError::Lock(e.to_string()))?;
@@ -273,10 +253,6 @@ impl SqliteStore {
   /// 获取所有实体
   ///
   /// - 返回实体列表，查询失败时返回 `CoreError`
-  ///
-  /// # Errors
-  ///
-  /// Returns `CoreError` if the lock cannot be acquired or the query fails.
   #[allow(clippy::significant_drop_tightening)]
   pub fn get_all_entities(&self) -> Result<Vec<Entity>, CoreError> {
     let conn = self.conn.lock().map_err(|e| CoreError::Lock(e.to_string()))?;
@@ -297,10 +273,6 @@ impl SqliteStore {
   ///
   /// - `entity_type` - 实体类型名称
   /// - 返回匹配该类型的所有实体，查询失败时返回 `CoreError`
-  ///
-  /// # Errors
-  ///
-  /// Returns `CoreError` if the lock cannot be acquired or the query fails.
   #[allow(clippy::significant_drop_tightening)]
   pub fn get_entities_by_type(&self, entity_type: &str) -> Result<Vec<Entity>, CoreError> {
     let conn = self.conn.lock().map_err(|e| CoreError::Lock(e.to_string()))?;
@@ -321,10 +293,6 @@ impl SqliteStore {
   ///
   /// - `id` - 要删除的实体唯一标识
   /// - 返回 true 表示成功删除，false 表示实体不存在，删除失败时返回 `CoreError`
-  ///
-  /// # Errors
-  ///
-  /// Returns `CoreError` if the lock cannot be acquired or the delete fails.
   pub fn delete_entity(&self, id: &str) -> Result<bool, CoreError> {
     let conn = self.conn.lock().map_err(|e| CoreError::Lock(e.to_string()))?;
     let affected = conn
@@ -336,16 +304,9 @@ impl SqliteStore {
 
   /// 根据 id 部分更新实体字段
   ///
-  /// 仅更新 changes 对象中包含的字段，支持 `type`、`name`、`description`、`properties`、`tags`、`avatar`、`updatedAt`/`updated_at`。
-  /// 如果 changes 为空对象则不做任何操作。
-  ///
-  /// - `id` - 要更新的实体唯一标识
-  /// - `changes` - JSON 对象，包含需要更新的字段和值
-  /// - 返回 true 表示更新成功，false 表示无字段需要更新或实体不存在，失败时返回 `CoreError`
-  ///
-  /// # Errors
-  ///
-  /// Returns `CoreError` if the lock cannot be acquired, `changes` is not an object, or the update fails.
+  /// 仅更新 changes 中包含的字段，支持 `type`、`name`、`description`、`properties`、`tags`、`avatar`、`updatedAt`/`updated_at`。
+  /// changes 含未知键或值类型不符时该键被静默跳过，可能导致有键可写却整体返回 false。
+  /// 返回 true 表示更新成功，false 表示无字段需要更新或实体不存在；失败时返回 `CoreError`。
   pub fn update_entity(&self, id: &str, changes: &serde_json::Value) -> Result<bool, CoreError> {
     let conn = self.conn.lock().map_err(|e| CoreError::Lock(e.to_string()))?;
 
@@ -427,10 +388,6 @@ impl SqliteStore {
   /// 按实体类型统计实体数量
   ///
   /// - 返回 (类型名称, 该类型数量) 的元组列表，按数量降序排列，查询失败时返回 `CoreError`
-  ///
-  /// # Errors
-  ///
-  /// Returns `CoreError` if the lock cannot be acquired or the query fails.
   #[allow(clippy::significant_drop_tightening)]
   pub fn count_entities_by_type(&self) -> Result<Vec<(String, usize)>, CoreError> {
     let conn = self.conn.lock().map_err(|e| CoreError::Lock(e.to_string()))?;
@@ -454,13 +411,7 @@ impl SqliteStore {
   /// 写入或替换一个关系
   ///
   /// 如果同 id 的关系已存在则覆盖，否则插入新记录。
-  ///
-  /// - `relation` - 要写入的关系引用
-  /// - 返回写入成功或错误
-  ///
-  /// # Errors
-  ///
-  /// Returns `CoreError` if the lock cannot be acquired or the insert fails.
+  /// - `relation` - 要写入的关系引用；失败时返回 `CoreError`
   pub fn put_relation(&self, relation: &Relation) -> Result<(), CoreError> {
     if relation.id.is_empty() {
       return Err(CoreError::InvalidArgument("关系 ID 不能为空".to_string()));
@@ -499,10 +450,6 @@ impl SqliteStore {
   ///
   /// - `id` - 关系唯一标识
   /// - 返回 Some(Relation) 表示找到，None 表示不存在，查询失败时返回 `CoreError`
-  ///
-  /// # Errors
-  ///
-  /// Returns `CoreError` if the lock cannot be acquired or the query preparation fails.
   #[allow(clippy::significant_drop_tightening)]
   pub fn get_relation(&self, id: &str) -> Result<Option<Relation>, CoreError> {
     let conn = self.conn.lock().map_err(|e| CoreError::Lock(e.to_string()))?;
@@ -518,10 +465,6 @@ impl SqliteStore {
   /// 获取所有关系
   ///
   /// - 返回关系列表，查询失败时返回 `CoreError`
-  ///
-  /// # Errors
-  ///
-  /// Returns `CoreError` if the lock cannot be acquired or the query fails.
   #[allow(clippy::significant_drop_tightening)]
   pub fn get_all_relations(&self) -> Result<Vec<Relation>, CoreError> {
     let conn = self.conn.lock().map_err(|e| CoreError::Lock(e.to_string()))?;
@@ -541,13 +484,7 @@ impl SqliteStore {
   /// 查询与指定实体相关的所有关系
   ///
   /// 返回该实体作为 `source_id` 或 `target_id` 出现的所有关系。
-  ///
-  /// - `entity_id` - 实体唯一标识
-  /// - 返回与该实体相关的所有关系，查询失败时返回 `CoreError`
-  ///
-  /// # Errors
-  ///
-  /// Returns `CoreError` if the lock cannot be acquired or the query fails.
+  /// - `entity_id` - 实体唯一标识；查询失败时返回 `CoreError`
   #[allow(clippy::significant_drop_tightening)]
   pub fn get_relations_by_entity(&self, entity_id: &str) -> Result<Vec<Relation>, CoreError> {
     let conn = self.conn.lock().map_err(|e| CoreError::Lock(e.to_string()))?;
@@ -568,10 +505,6 @@ impl SqliteStore {
   ///
   /// - `id` - 要删除的关系唯一标识
   /// - 返回 true 表示成功删除，false 表示关系不存在，删除失败时返回 `CoreError`
-  ///
-  /// # Errors
-  ///
-  /// Returns `CoreError` if the lock cannot be acquired or the delete fails.
   pub fn delete_relation(&self, id: &str) -> Result<bool, CoreError> {
     let conn = self.conn.lock().map_err(|e| CoreError::Lock(e.to_string()))?;
     let affected = conn
@@ -584,13 +517,7 @@ impl SqliteStore {
   /// 删除与指定实体相关的所有关系
   ///
   /// 删除该实体作为 `source_id` 或 `target_id` 出现的所有关系记录。
-  ///
-  /// - `entity_id` - 实体唯一标识
-  /// - 返回被删除的关系数量，删除失败时返回 `CoreError`
-  ///
-  /// # Errors
-  ///
-  /// Returns `CoreError` if the lock cannot be acquired or the delete fails.
+  /// - `entity_id` - 实体唯一标识；返回被删除的数量，失败时返回 `CoreError`
   pub fn delete_relations_by_entity(&self, entity_id: &str) -> Result<usize, CoreError> {
     let conn = self.conn.lock().map_err(|e| CoreError::Lock(e.to_string()))?;
     let affected = conn
@@ -604,10 +531,6 @@ impl SqliteStore {
   ///
   /// - `key` - 键名
   /// - 返回 Some(值) 表示找到，None 表示键不存在，查询失败时返回 `CoreError`
-  ///
-  /// # Errors
-  ///
-  /// Returns `CoreError` if the lock cannot be acquired or the query preparation fails.
   #[allow(clippy::significant_drop_tightening)]
   pub fn kv_get(&self, key: &str) -> Result<Option<String>, CoreError> {
     let conn = self.conn.lock().map_err(|e| CoreError::Lock(e.to_string()))?;
@@ -623,14 +546,7 @@ impl SqliteStore {
   /// 设置键值对
   ///
   /// 如果键已存在则覆盖其值，否则插入新记录。
-  ///
-  /// - `key` - 键名
-  /// - `value` - 值内容
-  /// - 返回写入成功或错误
-  ///
-  /// # Errors
-  ///
-  /// Returns `CoreError` if the lock cannot be acquired or the insert fails.
+  /// - `key` - 键名；`value` - 值内容；失败时返回 `CoreError`
   pub fn kv_set(&self, key: &str, value: &str) -> Result<(), CoreError> {
     let conn = self.conn.lock().map_err(|e| CoreError::Lock(e.to_string()))?;
     conn
@@ -666,10 +582,6 @@ impl SqliteStore {
   /// 获取所有键值对
   ///
   /// - 返回 (键, 值) 元组列表，查询失败时返回 `CoreError`
-  ///
-  /// # Errors
-  ///
-  /// Returns `CoreError` if the lock cannot be acquired or the query fails.
   #[allow(clippy::significant_drop_tightening)]
   pub fn kv_get_all(&self) -> Result<Vec<(String, String)>, CoreError> {
     let conn = self.conn.lock().map_err(|e| CoreError::Lock(e.to_string()))?;
@@ -689,16 +601,8 @@ impl SqliteStore {
   /// 写入或替换一个模块记录
   ///
   /// 如果同 `id` 的模块已存在则覆盖，否则插入新记录。`installed_at` 自动设置为当前时间。
-  ///
-  /// - `id` - 模块唯一标识
-  /// - `active` - 模块是否激活
-  /// - `source` - 模块来源标识
-  /// - `manifest_json` - 模块清单的 JSON 字符串
-  /// - 返回写入成功或错误
-  ///
-  /// # Errors
-  ///
-  /// Returns `CoreError` if the lock cannot be acquired or the insert fails.
+  /// - `id` - 模块唯一标识；`active` - 是否激活；`source` - 来源标识；`manifest_json` - 清单 JSON 字符串
+  /// - 失败时返回 `CoreError`
   pub fn put_module(
     &self,
     id: &str,
@@ -720,10 +624,6 @@ impl SqliteStore {
   /// - `id` - 模块唯一标识
   /// - 返回 Some(JSON对象) 表示找到，None 表示不存在，查询失败时返回 `CoreError`。
   ///   返回的 JSON 对象包含 id、active、source、manifest、installedAt 字段
-  ///
-  /// # Errors
-  ///
-  /// Returns `CoreError` if the lock cannot be acquired or the query preparation fails.
   #[allow(clippy::significant_drop_tightening)]
   pub fn get_module(&self, id: &str) -> Result<Option<serde_json::Value>, CoreError> {
     let conn = self.conn.lock().map_err(|e| CoreError::Lock(e.to_string()))?;
@@ -750,10 +650,6 @@ impl SqliteStore {
   /// 获取所有模块
   ///
   /// - 返回模块 JSON 对象列表，每个对象包含 id、active、source、manifest、installedAt 字段，查询失败时返回 `CoreError`
-  ///
-  /// # Errors
-  ///
-  /// Returns `CoreError` if the lock cannot be acquired or the query fails.
   #[allow(clippy::significant_drop_tightening)]
   pub fn get_all_modules(&self) -> Result<Vec<serde_json::Value>, CoreError> {
     let conn = self.conn.lock().map_err(|e| CoreError::Lock(e.to_string()))?;
@@ -783,10 +679,6 @@ impl SqliteStore {
   ///
   /// - `id` - 要删除的模块唯一标识
   /// - 返回 true 表示成功删除，false 表示模块不存在，删除失败时返回 `CoreError`
-  ///
-  /// # Errors
-  ///
-  /// Returns `CoreError` if the lock cannot be acquired or the delete fails.
   pub fn delete_module(&self, id: &str) -> Result<bool, CoreError> {
     let conn = self.conn.lock().map_err(|e| CoreError::Lock(e.to_string()))?;
     let affected = conn
@@ -798,16 +690,9 @@ impl SqliteStore {
 
   /// 根据 id 部分更新模块字段
   ///
-  /// 仅更新 changes 对象中包含的字段，支持 active、source、manifest。
-  /// 如果 changes 为空对象则不做任何操作。
-  ///
-  /// - `id` - 要更新的模块唯一标识
-  /// - `changes` - JSON 对象，包含需要更新的字段和值
-  /// - 返回 true 表示更新成功，false 表示无字段需要更新或模块不存在，失败时返回 `CoreError`
-  ///
-  /// # Errors
-  ///
-  /// Returns `CoreError` if the lock cannot be acquired, `changes` is not an object, or the update fails.
+  /// 仅更新 changes 中包含的字段，支持 active、source、manifest；changes 为空对象时不做任何操作。
+  /// changes 含未知键时该键被静默跳过（`source` 类型不符同样跳过；`active` 非布尔按 true 处理），可能导致有键可写却整体返回 false。
+  /// 返回 true 表示更新成功，false 表示无字段需要更新或模块不存在；失败时返回 `CoreError`。
   pub fn update_module(&self, id: &str, changes: &serde_json::Value) -> Result<bool, CoreError> {
     let conn = self.conn.lock().map_err(|e| CoreError::Lock(e.to_string()))?;
 
@@ -865,16 +750,9 @@ impl SqliteStore {
 
   /// 根据 id 部分更新关系字段
   ///
-  /// 仅更新 changes 对象中包含的字段，支持 `type`、`sourceId`/`source_id`、`targetId`/`target_id`、`label`、`properties`、`pairId`/`pair_id`、`updatedAt`/`updated_at`。
-  /// 如果 changes 为空对象则不做任何操作。
-  ///
-  /// - `id` - 要更新的关系唯一标识
-  /// - `changes` - JSON 对象，包含需要更新的字段和值
-  /// - 返回 true 表示更新成功，false 表示无字段需要更新或关系不存在，失败时返回 `CoreError`
-  ///
-  /// # Errors
-  ///
-  /// Returns `CoreError` if the lock cannot be acquired, `changes` is not an object, or the update fails.
+  /// 仅更新 changes 中包含的字段，支持 `type`、`sourceId`/`source_id`、`targetId`/`target_id`、`label`、`properties`、`pairId`/`pair_id`、`updatedAt`/`updated_at`。
+  /// changes 含未知键或 `type`/`sourceId`/`targetId`/`updatedAt` 类型不符时该键被静默跳过（`label`/`pairId` 类型不符改写 NULL），可能导致有键可写却整体返回 false。
+  /// 返回 true 表示更新成功，false 表示无字段需要更新或关系不存在；失败时返回 `CoreError`。
   pub fn update_relation(&self, id: &str, changes: &serde_json::Value) -> Result<bool, CoreError> {
     let conn = self.conn.lock().map_err(|e| CoreError::Lock(e.to_string()))?;
 
@@ -957,15 +835,9 @@ impl SqliteStore {
 
   /// 写入或替换一个文件及其内容
   ///
-  /// 同时向 files 和 file_contents 表插入记录。如果同 id 已存在则覆盖。
-  ///
-  /// - `file_json` - 文件元数据的 JSON 字符串，包含 id、name、path、mimeType、size、entityId、tags、createdAt、updatedAt
-  /// - `content_json` - 文件内容的 JSON 字符串，包含 id、textContent、binaryData
-  /// - 返回写入成功或错误
-  ///
-  /// # Errors
-  ///
-  /// Returns `CoreError` if the lock cannot be acquired, JSON parsing fails, or the insert fails.
+  /// 同时向 files 和 file_contents 表插入记录，同 id 已存在则覆盖。
+  /// - `file_json` - 文件元数据 JSON，含 id、name、path、mimeType、size、entityId、tags、createdAt、updatedAt
+  /// - `content_json` - 文件内容 JSON，含 id、textContent、binaryData；失败时返回 `CoreError`
   pub fn put_file(&self, file_json: &str, content_json: &str) -> Result<(), CoreError> {
     let file: serde_json::Value = serde_json::from_str(file_json)?;
     let content: serde_json::Value = serde_json::from_str(content_json)?;
@@ -1009,10 +881,6 @@ impl SqliteStore {
   /// 获取所有文件元数据
   ///
   /// - 返回文件 JSON 对象列表，每个对象包含 id、name、path、mimeType、size、entityId、tags、createdAt、updatedAt 字段
-  ///
-  /// # Errors
-  ///
-  /// Returns `CoreError` if the lock cannot be acquired or the query fails.
   #[allow(clippy::significant_drop_tightening)]
   pub fn get_all_files(&self) -> Result<Vec<serde_json::Value>, CoreError> {
     let conn = self.conn.lock().map_err(|e| CoreError::Lock(e.to_string()))?;
@@ -1033,10 +901,6 @@ impl SqliteStore {
   ///
   /// - `id` - 文件唯一标识
   /// - 返回 Some(JSON对象) 表示找到，None 表示不存在
-  ///
-  /// # Errors
-  ///
-  /// Returns `CoreError` if the lock cannot be acquired or the query fails.
   #[allow(clippy::significant_drop_tightening)]
   pub fn get_file(&self, id: &str) -> Result<Option<serde_json::Value>, CoreError> {
     let conn = self.conn.lock().map_err(|e| CoreError::Lock(e.to_string()))?;
@@ -1052,10 +916,6 @@ impl SqliteStore {
   ///
   /// - `path` - 文件路径
   /// - 返回 Some(JSON对象) 表示找到，None 表示不存在
-  ///
-  /// # Errors
-  ///
-  /// Returns `CoreError` if the lock cannot be acquired or the query fails.
   #[allow(clippy::significant_drop_tightening)]
   pub fn get_file_by_path(&self, path: &str) -> Result<Option<serde_json::Value>, CoreError> {
     let conn = self.conn.lock().map_err(|e| CoreError::Lock(e.to_string()))?;
@@ -1071,10 +931,6 @@ impl SqliteStore {
   ///
   /// - `entity_id` - 关联的实体唯一标识
   /// - 返回与该实体关联的所有文件
-  ///
-  /// # Errors
-  ///
-  /// Returns `CoreError` if the lock cannot be acquired or the query fails.
   #[allow(clippy::significant_drop_tightening)]
   pub fn get_files_by_entity(&self, entity_id: &str) -> Result<Vec<serde_json::Value>, CoreError> {
     let conn = self.conn.lock().map_err(|e| CoreError::Lock(e.to_string()))?;
@@ -1093,16 +949,9 @@ impl SqliteStore {
 
   /// 根据 id 部分更新文件元数据字段
   ///
-  /// 仅更新 changes 对象中包含的字段，支持 name、path、mimeType、size、entityId、tags、updatedAt/updated_at。
-  /// 如果 changes 为空对象则不做任何操作。
-  ///
-  /// - `id` - 要更新的文件唯一标识
-  /// - `changes` - JSON 对象，包含需要更新的字段和值
-  /// - 返回 true 表示更新成功，false 表示无字段需要更新或文件不存在
-  ///
-  /// # Errors
-  ///
-  /// Returns `CoreError` if the lock cannot be acquired, `changes` is not an object, or the update fails.
+  /// 仅更新 changes 中包含的字段，支持 name、path、mimeType、size、entityId、tags、updatedAt/updated_at。
+  /// changes 含未知键或 `name`/`path`/`mimeType`/`size`/`updatedAt` 类型不符时该键被静默跳过（`entityId` 类型不符改写 NULL），可能导致有键可写却整体返回 false。
+  /// 返回 true 表示更新成功，false 表示无字段需要更新或文件不存在；失败时返回 `CoreError`。
   pub fn update_file(&self, id: &str, changes: &serde_json::Value) -> Result<bool, CoreError> {
     let conn = self.conn.lock().map_err(|e| CoreError::Lock(e.to_string()))?;
 
@@ -1185,16 +1034,10 @@ impl SqliteStore {
   /// 根据 id 删除文件及其内容
   ///
   /// 同时删除 files 和 file_contents 表中的记录。
-  ///
-  /// - `id` - 要删除的文件唯一标识
-  /// - 返回 true 表示成功删除，false 表示文件不存在
-  ///
-  /// # Errors
-  ///
-  /// Returns `CoreError` if the lock cannot be acquired or the delete fails.
+  /// - `id` - 要删除的文件唯一标识；返回 true 表示成功删除，false 表示文件不存在
   pub fn delete_file(&self, id: &str) -> Result<bool, CoreError> {
     let conn = self.conn.lock().map_err(|e| CoreError::Lock(e.to_string()))?;
-    // file_contents has ON DELETE CASCADE, so deleting from files is sufficient
+    // file_contents 表设置了 ON DELETE CASCADE，删除 files 记录即可级联清理内容
     let affected = conn
       .execute("DELETE FROM files WHERE id = ?1", params![id])
       .map_err(|e| CoreError::storage(format!("删除文件失败: {e}")))?;
@@ -1206,10 +1049,6 @@ impl SqliteStore {
   ///
   /// - `id` - 文件唯一标识
   /// - 返回 Some(JSON对象) 表示找到（包含 id、textContent、binaryData），None 表示不存在
-  ///
-  /// # Errors
-  ///
-  /// Returns `CoreError` if the lock cannot be acquired or the query fails.
   #[allow(clippy::significant_drop_tightening)]
   pub fn get_file_content(&self, id: &str) -> Result<Option<serde_json::Value>, CoreError> {
     let conn = self.conn.lock().map_err(|e| CoreError::Lock(e.to_string()))?;
@@ -1237,10 +1076,6 @@ impl SqliteStore {
   /// 删除 entities 表中的全部数据。
   ///
   /// - 返回清空成功或错误
-  ///
-  /// # Errors
-  ///
-  /// Returns `CoreError` if the lock cannot be acquired or the delete fails.
   pub fn clear_entities(&self) -> Result<(), CoreError> {
     let conn = self.conn.lock().map_err(|e| CoreError::Lock(e.to_string()))?;
     conn
@@ -1255,10 +1090,6 @@ impl SqliteStore {
   /// 删除 relations 表中的全部数据。
   ///
   /// - 返回清空成功或错误
-  ///
-  /// # Errors
-  ///
-  /// Returns `CoreError` if the lock cannot be acquired or the delete fails.
   pub fn clear_relations(&self) -> Result<(), CoreError> {
     let conn = self.conn.lock().map_err(|e| CoreError::Lock(e.to_string()))?;
     conn
@@ -1271,13 +1102,7 @@ impl SqliteStore {
   /// 批量导入实体
   ///
   /// 在事务中逐条插入或替换实体，任一条失败则整体回滚。
-  ///
-  /// - `entities` - 要导入的实体切片
-  /// - 返回成功导入的实体数量，失败时返回 `CoreError`
-  ///
-  /// # Errors
-  ///
-  /// Returns `CoreError` if the lock cannot be acquired, the transaction fails, or any insert fails.
+  /// - `entities` - 要导入的实体切片；返回成功导入的数量，失败时返回 `CoreError`
   #[allow(clippy::significant_drop_tightening)]
   pub fn import_entities(&self, entities: &[Entity]) -> Result<usize, CoreError> {
     let conn = self.conn.lock().map_err(|e| CoreError::Lock(e.to_string()))?;
@@ -1307,13 +1132,7 @@ impl SqliteStore {
   /// 批量导入关系
   ///
   /// 在事务中逐条插入或替换关系，任一条失败则整体回滚。
-  ///
-  /// - `relations` - 要导入的关系切片
-  /// - 返回成功导入的关系数量，失败时返回 `CoreError`
-  ///
-  /// # Errors
-  ///
-  /// Returns `CoreError` if the lock cannot be acquired, the transaction fails, or any insert fails.
+  /// - `relations` - 要导入的关系切片；返回成功导入的数量，失败时返回 `CoreError`
   #[allow(clippy::significant_drop_tightening)]
   pub fn import_relations(&self, relations: &[Relation]) -> Result<usize, CoreError> {
     let conn = self.conn.lock().map_err(|e| CoreError::Lock(e.to_string()))?;

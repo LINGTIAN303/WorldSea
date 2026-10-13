@@ -1,9 +1,7 @@
 /**
- * 流式 Markdown 渲染量测（C2 验收用；非 CI 门禁，手动 `npx vitest bench` 运行）
- *
- * 场景：一篇长文档按字符块逐步喂入（模拟流式），对比
- * ① 旧路径：每帧整段渲染（marked.parse + 消毒 + mention + 全文高亮）
- * ② 新路径：每帧增量渲染（固化块缓存 + 尾块独立重渲）
+ * 流式 Markdown 渲染量测（验收用；非 CI 门禁，手动 `npx vitest bench` 运行）。
+ * 场景：一篇长文档按字符块逐步喂入（模拟流式），对比 ① 旧路径：每帧整段渲染（marked.parse + 消毒 + mention + 全文高亮）；
+ * ② 新路径：每帧增量渲染（固化块缓存 + 尾块独立重渲）。
  */
 import { bench, describe } from 'vitest'
 import { createMarkdownStreamRenderer, renderFullMarkdown } from '../markdownStream'

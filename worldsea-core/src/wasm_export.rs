@@ -29,11 +29,7 @@ impl WorldSeaCore {
   }
 
   /// 验证单个实体的合法性
-  ///
-  /// 参数:
-  /// - `entity_json`: 实体的 JSON 字符串
-  /// - `schema_json`: 可选的实体类型 Schema JSON 字符串
-  ///
+  /// - `entity_json`: 实体的 JSON 字符串；`schema_json`: 可选的实体类型 Schema JSON 字符串
   /// 返回: 验证报告的 JsValue，或解析失败的错误
   pub fn validate_entity(
     &self,
@@ -51,11 +47,7 @@ impl WorldSeaCore {
   }
 
   /// 批量验证多个实体的合法性
-  ///
-  /// 参数:
-  /// - `entities_json`: 实体列表的 JSON 字符串
-  /// - `schemas_json`: 可选的实体类型 Schema 列表 JSON 字符串
-  ///
+  /// - `entities_json`: 实体列表的 JSON 字符串；`schemas_json`: 可选的实体类型 Schema 列表 JSON 字符串
   /// 返回: 合并后的验证报告 JsValue，或解析失败的错误
   pub fn validate_entities(
     &self,
@@ -85,10 +77,7 @@ impl WorldSeaCore {
   }
 
   /// 验证包数据的合法性
-  ///
-  /// 参数:
   /// - `pack_json`: 包数据的 JSON 字符串
-  ///
   /// 返回: 验证报告的 JsValue，或解析失败的错误
   pub fn validate_pack(&self, pack_json: &str) -> Result<JsValue, JsValue> {
     let pack: WorldSeaPack = serde_json::from_str(pack_json)
@@ -99,11 +88,7 @@ impl WorldSeaCore {
   }
 
   /// 验证单个关系的合法性
-  ///
-  /// 参数:
-  /// - `relation_json`: 关系的 JSON 字符串
-  /// - `schema_json`: 可选的关系类型 Schema JSON 字符串
-  ///
+  /// - `relation_json`: 关系的 JSON 字符串；`schema_json`: 可选的关系类型 Schema JSON 字符串
   /// 返回: 验证报告的 JsValue，或解析失败的错误
   pub fn validate_relation(
     &self,
@@ -121,11 +106,7 @@ impl WorldSeaCore {
   }
 
   /// 检查实体和关系之间的引用完整性
-  ///
-  /// 参数:
-  /// - `entities_json`: 实体列表的 JSON 字符串
-  /// - `relations_json`: 关系列表的 JSON 字符串
-  ///
+  /// - `entities_json`/`relations_json`: 实体与关系列表的 JSON 字符串
   /// 返回: 引用完整性验证报告的 JsValue，或解析失败的错误
   pub fn check_references(
     &self,
@@ -142,11 +123,7 @@ impl WorldSeaCore {
   }
 
   /// 将包数据从指定版本迁移到最新版本
-  ///
-  /// 参数:
-  /// - `pack_json`: 包数据的 JSON 字符串
-  /// - `from_version`: 当前包的版本号
-  ///
+  /// - `pack_json`: 包数据的 JSON 字符串；`from_version`: 当前包的版本号
   /// 返回: 包含迁移结果和更新后数据的 JsValue，或解析失败的错误
   pub fn migrate(&self, pack_json: &str, from_version: u32) -> Result<JsValue, JsValue> {
     let mut pack_data: serde_json::Value = serde_json::from_str(pack_json)
@@ -163,12 +140,8 @@ impl WorldSeaCore {
   }
 
   /// 对世界数据执行全面诊断
-  ///
-  /// 参数:
-  /// - `entities_json`: 实体列表的 JSON 字符串
-  /// - `relations_json`: 关系列表的 JSON 字符串
+  /// - `entities_json`/`relations_json`: 实体与关系列表的 JSON 字符串
   /// - `schemas_json`: 可选的实体类型 Schema 列表 JSON 字符串
-  ///
   /// 返回: 诊断摘要的 JsValue，或解析失败的错误
   pub fn run_diagnostics(
     &self,

@@ -1,13 +1,8 @@
-//! 实体/关系/KV/文件命令层（TauriStorageBackend fallback 用）
-//!
-//! 背景：FileStorageBackend 绑定 projectDir 后以 cmd_fs_* 读写 JSON 文件为主存储；
-//! 未绑定目录（启动早期 / 无项目）时前端降级到 TauriStorageBackend，它依赖
-//! cmd_get_all_entities 等实体命令。本模块提供这些命令的 SQLite 实现（全局库），
-//! 保证 fallback 路径可用，避免 "Command not found" 或 IPC 崩溃。
-//!
-//! 存储：应用数据目录下 entities.db（sqlx 0.8 + WAL）。
-//! 数据格式：实体/关系/文件均存原始 JSON 字符串（前端 serde 契约），
-//! id/type/source_id 等独立列用于索引查询。
+//! 实体/关系/KV/文件命令层（TauriStorageBackend fallback 用）。
+//! 背景：FileStorageBackend 绑定 projectDir 后以 cmd_fs_* 读写 JSON 文件为主存储；未绑定目录
+//! （启动早期 / 无项目）时前端降级到 TauriStorageBackend，依赖 cmd_get_all_entities 等实体命令。
+//! 本模块提供这些命令的 SQLite 实现（全局库），保证 fallback 路径可用，避免 "Command not found" 或 IPC 崩溃。
+//! 存储：应用数据目录下 entities.db（sqlx 0.8 + WAL）；数据存原始 JSON 字符串（前端 serde 契约），id/type 等独立列供索引查询。
 
 use std::sync::Arc;
 

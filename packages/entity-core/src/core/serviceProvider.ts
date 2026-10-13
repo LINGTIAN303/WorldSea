@@ -29,7 +29,7 @@ export interface DialogApi {
 export interface SettingsApi {
   autoCreateEntityEnabled: boolean
   autoCreateEntityRefEnabled: boolean
-  /** 关系选择器建实体入口门控（② 批接入，2026-10-07） */
+  /** 关系选择器建实体入口门控（2026-10-07 接入） */
   autoCreateSelectorEnabled: boolean
   undoHistoryLimit: number
   highlight_spreadHops: number

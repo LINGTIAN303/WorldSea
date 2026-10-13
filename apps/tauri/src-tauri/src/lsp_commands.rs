@@ -1,9 +1,7 @@
-//! LSP 外挂桥（智能提示三期 B1，立项 §五）：
-//! 检测系统 PATH 已装语言服务器 → spawn + stdio Content-Length 帧 ↔ Tauri IPC。
+//! LSP 外挂桥：检测系统 PATH 已装语言服务器 → spawn + stdio Content-Length 帧 ↔ Tauri IPC。
 //! server 按语言常驻（编辑器关闭不停），App 真退出时 kill_all 清理（lib.rs RunEvent::Exit）；
-//! Windows 侧 LSP 子进程额外挂 Job Object（KillOnJobClose，复用 agent-commands::job::WinJob）——
-//! 句柄随 LspProc 生命周期关闭，App 即使被强杀（kill_all 未执行）也会由系统在 job 句柄全部
-//! 关闭时整树回收子进程，防孤儿。
+//! Windows 侧 LSP 子进程额外挂 Job Object（KillOnJobClose，复用 [`crate::win_job`]）——
+//! 句柄随 LspProc 生命周期关闭，App 即使被强杀（kill_all 未执行）也会由系统整树回收，防孤儿。
 //! 前端消息面：emit `lsp-message` {lang, body?, closed?}，命令 cmd_lsp_detect/start/send/stop。
 
 use std::collections::HashMap;

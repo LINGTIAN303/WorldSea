@@ -1,5 +1,4 @@
-// C2-b（2026-09-24）：页面流桥——把页面的 `openStream` 钩子接到管道上的 mux 流。
-//
+// 页面流桥——把页面的 `openStream` 钩子接到管道上的 mux 流。
 // 调用链：页面 `__DSH_TRANSPORT__.openStream(...)`（`dsh_stream_bridge.js`）→ 这里四条命令 →
 // `PipeClient` 的流 lane → 宿主 `pipe-transport` 的 `stream-open` → `typertGateway.wireStream.open`。
 // 下行经 Tauri `Channel` 推送（与 @tauri-apps/api 的 Channel 同构：JS 侧给 `__CHANNEL__:<id>` 字符串）。

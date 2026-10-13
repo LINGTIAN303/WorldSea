@@ -12,11 +12,9 @@
 
 <script setup lang="ts">
 /**
- * 内容形态·段落式（derived）：长文本字段合并成篇。详细见
- * docs/details/注释/packages/plugin-sdk/实体详情内容形态.md §六
- *
- * 正文按 markdown/HTML 渲染，复用主窗口同一内核（marked + DOMPurify），
- * 不再自己 `white-space: pre-wrap` 排自然段——那会让描述里的 `#`/`-`/`**` 原样露出。
+ * 内容形态·段落式（derived）：长文本字段合并成篇。详细见 docs/details/注释/packages/plugin-sdk/实体详情内容形态.md §六
+ * 正文按 markdown/HTML 渲染，复用主窗口同一内核（marked + DOMPurify），不再自己
+ * `white-space: pre-wrap` 排自然段——那会让描述里的 `#`/`-`/`**` 原样露出。
  */
 import { computed } from 'vue'
 import type { Entity } from '@worldsea/entity-core'

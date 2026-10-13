@@ -68,19 +68,9 @@ export const useEntityStore = defineStore('entity', () => {
   }
 
   /**
-   * 按类型加载（**增量语义**，2026-09-18 修正）
-   *
-   * 【历史缺陷】此前实现是 `setAll(getEntitiesByType(type))` —— **整体替换** store 的 `entities`，
-   * 于是「加载 character」会把其它所有类型（含大纲节点、章节…）**从内存里挤掉**，
-   * 直到下一次 `loadAll()` 才恢复。表现为：Agent 在某芽里写一次 → 别的芽实体集体消失。
-   * 这是框架级陷阱，曾影响 4 条工作线（workflow 5 处 / outline 1 处 / characters 2 处 / drawing 1 处）。
-   *
-   * 【为什么改成增量而不是「删掉本 API」】调用方（如 `CharacterList`）是**刻意的按类型轻量加载**
-   * （它同时只 `loadAll()` 关系、不 loadAll 实体），所以「按类型加载」本身是有效意图；
-   * 有问题的只是「顺带清掉别的类型」这个副作用。故保留 API 名与调用点不变，只修副作用。
-   *
-   * 【语义】该类型以 storage 为准**整体替换**（磁盘上已删除的会从内存移除），
-   * 其它类型**原样保留**。幂等、可重复调用。
+   * 按类型加载（**增量语义**，2026-09-18 修正）。【历史缺陷】曾为整体替换，把其它类型实体从内存挤掉（框架级陷阱，曾影响 4 条工作线）；
+   * 调用方是刻意的按类型轻量加载，故保留 API 只修副作用。【语义】该类型以 storage 为准整体替换（含删除同步），其它类型原样保留；幂等可重复调用。
+   * 详见 docs/details/注释/packages/entity-core/stores/entityStore.md。
    */
   async function loadByType(type: string) {
     clearError()
@@ -160,11 +150,8 @@ export const useEntityStore = defineStore('entity', () => {
 
   /**
    * 更新实体（内存立即生效，持久化与事件异步）。
-   *
-   * @param opts.skipUndo 跳过撤销栈记录。**仅用于自动保存类写入**（编辑器内容防抖落库）：
-   *   这类写入会在每次输入暂停时产生一条撤销记录，迅速填满撤销上限（默认 20）并把用户
-   *   真实操作的撤销历史挤掉。文本级撤销由编辑器自身负责（TipTap 内部 undo / 章节快照），
-   *   不进全局撤销栈。
+   * @param opts.skipUndo 跳过撤销栈记录。**仅用于自动保存类写入**（编辑器内容防抖落库）：这类写入会在每次输入暂停时产生一条撤销记录，
+   *   迅速填满撤销上限（默认 20）并把用户真实操作的撤销历史挤掉；文本级撤销由编辑器自身负责（TipTap 内部 undo / 章节快照），不进全局撤销栈。
    */
   async function update(id: string, changes: Partial<Entity>, source: 'user' | 'agent' | 'import' = 'user', opts?: { skipUndo?: boolean }) {
     clearError()

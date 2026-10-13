@@ -44,11 +44,10 @@ export function formatKeyForDisplay(k: string): string {
 
 const registry = new Map<string, ShortcutDef>()
 const defaultKeysMap = new Map<string, string[]>()
-// ── 视图上下文（N9 修复 2026-08-28）──
+// ── 视图上下文 ──
 // view scope 快捷键仅在「主视图上下文」生效：App.vue 按 currentView 注入（未装载视图=null），
 // view 快捷键全部失效——避免常驻挂载的芽视图（角色/导图等）快捷键在无视图上下文时误触发
-// （如 n=新建 / delete=删除）。（旧 Agent 空间壳已随本体删除，2026-09-27 E7；space 作用域
-// 与 setAgentSpaceActive 随 2026-09-30 C 批一并退役。）
+// （如 n=新建 / delete=删除；space 作用域与 setAgentSpaceActive 已随旧 Agent 空间壳退役）。
 let activeViewId: string | null = null
 export function setActiveViewId(id: string | null): void {
   activeViewId = id
@@ -134,7 +133,7 @@ function advanceSequences(pressed: string[]): ShortcutDef | null {
   for (const [, def] of registry) {
     if (def.kind !== 'sequence') continue
     // 序列上下文过滤：与 chord 分发同语义（view 需主视图上下文），
-    // 否则导图连击（view 层）在无视图上下文时也会推进并触发（N9 修复时漏了序列路径）
+    // 否则导图连击（view 层）在无视图上下文时也会推进并触发（序列路径是修复时补上的）
     if (def.scope === 'view' && activeViewId === null) continue
     const prev = seqProgress.get(def.id) ?? 0
     if (def.keys[prev] === key) {
@@ -259,7 +258,7 @@ function attachGlobalListener() {
       // 弹窗打开期间（含未收编浮层）：modal 以外的 scope 全部失效
       if (modalDepth > 0 && scope !== 'modal') continue
       if (isInput && scope !== 'modal') continue
-      // N9：无视图上下文 → view scope 快捷键全部失效
+      // 无视图上下文 → view scope 快捷键全部失效
       if (scope === 'view' && activeViewId === null) continue
 
       for (const [, def] of registry) {
@@ -272,7 +271,7 @@ function attachGlobalListener() {
         if (def.preventDefault || isPreventDefault(pressed)) {
           e.preventDefault()
         }
-        // 【消费策略（2026-09 批5）】view 层命令命中后阻断传播：document/window 级残留
+        // 【消费策略】view 层命令命中后阻断传播：document/window 级残留
         // 监听（未收编的组件局部监听）不再重复执行同键行为。
         // modal/global 层暂不阻断——兼容存量浮层（TuiModal 等约 30 处）的 window Esc
         // 监听，其收编按规范渐进（新代码一律 useScopedShortcuts）。
@@ -371,11 +370,9 @@ export function useShortcuts() {
   }
 
   /**
-   * 设置自定义快捷键（供 settings 面板使用）：
-   * - modal 层不开放（交互惯例固定），直接拒绝
-   * - 同 scope 键位冲突时阻断并返回冲突列表
-   * - 跨 scope 遮蔽时放行但返回警示（更高优先级 scope 已占用该键）
-   * 成功时写入 registry 并持久化到 localStorage。
+   * 设置自定义快捷键（供 settings 面板使用）：modal 层不开放（交互惯例固定）直接拒绝；
+   * 同 scope 键位冲突时阻断并返回冲突列表；跨 scope 遮蔽时放行但返回警示
+   * （更高优先级 scope 已占用该键）。成功时写入 registry 并持久化到 localStorage。
    */
   function setShortcut(id: string, newKeys: string[]): { ok: boolean; conflict?: ShortcutConflict; shadowing?: ShortcutDef[] } {
     const def = registry.get(id)

@@ -125,9 +125,7 @@ function simpleChecksum(str: string): string {
 
 /**
  * 将当前项目导出到指定目录。
- *
- * @param dirPath 目标目录路径（如果为空则弹出目录选择对话框）
- * @param onProgress 进度回调
+ * @param dirPath 目标目录路径（如果为空则弹出目录选择对话框）；@param onProgress 进度回调
  * @returns 导出的目录路径，或 null 表示用户取消
  */
 export async function exportProjectToDir(
@@ -223,9 +221,7 @@ export async function exportProjectToDir(
 
 /**
  * 从指定目录导入项目。
- *
- * @param dirPath 源目录路径（如果为空则弹出目录选择对话框）
- * @param onProgress 进度回调
+ * @param dirPath 源目录路径（如果为空则弹出目录选择对话框）；@param onProgress 进度回调
  * @returns 导入结果信息，或 null 表示用户取消
  */
 export async function importProjectFromDir(

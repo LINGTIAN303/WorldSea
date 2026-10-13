@@ -1,12 +1,7 @@
 /**
- * renderMarkdownForEditor — 编辑器装载裸渲染契约（2026-10-11 笔记装载网关配套）。
- *
- * 核心不变量：
- * ① 产物无代码块外壳 —— ws-code-block/ws-code-copy 等外壳标签/文字不得出现
- *    （TipTap setContent 按 schema 过滤未知标签会保留其文本，外壳文字会污染正文）
- * ② 与 renderFullMarkdown 同词法 —— 同一 markdown 输入的块级结构（表格/列表/引用/
- *    围栏）两侧渲染语义一致，差异仅在外壳与 mention 注入
- * ③ 未闭合围栏 → 整段转义 + <br>（与 renderFullMarkdown 同降级语义）
+ * renderMarkdownForEditor — 编辑器装载裸渲染契约（2026-10-11 笔记装载网关配套）。核心不变量：
+ * ① 产物无代码块外壳（TipTap setContent 按 schema 过滤未知标签会保留其文本，外壳文字会污染正文）；② 与 renderFullMarkdown 同词法，块级结构（表格/列表/引用/围栏）两侧渲染语义一致，差异仅在外壳与 mention 注入；
+ * ③ 未闭合围栏 → 整段转义 + <br>（与 renderFullMarkdown 同降级语义）。
  */
 import { describe, it, expect } from 'vitest'
 import { renderMarkdownForEditor, renderFullMarkdown } from '../markdownStream'

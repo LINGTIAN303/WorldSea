@@ -1,6 +1,6 @@
 <template>
   <div class="gev-root" :class="{ 'gev-root--split': splitCarrierOpen, 'gev-root--immersive': immersiveCarrierOpen }">
-    <!-- 工具栏按控件类型分发到 R3 统一工具条各落点（搜索→标题旁，筛选→收束条，动作→动作区，新建→新建区） -->
+    <!-- 工具栏按控件类型分发到统一工具条各落点（搜索→标题旁，筛选→收束条，动作→动作区，新建→新建区） -->
     <!-- 搜索框 → 标题右侧（#view-toolbar-search） -->
     <Teleport to="#view-toolbar-search">
       <input v-model="searchQuery" class="search-input" :placeholder="`搜索${entityLabel}...`" :aria-label="`搜索${entityLabel}`" />
@@ -667,7 +667,7 @@ async function onFormSave(data: { name: string; description: string; properties:
   showForm.value = false
   editingEntity.value = null
   await entityStore.loadAll()
-  // AutoLink 索引由 entityStore.add/update 统一接线（① 批），此处不再重复触发
+  // AutoLink 索引由 entityStore.add/update 统一接线，此处不再重复触发
 }
 
 async function onBatchDel() {

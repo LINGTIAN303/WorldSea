@@ -1,9 +1,7 @@
 /**
- * Artifact — Agent 产物（C1 多版本 + 回滚）
- *
- * 一个 Artifact 代表一份可演进的产物（文档/图表/代码等），
- * 其内容随更新而递增版本号，完整历史保存在 `artifact_versions`，
- * 支持随时回滚到任意历史版本。
+ * Artifact — Agent 产物（多版本 + 回滚）
+ * 一个 Artifact 代表一份可演进的产物（文档/图表/代码等），内容随更新递增版本号，
+ * 完整历史保存在 `artifact_versions`，支持随时回滚到任意历史版本。
  */
 
 /** Agent 产物主记录。`content` 为当前最新内容，`version` 为当前版本号。 */

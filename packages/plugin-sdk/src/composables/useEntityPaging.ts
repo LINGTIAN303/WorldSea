@@ -1,13 +1,9 @@
 import { computed, ref, toValue, watch, type ComputedRef, type MaybeRefOrGetter, type Ref } from 'vue'
 
 /**
- * 列表分页——通用实体视图与「自有列表」视图（时间线时序表等）共用同一口径。
- *
- * 关键约定：**只切「渲染哪一段」，源列表始终全量**。批量删除的取名、跨页选中保持、
- * 计数与空态判定都基于全量，不随翻页变化；翻页只影响 DOM 里那一页的条目。
- *
- * 不适用于树形渲染（子节点会落到页外而丢失父链）与拖拽调色板（滚动才是正确交互）。
- * why 与分页边界详见 docs/details/注释/packages/plugin-sdk/实体视图分页.md
+ * 列表分页——通用实体视图与「自有列表」视图（时间线时序表等）共用同一口径。关键约定：
+ * **只切「渲染哪一段」，源列表始终全量**（批量删除取名、跨页选中、计数与空态判定都基于全量）；
+ * 不适用于树形渲染（子节点落页外丢父链）与拖拽调色板。why 详见 docs/details/注释/packages/plugin-sdk/实体视图分页.md
  */
 export function useEntityPaging<T>(
   source: Ref<T[]> | ComputedRef<T[]>,

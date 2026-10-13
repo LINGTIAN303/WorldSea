@@ -31,10 +31,8 @@
 <script setup lang="ts">
 /**
  * L1 载体·右栏抽屉（缺省）。详细见 docs/details/注释/packages/plugin-sdk/实体详情内容形态.md §十
- *
- * 本件只剩「容器该有的样子」：贴右浮层、滑入动效、拖宽、遮罩档位。
- * 表头/标签页/正文在 `DetailShell`，穿透或拦截在 `DetailBackdrop`——各载体共用一份，
- * 免得加一种载体抄一遍（1a 之前的四套字段控件正是这么长出来的）。
+ * 本件只剩「容器该有的样子」：贴右浮层、滑入动效、拖宽、遮罩档位；表头/标签页/正文在
+ * `DetailShell`，穿透或拦截在 `DetailBackdrop`——各载体共用一份，免得加一种载体抄一遍。
  */
 import { computed } from 'vue'
 import DetailShell from './DetailShell.vue'

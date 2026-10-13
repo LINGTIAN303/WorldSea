@@ -1,18 +1,7 @@
 /**
- * 流式 Markdown 内核（性能 C2：块级增量渲染），详细见 docs/details/注释/packages/shared-ui/markdown/markdownStream.md
- *
- * 与 useMarkdownRender 的分工：
- * - 本模块：marked 实例 + 代码块外壳 + 高亮注入钩子 + 消毒（DOMPurify）+ mention 注入 +
- *   「稳定前缀 / 活动尾块」分块（splitMarkdownStream）+ 增量渲染器（createMarkdownStreamRenderer）
- * - useMarkdownRender.ts：Vue composable 接线（rAF 节流 / 字体段 / JSON 剥离 / 兼容 API）
- *
- * 增量策略与保守回退：
- * - 只固化「最后一个内容 token 之前」的 token——尾 token 是唯一可能随后续文本增长的 token；
- *   开围栏（code 吞并至文末）与列表/表格/引用等续行都会落在尾 token 上，天然覆盖
- * - 含引用式链接定义（def）或原始 HTML 块（html）的文本 → 整段回退：前者是跨 token 语义
- *   （后到的定义会改变先前的链接渲染），后者片段级消毒不安全（未闭合标签会被截断修正）
- * - 前缀校验失败（非前缀增长 / token.raw 无法拼回原文）→ 整段回退或状态重置
- * - 未闭合围栏只降级「尾块」为纯文本（既有实现为整段降级；见施工记录「行为差异」）
+ * 流式 Markdown 内核（块级增量渲染），详细见 docs/details/注释/packages/shared-ui/markdown/markdownStream.md
+ * 与 useMarkdownRender 分工：本模块 = marked 实例 + 代码块外壳 + 高亮注入钩子 + 消毒（DOMPurify）+ mention 注入 + 「稳定前缀/活动尾块」分块（splitMarkdownStream）+ 增量渲染器；useMarkdownRender.ts = Vue composable 接线（rAF 节流/字体段/JSON 剥离/兼容 API）。
+ * 增量策略与保守回退（只固化最后一个内容 token 之前；def/html 整段回退；前缀校验失败回退；未闭合围栏仅降级尾块为纯文本）详见上述文档。
  */
 import { Marked, type Token } from 'marked'
 import DOMPurify from 'dompurify'
@@ -103,11 +92,9 @@ export function parseMarkdownTokens(tokens: Token[]): string {
 // ─── 裸渲染（编辑器装载专用，无代码块外壳）─────────────────
 
 /**
- * 裸 marked 实例：与共享实例同 GFM/breaks 配置，但**不带** code/link 自定义渲染器。
- * 为什么不能复用共享实例：其 code renderer 产出「语言标签 + 复制按钮」外壳（div/button），
- * 该产物喂给 TipTap `setContent` 时会被 schema 过滤 —— 未知标签保留文本内容，
- * 「复制」「语言名」等外壳文字会污染代码块/正文（2026-10-11 笔记装载网关）。
- * lexer 与 renderer 无关（renderer 仅在 parse 阶段生效），故 token 可跨实例复用。
+ * 裸 marked 实例：与共享实例同 GFM/breaks 配置，但不带 code/link 自定义渲染器。
+ * 不能复用共享实例：其 code renderer 产出的「语言标签 + 复制按钮」外壳喂给 TipTap setContent 会被
+ * schema 过滤，外壳文字污染代码块/正文（2026-10-11 笔记装载网关）；lexer 与 renderer 无关，token 可跨实例复用。
  */
 const markedRaw = new Marked({ gfm: true, breaks: true })
 
@@ -158,9 +145,8 @@ export type MentionMatcher = (text: string) => Array<{
 
 /**
  * 实体名高亮注入缓存：按原始 HTML 缓存注入结果，避免重渲染时重复匹配。
- *
- * ⚠️ 增量渲染后 key 以「单 token HTML」为主（复用率高）；但整段回退路径（def/html）
- * 仍会以整段 HTML 为 key。设上限 FIFO 淘汰，防长会话累积。
+ * 增量渲染后 key 以「单 token HTML」为主（复用率高）；但整段回退路径（def/html）仍会以整段 HTML 为 key。
+ * 设上限 FIFO 淘汰，防长会话累积。
  */
 const MENTION_CACHE_MAX = 200
 const mentionInjectCache = new Map<string, string>()
@@ -178,9 +164,7 @@ function evictMentionCache(): void {
 /**
  * 在渲染后的 HTML 中注入实体名高亮
  * 策略：用 DOMParser 解析 HTML，遍历纯文本节点（跳过 code/pre/a 等已格式化元素），
- * 匹配实体名并包裹 <span data-ws-entity-id="..." class="ws-entity-mention">
- *
- * @param matchInText 为空时跳过注入（无实体索引的轻场景）
+ * 匹配实体名并包裹 <span data-ws-entity-id="..." class="ws-entity-mention">。@param matchInText 为空时跳过注入（无实体索引的轻场景）
  */
 export function injectMentions(html: string, matchInText: MentionMatcher | null): string {
   if (!html || !matchInText) return html
@@ -289,10 +273,8 @@ export interface MarkdownStreamSplit {
 
 /**
  * 计算「稳定前缀 / 活动尾块」的原文切分（纯函数）。
- *
- * 规则：尾 token（最后一个非 space token）是唯一可能随后续文本增长的 token——
- * 其之前的 token 一旦不再位于尾部即已定型，可安全固化。含 def/html token 的文本
- * 因跨 token 语义 / 片段消毒不安全，整段回退。
+ * 规则：尾 token（最后一个非 space token）是唯一可能随后续文本增长的 token——其之前的 token
+ * 一旦不再位于尾部即已定型，可安全固化；含 def/html token 的文本因跨 token 语义 / 片段消毒不安全，整段回退。
  */
 export function splitMarkdownStream(text: string, lex: (src: string) => Token[] = lexMarkdown): MarkdownStreamSplit {
   const empty: MarkdownStreamSplit = { stableRaw: '', stableTokens: [], tailRaw: text, tailTokens: [], fallback: false }
@@ -362,13 +344,8 @@ export interface MarkdownStreamRenderer {
 }
 
 /**
- * 创建增量渲染器：把「已完成块只渲一次、活动尾块每帧重渲」的状态机收在一处。
- *
- * 契约（由单测锁定）：
- * - 对任意文本：`stableHtml + tailHtml` 与整段渲染等价（未闭合围栏帧除外——
- *   该帧尾块按既有语义降级为纯文本，稳定段保持渲染）
- * - 固化块的 token HTML 只渲染一次（缓存命中后不重复调用 marked/高亮）
- * - 非前缀增长（文本被修正 / 缩短）→ 自动重置后按新文本重建
+ * 创建增量渲染器：把「已完成块只渲一次、活动尾块每帧重渲」的状态机收在一处。契约（由单测锁定）：
+ * stableHtml + tailHtml 与整段渲染等价（未闭合围栏帧除外，该帧尾块按既有语义降级为纯文本）；固化块的 token HTML 只渲染一次；非前缀增长 → 自动重置重建。
  */
 export function createMarkdownStreamRenderer(opts: MarkdownStreamRendererOptions = {}): MarkdownStreamRenderer {
   const matchInText = opts.matchInText ?? null

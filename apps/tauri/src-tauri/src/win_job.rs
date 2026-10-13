@@ -1,10 +1,6 @@
-//! Windows Job object 整树回收（LSP 子进程防孤儿）
-//!
-//! 自 `agent-commands::job` 打捞（2026-09-27 E8：agent-commands crate 退场，
-//! 本模块为其唯一存活消费者——`lsp_commands` 挂 Job Object 防 LSP 子进程孤儿）。
-//! 原职责覆盖命令工具子进程树回收；Drop 关闭 Job 句柄 → Windows 自动终止该
-//! Job 内全部残留子进程。非 Windows 平台为空操作。
-//!
+//! Windows Job object 整树回收（LSP 子进程防孤儿）。
+//! 自 `agent-commands::job` 打捞（该 crate 退场后，唯一存活消费者为 `lsp_commands` 挂 Job Object）；
+//! Drop 关闭 Job 句柄 → Windows 自动终止该 Job 内全部残留子进程；非 Windows 平台为空操作。
 //! 背景：`tokio::process::Command::kill()` 只杀主进程，Windows 上子进程树会残留。
 
 #[cfg(windows)]

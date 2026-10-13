@@ -1,11 +1,7 @@
 /**
  * SemanticHint 系统 + AutoLink 策略引擎
- *
- * 设计决策：
- * - Trait 只提供语义标签（SemanticHint），不包含执行逻辑
- * - AutoLink 策略引擎独立执行，维护 hint → matchTargets → matchFields 映射
- * - 只实现"被动索引"和"建议确认"两种模式，暂缓"自动创建"
- * - 三层解耦：Trait（数据形状）→ 语义标签（意图）→ 策略引擎（执行逻辑）
+ * 设计决策：Trait 只提供语义标签（SemanticHint），不包含执行逻辑；AutoLink 策略引擎独立执行，维护 hint → matchTargets → matchFields 映射；
+ * 只实现「被动索引」和「建议确认」两种模式，暂缓「自动创建」；三层解耦：Trait（数据形状）→ 语义标签（意图）→ 策略引擎（执行逻辑）。
  */
 
 import type { SemanticHintName, AutoLinkStrategy } from '../types/trait'

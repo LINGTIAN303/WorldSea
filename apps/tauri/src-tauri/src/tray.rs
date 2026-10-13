@@ -1,15 +1,8 @@
-//! 系统托盘（批次97 基础版 + 系统层集成扩展）：
-//! - 菜单：显示主窗口 / 打开工作台 / 最近项目(子菜单) / 打开设置 / 退出
-//! - 动态状态：最近项目列表（前端 `cmd_tray_set_recent_projects` 同步；D2-b2 起项目 = dsh 工作区）
-//! - 菜单动作 → emit 事件（tray:open-settings / tray:open-project），
-//!   由前端监听分发到对应面板/项目切换；「打开工作台」壳内直切不派事件（D2-b2）
-//! （2026-09-27 E8：旧 Agent 面退场，移除「打开 Agent 对话」项与 Agent 生成状态链）
-//! （2026-09-27 E9 #1/#2/#5：功能菜单项收口——先**切到工作台窗**（懒创建 + 显示 + 聚焦）再派发，
-//!   修复「没开过工作台时点托盘无反应」（监听方只在懒建的工作台窗）与「打开设置」错窗；
-//!   页面未就绪（窗刚懒建、React 还在加载）时动作入积压队列，`cmd_tray_page_ready` 时补投，
-//!   事件不再静默丢弃）
-//! （2026-09-28 D2-b2：「新建项目」→ P1「打开项目文件夹」→ **「打开工作台」**——项目 = dsh 工作区
-//!   同源模型落地后，新建/选择项目归 dsh 界面与工作台项目下拉，托盘只负责唤出窗口）
+//! 系统托盘：
+//! - 菜单：显示主窗口 / 打开工作台 / 最近项目(子菜单) / 打开设置 / 退出；动态状态 = 最近项目列表
+//!   （前端 `cmd_tray_set_recent_projects` 同步；项目 = dsh 工作区）
+//! - 菜单动作 → emit 事件（tray:open-settings / tray:open-project）由前端监听分发；「打开工作台」壳内直切不派事件。
+//! - 功能项先**切到工作台窗**（懒创建 + 显示 + 聚焦）再派发；页面未就绪时入积压队列，`cmd_tray_page_ready` 补投。
 
 use serde::Deserialize;
 use std::sync::Mutex;
@@ -50,7 +43,7 @@ pub struct ProjectItem {
 /// 重建完整托盘菜单（菜单是原子的：任何状态变化都整份重建）
 fn build_menu(app: &AppHandle, state: &TrayState) -> tauri::Result<Menu<Wry>> {
     let show = MenuItem::with_id(app, "show", "显示主窗口", true, None::<&str>)?;
-    // D2-b2（2026-09-28）：项目 = dsh 工作区（同源）——「打开项目文件夹选择器」随产品域建项目入口退役；
+    // 项目 = dsh 工作区（同源）——「打开项目文件夹选择器」随产品域建项目入口退役；
     // 托盘该项演进为「打开工作台」（壳内直切工作台窗，不派事件——项目选择在 dsh 界面/工作台下拉开）
     let new_project = MenuItem::with_id(app, "open-workbench", "打开工作台", true, None::<&str>)?;
 
@@ -115,7 +108,7 @@ pub fn build_tray(app: &AppHandle) -> tauri::Result<TrayIcon> {
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_tray_icon_event(|tray, event| {
-            // 左键单击托盘图标 → 显示主窗口（批次99：单击/双击均有反应，避免"托盘失效"错觉）
+            // 左键单击托盘图标 → 显示主窗口（单击/双击均有反应，避免"托盘失效"错觉）
             if let TrayIconEvent::Click {
                 button: MouseButton::Left,
                 button_state: MouseButtonState::Up,
@@ -127,9 +120,9 @@ pub fn build_tray(app: &AppHandle) -> tauri::Result<TrayIcon> {
         })
         .on_menu_event(|app, event| match event.id.as_ref() {
             "show" => show_main_window(app),
-            // E9：功能菜单项的监听方在工作台窗 → 先切到工作台（懒创建 + 显示 + 聚焦）再派发
-            // D2-b2：「打开工作台」= 壳内直切（不派事件——项目选择在 dsh 界面/工作台下拉开）
-            // G1 收尾批修：主线程只投递（空间切换经互斥串行、后台线程执行——主线程等锁会与窗口操作互锁）
+            // 功能菜单项的监听方在工作台窗 → 先切到工作台（懒创建 + 显示 + 聚焦）再派发
+            // 「打开工作台」= 壳内直切（不派事件——项目选择在 dsh 界面/工作台下拉开）
+            // 主线程只投递（空间切换经互斥串行、后台线程执行——主线程等锁会与窗口操作互锁）
             "open-workbench" => crate::workspace_window::request_space_switch(app, "workbench"),
             "open-settings" => dispatch_workbench(app, "tray:open-settings", None),
             "quit" => app.exit(0),
@@ -142,13 +135,11 @@ pub fn build_tray(app: &AppHandle) -> tauri::Result<TrayIcon> {
         .build(app)
 }
 
-/// 托盘动作 → 工作台窗（E9 #1/#2 收口）：
+/// 托盘动作 → 工作台窗：
 /// ① 先切到工作台窗（懒创建 + 显示 + 聚焦——用户点了托盘就要看到结果，且监听方在此窗）；
 /// ② 页面已就绪 → 直接 emit；未就绪（窗刚懒建，页面还在加载）→ 入积压队列，
-///    页面 setup 调 [`cmd_tray_page_ready`] 时补投。
-/// 切窗失败（主窗不存在等）只记日志——托盘动作不做放大性重试。
-/// G1 收尾批修：整段移到**后台线程**——本函数跑在主线程（托盘菜单回调），不得阻塞等空间切换互斥
-/// （死锁纪律见 `workspace_window::SPACE_SWITCH_LOCK` 注释）；切换完成后在同一线程里派发/入队。
+///    页面 setup 调 [`cmd_tray_page_ready`] 时补投；切窗失败只记日志——不做放大性重试。
+/// 整段跑在**后台线程**（本函数被托盘菜单回调调在主线程，不得阻塞等空间切换互斥——死锁纪律见 `workspace_window::SPACE_SWITCH_LOCK` 注释）。
 fn dispatch_workbench(app: &AppHandle, event: &str, payload: Option<String>) {
     let app = app.clone();
     let event = event.to_string();

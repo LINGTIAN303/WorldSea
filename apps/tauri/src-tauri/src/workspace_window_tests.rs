@@ -1,4 +1,4 @@
-// D1-b/D1-c 的配置面测试：页面 URL 口径 + capability 与权限清单的**交叉一致性**
+// 工作台窗口的配置面测试：页面 URL 口径 + capability 与权限清单的**交叉一致性**
 // （窗口标签 / 两窗授权互斥 / 切换命令已在壳桥权限内）。
 // 这类断言的价值：把「ACL 接线」从口头约定变成门禁——删掉某条即报红。
 
@@ -66,7 +66,7 @@ fn agent_window_capability_does_not_carry_the_product_domain() {
     assert!(permissions.contains(&"allow-stream-bridge".to_string()), "dsh 窗要流桥");
     assert!(
         !permissions.contains(&"allow-product-domain".to_string()),
-        "产品域命令族不得对 Agent 空间窗开放（C3 安全面退步）"
+        "产品域命令族不得对 Agent 空间窗开放（安全面退步）"
     );
 }
 
@@ -106,13 +106,13 @@ fn space_switch_is_granted_in_the_shared_shell_bridge() {
     let text = read_text("permissions/worldsea-shell.toml");
     assert!(text.contains("\"cmd_shell_space_switch\""), "切换命令须在壳桥权限内（两窗共用）");
     assert!(text.contains("identifier = \"allow-shell-bridge\""));
-    // E2：主题读写命令同在共用壳桥内（产品页设置面板改主题走它）
+    // 主题读写命令同在共用壳桥内（产品页设置面板改主题走它）
     assert!(text.contains("\"cmd_theme_get\"") && text.contains("\"cmd_theme_set\""), "主题命令须在壳桥权限内");
 }
 
 #[test]
 fn capability_bridge_is_shared_by_both_windows_and_gated_by_a_falsification_switch() {
-    // A（2026-09-25）：能力桥是**两窗的缝**——权限单列且两窗都引；提供方/回执的 ACL 在 Rust 侧按 label 判。
+    // 能力桥是**两窗的缝**——权限单列且两窗都引；提供方/回执的 ACL 在 Rust 侧按 label 判。
     let shell = read_text("permissions/worldsea-shell.toml");
     assert!(shell.contains("identifier = \"allow-capability-bridge\""), "缺能力桥权限块");
     for command in [
@@ -153,7 +153,7 @@ fn geometry_plan_transfers_maximize_and_never_writes_geometry_over_it() {
 
 #[test]
 fn geometry_snapshot_carries_minimized_and_apply_skips_it() {
-    // E6（2026-09-27 走查缺陷）：最小化来源的占位几何（Windows ≈ -32000 / 标题栏尺寸）不得转移给
+    // 走查缺陷（2026-09-27）：最小化来源的占位几何（Windows ≈ -32000 / 标题栏尺寸）不得转移给
     // 目标窗——否则目标窗「打开即不可见」并被窗口状态插件持久化。锁源码约定（删掉守卫即报红）。
     let source = read_text("src/workspace_window.rs");
     assert!(source.contains("minimized: window.is_minimized()"), "快照须记录最小化态");
@@ -162,10 +162,10 @@ fn geometry_snapshot_carries_minimized_and_apply_skips_it() {
 
 #[test]
 fn space_switch_is_serialized_and_main_thread_safe() {
-    // G1 收尾批修：切换经互斥串行（async 命令并发时 show/hide 交错 → 双窗/双隐，实测复现）；
+    // 切换经互斥串行（async 命令并发时 show/hide 交错 → 双窗/双隐，实测复现）；
     // 主线程调用方（托盘 / CloseRequested）只投递后台线程——主线程等锁会与窗口操作的消息泵互锁。
     // 断言取**整行守卫**而非裸子串：`snapshot()` 里也有 `is_minimized().unwrap_or(false)`，
-    // 裸子串会被它假满足（反证 M14 实测踩到）。
+    // 裸子串会被它假满足（反证实测踩到）。
     let source = read_text("src/workspace_window.rs");
     assert!(source.contains("static SPACE_SWITCH_LOCK"), "缺空间切换互斥");
     assert!(source.contains("fn request_space_switch"), "缺主线程安全投递入口");
@@ -178,9 +178,9 @@ fn space_switch_is_serialized_and_main_thread_safe() {
 
 #[test]
 fn geometry_transfer_is_skipped_for_fullscreen_windows() {
-    // G1 收尾（2026-09-30）：全屏窗不参与几何转移——来源全屏（几何=屏尺寸，写过去只是摊成假全屏）；
+    // 全屏窗不参与几何转移——来源全屏（几何=屏尺寸，写过去只是摊成假全屏）；
     // 目标全屏（对全屏窗 set_position/set_size 会把全屏顶掉/成怪态）。与最小化共用一个纯判据。
-    assert!(geometry_transfer_skipped(true, false, false), "最小化来源不转移（E6）");
+    assert!(geometry_transfer_skipped(true, false, false), "最小化来源不转移");
     assert!(geometry_transfer_skipped(false, true, false), "来源全屏不转移");
     assert!(geometry_transfer_skipped(false, false, true), "目标全屏不写几何");
     assert!(geometry_transfer_skipped(false, true, true));

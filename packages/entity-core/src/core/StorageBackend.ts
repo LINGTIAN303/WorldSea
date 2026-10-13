@@ -594,8 +594,7 @@ export function getStorageBackend(): StorageBackend {
 export const storage = getStorageBackend()
 
 /**
- * 设置当前项目的存储目录。
- * 由 useProjectSwitcher 在项目切换时调用。
+ * 设置当前项目的存储目录，由 useProjectSwitcher 在项目切换时调用。
  * - dir 非空：FileStorageBackend 以文件系统为主存储
  * - dir 为 null：降级到 fallback（IndexedDB/SQLite）
  */

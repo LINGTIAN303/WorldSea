@@ -1,12 +1,7 @@
 //! 工作流定义解析（YAML / JSON / Auto-detect）
-//!
-//! 提供：
-//! - [`ParseFormat`]：JSON / YAML / Auto
-//! - [`parse_definition`]：从字符串解析为 [`WorkflowDefinition`]
-//! - [`serialize_definition`]：将定义序列化为字符串
-//!
-//! 错误通过 [`CoreError`] 暴露，调用方可统一在 Tauri Command 层映射到 `WorkflowError`。
-//! 解析失败一律走 `CoreError::InvalidArgument`，表示输入端问题。
+//! 提供 [`ParseFormat`]、[`parse_definition`]（解析为 [`WorkflowDefinition`]）、[`serialize_definition`]。
+//! 错误通过 [`CoreError`] 暴露：解析失败一律走 `CoreError::InvalidArgument`（输入端问题），
+//! 调用方可统一在 Tauri Command 层映射到 `WorkflowError`。
 
 use crate::error::CoreError;
 use crate::workflow::types::WorkflowDefinition;
@@ -22,12 +17,9 @@ pub enum ParseFormat {
     Auto,
 }
 
-/// 把字符串解析为 [`WorkflowDefinition`]。
-///
-/// 行为：
-/// - `Auto` 时调用 [`detect_format`] 判断走 JSON 还是 YAML 路径
-/// - 先把源文本转 `serde_json::Value`，再用强类型反序列化到 `WorkflowDefinition`
-/// - 任何解析 / 结构错误都映射为 `CoreError::InvalidArgument`
+/// 把字符串解析为 [`WorkflowDefinition`]：`Auto` 时调用 [`detect_format`] 判断 JSON/YAML 路径，
+/// 先把源文本转 `serde_json::Value`，再用强类型反序列化到 `WorkflowDefinition`；
+/// 任何解析 / 结构错误都映射为 `CoreError::InvalidArgument`。
 pub fn parse_definition(src: &str, format: ParseFormat) -> Result<WorkflowDefinition, CoreError> {
     let actual_format = match format {
         ParseFormat::Auto => detect_format(src),

@@ -16,10 +16,8 @@ import EntityDetailForm from '../EntityDetailForm.vue'
 import type { DetailFieldMeta } from '../fieldMeta'
 
 /**
- * L2 内容形态注册表与分发守卫。详细见
- * docs/details/注释/packages/plugin-sdk/实体详情内容形态.md
- *
- * 这里锁三件事：注册表自洽（默认值只有一份来源）、派生型编辑态回落分组式、
+ * L2 内容形态注册表与分发守卫。详细见 docs/details/注释/packages/plugin-sdk/实体详情内容形态.md
+ * 锁三件事：注册表自洽（默认值只有一份来源）、派生型编辑态回落分组式、
  * **分发真的按 contentForm 走**（不是五件里永远渲染第一件）。
  */
 

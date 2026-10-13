@@ -1,4 +1,4 @@
-// C2-b 测试基建：假管道宿主——按宿主 `pipe-transport` 帧协议应答的最小实现（TCP 回环对充当哑通道）。
+// 测试基建：假管道宿主——按宿主 `pipe-transport` 帧协议应答的最小实现（TCP 回环对充当哑通道）。
 // 供 dsh_pipe_tests（客户端行为）与 dsh_proxy_tests（管道上游的转发语义）复用；只列断言需要的事实。
 
 use std::collections::HashMap;

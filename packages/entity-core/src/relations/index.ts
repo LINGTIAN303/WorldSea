@@ -550,13 +550,10 @@ defineRelation({
 // 15. 创作关系域（Narrative Relations）
 // ─────────────────────────────────────────────
 
-// 2026-09-18（① 关联实体徽章 / Q3 前置）：**删除 `draft_of` / `appears_in`**。
-// 它们表达的是「大纲节点 ↔ 章节」，而这层关系已按 Q5-A 裁定为**双字段 + 唯一写入入口**
-// （`apps/tauri/src/entity/chapterLink.ts`）；且这两条关系类型**从未被写入过**
-// （全仓只有定义处，无任何 `rs.add` 调用）→ 属死类型，留着会让同一关系有两种表达。
-//
-// 新增 3 条语义化类型（源都是 outline_node，目标为大纲以外的芽实体）：
-// 它们是「关联实体徽章」的数据来源，也是 Q3「关系能力」的前置之一。
+// 2026-09-18（关联实体徽章）：**删除 `draft_of` / `appears_in`**——它们表达「大纲节点 ↔ 章节」，
+// 而这层关系已裁定为**双字段 + 唯一写入入口**（`apps/tauri/src/entity/chapterLink.ts`）；且这两条
+// 关系类型**从未被写入过**（全仓只有定义处，无任何 `rs.add` 调用）→ 死类型，留着会让同一关系有两种表达。
+// 新增 3 条语义化类型（源都是 outline_node，目标为大纲以外的芽实体），是「关联实体徽章」的数据来源；
 // 命名沿用本文件既有惯例（语义化动词 + inverse 成对）。
 defineRelation({
   type: 'outline_mentions', label: '提及', inverseType: 'mentioned_by_outline', inverseLabel: '被大纲提及',

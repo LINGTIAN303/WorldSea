@@ -5,12 +5,9 @@ pub struct DamageResult {
     pub critical: bool,
 }
 
-/// Improved combat formula:
-/// base = attack * skill_multiplier + terrain_attack_bonus - defense * terrain_defense / 2
-/// flanking = min(adjacent_ally_count * 0.1, 0.3)
-/// damage = max(1, floor(base * (1 + flanking)))
-/// 10% crit chance -> 1.5x damage
-/// melee adjacency bonus (manhattan == 1): +15%
+/// 伤害公式：base = 攻击×技能倍率 + 地形攻击加成 − 防御×地形防御加成/2；
+/// damage = max(1, base 截断取整)；10% 概率暴击 ×1.5；与目标曼哈顿距离为 1（贴身）再 ×1.15。
+/// 侧翼加成版本见 [`calculate_damage_with_allies`]。
 pub fn calculate_damage(
     attacker: &BattleUnit,
     defender: &BattleUnit,
@@ -36,7 +33,8 @@ pub fn calculate_damage(
     DamageResult { damage, critical }
 }
 
-/// Full combat calculation with ally flanking bonus.
+/// 在 [`calculate_damage`] 基础上增加侧翼加成：n = 攻击者曼哈顿距离 1 内同队存活友军数（不含自身），
+/// damage 乘以 (1 + min(n×0.1, 0.3))；应用顺序：max(1,·) → 暴击 → 侧翼 → 贴身。
 pub fn calculate_damage_with_allies(
     attacker: &BattleUnit,
     defender: &BattleUnit,

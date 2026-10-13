@@ -56,12 +56,8 @@ impl ValidationReport {
   }
 }
 
-/// 验证实体数据的合法性，包括 ID、类型、名称等基本字段，以及可选的 Schema 约束检查
-///
-/// 参数:
-/// - `entity`: 待验证的实体引用
-/// - `schema`: 可选的实体类型 Schema，提供字段级别的约束校验
-///
+/// 验证实体数据的合法性：ID、类型、名称等基本字段，及可选的 Schema 约束检查
+/// - `entity`: 待验证的实体引用；`schema`: 可选的实体类型 Schema，提供字段级约束校验
 /// 返回: 包含所有验证结果的 `ValidationReport`
 #[must_use]
 pub fn validate_entity(entity: &Entity, schema: Option<&EntityTypeSchema>) -> ValidationReport {

@@ -91,9 +91,8 @@ export function useEntityImage(imageValue: Ref<unknown>) {
 
   /**
    * 单次解析尝试：扫描 input 形式（对象 / file:fileId / file:path），命中就 set imageUrl 并返回 true。
-   * 失败原因分两类：
-   * - 输入格式不合法 / 清空 → 直接清空 imageUrl 并返回 true（终态，不再重试）
-   * - 解析路径但 IDB 暂无记录 → 返回 false，让 resolver 进入下一轮退避
+   * 失败分两类：输入格式不合法 / 清空 → 直接清空 imageUrl 并返回 true（终态，不再重试）；
+   * 解析路径但 IDB 暂无记录 → 返回 false，让 resolver 进入下一轮退避。
    */
   async function attempt(v: number): Promise<boolean> {
     if (v !== resolver.getVersion()) return false

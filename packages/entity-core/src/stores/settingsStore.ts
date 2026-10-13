@@ -264,7 +264,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const aiCustomType = persistedRef(STORAGE_KEY_AI_CUSTOM_TYPE, 'openai-compatible')
   const aiCustomModel = persistedRef(STORAGE_KEY_AI_CUSTOM_MODEL, '')
   const customProviders = ref<CustomProviderEntry[]>(loadCustomProviders())
-  // Agent 后端类型：'ts'（TS Agent）或 'rust'（Rust Agent，P1-5 起为默认）
+  // Agent 后端类型：'ts'（TS Agent）或 'rust'（Rust Agent，现默认）
   // 注意：已有用户的 localStorage 中若存储了 'ts'，仍保持 'ts'；
   //       仅新用户或清除存储的用户会默认使用 'rust'
   const agentBackend = persistedRef(STORAGE_KEY_AGENT_BACKEND, 'rust')

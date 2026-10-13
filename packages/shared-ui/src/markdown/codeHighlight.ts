@@ -1,10 +1,7 @@
 /** 代码语法高亮（Prism 轻量接入，仅高频语言），详细见 docs/details/注释/packages/shared-ui/markdown/codeHighlight.md
- *
- * 按需引入 Prism 核心 + 常用语言（javascript/typescript/python/rust/json/bash/markup/css/markdown/sql/go/java）。
- * 通过 useMarkdownRender 的 setCodeHighlighter 注入，命中语言返回高亮 HTML，未命中返回 null（降级纯文本）。
- *
- * ⚠️ Prism 组件（prism-*.js）在引入时会把对应语法注册到 Prism.languages，副作用在模块加载时完成。
- * 这里统一在 import 阶段触发，保证注入前所有语言已就绪。 */
+ *  按需引入 Prism 核心 + 常用语言（javascript/typescript/python/rust/json/bash/markup/css/markdown/sql/go/java），
+ *  通过 useMarkdownRender 的 setCodeHighlighter 注入，命中语言返回高亮 HTML，未命中返回 null（降级纯文本）。
+ *  ⚠️ Prism 组件引入时即把语法注册到 Prism.languages（模块加载副作用），统一在 import 阶段触发，保证注入前所有语言已就绪。 */
 
 import Prism from 'prismjs'
 // 语言组件：import 副作用即注册语法（顺序无依赖）
@@ -44,15 +41,9 @@ const LANG_ALIAS: Record<string, string> = {
 }
 
 /**
- * 高亮结果内容键缓存（2026-09-20 帧率修复）。
- *
- * 为什么必须缓存：`Prism.highlight` 的代价与源码长度成正比（实测 60 行 TS ≈ 1.6ms），
- * 而渲染管线会在**内容未变**时重复调用它——两条实测热路径：
- * ① 活动尾块（闭合代码围栏停在尾块时，每帧重渲一次 → 每帧 1 次全块高亮）；
- * ② 整段回退路径（文档含 def/html 时每帧整段重渲 → 每帧高亮全部代码块）。
- * 内容键命中后两条路径的 Prism 调用降为 0，且输出逐字节一致（语义不可见）。
- *
- * 上限 64 条 FIFO 淘汰：单条键值合计约数 KB，上限约数百 KB，不会随会话增长。
+ * 高亮结果内容键缓存（2026-09-20 帧率修复）：`Prism.highlight` 代价与源码长度成正比（实测 60 行 TS ≈ 1.6ms），
+ * 渲染管线在内容未变时也会重复调用，缓存命中后热路径 Prism 调用降为 0 且输出逐字节一致；上限 64 条 FIFO 淘汰（约数百 KB）。
+ * 两条实测热路径细节详见 docs/details/注释/packages/shared-ui/markdown/codeHighlight.md。
  */
 const CACHE_MAX = 64
 const cache = new Map<string, string | null>()
@@ -106,7 +97,6 @@ export function highlightCode(code: string, lang: string): string | null {
 
 /**
  * 参考实现（门禁对照用）：不查缓存的直接 Prism 高亮。
- *
  * 保留在源码内是为了让门禁能断言「预算确实能捕获去掉缓存的回归」——参考实现的耗时
  * 必须超出预算（判别力自证），而不是一个永不红的空门槛。
  */

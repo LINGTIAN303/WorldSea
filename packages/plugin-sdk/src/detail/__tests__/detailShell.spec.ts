@@ -1,6 +1,5 @@
 /**
- * DetailShell 标签条行为测试（2026-10-08 Tab 优化批 B）。
- *
+ * DetailShell 标签条行为测试（2026-10-08 Tab 优化）。
  * 锁：无障碍语义（tablist/tab/aria-selected/roving tabindex）、方向键/Home/End 自动激活、
  * count 徽标、滚轮横滚（仅在溢出时接管）。jsdom 无 scrollIntoView——全局打桩。
  */

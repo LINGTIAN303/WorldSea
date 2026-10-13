@@ -2,13 +2,9 @@ import type { Entity } from '@worldsea/entity-core'
 import type { DetailFieldMeta } from './fieldMeta'
 
 /**
- * 自定义字段的作用域（实体级 / 类型级）。
- * 详细见 docs/details/注释/packages/plugin-sdk/实体详情表单.md §六
- *
- * 两级各自的归属地按「这份定义是谁的数据」分：
- * - 类型级：进 `fieldRegistry`（落 `worldsea_field_registry`），同类型所有实体共享；
- * - 实体级：进该实体 `properties.__fieldDefs`，**它就是那个实体自己的数据**——
- *   随 .ws 导出/导入保真、删实体一起消失，不会在注册表里留下无主定义。
+ * 自定义字段的作用域（实体级 / 类型级）。归属按「这份定义是谁的数据」分：类型级进 `fieldRegistry`
+ * （同类型共享）；实体级进该实体 `properties.__fieldDefs`——**它是那个实体自己的数据**，随 .ws 导出/导入
+ * 保真、删实体一起消失，不在注册表留无主定义。详细见 docs/details/注释/packages/plugin-sdk/实体详情表单.md §六
  */
 export type FieldScope = 'entity' | 'type'
 

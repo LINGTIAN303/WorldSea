@@ -1,6 +1,5 @@
 /**
- * entityStore ⇄ AutoLink 生命周期接线护栏（① 批，2026-10-07）
- *
+ * entityStore ⇄ AutoLink 生命周期接线护栏（2026-10-07）。
  * 三钩子装配级整链：add → 索引源侧；update → 源侧重索引 + 目标侧刷新；
  * remove → 清索引 + 清相关决策。全部走真实 store + 真实引擎 + fake-indexeddb 存储。
  */

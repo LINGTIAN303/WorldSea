@@ -5,10 +5,8 @@ import { useFieldOrderStore } from '../fieldOrderStore'
 
 /**
  * 命名预设的**并入不抹除**语义（2026-10-03 裁定：预设管「字段集 + 基准序」，详情覆写管呈现）。
- * 详细见 docs/details/注释/packages/plugin-sdk/实体详情内容形态.md §7.2
- *
- * 锁的是原实现那条破坏性副作用：应用预设先 `resetToBuiltin` 再只放回预设里存的字段，
- * 于是「存过预设之后新增的自定义字段」会在点一下「使用」时凭空消失。
+ * 详细见 docs/details/注释/packages/plugin-sdk/实体详情内容形态.md §7.2。锁的是原实现那条破坏性副作用：
+ * 应用预设先 resetToBuiltin 再只放回预设里存的字段，「存过预设之后新增的自定义字段」会凭空消失。
  */
 
 const TYPE = 'character'

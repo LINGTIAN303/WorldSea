@@ -2,12 +2,9 @@ import type { DetailTab } from './useDetailChrome'
 import type { DetailTabOverride } from '@worldsea/entity-core'
 
 /**
- * 详情 Tab 组装单点（2026-10-08 Tab 优化批）。详细见
- * docs/plans/2026-10-08-实体详情Tab优化立项.md §3.1
- *
- * 组装序固定为 `info → cover(有) → customTabs(芽) → extras → relations`；
- * GEV 与 TimelineView 都经此函数（此前后者手写全量数组——两套组织方式），
- * 用户覆写（排序/隐藏）在**同一处**应用，不散到消费方。
+ * 详情 Tab 组装单点（2026-10-08 Tab 优化）。详细见 docs/plans/2026-10-08-实体详情Tab优化立项.md §3.1
+ * 组装序固定 `info → cover(有) → customTabs(芽) → extras → relations`；GEV 与 TimelineView 都经此
+ * （此前后者手写全量数组——两套组织方式）；用户覆写（排序/隐藏）在**同一处**应用，不散到消费方。
  */
 
 /** 钉底不可隐藏的 tab：信息（默认落点）与关联（兜底入口） */

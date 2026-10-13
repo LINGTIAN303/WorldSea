@@ -1,9 +1,7 @@
 /**
  * useGlobalEvents — 全局事件注册器
- *
- * 提供声明式的 window 事件注册：在 onMounted 时批量添加，onBeforeUnmount 时自动清理。
- *
- * Phase 7：从 src/composables/ 下沉到 ui-kit/composables/（纯 vue，无业务依赖）
+ * 提供声明式的 window 事件注册：onMounted 时批量添加，onBeforeUnmount 时自动清理。
+ * （纯 vue、无业务依赖，自根 src/composables/ 下沉到 ui-kit。）
  */
 
 import { onMounted, onBeforeUnmount } from 'vue'

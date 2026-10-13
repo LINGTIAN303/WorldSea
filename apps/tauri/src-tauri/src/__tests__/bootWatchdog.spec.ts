@@ -1,13 +1,9 @@
 // @vitest-environment jsdom
+
 /**
- * 启动失败安全网（apps/tauri/src-tauri/src/dsh_watchdog.js）的 jsdom 测试。
- *
- * 为什么不白屏安全网要直测：它是入口脚本/样式失败或长时间无渲染时唯一的自救面（错误页 + 重试），
- * Rust 侧 `include_str!` 注入同一份源码但看不见 DOM 行为；本件同时锁样式契约——配色/字体吃
- * dsh 设计令牌（--dsw-*，缺省时回退自包含色值）。每个断言都对一处变异敏感（反证口径）。
- *
- * 注：错误事件派发只在本文件第一个用例出现（脚本的事件监听是 window 级、跨用例残留），
- * 其余用例不派发错误事件以免触发前序闭包的监听。
+ * 启动失败安全网（apps/tauri/src-tauri/src/dsh_watchdog.js）的 jsdom 测试：入口脚本/样式失败或长时间无渲染时
+ * 唯一的自救面（错误页 + 重试），Rust 侧 `include_str!` 注入同一份源码但看不见 DOM 行为；本件同时锁样式契约——
+ * 配色/字体吃 dsh 设计令牌（--dsw-*，缺省回退自包含色值）。错误事件只在首个用例派发（window 级监听、跨用例残留）。
  */
 
 import { readFileSync } from 'node:fs'

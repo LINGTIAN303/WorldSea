@@ -1,4 +1,4 @@
-// D1-a 伺服核心的测试：前缀判定 / 越界闸门 / MIME / 缓存策略 / index 注入（含与 dsh 页不同的挂载点）。
+// 伺服核心的测试：前缀判定 / 越界闸门 / MIME / 缓存策略 / index 注入（含与 dsh 页不同的挂载点）。
 // 夹具走临时目录（不依赖仓内已构建产物），故 CI 冷克隆也可跑。
 
 use super::*;
@@ -77,7 +77,7 @@ fn workspace_index_uses_app_mount_point_not_root() {
 
 #[test]
 fn workspace_index_carries_theme_source_and_writeback_bridge() {
-    // E2：主题真源经壳注入（防闪脚本优先用它）；写回桥供页内设置改主题时同步壳/dsh
+    // 主题真源经壳注入（防闪脚本优先用它）；写回桥供页内设置改主题时同步壳/dsh
     let injected = crate::dsh_inject::inject_workspace_scripts("<html><head></head><body></body></html>");
     assert!(injected.contains("worldsea-shell:theme"), "缺主题注入");
     assert!(injected.contains("globalThis.__WORLDSEA_THEME__ = \""), "缺真源字符串");

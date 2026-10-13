@@ -69,10 +69,10 @@ export function useVersionSnapshot() {
     const snapshot = snapshots.value.find(s => s.id === snapshotId)
     if (!snapshot?.data) return false
     try {
-      // Create auto-backup before restoring
+      // 恢复前先自动备份
       await createSnapshot('恢复前自动备份')
       const { entities, relations } = JSON.parse(snapshot.data)
-      // Clear and restore
+      // 清空后重写数据
       await storage.clearEntities()
       await storage.clearRelations()
       for (const entity of entities) await storage.putEntity(entity)

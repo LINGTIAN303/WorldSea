@@ -1,6 +1,6 @@
 // ----------------------------------------------------------------------------
-// Re-exports from @worldsea/ui-kit
-// 以下 composables 已下沉到 ui-kit/composables/（Phase 6 跨包循环破除）
+// 转发自 @worldsea/ui-kit
+// 以下 composables 已下沉到 ui-kit/composables/（为破除跨包循环）
 // plugin-sdk 保留 re-export 以维持向后兼容
 // ----------------------------------------------------------------------------
 export { useConfirm, type ConfirmType } from '@worldsea/ui-kit'
@@ -9,7 +9,7 @@ export { useResizable, getAllPanelWidths, resetPanelWidth, resetAllPanelWidths, 
 export { useShortcuts, currentSequence, formatKeysForDisplay, formatKeyForDisplay, type ShortcutScope, type ShortcutKind, type ShortcutDef, type ShortcutConflict } from '@worldsea/ui-kit'
 
 // ----------------------------------------------------------------------------
-// Native to plugin-sdk (业务逻辑层 composables)
+// plugin-sdk 原生（业务逻辑层 composables）
 // ----------------------------------------------------------------------------
 export { useLoading } from './useLoading'
 export { useEntityEdit, type EditFormValues } from './useEntityEdit'

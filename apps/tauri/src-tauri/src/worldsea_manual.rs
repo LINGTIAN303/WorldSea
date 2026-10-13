@@ -1,4 +1,4 @@
-// D2-c（2026-09-27）：产品域说明书——Agent 认知面（D2 批计划 §2.2）。
+// 产品域说明书——Agent 认知面。
 //
 // 启动时确保工作区根有一份 `WORLDSEA.md`（不存在则写模板；**已存在绝不覆盖**——用户可编辑）。
 // dsh 会话的 cwd = 工作区 → Agent 按需经文件工具拉取；入口指向 = 内置插件 systemPrompt 指引段
@@ -58,7 +58,7 @@ Schema：`world_schema_get`（type 省略 = 全部；**组装实体前先取**�
 - 你在 dsh 侧换会话不影响产品域当前项目；产品域切项目也不影响你的会话（两边解耦）。
 "#;
 
-/// 薄指针模板（D3-a，2026-09-28）：写进工作区根 `AGENTS.md`——dsh agent-instructions 会把
+/// 薄指针模板：写进工作区根 `AGENTS.md`——dsh agent-instructions 会把
 /// 项目根的 AGENTS.md 自动注入会话基线（预算 64KB），本文件只做指针不做地图（地图 = WORLDSEA.md）。
 const AGENTS_POINTER_TEMPLATE: &str = r#"# WorldSea 产品域工作区（壳生成的指针）
 
@@ -73,7 +73,7 @@ const AGENTS_POINTER_TEMPLATE: &str = r#"# WorldSea 产品域工作区（壳生�
 "#;
 
 /// 启动时确保工作区根有说明书（幂等：已存在不覆盖）。
-/// 工作区根来自 C4 的 `resolve_workspace`（与 dsh cwd 同源）。
+/// 工作区根来自 `resolve_workspace`（与 dsh cwd 同源）。
 pub(crate) fn ensure_manual(workspace: &Path) {
     if std::env::var_os("WORLDSEA_NO_MANUAL").is_some() {
         println!("[DSH-SHELL] 说明书生成已按 WORLDSEA_NO_MANUAL 关闭（反证模式）");
@@ -102,7 +102,7 @@ pub(crate) fn ensure_agents_pointer(workspace: &Path) {
 }
 
 /// lib.rs setup 的单行接线：内部定位工作区（不可得则记日志跳过）。
-/// 生成开关读产品域设置节（D3-a）：`manualGeneration` / `agentsPointer`。
+/// 生成开关读产品域设置节：`manualGeneration` / `agentsPointer`。
 pub(crate) fn ensure_for_app(app: &tauri::AppHandle) {
     let prefs = crate::app_prefs::load_product_domain(app);
     match crate::dsh_workspace::resolve_workspace(app) {

@@ -1,17 +1,7 @@
 /**
- * globalTooltip — 浏览器原生 title 提示的全局接管（统一样式浮层）
- *
- * 原理（方案 A，2026-09-06 拍板）：启用后先全量扫描再以 MutationObserver 监听 DOM，
- * 凡元素带 `title` 属性 → 摘除属性并转存为 `data-ws-tip`（原生提示从此不再触发）；
- * 悬停命中采用「pointermove + rAF 节流 + elementFromPoint 几何命中」——
- * 不依赖事件 target，因此 disabled 按钮（事件被吞但几何命中仍在）同样生效。
- * 键盘可达：focusin 立即显示（无延迟）、focusout 隐藏；显示期间在锚上挂 aria-describedby。
- *
- * 覆盖：静态/动态 title、disabled 按钮、焦点可达元素。
- * 豁免：iframe 的 title（无障碍名，本就不渲染视觉提示，保留原生语义）；
- *       带 data-ws-tip-native 的元素（逃生舱，保留原生行为）。
- * 主题：浮层以文字色为底、面板色为字（明暗主题自然反色），遵循 prefers-reduced-motion。
- * 注意：摘除 title 后 `el.title` 读取为空——确需原生语义的元素挂 data-ws-tip-native。
+ * globalTooltip — 浏览器原生 title 提示的全局接管（统一样式浮层）。原理（方案 A，2026-09-06 拍板）：
+ * 启用后全量扫描 + MutationObserver 监听，带 `title` 的元素摘除属性转存 `data-ws-tip`（原生提示不再触发）；悬停命中用「pointermove + rAF 节流 + elementFromPoint 几何命中」（不依赖事件 target，disabled 按钮也生效）；
+ * 键盘可达：focusin 立即显示、focusout 隐藏，显示期间挂 aria-describedby；豁免 iframe 的 title 与带 data-ws-tip-native 的元素（逃生舱）；主题随明暗反色、遵循 prefers-reduced-motion；摘除后 el.title 读为空。
  */
 
 const TIP_ATTR = 'data-ws-tip'

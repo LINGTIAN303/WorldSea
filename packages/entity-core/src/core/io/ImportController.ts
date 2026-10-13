@@ -48,7 +48,7 @@ export class ImportController {
       migratedData = await this.runMigration(pack.manifest.version, pack.serializers)
     }
 
-    // Phase 8a：通过 PackValidator 接口校验（不再直接 import coreBackend）
+    // 通过 PackValidator 接口校验（不再直接 import coreBackend）
     const validator = getPackValidator()
     const packReport = await validator.validatePack(JSON.stringify(pack))
     if (packReport && !packReport.valid) {
@@ -162,7 +162,7 @@ export class ImportController {
           },
         }
       }
-    } catch { /* not old format */ }
+    } catch { /* 非旧格式 */ }
 
     throw new Error('无法解析导入文件：格式不兼容')
   }

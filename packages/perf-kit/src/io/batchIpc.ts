@@ -1,7 +1,6 @@
 /**
  * Tauri IPC 写入缓冲器。
- * 收集写入请求到缓冲区，调用 flush() 时并发发送给后端
- * （逐个 invoke cmd_fs_write，通过 Promise.all 并发执行）。
+ * 收集写入请求到缓冲区，调用 flush() 时并发发送给后端（逐个 invoke cmd_fs_write，通过 Promise.all 并发执行）。
  * 适用于短时间内有大量文件写入的场景（如项目导出）。
  */
 

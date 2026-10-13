@@ -1,9 +1,7 @@
 /**
  * ProjectManager — 项目空间管理器
- *
  * 管理项目列表、当前活跃项目、项目级数据库实例池。
- * 全局元数据存储在 WorldSea-Meta IndexedDB 中，
- * 每个项目数据存储在 WorldSea-Project-${projectId} 中。
+ * 全局元数据存于 WorldSea-Meta IndexedDB，各项目数据存于 WorldSea-Project-${projectId}。
  */
 
 import Dexie, { type Table } from 'dexie'
@@ -21,7 +19,7 @@ export interface ProjectInfo {
   description: string
   createdAt: string
   lastOpenedAt: string
-  /** 项目关联的本地目录路径（Phase 2：文件系统主存储） */
+  /** 项目关联的本地目录路径（文件系统主存储） */
   dirPath?: string
   /** 系统默认项目（无项目/未选目录时的全局兜底，2026-09-03）：不可移除，dirPath 恒为全局实体目录 */
   isDefault?: boolean
@@ -136,11 +134,9 @@ class ProjectManager {
   }
 
   /**
-   * **全量替换**项目记录表（D2-b2「项目 = dsh workspace」同源模型，2026-09-28）：
-   * 项目元数据的真相源 = dsh 工作区清单（壳 `cmd_dsh_workspace_list` 转发），本方法由
-   * useProjectSwitcher 的同步逻辑调用做**镜像**——清表后按清单重写（**id 即 workspace id**）。
-   * 全量替换（而非逐条增删）绕开 removeProjectRecord 的活跃/默认守卫——旧记录的退役
-   * 由指针校验处理（useProjectSwitcher.initialize：当前指针不在清单 → 回落默认工作区）。
+   * **全量替换**项目记录表（「项目 = dsh workspace」同源模型，2026-09-28）：真相源 = dsh 工作区清单
+   * （壳 `cmd_dsh_workspace_list` 转发），由 useProjectSwitcher 同步逻辑调用做**镜像**——清表后按清单重写（**id 即 workspace id**）；
+   * 全量替换（而非逐条增删）绕开 removeProjectRecord 的活跃/默认守卫，旧记录退役由指针校验处理（指针不在清单 → 回落默认工作区）。
    */
   async replaceAllProjects(projects: ProjectInfo[]): Promise<void> {
     const db = getMetaDb()
@@ -255,13 +251,9 @@ class ProjectManager {
   }
 
   /**
-   * 切换当前项目。返回 true 表示切换成功。
-   *
-   * 注意：调用方需要在切换后自行处理 Store 重载、模块重初始化等。
-   * ProjectManager 只负责：
-   *   1. 更新 currentProjectId
-   *   2. 更新 lastOpenedAt
-   *   3. 准备新项目的数据库实例
+   * 切换当前项目，返回 true 表示切换成功。
+   * 注意：调用方需在切换后自行处理 Store 重载、模块重初始化等。ProjectManager 只负责：
+   * 更新 currentProjectId / 更新 lastOpenedAt / 准备新项目的数据库实例。
    */
   async switchProject(id: string): Promise<boolean> {
     if (id === this.currentProjectId) return false

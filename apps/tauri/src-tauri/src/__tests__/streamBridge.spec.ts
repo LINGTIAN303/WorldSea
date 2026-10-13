@@ -1,11 +1,9 @@
 // @vitest-environment jsdom
+
 /**
- * 页面流桥（apps/tauri/src-tauri/src/dsh_stream_bridge.js）的行为测试。
- *
- * 为什么要直测这份 JS：它是页面上唯一的「逻辑流 → 壳 IPC → 管道」入口（C2 真·无端口形态），
- * 且失败语义必须与 dsh 客户端约定逐字一致（`dshRemoteStreamFailure` 标记决定域层重试/显式失败）——
- * Rust 侧测试看不见它，故在此以 jsdom 载入同一份文件做行为断言。
- * 桩面：`__TAURI_INTERNALS__` 只提供 invoke + transformCallback（与真实运行时同形）。
+ * 页面流桥（apps/tauri/src-tauri/src/dsh_stream_bridge.js）的行为测试：页面上唯一的「逻辑流 → 壳 IPC → 管道」入口，
+ * 失败语义须与 dsh 客户端约定逐字一致（`dshRemoteStreamFailure` 标记决定域层重试/显式失败）——Rust 侧测试看不见它，
+ * 故以 jsdom 载入同一份文件做行为断言；桩面 `__TAURI_INTERNALS__` 只提供 invoke + transformCallback（与真实运行时同形）。
  */
 
 import { readFileSync } from 'node:fs'
@@ -203,7 +201,7 @@ describe('页面流桥：openStream 钩子', () => {
     expect(calls.some(call => call.command === 'cmd_stream_open')).toBe(false)
   })
 
-  // F4（2026-09-30）：页重载泄漏修——旧页已开的流必须随文档卸载被取消
+  // 页重载泄漏防回归：旧页已开的流必须随文档卸载被取消
   // （否则壳持续向失效 callback id 投递：`Couldn't find callback id` 刷屏 + 每次刷新叠加一套流）。
   it('页面卸载（pagehide）→ 批量取消本页未完成流', async () => {
     const { bridge } = boot()

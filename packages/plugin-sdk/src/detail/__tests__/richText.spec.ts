@@ -2,11 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { richHtml } from '../richText'
 
 /**
- * 段落式富文本渲染守卫。详细见
- * docs/details/注释/packages/plugin-sdk/实体详情内容形态.md §六
- *
- * 这个面的存在理由就一条：**用户数据进 v-html 之前必须过消毒**。
- * 所以最要紧的是最后那例攻击载荷，而不是排版细节。
+ * 段落式富文本渲染守卫。详细见 docs/details/注释/packages/plugin-sdk/实体详情内容形态.md §六
+ * 存在理由就一条：**用户数据进 v-html 之前必须过消毒**——最要紧的是攻击载荷例，不是排版细节。
  */
 
 describe('richHtml —— 两条渲染分支', () => {

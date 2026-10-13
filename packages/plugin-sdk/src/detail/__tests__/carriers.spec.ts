@@ -4,9 +4,8 @@ import { hasLucideIcon } from '@worldsea/ui-kit/components/lucideMap'
 
 /**
  * L1 载体注册表守卫。详细见 docs/details/注释/packages/plugin-sdk/实体详情内容形态.md §十
- *
- * 这里锁的是注册表自洽与「写错也得有东西渲染」，
- * 真正的「换容器不换编排」在 components/__tests__/detailCarrier.spec.ts 用挂载验。
+ * 这里锁注册表自洽与「写错也得有东西渲染」；真正的「换容器不换编排」在
+ * components/__tests__/detailCarrier.spec.ts 用挂载验。
  */
 
 describe('载体注册表', () => {

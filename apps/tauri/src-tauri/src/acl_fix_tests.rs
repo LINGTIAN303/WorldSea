@@ -1,4 +1,4 @@
-// G3：acl_fix 的纯函数单测——fixture 直接取自真机采样（docs/plans/2026-10-01-G3-可回滚工作区修复批计划.md §二）。
+// acl_fix 的纯函数单测——fixture 直接取自真机采样（docs/plans/2026-10-01-G3-可回滚工作区修复批计划.md §二）。
 
 use std::path::PathBuf;
 

@@ -4,10 +4,9 @@ export type ConfirmType = 'info' | 'warning' | 'danger'
 export type ConfirmPosition = 'center' | 'bottom'
 
 /**
- * 三键选择结果（`withChoice` 模式；D8 审批四值需要区分「拒绝」与「跳过」）
- * - `confirmed`：主键（含附加动作「添加白名单并放行」）
- * - `cancelled`：取消键（拒绝）
- * - `skipped`：第三键（中性选项，如「取消(跳过)」）
+ * 三键选择结果（`withChoice` 模式；需区分「拒绝」与「跳过」）：
+ * `confirmed` 主键（含附加动作「添加白名单并放行」）、`cancelled` 取消键（拒绝）、
+ * `skipped` 第三键（中性选项，如「取消(跳过)」）。
  */
 export type ConfirmChoice = 'confirmed' | 'cancelled' | 'skipped'
 
@@ -125,7 +124,6 @@ export function useConfirm() {
 
   /**
    * 带复选框的确认（`ConfirmOptions.checkbox` 的结果出口）。
-   *
    * 返回 `{ ok, checked }`——`ok` = 主键 / 附加动作（取消与第三键均为 false）；
    * `checked` = 复选框最终态。**不与 `withChoice` 并用**（三键语义下请直接读 `state`）。
    */

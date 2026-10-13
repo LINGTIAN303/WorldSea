@@ -30,11 +30,9 @@
 
 <script setup lang="ts">
 /**
- * L1 载体·居中弹层：读一条时最聚焦，代价是列表被完全盖住。详细见
- * docs/details/注释/packages/plugin-sdk/实体详情内容形态.md §十
- *
- * 与抽屉同属 overlay（共用 `DetailBackdrop`，所以遮罩档位一致），差别只在**位置与尺寸**：
- * 居中、宽度按视口收窄、最高 86vh。拖宽仍走 `useDetailChrome`，键名由载体 id 分开记。
+ * L1 载体·居中弹层：读一条时最聚焦，代价是列表被完全盖住。与抽屉同属 overlay（共用
+ * `DetailBackdrop`，遮罩档位一致），差别只在**位置与尺寸**：居中、宽度按视口收窄、最高 86vh；
+ * 拖宽走 `useDetailChrome`，键名按载体 id 分开记。详细见 docs/details/注释/packages/plugin-sdk/实体详情内容形态.md §十
  */
 import { computed } from 'vue'
 import DetailShell from './DetailShell.vue'

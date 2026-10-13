@@ -1,8 +1,6 @@
-//! [HTTP-BRIDGE] 图布局 / 图分析算法命令（cmd_algo_*）
-//!
-//! 薄封装 worldsea-core::algo::graph 的 Rust 算法，供前端 mindmap 布局/图分析
-//! 在桌面（Tauri IPC）与浏览器（HTTP 桥 RPC）双端调用真实后端。此前这些命令从未在
-//! Rust 端注册，前端一直靠 JS 降级；本文件补齐真实实现。
+//! [HTTP-BRIDGE] 图布局 / 图分析算法命令（cmd_algo_*）：薄封装 worldsea-core::algo::graph 的
+//! Rust 算法，供前端 mindmap 布局/图分析在桌面（Tauri IPC）与浏览器（HTTP 桥 RPC）双端调用真实后端。
+//! 此前这些命令从未在 Rust 端注册，前端一直靠 JS 降级；本文件补齐真实实现。
 //! 移除：删除本文件，还原 lib.rs / rpc.rs 标记处。
 
 use serde_json::{json, Value};

@@ -4,10 +4,10 @@
     :class="{ 'sidebar-collapsed': uiStore.sidebarCollapsed, 'sidebar-right': settingsStore.sidebarPosition === 'right' }"
     @contextmenu.prevent="onViewContext"
   >
-    <!-- R3 视图工具条（随流首子元素，2026-08-10）：占位 44px 不悬浮；两壳 v-show 常驻
+    <!-- 视图工具条（随流首子元素，2026-08-10）：占位 44px 不悬浮；两壳 v-show 常驻
          保证 ViewContainer 永不卸载，Teleport 目标 #view-toolbar-* 常驻，根治壳切换崩溃 -->
     <ViewToolbar />
-    <!-- R4 视图画布（独立圆角块，随流位于工具条下方） -->
+    <!-- 视图画布（独立圆角块，随流位于工具条下方） -->
     <div class="view-content">
       <div v-if="!hasView" class="view-empty">
         <WsIcon name="globe" :size="56" class="view-empty-icon" />
@@ -122,7 +122,7 @@ onBeforeUnmount(() => {
 .view-container.sidebar-right.sidebar-collapsed {
   margin-right: calc(var(--layout-sidebar-collapsed-width) + var(--region-gap, 8px));
 }
-/* ── R4 视图画布（独立圆角块，随流位于工具条下方，间隙由 view-container gap 提供） ── */
+/* ── 视图画布（独立圆角块，随流位于工具条下方，间隙由 view-container gap 提供） ── */
 .view-content {
   flex: 1;
   overflow: auto;

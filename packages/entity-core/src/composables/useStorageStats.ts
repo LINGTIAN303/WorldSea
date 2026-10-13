@@ -5,10 +5,8 @@ import { useRelationStore } from '../stores'
 import { useFileStore } from '../stores'
 
 /**
- * 存储概览统计（2026-10-02 数据源修正）：
- * 全部读**活动存储后端**（FileStorageBackend，项目文件夹 JSON）——
- * 旧实现读 Dexie WorldDatabase（web 时代项目库）+ navigator.storage.estimate（webview 配额），
- * 在文件项目架构下两路都测不到真实数据，数字误导。
+ * 存储概览统计（2026-10-02 数据源修正）：全部读**活动存储后端**（FileStorageBackend，项目文件夹 JSON）。
+ * 旧实现读 Dexie WorldDatabase（web 时代项目库）+ navigator.storage.estimate（webview 配额），在文件项目架构下两路都测不到真实数据，数字误导。
  * 占用为内存估算：实体/关系 JSON 序列化长度 + 文件记录体积之和。
  */
 

@@ -1,9 +1,6 @@
 /**
- * 视图可见性判定（B，2026-09-25）。
- *
- * 侧栏/设置此前各处直接写 `!v.pluginId || settingsStore.isActive(v.pluginId)`——这条口径
- * 只对「芽清单内的官方芽」成立；第二棵树（世界语义）的插件 id 不在清单里，
- * `isActive` 会给 false 而把树插件的视图**误隐藏**。本模块把口径收敛为一处：
+ * 视图可见性判定。侧栏/设置此前各处直接写 `!v.pluginId || settingsStore.isActive(v.pluginId)`——这条口径只对「芽清单内的官方芽」成立；
+ * 第二棵树（世界语义）的插件 id 不在清单里，isActive 会给 false 而把树插件的视图**误隐藏**。本模块把口径收敛为一处：
  * 无归属 → 显示；清单内 → 按芽启停；**清单外 → 显示**（树插件的启停由树自己的装载决定）。
  */
 import { useSettingsStore } from './settingsStore'

@@ -1,14 +1,9 @@
 import { ref, nextTick } from 'vue'
 
 /**
- * useCardDeck — 设置面板「叠放翻卡」通用逻辑（由 Agent 主设置抽取，推广到全部分类面板）。
- *
- * 三卡（或多卡）无缝拼接为三个可见层：
- * - 上条 = 上一张(activeCard-1)、主卡 = 当前、下条 = 下一张(activeCard+1)
- * - 翻下一张（滚轮向下/内容向上走）：下卡上来放大当主卡、主卡上去缩小当上条、上卡下去不缩放
- * - 翻上一张（滚轮向上/内容向下走）：上卡下来放大当主卡、主卡下去缩小当下条、下卡上去不缩放
- *
- * count === 1 时退化为单卡直接显示（goToCard 恒为 no-op），用于单分节面板统一接入。
+ * useCardDeck — 设置面板「叠放翻卡」通用逻辑（由 Agent 主设置抽取，推广到全部分类面板）。三卡（或多卡）
+ * 拼为三个可见层——上条=上一张、主卡=当前、下条=下一张；翻下一张：下卡上来放大当主卡、主卡上去缩小
+ * 当上条、上卡下去不缩放，翻上一张镜像反之；count === 1 退化为单卡直接显示（goToCard 恒为 no-op）。
  */
 export function useCardDeck(count: number, onChange?: (index: number) => void) {
   const activeCard = ref(0)

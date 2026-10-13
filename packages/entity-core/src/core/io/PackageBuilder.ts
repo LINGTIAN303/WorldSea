@@ -46,11 +46,9 @@ export class PackageBuilder {
   }
 
   /**
-   * 构建 .ws 包
-   *
-   * @param pack  – WorldSeaPack 数据
-   * @param entities – 实体列表（用于扫描 avatar/properties 中的媒体引用）
-   * @returns ZIP Blob（.ws 格式）
+   * 构建 .ws 包，返回 ZIP Blob（.ws 格式）
+   * @param pack WorldSeaPack 数据
+   * @param entities 实体列表（用于扫描 avatar/properties 中的媒体引用）
    */
   async build(
     pack: WorldSeaPack,
@@ -104,11 +102,8 @@ export class PackageBuilder {
   }
 
   /**
-   * 从实体中扫描媒体引用
-   *
-   * 扫描：
-   *   - entity.avatar（如果有）
-   *   - entity.properties 中所有字符串值（尝试匹配 URL / data URI）
+   * 从实体中扫描媒体引用：entity.avatar（如果有），
+   * 以及 entity.properties 中所有字符串值（尝试匹配 URL / data URI）。
    */
   private async scanMedia(entities: Entity[]): Promise<MediaRef[]> {
     const refs: MediaRef[] = []

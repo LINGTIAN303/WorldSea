@@ -16,11 +16,9 @@
 
 <script setup lang="ts">
 /**
- * 内容形态·摘要式（derived）：短字段压成「标签 值」属性牌，只列**已填**的。
- * 详细见 docs/details/注释/packages/plugin-sdk/实体详情内容形态.md
- *
- * 空值不进牌列——一排「—」正是 1a 被点名要消灭的幽灵行，摘要面更不该复刻它；
- * 但也不静默吞掉，末尾如实报「另有 N 项」。
+ * 内容形态·摘要式（derived）：短字段压成「标签 值」属性牌，只列**已填**的。空值不进牌列——
+ * 一排「—」正是被点名要消灭的幽灵行，摘要面更不该复刻它；但也不静默吞掉，末尾如实报
+ * 「另有 N 项」。详细见 docs/details/注释/packages/plugin-sdk/实体详情内容形态.md
  */
 import { computed } from 'vue'
 import type { Entity } from '@worldsea/entity-core'

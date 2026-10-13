@@ -1,10 +1,7 @@
 /**
- * AutoLinkEngine —— ① 活异常修复批护栏（2026-10-07）
- *
- * 覆盖两件事：
+ * AutoLinkEngine 护栏（2026-10-07），覆盖两件事：
  * 1. 陈旧目标：字段名直接目标映射表（race→species；mount→creature 已删，类型不存在）；
- * 2. 决策持久化：忽略/确认后重建索引不复活；两端文本变化 → 决策失效、建议回来；
- *    决策落 localStorage，新实例（模拟重启）仍可读。
+ * 2. 决策持久化：忽略/确认后重建索引不复活；两端文本变化 → 决策失效、建议回来；决策落 localStorage，新实例（模拟重启）仍可读。
  */
 import 'fake-indexeddb/auto'
 import { beforeEach, describe, expect, it } from 'vitest'

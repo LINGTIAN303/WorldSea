@@ -11,7 +11,7 @@ fn port_parsed_from_ready_url() {
 
 #[test]
 fn app_url_uses_localhost_authority() {
-    // C1-a 事实 9：wry 在 Windows 把 `worldsea://<authority>/` 落成 `http://worldsea.<authority>/`，
+    // wry 在 Windows 把 `worldsea://<authority>/` 落成 `http://worldsea.<authority>/`，
     // authority 必须是 localhost（写 `app` 会落到真实 TLD worldsea.app；非安全上下文 + HSTS）。
     assert!(APP_URL.starts_with("http://worldsea.localhost/"), "{APP_URL}");
     assert!(!APP_URL.contains("token"), "导航 URL 不得携带 token：{APP_URL}");

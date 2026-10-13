@@ -1,12 +1,7 @@
-//! E1（2026-09-25）：**单一可见根** —— `%USERPROFILE%\WorldSea\`。
-//!
-//! 口径（用户拍板「1A」，见 docs/plans/2026-09-25-E1-目录口径批计划.md）：
-//! - 用户可见根 = `%USERPROFILE%\WorldSea`（也正是 C4 起的 **dsh 默认工作区**）→
-//!   「dsh 沙箱可写根 ⊇ 产品域创作数据」成立（沙箱只放行 cwd + tmp），文件类工具可直写创作数据；
-//! - 根下四子目录：`worlddata\`（默认项目实体）· `agent\`（默认项目 Agent 工作区）·
-//!   `rules\`（全局规则）· `skills\`（个人技能导入区）；旧 `~/.WorldSea\` 退役；
-//! - **一次性搬迁**：旧根各子目录 → 新根（旧存在且新不存在才拷；**只拷不删**，留痕日志）；
-//!   `WORLDSEA_NO_DATA_MIGRATE=1` 关闭（反证/测试用）。
+//! **单一可见根** —— `%USERPROFILE%\WorldSea\`。口径（用户拍板，见 docs/plans/2026-09-25-E1-目录口径批计划.md）：
+//! - 用户可见根 = `%USERPROFILE%\WorldSea`（也正是 dsh 默认工作区）→「dsh 沙箱可写根 ⊇ 产品域创作数据」成立（沙箱只放行 cwd + tmp），文件类工具可直写创作数据；
+//! - 根下四子目录：`worlddata\`（默认项目实体）· `agent\`（默认项目 Agent 工作区）· `rules\`（全局规则）· `skills\`（个人技能导入区）；旧 `~/.WorldSea\` 退役；
+//! - **一次性搬迁**：旧根各子目录 → 新根（旧存在且新不存在才拷；只拷不删，留痕日志）；`WORLDSEA_NO_DATA_MIGRATE=1` 关闭（反证/测试用）。
 
 use std::path::{Path, PathBuf};
 

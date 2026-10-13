@@ -3,8 +3,7 @@ import { useArtifactStore } from '../stores/artifactStore'
 import type { Artifact, ArtifactVersion } from '../types'
 
 /**
- * useArtifacts — Agent 产物（C1 多版本 + 回滚）的组合式 API
- *
+ * useArtifacts — Agent 产物（多版本 + 回滚）的组合式 API
  * 封装 ArtifactStore 的常用状态与操作，供 UI 面板直接使用：
  * 列表 / 选中 / 版本列表 / 回滚 等。
  */

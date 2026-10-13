@@ -63,12 +63,9 @@
 
 <script setup lang="ts">
 /**
- * 实体详情内容件（载体无关）：**L2 内容形态的分发器**。详细见
- * docs/details/注释/packages/plugin-sdk/实体详情内容形态.md
- *
- * 本件不再自己排字段——它把「可见字段 + 分组 + 形态配置」交给注册表里的形态件，
- * 自身只留三样跨形态的公共外壳：形态选择器、添加字段、保存条。
- * 这样新增一种编排不动本件，改外壳也不动五种编排。
+ * 实体详情内容件（载体无关）：**L2 内容形态的分发器**。本件不自己排字段——把「可见字段 + 分组 +
+ * 形态配置」交给注册表里的形态件，自身只留跨形态公共外壳（形态选择器、添加字段、保存条），新增编排
+ * 不动本件、改外壳不动五种编排。详细见 docs/details/注释/packages/plugin-sdk/实体详情内容形态.md
  */
 import { computed, ref, watch } from 'vue'
 import { TuiButton, WsIcon } from '@worldsea/ui-kit'

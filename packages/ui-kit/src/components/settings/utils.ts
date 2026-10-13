@@ -1,5 +1,5 @@
 // 设置面板共用工具与类型定义
-// Phase 8d: 从根 src/ui/settings/utils.ts 下沉到 ui-kit
+// 自根 src/ui/settings/utils.ts 下沉到 ui-kit
 
 /**
  * 关键词匹配函数（搜索模式下用于过滤卡片显示）
@@ -20,10 +20,9 @@ export interface ShortcutItem {
 }
 
 /**
- * 快捷键目录（展示元数据）。权威键位以各注册处 register() 声明为准（registry
- * 注册时自动应用用户覆盖），此处 keys 仅作视图未激活时的展示 fallback。
- * 维护约束：新增/改 id 必须与注册处同步，此处不允许出现注册处没有的死条目
- * ——已由 `apps/tauri/src/ui/layout/__tests__/shortcutCatalog.spec.ts` 全目录守卫兜底（双向）。
+ * 快捷键目录（展示元数据）。权威键位以各注册处 register() 声明为准（registry 注册时自动应用
+ * 用户覆盖），此处 keys 仅作视图未激活时的展示 fallback。维护约束：新增/改 id 必须与注册处同步，
+ * 不允许出现注册处没有的死条目——由 `apps/tauri/src/ui/layout/__tests__/shortcutCatalog.spec.ts` 守卫兜底。
  */
 export const SHORTCUT_CATALOG: ShortcutItem[] = [
   // ── 全局（Shell.vue / AppMenu.vue）──
@@ -80,7 +79,7 @@ export const SHORTCUT_CATALOG: ShortcutItem[] = [
   { id: 'outline-board.escape', description: '大纲白板：取消选中 / 退出画区', keys: ['escape'], scope: 'view' },
 ]
 
-/** 快捷键分组顺序（低→高优先级，与 useShortcuts.SCOPE_ORDER 互补同步；space 已随 E7 退役） */
+/** 快捷键分组顺序（低→高优先级，与 useShortcuts.SCOPE_ORDER 互补同步；space 已退役） */
 export const SCOPE_ORDER = ['global', 'view', 'editor', 'modal']
 
 /** 快捷键作用域文案 */

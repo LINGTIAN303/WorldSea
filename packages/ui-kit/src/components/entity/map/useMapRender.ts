@@ -1,8 +1,6 @@
 /**
- * useMapRender — Canvas 渲染逻辑
- *
- * 从 RegionMap.vue 提取的纯渲染函数，只读取状态并绘制，不修改任何状态。
- * 依赖通过 options 注入，保持与主文件解耦。
+ * useMapRender — Canvas 渲染逻辑：从 RegionMap.vue 提取的纯渲染函数，
+ * 只读取状态并绘制、不修改任何状态；依赖经 options 注入，与主文件解耦。
  */
 import type { Ref } from 'vue'
 import { roundedRect } from './geometry'

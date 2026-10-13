@@ -1,10 +1,8 @@
 <template>
-  <!-- R3 视图工具条（2026-08-10 随流常驻 + 模式化）：
-       容器始终挂载（不卸载），保证 Teleport 目标 #view-toolbar-* 常驻，根治壳切换崩溃。
-       显示形态由视图声明的 toolbar 模式决定（见 ViewToolbarMode）：
-         - bar（默认）：随流 44px 占位条
-         - none：display:none 完全折叠（目标仍常驻）
-         - overlay：position:absolute 悬浮胶囊，不占高度，hover 顶部触发条浮现 -->
+  <!-- 视图工具条（2026-08-10 随流常驻 + 模式化）：容器始终挂载（不卸载），保证 Teleport 目标
+       #view-toolbar-* 常驻，根治壳切换崩溃。显示形态由视图声明的 toolbar 模式决定（见 ViewToolbarMode）：
+       bar（默认）随流 44px 占位条；none 完全折叠（目标仍常驻）；
+       overlay 悬浮胶囊不占高度，hover 顶部触发条浮现 -->
   <div
     class="view-toolbar"
     :class="{
@@ -210,7 +208,7 @@ onBeforeUnmount(() => {
   flex: 1;
   min-width: 0;
 }
-/* ── ⋯ 更多菜单（R3 通用操作承载，方案 A） ── */
+/* ── ⋯ 更多菜单（通用操作承载，方案 A） ── */
 .vta {
   position: relative;
 }

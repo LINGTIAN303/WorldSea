@@ -147,10 +147,8 @@ export function roundedRect(
 
 /**
  * 计算上下文菜单 / 浮层的位置，自动避免溢出屏幕右下边缘
- * @param mx 鼠标 clientX
- * @param my 鼠标 clientY
- * @param w 浮层宽度
- * @param h 浮层高度
+ * @param mx 鼠标 clientX  @param my 鼠标 clientY
+ * @param w 浮层宽度  @param h 浮层高度
  */
 export function ctxPos(mx: number, my: number, w = 160, h = 240): { left: string; top: string } {
   let left = mx

@@ -73,7 +73,7 @@ const entityStore = useEntityStore()
 const query = ref('')
 const open = ref(false)
 
-/** 建实体入口子开关（② 批：设置 → 关系面板「实体引用字段中触发」） */
+/** 建实体入口子开关（设置 → 关系面板「实体引用字段中触发」） */
 const autoCreateEnabled = computed(() => getSettingsApi().autoCreateEntityRefEnabled)
 
 const target = computed(() => (props.modelValue ? entityStore.entityMap.get(props.modelValue) || null : null))

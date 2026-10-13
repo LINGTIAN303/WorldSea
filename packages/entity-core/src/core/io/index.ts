@@ -1,7 +1,7 @@
 /**
  * io 模块 barrel 导出
  *
- * Phase 8a：io_export 链从根 src/core/ 下沉到 entity-core/core/io/
+ * io_export 链从根 src/core/ 下沉到 entity-core/core/io/
  */
 
 // WorldSeaPack 类型与注册表
@@ -16,11 +16,9 @@ export type {
   ImportReport,
 } from './WorldSeaPack'
 
-// PackageBuilder
 export { PackageBuilder } from './PackageBuilder'
 export type { PackageManifest } from './PackageBuilder'
 
-// ExportController
 export {
   ExportController,
   defaultFormatEncoder,
@@ -30,7 +28,6 @@ export type {
   HtmlExportOptions,
 } from './ExportController'
 
-// ImportController
 export {
   ImportController,
   importController,

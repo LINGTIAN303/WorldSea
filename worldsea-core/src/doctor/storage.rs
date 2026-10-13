@@ -22,11 +22,8 @@ pub struct StorageHealthReport {
   pub issues: Vec<String>,
 }
 
-/// 检查存储层的健康状态，统计各表记录数并检测读取异常
-///
-/// 参数:
+/// 检查存储层的健康状态：统计各表记录数并检测读取异常
 /// - `store`: 实现了 `StorageBackend` trait 的存储实例引用
-///
 /// 返回: 包含各表统计和问题列表的 `StorageHealthReport`
 pub fn check_storage_health(store: &dyn StorageBackend) -> StorageHealthReport {
   let mut issues: Vec<String> = Vec::new();

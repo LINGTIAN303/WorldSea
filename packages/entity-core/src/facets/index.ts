@@ -1,9 +1,7 @@
 /**
  * Facet 定义——WeaponFacet 和 ApparelFacet
- *
- * Facet 是挂载在 Item 实体上的结构化数据块。
- * 不是独立实体，无独立 ID，不可独立搜索。
- * 解決 Items/Weapons/Apparel 的分类冲突问题。
+ * Facet 是挂载在 Item 实体上的结构化数据块：不是独立实体，无独立 ID，不可独立搜索。
+ * 解决 Items/Weapons/Apparel 的分类冲突问题。
  */
 
 import { defineFacet } from '../core/TraitRuntime'

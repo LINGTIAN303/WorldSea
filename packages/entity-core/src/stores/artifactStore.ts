@@ -6,10 +6,8 @@ import { getEventBus } from '../core/serviceProvider'
 import type { Artifact, ArtifactVersion } from '../types'
 
 /**
- * ArtifactStore — Agent 产物（C1 多版本 + 回滚）
- *
- * 采用「entity-core Dexie」存储：直接读写当前项目的 WorldDatabase（IndexedDB），
- * 不经过 StorageBackend 抽象（后者面向实体的 Tauri/File 多后端）。
+ * ArtifactStore — Agent 产物（多版本 + 回滚）
+ * 采用「entity-core Dexie」存储：直接读写当前项目的 WorldDatabase（IndexedDB），不经过 StorageBackend 抽象（后者面向实体的 Tauri/File 多后端）；
  * 每次内容变更自动追加一个历史版本，支持回滚到任意版本。
  */
 export const useArtifactStore = defineStore('artifact', () => {

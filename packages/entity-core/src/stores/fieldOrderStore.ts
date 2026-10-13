@@ -53,14 +53,9 @@ export const useFieldOrderStore = defineStore('fieldOrder', () => {
   }
 
   /**
-   * 应用预设＝**只重排，不增删字段**（2026-10-03 裁定「分轴」的落地口径）。
-   *
-   * 原实现先 `fieldRegistry.resetToBuiltin(entityType)` 再只放回预设里存的字段快照，
-   * 于是「存过预设之后新增的自定义字段」会在点一下「使用」时凭空消失；
-   * 而 registry 的字段集与顺序正是详情面可用字段的来源，弹窗里这个动作会连带改掉详情的结构。
-   * 反过来「按快照补字段」也不成立：用户后来主动删掉的字段会被复活。
-   * 两头都是意外，所以把轴分干净：**字段是类型级真值（`fieldRegistry`），预设只是一份命名的顺序档**；
-   * 预设引用到已不存在的 key 就跳过，registry 里预设没见过的新字段补在末尾而不是被吞。
+   * 应用预设＝**只重排，不增删字段**（2026-10-03 裁定「分轴」的落地口径）。原实现先 resetToBuiltin 再只放回预设快照字段：
+   * 存过预设后新增的自定义字段会凭空消失，且 registry 字段集是详情面可用字段来源，会连带改掉详情结构；反过来按快照补字段又会复活已删字段。
+   * 故分轴：**字段是类型级真值（fieldRegistry），预设只是一份命名的顺序档**；引用已不存在的 key 就跳过，预设没见过的新字段补在末尾。
    */
   function loadPreset(entityType: string, presetName: string) {
     if (!orders.value[entityType]) return

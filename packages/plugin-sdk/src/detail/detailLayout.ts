@@ -1,9 +1,7 @@
 /**
  * 详情布局层（纯函数）：三级合并 + 归一。详细见 docs/details/注释/packages/plugin-sdk/实体详情表单.md
- *
- * 合并规则取**整表替换**（某一级没给 = 继承上一级），不做字段级深合并：
- * 用户覆写的是「这一类实体的详情长什么样」，而不是「在芽默认的第 3 位插一个字段」——
- * 深合并会让三层来源交织后无法解释，也让设置面板无法如实回显。
+ * 合并取**整表替换**（某一级没给 = 继承上一级），不做字段级深合并——用户覆写的是「这一类实体
+ * 的详情长什么样」，深合并会让三层来源交织后无法解释，设置面板也无法如实回显。
  */
 
 export interface DetailGroup {
@@ -21,7 +19,7 @@ export interface DetailLayout {
   order: string[]
   /** 隐藏的字段 key */
   hidden: string[]
-  /** L2 内容形态 id（批次 1b 起有实效） */
+  /** L2 内容形态 id */
   contentForm: string
   /** L2 形态的配置：只按当前形态的 configSchema 取用，缺键由注册表兜默认值 */
   contentConfig: Record<string, unknown>

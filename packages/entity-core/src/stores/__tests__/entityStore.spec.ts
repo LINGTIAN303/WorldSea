@@ -1,14 +1,7 @@
 /**
- * entityStore —— `loadByType` 增量语义护栏（2026-09-18）
- *
- * 【为什么单独立这个 spec】此前的实现是 `setAll(getEntitiesByType(type))`，
- * 即**整体替换** store 的 `entities` → 「加载 A 类型」会把其它所有类型的实体
- * **从内存里挤掉**（直到下次 `loadAll`）。这是框架级陷阱，实际影响 4 条工作线
- * （workflow 5 处 / outline 1 处 / characters 2 处 / drawing 1 处），
- * 表现形式是「在某芽里写一次数据，别的芽的实体集体消失」。
- *
- * 语义已修正为**增量**：该类型以磁盘为准整体替换（含删除同步），其它类型原样保留。
- * 本 spec 把这条语义钉住，防止将来又被"优化"回去。
+ * entityStore —— `loadByType` 增量语义护栏（2026-09-18）。
+ * 【为什么单独立这个 spec】此前实现是 setAll(getEntitiesByType(type)) 整体替换，加载 A 类型会把其它所有类型实体从内存挤掉（框架级陷阱，实际影响 4 条工作线，表现为「某芽写一次，别的芽实体集体消失」）。
+ * 语义已修正为增量，本 spec 把这条语义钉住，防止将来又被"优化"回去。详见 docs/details/注释/packages/entity-core/stores/entityStore.md。
  */
 import 'fake-indexeddb/auto'
 import { beforeEach, describe, expect, it } from 'vitest'

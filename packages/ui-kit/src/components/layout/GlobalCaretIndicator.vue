@@ -221,7 +221,7 @@ function updateCaret() {
     caretY.value = p.y
     caretH.value = p.h
   } catch {
-    // silent
+    // 静默忽略
   }
 }
 

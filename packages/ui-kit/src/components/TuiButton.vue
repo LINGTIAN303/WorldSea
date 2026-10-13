@@ -1,12 +1,8 @@
 <script setup lang="ts">
 /**
- * TuiButton：统一按钮（消除各视图按钮样式分叉）。2026-10-01 自 apps/tauri 下沉至 ui-kit，
- * 使 plugin-sdk（GEV/EntityPager 等）也能消费，作为全仓唯一按钮组件。
- *
- * 变体：primary（主操作）/ secondary（次操作/描边）/ ghost（弱操作）/ danger（危险）/ danger-ghost（危险描边）
- * 尺寸：sm / md；可选 icon 前缀；统一 hover/active/disabled 反馈与按压回弹。
- * `active`：切换类按钮的「当前态」高亮（accent 描边 + 浅底）。
- * 详细why请见 docs/details/注释/tauri/components/TuiButton.md
+ * TuiButton：统一按钮（消除各视图按钮样式分叉）。2026-10-01 自 apps/tauri 下沉至 ui-kit，使 plugin-sdk
+ * 也能消费，作为全仓唯一按钮组件。变体 primary/secondary/ghost/danger/danger-ghost，尺寸 sm/md，可选
+ * icon 前缀，统一反馈与按压回弹，`active` 为切换态高亮。详细 why 见 docs/details/注释/tauri/components/TuiButton.md
  */
 import { computed } from 'vue'
 import WsIcon from './WsIcon.vue'
@@ -78,7 +74,7 @@ const cls = computed(() => [`is-${props.variant}`, `is-${props.size}`, { 'is-loa
   opacity: var(--disabled-opacity);
   cursor: not-allowed;
 }
-/* loading 态：忙碌而非禁用——不降透明度、progress 光标，spinner 已传达进行中（批次89 8.3 语义修正） */
+/* loading 态：忙碌而非禁用——不降透明度、progress 光标，spinner 已传达进行中 */
 .tui-btn.is-loading:disabled {
   opacity: 1;
   cursor: progress;

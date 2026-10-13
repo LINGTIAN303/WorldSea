@@ -32,12 +32,8 @@ pub struct DanglingRelation {
   pub missing: String,
 }
 
-/// 检查实体和关系之间的引用完整性，检测孤立实体、悬空关系和重复 ID
-///
-/// 参数:
-/// - `entities`: 实体列表
-/// - `relations`: 关系列表
-///
+/// 检查实体和关系之间的引用完整性：孤立实体、悬空关系和重复 ID
+/// - `entities`/`relations`: 实体与关系列表
 /// 返回: 包含所有引用完整性问题的 `ReferenceCheckResult`
 #[must_use]
 pub fn check_references(entities: &[Entity], relations: &[Relation]) -> ReferenceCheckResult {
@@ -107,11 +103,7 @@ pub fn check_references(entities: &[Entity], relations: &[Relation]) -> Referenc
 }
 
 /// 检查实体和关系之间的引用完整性，并生成标准化的验证报告
-///
-/// 参数:
-/// - `entities`: 实体列表
-/// - `relations`: 关系列表
-///
+/// - `entities`/`relations`: 实体与关系列表
 /// 返回: 包含所有引用完整性问题的 `ValidationReport`
 #[must_use]
 pub fn check_references_report(entities: &[Entity], relations: &[Relation]) -> ValidationReport {

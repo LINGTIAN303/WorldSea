@@ -1,10 +1,9 @@
 // @vitest-environment jsdom
+
 /**
- * 壳桥注入脚本（apps/tauri/src-tauri/src/dsh_shell_bridge.js）的行为测试。
- *
- * 为什么要直测这份 JS：外链守卫直接改变用户可见行为（点击外链 → 系统浏览器，而非把应用窗口导航走），
- * 且它是注入到页面的**唯一**拦截点——Rust 单测看不见它，故在此以 jsdom 载入同一份文件做行为断言。
- * 用例逐条对应官方 Electron 桌面版的导航定义（apps/desktop/src/main.ts 的 setWindowOpenHandler / will-navigate）。
+ * 壳桥注入脚本（apps/tauri/src-tauri/src/dsh_shell_bridge.js）的行为测试：外链守卫直接改变用户可见行为
+ * （点击外链 → 系统浏览器，而非把应用窗口导航走），且它是注入到页面的**唯一**拦截点——Rust 单测看不见它，
+ * 故以 jsdom 载入同一份文件做行为断言；用例对应官方 Electron 桌面版导航定义（main.ts 的 setWindowOpenHandler / will-navigate）。
  */
 
 import { readFileSync } from 'node:fs'

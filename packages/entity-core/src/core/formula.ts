@@ -37,7 +37,7 @@ function tokenize(expr: string): Token[] {
       const quote = ch; i++
       let str = ''
       while (i < expr.length && expr[i] !== quote) { str += expr[i]; i++ }
-      if (i < expr.length) i++ // skip closing quote
+      if (i < expr.length) i++ // 跳过闭合引号
       tokens.push({ type: 'str', value: str })
       continue
     }
@@ -51,7 +51,7 @@ function tokenize(expr: string): Token[] {
     }
     if (ch === '(' || ch === ')') { tokens.push({ type: 'paren', value: ch }); i++; continue }
     if (ch === ',') { tokens.push({ type: 'comma', value: ',' }); i++; continue }
-    // identifier (field name without braces, or function name)
+    // 标识符（不带花括号的字段名，或函数名）
     if (/[a-zA-Z_]/.test(ch)) {
       let id = ''
       while (i < expr.length && /[a-zA-Z0-9_.]/.test(expr[i])) { id += expr[i]; i++ }
@@ -90,7 +90,7 @@ class Parser {
 
   private getFieldValue(name: string): unknown {
     if (name in this.fields) return this.fields[name]
-    // Try case-insensitive
+    // 大小写不敏感重试
     const lower = name.toLowerCase()
     for (const [k, v] of Object.entries(this.fields)) {
       if (k.toLowerCase() === lower) return v
@@ -151,7 +151,7 @@ class Parser {
       const op = this.consume().value
       const right = this.mulExpr()
       if (op === '+') {
-        // String concat if either is string
+        // 任一侧为字符串时做字符串拼接
         if (typeof left === 'string' || typeof right === 'string') {
           left = String(left) + String(right)
         } else {
@@ -196,11 +196,11 @@ class Parser {
     if (t.type === 'field') { this.consume(); return this.getFieldValue(t.value) }
     if (t.type === 'ident') {
       this.consume()
-      // Function call?
+      // 函数调用？
       if (this.peek().type === 'paren' && this.peek().value === '(') {
         return this.callFunc(t.value)
       }
-      // Field reference by name
+      // 按名称引用字段
       return this.getFieldValue(t.value)
     }
     if (t.type === 'paren' && t.value === '(') {
@@ -226,7 +226,7 @@ class Parser {
 
     const lower = name.toLowerCase()
     if (['sum', 'count', 'avg', 'min', 'max'].includes(lower)) {
-      // Aggregate: first arg is field name
+      // 聚合函数：第一个参数是字段名
       const fieldName = String(args[0] ?? '')
       if (!this.allEntities) return null
       const values = this.allEntities.map(e => Number(e[fieldName] ?? 0)).filter(v => !isNaN(v))
@@ -249,8 +249,7 @@ class Parser {
 /**
  * 计算公式表达式
  * @param expr 公式字符串，如 "{price} * {quantity}"
- * @param fields 当前实体的字段值
- * @param allEntities 可选，同类型所有实体（用于聚合）
+ * @param fields 当前实体字段值；allEntities 可选，同类型所有实体（用于聚合）
  */
 export function evaluateFormula(
   expr: string,
@@ -280,6 +279,6 @@ export function extractFieldRefs(expr: string): string[] {
         }
       }
     }
-  } catch { /* ignore parse errors */ }
+  } catch { /* 忽略解析错误 */ }
   return [...new Set(refs)]
 }

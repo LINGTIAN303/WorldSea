@@ -26,12 +26,9 @@
 
 <script setup lang="ts">
 /**
- * L1 载体·沉浸页：详情铺满整块内容区（列表盖在下面，不是关掉）。详细见
- * docs/details/注释/packages/plugin-sdk/实体详情内容形态.md §十
- *
- * 三点与其它载体不同：**不拖宽**（宽度由阅读列宽决定，不是用户拖出来的）、**没有遮罩**
- * （它不在列表之上浮着，而是把这一块区域占了）、**靠父容器定位**（`position:absolute`，
- * 所以 GEV / 时间线的根容器要 `position:relative`）——不越到窗口栏外面去。
+ * L1 载体·沉浸页：详情铺满整块内容区（列表盖在下面，不是关掉）。三点不同：**不拖宽**（宽度由
+ * 阅读列宽决定）、**没有遮罩**（占区域而非浮在列表上）、**靠父容器定位**（`position:absolute`，
+ * GEV/时间线根容器要 `position:relative`）。详细见 docs/details/注释/packages/plugin-sdk/实体详情内容形态.md §十
  */
 import DetailShell from './DetailShell.vue'
 import { useDetailChrome, type DetailTab } from '../detail/useDetailChrome'

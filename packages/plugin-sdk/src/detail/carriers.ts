@@ -6,12 +6,9 @@ import ImmersiveDetailView from '../components/ImmersiveDetailView.vue'
 import FloatingDetailView from '../components/FloatingDetailView.vue'
 
 /**
- * L1 载体形态注册表：详情**装在哪个容器里、占多大空间、怎么进出**。
- * 详细见 docs/details/注释/packages/plugin-sdk/实体详情内容形态.md §十
- *
- * 与 L2 内容形态（`contentForms.ts`）是两级：换容器不动编排，换编排不动容器。
- * 载体之间**只差容器**——属性、事件、槽名、暴露面必须逐一对齐（`useDetailChrome` 就是这个契约的实现处），
- * 否则每加一种载体，GEV 的详情段就要重写一遍（1a 之前的四套字段控件正是这么长出来的）。
+ * L1 载体形态注册表：详情**装在哪个容器里、占多大空间、怎么进出**。与 L2 内容形态（`contentForms.ts`）
+ * 两级：换容器不动编排、换编排不动容器；载体间**只差容器**——属性/事件/槽名/暴露面逐一对齐（`useDetailChrome`
+ * 是契约实现处）。详细见 docs/details/注释/packages/plugin-sdk/实体详情内容形态.md §十
  */
 
 /** overlay＝压在列表上的浮层；split＝与列表同排分栏；immersive＝盖住整块内容区 */
@@ -28,7 +25,7 @@ export interface CarrierDefinition {
   component: Component
 }
 
-/** 缺省载体＝抽屉：芽不声明、用户不设，观感与批次 2 之前完全一致 */
+/** 缺省载体＝抽屉：芽不声明、用户不设，观感与引入载体注册前完全一致 */
 export const DEFAULT_CARRIER = 'drawer'
 
 const registry = new Map<string, CarrierDefinition>()

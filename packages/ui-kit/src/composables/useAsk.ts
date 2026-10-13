@@ -1,22 +1,9 @@
 import { ref } from 'vue'
 
 /**
- * useAsk — 提问面板（Q1，2026-09-20 重写：单值占位 → 批量问题协议）
- *
- * 与确认弹窗（useConfirm）同位置弹出（对话区底部输入栏上方），供「Agent 主动提问」
- * 场景使用（模型经 `ask_user_question` 工具发起，Rust 侧广播族事件 `InteractionRequested`
- * 〔user_input 型〕，通道 `agent:interaction:{session_id}`；面板由统一监听器 kind 分派唤起）。
- *
- * 协议对齐 dsh `ask_user_question`（见 docs/plans/2026-09-18-对话区对齐dsh/
- * 02-dsh提问工具设计基线.md §五）：
- * - 批量 `questions[]`：一次请求承载整批问题，逐题作答（进度 N/M；支持上一步/下一步）
- * - 每题 **稳定 id 随答案原样回显**；单选「点选即前进」、多选 toggle + 继续
- * - 「自定义」：单选下覆盖 selected（清空选项）、多选下为补充
- * - 「跳过」= 空答案（`{id, selected: []}`）；「取消」= 整体拒绝（resolve null → ASK_DENIED）
- * - 提交前未答且未跳过 → 拦截（`incomplete` 提示，不可前进）
- *
- * 单面板约束（同 dsh composer 独占）：同刻只持有一个提问面板；kernel 侧对提问工具
- * 强制串行（同批多 ask 不会并行弹出），前端对后到请求按「新请求接管」处理。
+ * useAsk — 提问面板（2026-09-20 重写：单值占位 → 批量问题协议）。与 useConfirm 同位置弹出（对话区底部
+ * 输入栏上方），供模型经 `ask_user_question` 工具主动提问（Rust 事件 `InteractionRequested`〔user_input〕，
+ * 通道 `agent:interaction:{session_id}`）。协议细节与单面板约束详见 docs/details/注释/packages/ui-kit/useAsk.md
  */
 
 /** 选项（label 同时是回传的选中值；description 为 UI 帮助文本） */
@@ -112,10 +99,9 @@ function isAnswered(draft: AskDraft): boolean {
 }
 
 /**
- * 由草稿组装整批答案（对齐 dsh `submitDrafts`）：
- * - 跳过 → `{ id, selected: [] }`
- * - 单选且自定义非空 → `{ id, selected: [], custom }`（custom 覆盖选中）
- * - 其余 → `{ id, selected, custom? }`（custom 有值才携带）
+ * 由草稿组装整批答案（对齐 dsh `submitDrafts`）：跳过 → `{ id, selected: [] }`；
+ * 单选且自定义非空 → `{ id, selected: [], custom }`（custom 覆盖选中）；
+ * 其余 → `{ id, selected, custom? }`（custom 有值才携带）。
  */
 function buildAnswers(): AskAnswer[] {
   const s = state.value
@@ -247,8 +233,7 @@ export function useAsk() {
   }
 
   /**
-   * kernel 侧已解决（族事件 `InteractionResolved`，如随轮取消 / 超时）→ 关闭对应面板
-   *
+   * kernel 侧已解决（族事件 `InteractionResolved`，如随轮取消 / 超时）→ 关闭对应面板。
    * 按 askId 匹配才关闭（避免误关后到的新请求）；本地按「拒绝」收口，
    * 调用方回传对已解决 ask_id 返回 false（幂等无害）。
    */

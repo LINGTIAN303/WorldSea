@@ -14,13 +14,9 @@ export interface RelationTypeSchema extends CoreRelationTypeSchema {
 }
 
 /**
- * 关系类型 V2——所有关系强制有向，强制声明逆关系。
- *
- * 设计决策：
- * - 移除 directed 布尔值，所有关系都是有向的（source → target）
- * - 对称关系（如 borders）通过 inverseType 自动创建反向关系
- * - inverseType 是强制的：每个关系必须声明其逆关系类型
- * - 语义上对称的关系，inverseType 指向自身（如 borders → borders）
+ * 关系类型 V2——所有关系强制有向，强制声明逆关系。移除 directed 布尔值，所有关系都是有向的（source → target）。
+ * 对称关系（如 borders）通过 inverseType 自动创建反向关系；inverseType 强制：每个关系必须声明其逆关系类型。
+ * 语义上对称的关系，inverseType 指向自身（如 borders → borders）。
  */
 export interface RelationTypeSchemaV2 {
   /** 关系类型唯一标识 */

@@ -9,9 +9,7 @@ import { useFieldPresets } from '../useFieldPresets'
 /**
  * 弹窗侧预设面**只剩切换**的守卫（增删改搬到设置「实体详情」Tab）。
  * 详细见 docs/details/注释/packages/plugin-sdk/实体详情内容形态.md §7.2
- *
- * 锁两件事：切换预设确实落到 `loadPreset`（下拉不是纯装饰），
- * 以及 CRUD 没有再以第二个面回到弹窗里。
+ * 锁两件事：切换预设确实落到 `loadPreset`（下拉不是纯装饰）、CRUD 没有再以第二个面回到弹窗。
  */
 
 function mk() {

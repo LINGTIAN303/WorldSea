@@ -1,12 +1,8 @@
-//! 文件系统监听命令层（Phase C 收尾：cmd_fs_watch_*）
-//!
-//! 供 entity-core 的 useFsWatcher 使用：递归监听项目数据目录，
+//! 文件系统监听命令层（cmd_fs_watch_*）：供 entity-core 的 useFsWatcher 使用——递归监听项目数据目录，
 //! 文件变更时通过 Tauri 事件 `fs:change` 推送 `{ watchId, kind, paths }` 给前端，
 //! 前端防抖后增量刷新 EntityStore / RelationStore / FileStore。
-//!
-//! 设计：watchId -> RecommendedWatcher 注册表（模块级 managed state），
-//! 事件回调捕获 AppHandle 直接 emit，不做业务过滤（过滤在 Rust 端做掉
-//! kv_store.json / files_meta.json 内部元数据，前端还有一层兜底）。
+//! 设计：watchId -> RecommendedWatcher 注册表（模块级 managed state），事件回调捕获 AppHandle 直接 emit，
+//! 不做业务过滤（过滤在 Rust 端做掉 kv_store.json / files_meta.json 内部元数据，前端还有一层兜底）。
 
 use std::collections::HashMap;
 use std::sync::Mutex;

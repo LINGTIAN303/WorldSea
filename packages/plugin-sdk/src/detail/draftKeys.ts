@@ -1,10 +1,7 @@
 /**
- * 草稿键映射（纯函数）。详细见 docs/details/注释/packages/plugin-sdk/实体详情表单.md
- *
- * `useEntityEdit` 的草稿用 `_` 前缀方言存顶层字段（`_name`/`_description`/…），
- * 而详情渲染与布局层说的是 **schema key 方言**（`title`/`description`/`tags`/…）。
- * 两边都已有外部消费者（时间线自有详情吃 `editForm._name`），故不改方言，只做一次显式映射——
- * 让「顶层字段在详情里恒为 —」这类错位有个唯一的中转点。
+ * 草稿键映射（纯函数）。`useEntityEdit` 草稿用 `_` 前缀方言存顶层字段（`_name`/…），详情渲染与布局层
+ * 说的是 schema key 方言（`title`/…）；两边都已有外部消费者（时间线自有详情吃 `editForm._name`），
+ * 故不改方言只做显式映射。详细见 docs/details/注释/packages/plugin-sdk/实体详情表单.md
  */
 import type { Entity } from '@worldsea/entity-core'
 import { topLevelOf } from './fieldAccessor'

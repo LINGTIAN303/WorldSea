@@ -1,10 +1,7 @@
 /**
  * useTextSelection — 全局文本选择监听器
- *
- * 检测用户在实体视图中划选文本，在选区旁弹出"与 AI 聊聊？"触发按钮。
- * 仅在实体相关元素内触发（.ws-entity-content 或 [data-entity-id]）。
- *
- * Phase 7：从 src/composables/ 下沉到 ui-kit/composables/（纯 vue，无业务依赖）
+ * 检测用户在实体视图中划选文本，在选区旁弹出"与 AI 聊聊？"触发按钮；
+ * 仅在实体相关元素内触发（.ws-entity-content 或 [data-entity-id]）。纯 vue、无业务依赖。
  */
 
 import { ref, onMounted, onUnmounted, readonly } from 'vue'

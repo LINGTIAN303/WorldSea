@@ -4,9 +4,7 @@ import { useUndoRedo } from './useUndoRedo'
 import { getEventBus } from '../core/serviceProvider'
 
 /**
- * 级联删除 composable。
- * 提供事务级的级联删除封装，删除实体时自动清理关联关系。
- *
+ * 级联删除 composable：事务级封装，删除实体时自动清理关联关系。
  * 注意：entityStore.remove() 已内置级联清理逻辑，
  * 此 composable 提供额外的事务包装和事件通知。
  */

@@ -18,12 +18,8 @@ export const useRelationStore = defineStore('relation', () => {
   }
 
   /**
-   * 按实体加载关系（**增量语义**，2026-09-18 与 entityStore.loadByType 一并修正）
-   *
-   * 【历史缺陷】与 `entityStore.loadByType` 同款：此前 `setAll(getRelationsByEntity(id))`
-   * 会**整体替换** store 的 `relations`，把「不涉及该实体」的关系全部从内存挤掉。
-   * 当前无调用点（属预留 API），但同型隐患一并修掉——否则将来第一个使用者就会踩。
-   *
+   * 按实体加载关系（**增量语义**，2026-09-18 与 entityStore.loadByType 一并修正）。
+   * 【历史缺陷】此前 setAll(getRelationsByEntity(id)) 会整体替换 relations，把不涉及该实体的关系从内存挤掉；当前无调用点（预留 API），同型隐患一并修掉。
    * 【语义】涉及该实体的关系以 storage 为准替换，其它关系原样保留。
    */
   async function loadByEntity(entityId: string) {

@@ -14,9 +14,8 @@ type FilePersistedListener = (event: FilePersistedEvent) => void
 const filePersistedListeners = new Set<FilePersistedListener>()
 
 /**
- * 订阅"文件已写入 IndexedDB"事件。
- * 在 add/update 的 IDB 写完成且本地缓存更新后触发，订阅方在回调内读 store
- * 一定能看到新数据。
+ * 订阅「文件已写入 IndexedDB」事件。
+ * 在 add/update 的 IDB 写完成且本地缓存更新后触发，订阅方在回调内读 store 一定能看到新数据。
  * 返回取消订阅的函数。
  */
 export function onFilePersisted(listener: FilePersistedListener): () => void {

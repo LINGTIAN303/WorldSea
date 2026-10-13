@@ -1,14 +1,8 @@
-//! 工作流定义与运行历史的 Sqlite 存储
+//! 工作流定义与运行历史的 Sqlite 存储，在 [`SqliteStore`] 之上提供 workflow 专属 CRUD。
 //!
-//! 在 [`SqliteStore`] 之上提供 workflow-specific 的 CRUD。读写全程走
-//! `with_conn` 闭包，与 `SqliteStore` 自身的 `Mutex<Connection>` 锁协议对齐。
-//!
-//! 主要表：
-//!   * `workflows`            — 工作流定义（按 `(id, version)` 版本化）
-//!   * `workflow_runs`        — 每次运行实例
-//!   * `workflow_node_logs`   — 节点粒度日志（流式 chunk、result、heartbeat…）
-//!   * `workflow_pending_dispatches` — 派发追踪（Phase 2 引擎使用）
-//!   * `workflow_settings`    — 保留天数等设置 KV
+//! 读写全程走 `with_conn` 闭包，与 `SqliteStore` 的 `Mutex<Connection>` 锁协议对齐。
+//! 主要表：`workflows`（定义，按 `(id, version)` 版本化）、`workflow_runs`（运行实例）、
+//! `workflow_node_logs`（节点日志）、`workflow_pending_dispatches`（派发追踪）、`workflow_settings`（设置 KV）。
 
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};

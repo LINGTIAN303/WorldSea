@@ -1,11 +1,9 @@
 import type { IconDef } from './types'
 
 /**
- * 导航 / 工作台图标（来自 Tauri 端原 TuiIcon 线性图标集，2026-08-10 合并）
- *
- * 迁移来源：apps/tauri/src/components/ui/TuiIcon.vue（已废弃删除）。
- * 仅收录注册表中不存在、且工作台实际用到的图标，path 原样保留以保证视觉不变。
- * 与注册表已存在的 close/edit/check/search 等同名图标不在此处重复注册。
+ * 导航 / 工作台图标（来自 Tauri 端原 TuiIcon 线性图标集，2026-08-10 合并）。
+ * 迁移来源：apps/tauri/src/components/ui/TuiIcon.vue（已废弃删除）；仅收录注册表中不存在、
+ * 且工作台实际用到的图标，path 原样保留保证视觉不变；与已有同名图标不重复注册。
  */
 export const navIcons: Record<string, IconDef> = {
   chat: { d: 'M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z', category: 'nav' },

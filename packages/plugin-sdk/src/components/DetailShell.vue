@@ -53,17 +53,9 @@
 
 <script setup lang="ts">
 /**
- * 载体共用的内容壳：表头 + 标签页 + 正文。详细见
- * docs/details/注释/packages/plugin-sdk/实体详情内容形态.md §十
- *
- * 每种载体**只差容器**（右栏浮层 / 同排分栏 / 居中弹层 / 沉浸页 / 浮层小窗），
- * 表头与标签页一个字都不该差。抽屉与栏式当初各写一份，再加三式就是五份拷贝——
- * 正是本线一直在拆的「四套字段控件」那条路，所以把壳抽出来先于加载体。
- * 定位、遮罩、拖宽手柄留在各载体里，那才是它们的真实差别。
- *
- * 2026-10-08（Tab 优化批 B）：标签条三件——溢出（两端 mask 渐隐 + 滚轮横滚 +
- * 激活项自动滚入视野）、无障碍（tablist/tab + aria-selected + roving tabindex +
- * 方向键/Home/End 自动激活）、count 徽标（DetailTab.count）。
+ * 载体共用的内容壳：表头 + 标签页 + 正文，各载体只差容器（定位/遮罩/拖宽留在各载体）；
+ * 抽壳缘由＝五式各抄一份表头必漂移（同「四套字段控件」教训）；标签条含溢出渐隐+滚轮横滚+激活项滚入+
+ * tablist 无障碍+count 徽标（2026-10-08）。详细见 docs/details/注释/packages/plugin-sdk/实体详情内容形态.md §十、§12.1
  */
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { WsIcon } from '@worldsea/ui-kit'
