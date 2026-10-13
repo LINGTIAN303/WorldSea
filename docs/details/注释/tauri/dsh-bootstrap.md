@@ -40,15 +40,16 @@ dsh 上游单 exe 构建（@yao-pkg/pkg --sea）是 sdk profile 口径且打包�
 其 node 分支载体（`runtime/node/node_modules/@deepseek-ai/dsh/lib/bin.js`）与
 WorldSea 壳的 spawn 架构同构，直接采用。单 exe 可作为未来优化项，闭包清单可直接复用。
 
-### 闭包清单 = 平铺声明 + 双重自动推导
+### 闭包清单 = 平铺声明 + 自动推导
 
 pnpm legacy deploy 不解析 workspace 传递 peer，闭包清单必须**平铺**声明全部依赖。
-推导来源四路，全部构建期自动生成（追版零手工）：
+推导来源五路，全部构建期自动生成（追版零手工）：
 
 1. 全树 workspace 协议 peerDependencies 扫描（CLI deps 已含的跳过）
 2. bundle 层 cordis*.yml 引用的 workspace 包（verify 脚本只扫 presets，dsh-llm-deepseek 教训）
 3. overrides 强制的 vendor 实体包（cosmokit / schemastery，peer 扫描覆盖不到）
-4. 上游 `verify-runtime-closure.ts` 迭代校验：失败链末端包自动补进清单直到 PASS
+4. **产品域插件 `apps/dsh-plugin-*` 通配收编**（新增插件零接线，无名单可漏）
+5. 上游 `verify-runtime-closure.ts` 迭代校验：失败链末端包自动补进清单直到 PASS
 
 ### legacy deploy 三条已知坑（与上游单 exe 构建的处理对应）
 
@@ -61,9 +62,10 @@ pnpm legacy deploy 不解析 workspace 传递 peer，闭包清单必须**平铺*
 ### 首启 profile 装配（dsh_bootstrap.rs）
 
 幂等合并而非覆盖：bundles 缺谁补谁、dependencies link 失效（指向不存在目录）才修复。
-用户与插件管理器对 profile 的既有编辑一律保留。生产插件实体在随包部署树
-（`dsh-runtime/dsh/node_modules`），dev 在仓 `apps/`——由 `DshInstall.plugins_dir` 统一供给。
-profile 缺失时按产品基线重建（base + web-app + 双插件）。
+用户与插件管理器对 profile 的既有编辑一律保留。插件集合 = 运行时扫描 `dsh-plugin-*`
+（与构建侧 `apps/dsh-plugin-*` 通配同构，**新增插件零接线**）；零插件 fail loud（防静默丢能力）。
+生产插件实体在随包部署树（`dsh-runtime/dsh/node_modules`），dev 在仓 `apps/`——
+由 `DshInstall.plugins_dir` 统一供给。profile 缺失时按产品基线重建（base + web-app + 扫描到的插件）。
 
 ### 安装器解压引擎 = 系统 tar.exe
 

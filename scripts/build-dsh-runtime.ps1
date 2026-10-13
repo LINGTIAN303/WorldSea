@@ -41,10 +41,10 @@ foreach ($n in @('postinstall', 'preinstall', 'prepare', 'prepack')) {
     if ($rootManifest.scripts.PSObject.Properties[$n]) { $rootManifest.scripts.PSObject.Properties.Remove($n) }
 }
 $rootManifest | ConvertTo-Json -Depth 10 | Set-Content $rootManifestPath -Encoding utf8NoBOM
-# 注入两个产品域插件（成为 staging 工作区成员）
-foreach ($p in @('dsh-plugin-worldsea', 'dsh-plugin-worldsea-console')) {
-    Copy-Item (Join-Path $repo "apps\$p") (Join-Path $stage "apps\$p") -Recurse
-}
+# 注入产品域插件（apps/dsh-plugin-* 通配收编——新增插件零接线，不进名单就不会漏）
+$plugins = Get-ChildItem (Join-Path $repo 'apps') -Directory -Filter 'dsh-plugin-*'
+if (-not $plugins -or @($plugins).Count -eq 0) { throw "apps/ 下没有 dsh-plugin-* 插件包" }
+foreach ($p in $plugins) { Copy-Item $p.FullName (Join-Path $stage "apps\$($p.Name)") -Recurse }
 
 # ---------- 2. 闭包清单：种子（CLI deps ∪ 全树 workspace peers ∪ overrides 实体包 ∪ bundle 引用 ∪ 插件）+ 迭代校验补缺 ----------
 Step '生成闭包清单'
@@ -75,7 +75,7 @@ foreach ($p in $peers.Keys) {
 }
 # overrides 强制链接的 vendor 包（peer 扫描覆盖不到，缺了运行时才爆）
 foreach ($p in @('@deepseek-ai/cosmokit', '@deepseek-ai/schemastery')) { $deps[$p] = 'workspace:~' }
-foreach ($p in @('dsh-plugin-worldsea', 'dsh-plugin-worldsea-console')) { $deps[$p] = 'workspace:*' }
+foreach ($p in $plugins) { $deps[$p.Name] = 'workspace:*' }
 # bundle 装配引用的 workspace 包：上游 verify 脚本只扫 presets/*.patch.yml，
 # bundle 层 cordis*.yml 引用的包（如 dsh-llm-deepseek，CLI 的 devDep）它不查——运行时才爆，这里静态补齐
 Get-ChildItem (Join-Path $stage 'packages\bundle') -Recurse -Include 'cordis*.yml', '*.patch.yml' -File | ForEach-Object {

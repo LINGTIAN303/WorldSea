@@ -1,7 +1,8 @@
 // dsh-home profile 首启装配（产品域插件随安装器就绪的唯一入口）：
-// 把 dsh-plugin-worldsea / -console 幂等合并进 web profile 的 bundles 与 dependencies link。
+// 把插件目录下的全部 dsh-plugin-* 幂等合并进 web profile 的 bundles 与 dependencies link。
 // 只加不改：profile 既有条目（用户编辑、插件管理器写入）一律保留；失效链接修复，缺失才补。
 // 插件实体位置由 DshInstall.plugins_dir 统一提供（生产 = 随包部署树 node_modules；dev = 仓 apps/）。
+// 新增插件零接线：构建侧按 apps/dsh-plugin-* 通配收编，此处运行时按目录扫描，双方无名单可漏。
 
 use std::path::Path;
 
@@ -9,11 +10,26 @@ use serde_json::{json, Value};
 
 use crate::dsh_shell::DshInstall;
 
-/// 随包产品域插件（bundles 与 dependencies 两处都要出现）
-const PRODUCT_PLUGINS: [&str; 2] = ["dsh-plugin-worldsea", "dsh-plugin-worldsea-console"];
+/// 扫描插件目录下的产品域插件包名（dsh-plugin-* 前缀且含 package.json；排序保证 profile 稳定）。
+/// 一个都没有 = 安装不完整，fail loud（否则就是静默丢失产品域能力——正是本模块要防的事故）。
+fn discover_product_plugins(plugins_dir: &Path) -> Result<Vec<String>, String> {
+    let entries =
+        std::fs::read_dir(plugins_dir).map_err(|e| format!("读取插件目录失败（{}）：{e}", plugins_dir.display()))?;
+    let mut names: Vec<String> = entries
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .filter(|n| n.starts_with("dsh-plugin-") && plugins_dir.join(n).join("package.json").is_file())
+        .collect();
+    names.sort();
+    if names.is_empty() {
+        return Err(format!("插件目录下没有任何 dsh-plugin-*：{}（安装不完整或被杀软误删）", plugins_dir.display()));
+    }
+    Ok(names)
+}
 
 /// 幂等装配 web profile：缺失的 profile 按产品基线重建，存在则合并添加/修复失效 link。
 pub(crate) fn ensure_product_profile(home: &Path, install: &DshInstall) -> Result<(), String> {
+    let plugins = discover_product_plugins(&install.plugins_dir)?;
     let profile_path = home.join("profiles").join("web").join("package.json");
     let mut root: Value = std::fs::read_to_string(&profile_path)
         .ok()
@@ -32,8 +48,8 @@ pub(crate) fn ensure_product_profile(home: &Path, install: &DshInstall) -> Resul
     let bundle_list = root["dsh"]["profile"]["bundles"]
         .as_array_mut()
         .ok_or_else(|| "profile 的 dsh.profile.bundles 不是数组".to_string())?;
-    for plugin in PRODUCT_PLUGINS {
-        if !bundle_list.iter().any(|v| v.as_str() == Some(plugin)) {
+    for plugin in &plugins {
+        if !bundle_list.iter().any(|v| v.as_str() == Some(plugin.as_str())) {
             bundle_list.push(json!(plugin));
         }
     }
@@ -42,7 +58,7 @@ pub(crate) fn ensure_product_profile(home: &Path, install: &DshInstall) -> Resul
         root["dependencies"] = json!({});
     }
     let deps = root["dependencies"].as_object_mut().expect("上面已确保是 object");
-    for plugin in PRODUCT_PLUGINS {
+    for plugin in &plugins {
         let link_target = install.plugins_dir.join(plugin);
         if !link_target.is_dir() {
             return Err(format!("产品域插件缺失：{}（安装不完整或被杀软误删）", link_target.display()));
