@@ -29,6 +29,7 @@
 | src-tauri/src/workspace_dist.rs | [workspace-dist.md](tauri/workspace-dist.md) | 工作台静态伺服口径：产物不嵌二进制、与 dsh 桥无关、同源、GET/HEAD 闸门 + 越界复核、缓存与 index 注入（2026-10-13 注释整改迁入） |
 | src-tauri/src/acl_fix.rs | [acl-fix.md](tauri/acl-fix.md) | 可回滚工作区权限修复（rc.2 形态）：主路径/兜底双路线口径与实测取证（2026-10-13 注释整改迁入） |
 | src-tauri/src/dsh_bridge.rs | [dsh-bridge.md](tauri/dsh-bridge.md) | worldsea 协议层代理宿主完整口径：UI origin/传输面分离与自定义协议落形（2026-10-13 注释整改迁入） |
+| src-tauri/src/dsh_bootstrap.rs + scripts/build-dsh-runtime.ps1 | [dsh-bootstrap.md](tauri/dsh-bootstrap.md) | Agent 运行时随安装器分发：node 载体配方、闭包清单四路推导、legacy deploy 三坑、首启幂等装配、追版动作（2026-10-13） |
 | src-tauri/src/channel_order.rs | [channel-order.md](tauri/channel-order.md) | Channel 投递全序修复：Tauri Channel 双路径乱序的取证链与根治方案（2026-10-13 注释整改迁入） |
 | src-tauri/src/proc_quiet.rs | [proc-quiet.md](proc-quiet.md) | GUI 模式隐藏子进程控制台窗口：CREATE_NO_WINDOW 方案与 6 处接入点（2026-10-13 注释整改迁入） |
 | src/core/coreBackend.ts | [coreBackend.md](tauri/coreBackend.md) | coreBackend Phase 3 端分离：移除 WASM、纯 invoke 路径、签名兼容；2026-08-06 收敛为 api/ 领域拆分聚合（re-export） |

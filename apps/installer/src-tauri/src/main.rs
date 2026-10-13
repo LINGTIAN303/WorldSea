@@ -9,6 +9,8 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::sleep;
 use std::time::{Duration, Instant};
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 use tauri::Emitter;
 use winreg::enums::{HKEY_CURRENT_USER, KEY_WRITE};
 use winreg::RegKey;
@@ -19,7 +21,8 @@ const UNINSTALL_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Uninstal
 const CONTEXT_MENU_KEY: &str = r"Software\Classes\Directory\shell\WorldSea";
 const MAIN_EXE: &str = "worldsea-tauri-app.exe";
 const UNINSTALLER_NAME: &str = "Uninstall WorldSea.exe";
-const VERSION: &str = "0.1.0";
+// 版本单源为本 crate Cargo.toml，编译期注入（tauri.conf.json 不再声明 version）
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 static CANCELLED: AtomicBool = AtomicBool::new(false);
 
@@ -40,6 +43,8 @@ fn app_data_dir() -> PathBuf {
 
 /// 内嵌主程序（编译期嵌入，构建链保证 src-tauri/payload/ 先就位，缺失则本 crate 编译失败）
 const MAIN_EXE_BYTES: &[u8] = include_bytes!("../payload/worldsea-tauri-app.exe");
+/// 内嵌 Agent 运行时（dsh 部署树 + node.exe，build-dsh-runtime.ps1 产物；同一构建链保证就位）
+const RUNTIME_ZIP_BYTES: &[u8] = include_bytes!("../payload/dsh-runtime.zip");
 
 fn start_menu_dir() -> Option<PathBuf> {
     dirs::data_dir().map(|d| d.join(r"Microsoft\Windows\Start Menu\Programs"))
@@ -132,7 +137,7 @@ fn perform_install(
         }
         let dest = PathBuf::from(&dest);
         let main_in_dest = dest.join(MAIN_EXE);
-        let total = 8usize;
+        let total = 9usize;
 
         if !step(&app, 0, total, &format!("解压程序文件到 {}", dest.display()), || {
             std::fs::create_dir_all(&dest).map_err(|e| e.to_string())?;
@@ -140,38 +145,42 @@ fn perform_install(
             Ok(())
         }) { return finish_install(&app, false); }
 
-        if !step(&app, 1, total, "部署卸载器", || {
+        if !step(&app, 1, total, "部署 Agent 运行时（dsh + node）", || {
+            deploy_runtime(&dest)
+        }) { return finish_install(&app, false); }
+
+        if !step(&app, 2, total, "部署卸载器", || {
             std::fs::copy(win::self_exe(), dest.join(UNINSTALLER_NAME)).map_err(|e| e.to_string())?;
             Ok(())
         }) { return finish_install(&app, false); }
 
         if desktop
-            && !step(&app, 2, total, "创建桌面快捷方式", || {
+            && !step(&app, 3, total, "创建桌面快捷方式", || {
                 let lnk = dirs::desktop_dir().ok_or("找不到桌面目录")?.join("WorldSea.lnk");
                 win::create_shortcut(&main_in_dest, &lnk)
             }) { return finish_install(&app, false); }
 
         if startmenu
-            && !step(&app, 3, total, "注册开始菜单项", || {
+            && !step(&app, 4, total, "注册开始菜单项", || {
                 let dir = start_menu_dir().ok_or("找不到开始菜单目录")?.join("WorldSea");
                 std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
                 win::create_shortcut(&main_in_dest, &dir.join("WorldSea.lnk"))
             }) { return finish_install(&app, false); }
 
         if contextmenu
-            && !step(&app, 4, total, "写入右键菜单集成", || write_context_menu(&main_in_dest))
+            && !step(&app, 5, total, "写入右键菜单集成", || write_context_menu(&main_in_dest))
         { return finish_install(&app, false); }
 
-        if !step(&app, 5, total, "初始化本地数据目录 · 正在部署世界观引擎", || {
+        if !step(&app, 6, total, "初始化本地数据目录 · 正在部署世界观引擎", || {
             std::fs::create_dir_all(app_data_dir()).map_err(|e| e.to_string())
         }) { return finish_install(&app, false); }
 
-        if !step(&app, 6, total, "校验文件完整性", || {
+        if !step(&app, 7, total, "校验文件完整性", || {
             let meta = std::fs::metadata(&main_in_dest).map_err(|e| e.to_string())?;
             if meta.len() == 0 { Err("主程序文件为空".into()) } else { Ok(()) }
         }) { return finish_install(&app, false); }
 
-        if !step(&app, 7, total, "写入卸载信息", || {
+        if !step(&app, 8, total, "写入卸载信息", || {
             write_uninstall_registry(&dest, &main_in_dest)
         }) { return finish_install(&app, false); }
 
@@ -185,6 +194,51 @@ fn finish_install(app: &tauri::AppHandle, ok: bool) {
     } else if ok {
         let _ = app.emit("installer://done", ());
     }
+}
+
+/// 释放内嵌运行时 zip 并解压到 `<dest>\dsh-runtime`。
+/// 解压引擎 = 系统 tar.exe（Windows 10 1803+ 自带 bsdtar，原生支持 zip），不引第三方解压依赖。
+fn deploy_runtime(dest: &Path) -> Result<(), String> {
+    let runtime_dir = dest.join("dsh-runtime");
+    // 重装/覆盖安装：清掉旧运行时再解压，避免半新半旧
+    if runtime_dir.exists() {
+        std::fs::remove_dir_all(&runtime_dir).map_err(|e| format!("清理旧运行时失败：{e}"))?;
+    }
+    let zip = std::env::temp_dir().join("worldsea-dsh-runtime.zip");
+    std::fs::write(&zip, RUNTIME_ZIP_BYTES).map_err(|e| format!("释放运行时包失败：{e}"))?;
+    let out = std::process::Command::new("tar")
+        .arg("-xf")
+        .arg(&zip)
+        .arg("-C")
+        .arg(dest)
+        .creation_flags(0x0800_0000) // CREATE_NO_WINDOW：GUI 模式下不闪控制台窗口
+        .output()
+        .map_err(|e| format!("解压运行时失败（tar 不可用？需 Windows 10 1803+）：{e}"))?;
+    let _ = std::fs::remove_file(&zip);
+    if !out.status.success() {
+        return Err(format!("运行时解压失败：{}", String::from_utf8_lossy(&out.stderr).trim()));
+    }
+    let node = runtime_dir.join("node").join("node.exe");
+    let bin = runtime_dir.join(r"dsh\node_modules\@deepseek-ai\dsh\lib\bin.js");
+    if !node.is_file() || !bin.is_file() {
+        return Err("运行时解压后缺少关键文件（node.exe / dsh bin.js）".into());
+    }
+    Ok(())
+}
+
+/// 目录总字节数（递归；EstimatedSize 用，失败按 0 计）
+fn dir_size_bytes(dir: &Path) -> u64 {
+    let mut total = 0u64;
+    let Ok(entries) = std::fs::read_dir(dir) else { return 0 };
+    for entry in entries.flatten() {
+        let Ok(meta) = entry.metadata() else { continue };
+        if meta.is_dir() {
+            total += dir_size_bytes(&entry.path());
+        } else {
+            total += meta.len();
+        }
+    }
+    total
 }
 
 fn write_context_menu(main_exe: &Path) -> Result<(), String> {
@@ -213,8 +267,9 @@ fn write_uninstall_registry(dest: &Path, main_exe: &Path) -> Result<(), String> 
     set_s("InstallLocation", dest.display().to_string())?;
     set_s("DisplayIcon", main_exe.display().to_string())?;
     set_s("UninstallString", format!("\"{}\" --uninstall", dest.join(UNINSTALLER_NAME).display()))?;
-    // EstimatedSize 注册表要求 REG_DWORD（KB）
-    let size_kb = (std::fs::metadata(main_exe).map(|m| m.len()).unwrap_or(0) / 1024) as u32;
+    // EstimatedSize 注册表要求 REG_DWORD（KB）；程序 + Agent 运行时（解压后实际占用）
+    let size_kb = ((std::fs::metadata(main_exe).map(|m| m.len()).unwrap_or(0)
+        + dir_size_bytes(&dest.join("dsh-runtime"))) / 1024) as u32;
     key.set_value("EstimatedSize", &size_kb).map_err(|e| e.to_string())?;
     key.set_value("NoModify", &1u32).map_err(|e| e.to_string())?;
     key.set_value("NoRepair", &1u32).map_err(|e| e.to_string())?;

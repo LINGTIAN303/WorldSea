@@ -67,6 +67,10 @@ WorldSea 产品域工具集（dsh 插件）——让 Agent 以**原生工具**�
 
 ## profile 装配（dsh-home/profiles/web/）
 
+**生产形态（安装器分发）**：壳首启由 `dsh_bootstrap::ensure_product_profile` 幂等装配（bundles
+合并添加 + link 指向随包 `dsh-runtime/dsh/node_modules`），无需任何手工步骤——本节余下内容
+仅适用 dev 手工装配。链路全貌见 [dsh-bootstrap.md](../../docs/details/注释/tauri/dsh-bootstrap.md)。
+
 1. `package.json`：
    - `dsh.profile.bundles` 数组加 `"dsh-plugin-worldsea"`（本插件的 patch 层随之生效——**预设声明就在这个 patch 里**）
    - `dependencies` 加 `"dsh-plugin-worldsea": "link:D:/WorldSea/apps/dsh-plugin-worldsea"`

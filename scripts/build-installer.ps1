@@ -29,6 +29,9 @@ if (-not $SkipMainApp) {
 "=== [2/3] 同步 payload（编译期嵌入源）==="
 New-Item -ItemType Directory -Force -Path $payloadDir | Out-Null
 Copy-Item $mainExe (Join-Path $payloadDir 'worldsea-tauri-app.exe') -Force
+$runtimeZip = Join-Path $root 'apps\tauri\src-tauri\payload\dsh-runtime.zip'
+if (-not (Test-Path $runtimeZip)) { throw "dsh 运行时包不存在：$runtimeZip（先跑 scripts\build-dsh-runtime.ps1）" }
+Copy-Item $runtimeZip (Join-Path $payloadDir 'dsh-runtime.zip') -Force
 
 "=== [3/3] 安装器构建（单文件）==="
 Push-Location $installer

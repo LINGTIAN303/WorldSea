@@ -29,6 +29,8 @@ mod system;
 
 // 壳接入：spawn dsh host + 就绪探测 + 主窗口导航到 dsh 界面 + 退出回收
 mod dsh_shell;
+// dsh-home profile 首启装配（双产品域插件幂等合并进 web profile；生产实体在随包运行时）
+mod dsh_bootstrap;
 // `worldsea` 协议层代理宿主（UI origin 与传输面分离）+ 303 cookie 交换
 mod dsh_bridge;
 // 协议转发核心（路径/方法闸门、缓存策略、失败降级）

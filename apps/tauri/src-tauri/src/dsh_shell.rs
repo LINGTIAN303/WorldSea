@@ -111,6 +111,45 @@ pub(crate) fn resolve_dsh_root() -> Result<PathBuf, String> {
     }
 }
 
+/// dsh 运行时定位结果（spawn 口径）：生产 = exe 同级 `dsh-runtime/`（安装器 payload 释放布局，
+/// build-dsh-runtime.ps1 产物）；dev = 仓内树（apps/cli 形态，现有口径不变）。
+pub(crate) struct DshInstall {
+    /// CLI 入口 bin.js
+    pub bin: PathBuf,
+    /// node 可执行（生产 = 随包 node.exe；dev = None → PATH / WORLDSEA_NODE）
+    pub node: Option<PathBuf>,
+    /// 产品域插件包目录（profile link: 装配基准：生产 = 部署树 node_modules；dev = 仓 apps/）
+    pub plugins_dir: PathBuf,
+    /// 壳 overlay（`--patch` 参数；缺失 = 不传，dsh 用默认装配）
+    pub overlay: Option<PathBuf>,
+}
+
+/// 解析 dsh 运行时：生产形态优先（exe 同级 dsh-runtime/），回落 dev 口径。
+pub(crate) fn resolve_dsh_install() -> Result<DshInstall, String> {
+    let runtime = std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(|dir| dir.join("dsh-runtime")));
+    if let Some(runtime) = runtime {
+        let prod_bin = runtime.join("dsh/node_modules/@deepseek-ai/dsh/lib/bin.js");
+        if prod_bin.exists() {
+            return Ok(DshInstall {
+                bin: prod_bin,
+                node: Some(runtime.join("node").join("node.exe")),
+                plugins_dir: runtime.join("dsh/node_modules"),
+                overlay: Some(runtime.join("overlay.yml")).filter(|p| p.exists()),
+            });
+        }
+    }
+    let root = resolve_dsh_root()?;
+    let apps = root.parent().map(|repo| repo.join("apps")).unwrap_or_else(|| root.join("apps"));
+    Ok(DshInstall {
+        bin: root.join("apps/cli/lib/bin.js"),
+        node: None,
+        plugins_dir: apps.clone(),
+        overlay: Some(apps.join("tauri/dsh-overlay.yml")).filter(|p| p.exists()),
+    })
+}
+
 /// 启动 dsh host 并等就绪；返回（子进程句柄, 带 token 的 URL, 管道路径, 工作区横幅文案, 解析后的 DSH_HOME）。
 /// 管道路径仅在默认（零 TCP）模式生成；`WORLDSEA_TCP_HOST=1` 走 legacy（无管道）。
 /// 横幅文案仅在「工作区不可供给且未关闭横幅」时非空（由 index 注入带出）；
@@ -118,10 +157,19 @@ pub(crate) fn resolve_dsh_root() -> Result<PathBuf, String> {
 pub fn spawn_and_wait_ready(
     app: &tauri::AppHandle,
 ) -> Result<(Child, String, Option<String>, Option<String>, String), String> {
-    let root = resolve_dsh_root()?;
+    let install = resolve_dsh_install()?;
     let port = free_loopback_port()?;
-    let node = std::env::var("WORLDSEA_NODE").unwrap_or_else(|_| "node".to_string());
-    let bin = root.join("apps").join("cli").join("lib").join("bin.js");
+    // 生产 = 随包 node（缺失即安装不完整，fail loud）；dev = WORLDSEA_NODE 或 PATH
+    let node: String = match &install.node {
+        Some(node_exe) => {
+            if !node_exe.exists() {
+                return Err(format!("随包 node 缺失：{}（安装不完整或被杀软误删）", node_exe.display()));
+            }
+            node_exe.to_string_lossy().into_owned()
+        }
+        None => std::env::var("WORLDSEA_NODE").unwrap_or_else(|_| "node".to_string()),
+    };
+    let bin = &install.bin;
     // 传输模式：默认管道（零 TCP）；`WORLDSEA_TCP_HOST=1` = legacy TCP 形态（对照口，冻结）
     let pipe_path = if std::env::var_os("WORLDSEA_TCP_HOST").is_some() {
         println!("[DSH-SHELL] WORLDSEA_TCP_HOST=1：legacy TCP 模式（宿主按端口监听，壳走协议层转发链）");
@@ -142,6 +190,8 @@ pub fn spawn_and_wait_ready(
             .join("dsh-home"),
     };
     std::fs::create_dir_all(&home).map_err(|e| format!("创建 DSH_HOME 失败：{e}"))?;
+    // 产品域 profile 装配（幂等合并：bundles + dependencies link；生产插件实体在随包运行时）
+    crate::dsh_bootstrap::ensure_product_profile(&home, &install)?;
 
     // 默认工作区 = 用户 profile 下的专用目录（`WORLDSEA_WORKSPACE` 可覆盖）。
     // 此前把 dsh 树本身当 cwd——既非产品语义（工作区应是用户的目录），也必踩 D: 盘 ACL 的沙箱前提。
@@ -163,18 +213,12 @@ pub fn spawn_and_wait_ready(
         workspace.display()
     );
     // 壳 overlay：打开 web 下默认禁用的右栏内置浏览器等「desktop 才启用」的条目。
-    // 位置固定为 `<仓根>/apps/tauri/dsh-overlay.yml`（dsh 树在仓根，故取其父目录）；缺失则跳过。
-    let overlay = root
-        .parent()
-        .map(|repo| repo.join("apps").join("tauri").join("dsh-overlay.yml"))
-        .filter(|candidate| candidate.exists());
+    // dev = 仓根 apps/tauri/dsh-overlay.yml；生产 = 随包 dsh-runtime/overlay.yml；缺失则跳过。
     let mut command = Command::new(&node);
-    command
-        .arg(&bin)
-        .arg("web");
+    command.arg(&bin).arg("web");
     // 注意顺序：launcher 标志必须排在 app 参数之前（`--no-open`/`--port`/`--ipc-pipe` 属 web app 的参数）——
     // 先例 `dsh web --patch <file>`（dsh/apps/web/tests/pin-browse-picker.overlay.yml）。
-    if let Some(overlay) = &overlay {
+    if let Some(overlay) = &install.overlay {
         command.arg("--patch").arg(overlay);
         println!("[DSH-SHELL] overlay: {}", overlay.display());
     }

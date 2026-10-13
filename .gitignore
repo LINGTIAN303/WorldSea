@@ -165,3 +165,5 @@ apps/tauri/workspace-dist/
 
 # 单文件安装器的编译期嵌入源（构建链生成，不入库）
 apps/installer/src-tauri/payload/
+# 主程序与 Agent 运行时的编译期嵌入源（build-installer / build-dsh-runtime 产物，不入库）
+apps/tauri/src-tauri/payload/
