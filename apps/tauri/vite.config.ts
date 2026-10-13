@@ -4,7 +4,11 @@ import wasm from 'vite-plugin-wasm'
 import { compression } from 'vite-plugin-compression2'
 import { visualizer } from 'rollup-plugin-visualizer'
 import path from 'path'
-import pkg from './package.json'
+import fs from 'fs'
+
+// 主程序版本单源 = src-tauri/Cargo.toml（tauri.conf.json 与此处均自动读取，禁止另行声明）
+const cargoToml = fs.readFileSync(path.resolve(__dirname, 'src-tauri/Cargo.toml'), 'utf-8')
+const appVersion = cargoToml.match(/^version\s*=\s*"([^"]+)"/m)?.[1] ?? '0.0.0'
 
 /** Tauri 端 Vite 配置（设计原则/端口/后端连接），详细见 docs/details/注释/tauri/vite-config.md */
 
@@ -130,7 +134,7 @@ for (const [key, target] of Object.entries(PROVIDER_PROXY)) {
 
 export default defineConfig({
   define: {
-    __APP_VERSION__: JSON.stringify(pkg.version),
+    __APP_VERSION__: JSON.stringify(appVersion),
     // Tauri 端硬编码后端类型（Phase 3 完成后此字段将移除，改用端入口注入）
     '__TAURI__': JSON.stringify(true),
   },
