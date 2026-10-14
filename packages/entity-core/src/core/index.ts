@@ -11,6 +11,8 @@ export { isTauri, hasTauriInvoke, getStorageBackend, storage, StorageError, setS
 export { FileStorageBackend } from './FileStorageBackend'
 
 export { entitySchemaRegistry } from './EntitySchema'
+export { validateSchemaOverlay, applySchemaOverlay, setSchemaOverlays, getSchemaOverlay, schemaOverlayCount } from './schemaOverlay'
+export type { EntitySchemaOverlay, SchemaOverlayBase, SchemaOverlayResult } from './schemaOverlay'
 
 export { relationSchemaRegistry } from './RelationSchema'
 

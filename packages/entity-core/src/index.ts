@@ -108,6 +108,12 @@ export {
   registerFormulaAutoRecalc,
   unregisterFormulaAutoRecalc,
   getComputedFormulas,
+  // 实体 schema 项目级覆盖（批7）
+  validateSchemaOverlay,
+  applySchemaOverlay,
+  setSchemaOverlays,
+  getSchemaOverlay,
+  schemaOverlayCount,
 } from './core'
 
 // 触发 13 个原子 Trait 注册（副作用导入，必须在 core 导出之后）
@@ -175,6 +181,7 @@ export type {
   UserFieldMapping,
 } from './core/AutoLinkEngine'
 export type { AutoLinkDecision, AutoLinkDecisionValue } from './core/AutoLinkDecisions'
+export type { EntitySchemaOverlay, SchemaOverlayBase, SchemaOverlayResult } from './core/schemaOverlay'
 export {
   registerIngestNormalizer,
   unregisterIngestNormalizer,

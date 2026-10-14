@@ -5,6 +5,7 @@ import type { ViewChange, ViewChangeListener } from '../types'
 import type { PluginOverlay } from '../types'
 import type { OverlayChange, OverlayChangeListener } from '../types'
 import type { TraitRef, FacetDefinition } from '../types/trait'
+import { applySchemaOverlay, getSchemaOverlay } from './schemaOverlay'
 import { entitySchemaRegistry } from './EntitySchema'
 import { relationSchemaRegistry } from './RelationSchema'
 import { fieldRegistry } from './FieldRegistry'
@@ -107,8 +108,11 @@ class PluginAPIImpl {
     ownFields: FieldSchema[]
     facets?: string[]
   }): void {
+    // 项目级 schema 覆盖（批7）：该 type 有项目覆盖文件时先深合并再编译注册
+    const overlay = getSchemaOverlay(params.type)
+    const effective = overlay ? applySchemaOverlay(params, overlay) : params
     const schemaV2 = compileEntitySchema({
-      ...params,
+      ...effective,
       pluginId: this.currentPluginId,
     })
     entitySchemaRegistryV2.register(schemaV2)

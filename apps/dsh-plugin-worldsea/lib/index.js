@@ -470,6 +470,41 @@ function requirePluginId(value) {
   return id;
 }
 
+/** 实体类型键守卫（批7）：安全标识符（字母开头，字母/数字/_/-）——防路径穿越，内置 type 如 combat_stats 兼容。 */
+function requireSchemaType(value) {
+  const type = requireString(value, 'type');
+  if (!/^[A-Za-z][A-Za-z0-9_-]*$/.test(type)) {
+    throw new Error(`BAD_ARGS: type 须为安全标识符（字母开头，字母/数字/_/-），收到「${type}」`);
+  }
+  return type;
+}
+
+/** schema 覆盖轻校验（批7；与 entity-core validateSchemaOverlay 同口径的 Node 侧简版，未知顶层键拒绝） */
+const SCHEMA_OVERLAY_KEYS = ['type', 'label', 'icon', 'traits', 'ownFields', 'fieldOverrides', 'detailLayout'];
+
+function validateSchemaOverlayRaw(raw, expectedType) {
+  const errors = [];
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return ['顶层必须是 JSON 对象'];
+  for (const key of Object.keys(raw)) {
+    if (!SCHEMA_OVERLAY_KEYS.includes(key)) errors.push(`未知顶层键 "${key}"（合法：${SCHEMA_OVERLAY_KEYS.join('/')}）`);
+  }
+  if (raw.type !== expectedType) errors.push(`"type"（${raw.type ?? '缺失'}）与文件名 "${expectedType}" 不一致`);
+  if (raw.label !== undefined && typeof raw.label !== 'string') errors.push('"label" 必须是字符串');
+  if (raw.icon !== undefined && typeof raw.icon !== 'string') errors.push('"icon" 必须是字符串');
+  if (raw.traits !== undefined) {
+    if (!Array.isArray(raw.traits)) errors.push('"traits" 必须是数组');
+    else raw.traits.forEach((t, i) => { if (typeof t !== 'object' || t === null || !t.traitId) errors.push(`traits[${i}].traitId 必填且为非空字符串`); });
+  }
+  if (raw.ownFields !== undefined) {
+    if (!Array.isArray(raw.ownFields)) errors.push('"ownFields" 必须是数组');
+    else raw.ownFields.forEach((f, i) => { if (typeof f !== 'object' || f === null || !f.key) errors.push(`ownFields[${i}].key 必填且为非空字符串`); });
+  }
+  if (raw.fieldOverrides !== undefined && (typeof raw.fieldOverrides !== 'object' || raw.fieldOverrides === null || Array.isArray(raw.fieldOverrides))) {
+    errors.push('"fieldOverrides" 必须是对象（traitId → fieldKey → 覆盖）');
+  }
+  return errors;
+}
+
 /** 外部插件最小模板（world_plugin_template 的返回体；管理界面空态提示同源口径）。 */
 const PLUGIN_TEMPLATE = [
   '(require) => ({',
@@ -955,6 +990,107 @@ const tools = [
       return { code: PLUGIN_TEMPLATE };
     },
   },
+
+  /* ── world_schema_*（批7）：实体 schema 项目级覆盖（worlddata/.worldsea/schemas/<type>.json）。
+   * 文件 = JSON 对象 { type, label?, icon?, traits?, ownFields?, fieldOverrides?, detailLayout? }；
+   * 写入后工作台 ~1s 自动重填（FsWatcher → 合并器 → 受影响芽重跑 apply）。type 须与既有实体类型一致（内置 official.* 芽或外部插件注册）。 */
+
+  {
+    name: 'world_schema_list',
+    description: '列出 WorldSea 当前项目的实体 schema 覆盖文件（worlddata/.worldsea/schemas/ 下的 <type>.json）：type / 大小 / 修改时间。没有文件 = 全部使用内置默认 schema。',
+    parameters: { type: 'object', properties: {}, required: [] },
+    output: listOutput,
+    async execute(_args, exec) {
+      const wd = worlddataDir(exec, exec?.pluginConfig ?? {});
+      const dir = `${wd}/.worldsea/schemas`;
+      if (!existsSync(dir)) return asItems([]);
+      const items = readdirSync(dir, { withFileTypes: true })
+        .filter((entry) => entry.isFile() && entry.name.endsWith('.json'))
+        .map((entry) => {
+          const stat = statSync(`${dir}/${entry.name}`);
+          return { type: entry.name.replace(/\.json$/, ''), file: entry.name, size: stat.size, mtime: stat.mtime.toISOString() };
+        })
+        .sort((a, b) => a.type.localeCompare(b.type));
+      return asItems(items);
+    },
+  },
+  {
+    name: 'world_schema_read',
+    description: '读一个 WorldSea 实体 schema 覆盖文件的完整 JSON 内容。',
+    parameters: {
+      type: 'object',
+      properties: { type: { type: 'string', description: '实体类型键（与文件名一致，如 species）' } },
+      required: ['type'],
+    },
+    output: looseOutput,
+    async execute(args, exec) {
+      const wd = worlddataDir(exec, exec?.pluginConfig ?? {});
+      const type = requireSchemaType(args?.type);
+      const path = `${wd}/.worldsea/schemas/${type}.json`;
+      if (!existsSync(path)) throw new Error(`WORLDSEA_SCHEMA_UNKNOWN: 覆盖文件不存在（${type}.json）——用 world_schema_list 看现有清单`);
+      return { type, json: fsRead(path, 'utf-8') };
+    },
+  },
+  {
+    name: 'world_schema_write',
+    description: '写入/覆盖一个实体 schema 覆盖文件（给实体类型加字段/改标签/覆盖 Trait 字段的标准途径）。json = 覆盖对象（非整份 schema）：{ type 必填且与文件名一致, label?, icon?, traits?（按 traitId 合并 fieldOverrides）, ownFields?（按 key 匹配：同 key 整字段替换、新 key 追加）, fieldOverrides?（traitId → fieldKey → 覆盖）, detailLayout? }。与内置默认逐键深合并；原子写入，工作台 ~1s 内自动热重填。type 必须是已有实体类型（内置芽或外部插件注册）。',
+    parameters: {
+      type: 'object',
+      properties: {
+        type: { type: 'string', description: '实体类型键（与文件名一致，如 species）' },
+        json: { type: 'string', description: '覆盖对象 JSON 字符串（非整份 schema，与内置默认深合并）' },
+      },
+      required: ['type', 'json'],
+    },
+    output: looseOutput,
+    async execute(args, exec) {
+      const config = exec?.pluginConfig ?? {};
+      const wd = worlddataDir(exec, config);
+      requireWorkspaceRoot(exec, config);
+      const type = requireSchemaType(args?.type);
+      const text = requireString(args?.json, 'json');
+      let raw;
+      try {
+        raw = JSON.parse(text);
+      } catch (error) {
+        throw new Error(`WORLDSEA_SCHEMA_BAD_JSON: JSON 解析失败：${error?.message ?? error}`);
+      }
+      const errors = validateSchemaOverlayRaw(raw, type);
+      if (errors.length) throw new Error(`WORLDSEA_SCHEMA_INVALID: ${errors.join('；')}`);
+      const path = `${wd}/.worldsea/schemas/${type}.json`;
+      mkdirSync(`${wd}/.worldsea/schemas`, { recursive: true });
+      // 原子写（临时文件 + 同卷 rename）：读者不会读到半截文件（与 world_plugin_write 同口径）
+      const tmp = `${path}.${process.pid}.${Date.now()}.tmp`;
+      try {
+        writeFileSync(tmp, `${JSON.stringify(raw, null, 2)}\n`);
+        renameSync(tmp, path);
+      } catch (error) {
+        try { unlinkSync(tmp); } catch { /* 清理失败不掩盖主错误 */ }
+        throw error;
+      }
+      return { type, file: `.worldsea/schemas/${type}.json`, note: '已写入；工作台约 1 秒内自动热重填（受影响实体的字段出现在表单/筛选/详情）。若未见生效，让用户看工作台控制台的 schema 重填日志。' };
+    },
+  },
+  {
+    name: 'world_schema_delete',
+    description: '删除一个实体 schema 覆盖文件（该实体类型回落内置默认 schema；工作台 ~1s 内自动热重填）。',
+    parameters: {
+      type: 'object',
+      properties: { type: { type: 'string', description: '实体类型键（与文件名一致）' } },
+      required: ['type'],
+    },
+    output: looseOutput,
+    async execute(args, exec) {
+      const config = exec?.pluginConfig ?? {};
+      const wd = worlddataDir(exec, config);
+      requireWorkspaceRoot(exec, config);
+      const type = requireSchemaType(args?.type);
+      const path = `${wd}/.worldsea/schemas/${type}.json`;
+      if (!existsSync(path)) throw new Error(`WORLDSEA_SCHEMA_UNKNOWN: 覆盖文件不存在（${type}.json）`);
+      unlinkSync(path);
+      return { type, note: '已删除；该实体类型回落内置默认，工作台约 1 秒内自动热重填。' };
+    },
+  },
 ];
 
 /** 安全枚举子目录（不存在 → 空数组）。 */
@@ -1011,6 +1147,7 @@ export function apply(ctx, config = {}) {
         '你的会话工作区（cwd）就是当前项目（dsh 工作区）的根目录，创作数据在其 worlddata/ 子目录。' +
         '★ schema 快照由工作台启动时导出——若 world_schema_get 报 WORLDSEA_NO_SCHEMA_SNAPSHOT，请用户先打开一次工作台（切到工作台窗即可）再重试。' +
         '★ 新增界面结构/小功能 = 外部插件：world_plugin_template 拿模板 → world_plugin_write 写入（id 用 ws. 前缀）→ 工作台约 1 秒自动热装载出现侧栏视图；world_plugin_list / read / delete 管理。详见工作区 WORLDSEA.md 的外部插件节。' +
+        '★ 实体字段/标签/类型名调整 = schema 覆盖：world_schema_write 写 { type, ownFields, fieldOverrides }（与内置默认深合并，ownFields 按 key 匹配）→ 工作台约 1 秒热重填，字段直接进该类型视图的表单/筛选/详情；world_schema_list / read / delete 管理（delete 回落内置默认）。' +
         '★ 详细地图见工作区根的 WORLDSEA.md（壳生成的产品域说明书：三通道判定线 + 能力桥清单，用户可编辑）。',
     });
   } catch (error) {

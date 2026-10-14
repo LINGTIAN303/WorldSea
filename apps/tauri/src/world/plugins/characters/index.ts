@@ -29,6 +29,7 @@ export function apply(_ctx: unknown, api: WorldPluginApi) {
       { key: 'occupation', label: '职业', fieldType: 'text' },
       { key: 'affiliation', label: '所属势力', fieldType: 'text', autoLink: { targetType: 'organization', relationType: 'belongs_to' } },
       { key: 'role', label: '角色', fieldType: 'select', options: ['主角', '反派', '配角', '导师', '信使', '其他'].map(s => ({ value: s, label: s })) },
+      { key: 'appearance', label: '外貌特征', fieldType: 'textarea' },
       { key: 'personality', label: '性格', fieldType: 'textarea' },
       { key: 'background', label: '背景故事', fieldType: 'textarea' },
     ],

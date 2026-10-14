@@ -30,6 +30,19 @@ export function onPluginDirChange(handler: (paths: string[]) => void): () => voi
   }
 }
 
+const schemaDirHandlers = new Set<(paths: string[]) => void>()
+
+/**
+ * 订阅「项目级 schema 覆盖目录」（`<worlddata>/.worldsea/schemas/`）变更（批 7）。
+ * @returns 退订函数。多 handler 逐个调用、单点抛错隔离（在 processChanges 内）。
+ */
+export function onSchemaDirChange(handler: (paths: string[]) => void): () => void {
+  schemaDirHandlers.add(handler)
+  return () => {
+    schemaDirHandlers.delete(handler)
+  }
+}
+
 export function useFsWatcher() {
   /**
    * 启动项目目录监听。
@@ -174,6 +187,7 @@ function processChanges() {
   let relationsChanged = false
   let filesChanged = false
   let pluginsChanged = false
+  let schemasChanged = false
   const entityPaths: string[] = []
 
   for (const path of changes) {
@@ -189,13 +203,16 @@ function processChanges() {
     } else if (normalizedPath.startsWith(`${dir}/.worldsea/plugins/`)) {
       // 外部插件目录（批1）：world 树订阅做热装载
       pluginsChanged = true
+    } else if (normalizedPath.startsWith(`${dir}/.worldsea/schemas/`)) {
+      // 项目级 schema 覆盖目录（批7）：world 树订阅做热重填
+      schemasChanged = true
     } else if (normalizedPath.startsWith(`${dir}/.worldsea/files_content/`)) {
       // 监听文件内容变更，支持外部编辑触发 fileStore reload
       filesChanged = true
     }
   }
 
-  console.log(`[FsWatcher] 处理变更: entities=${entitiesChanged}, relations=${relationsChanged}, files=${filesChanged}, plugins=${pluginsChanged}, paths=${changes.size}`)
+  console.log(`[FsWatcher] 处理变更: entities=${entitiesChanged}, relations=${relationsChanged}, files=${filesChanged}, plugins=${pluginsChanged}, schemas=${schemasChanged}, paths=${changes.size}`)
 
   // 外部插件目录变更 → 分发给订阅方（world 树热装载；单点抛错不影响其余 handler）
   if (pluginsChanged && pluginDirHandlers.size > 0) {
@@ -205,6 +222,18 @@ function processChanges() {
         handler(paths)
       } catch (err) {
         console.warn('[FsWatcher] 插件目录处理器抛错（已隔离）:', err)
+      }
+    }
+  }
+
+  // 项目级 schema 覆盖变更 → 分发给订阅方（world 树热重填；单点抛错不影响其余 handler）
+  if (schemasChanged && schemaDirHandlers.size > 0) {
+    const paths = [...changes]
+    for (const handler of schemaDirHandlers) {
+      try {
+        handler(paths)
+      } catch (err) {
+        console.warn('[FsWatcher] schema 目录处理器抛错（已隔离）:', err)
       }
     }
   }

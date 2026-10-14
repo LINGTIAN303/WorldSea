@@ -18,11 +18,14 @@ export type { WorldPluginApi } from './api'
 export { registerModule, unregisterModule, createRequire, registeredModuleNames } from './modules'
 export { evaluateExternalPlugin, collectExternalPlugins, externalPluginsDir, EXTERNAL_ID_PREFIX, EXTERNAL_PLUGIN_DIR } from './external'
 export type { ExternalEvalResult, ExternalCollectReport, ExternalIo } from './external'
+export { collectProjectSchemas, reloadProjectSchemas, projectSchemasDir, SCHEMA_DIR } from './schemas'
+export type { SchemaCollectReport, SchemaReloadReport } from './schemas'
 
-import { isViewVisible, onPluginDirChange, useEntityStore, useSettingsStore } from '@worldsea/entity-core'
+import { isViewVisible, onPluginDirChange, onSchemaDirChange, useEntityStore, useSettingsStore } from '@worldsea/entity-core'
 import { watch } from 'vue'
 
 import { disposeWorldTree, externalPluginStates, reloadExternalPlugins, setPluginEnabled, startWorldTree, worldTreeState } from './tree'
+import { reloadProjectSchemas } from './schemas'
 
 /** 外部插件装载结果 → sprouts 对账条目（manifest 真值 + 持久化 active）。
  *  utility 身份的外部插件不进清单（常驻装载，无启停——批5 对齐内置口径）。 */
@@ -79,6 +82,18 @@ export async function installWorldTree(): Promise<void> {
         }
       })
       .catch(err => console.warn('[world-tree] 外部重对账失败:', err))
+  })
+
+  // 项目级 schema 覆盖热重填（批7）：watcher 感知 `.worldsea/schemas/` 变化 → 重读覆盖 → 受影响芽重跑 apply
+  onSchemaDirChange(() => {
+    if (!worldTreeState().started) return
+    void reloadProjectSchemas()
+      .then(report => {
+        if (report.replayed.length > 0 || report.rejected.length > 0) {
+          console.log(`[world-tree] schema 覆盖重填：applied=${report.applied.length}, replayed=${report.replayed.join('/') || '无'}, rejected=${report.rejected.length}`)
+        }
+      })
+      .catch(err => console.warn('[world-tree] schema 重填失败:', err))
   })
 }
 
