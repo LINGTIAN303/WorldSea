@@ -139,7 +139,15 @@ function configText(value) {
  * 焊死成装载依赖，与「分开变化节奏」的分治初衷相悖。服务未就绪/字段未设置 → null。
  */
 function faceValue(ctx, field) {
-  const face = ctx?.worldseaDataFace;
+  // cordis 对**未 inject** 的服务属性访问直接抛错（`cannot get property ... without inject`——
+  // console 未挂载或会话未注入服务桥时触发，2026-10-13 走查实测挂在写工具的 requireWorkspaceRoot 链上）。
+  // 软访问语义 = 拿不到就回落自身 config / env，故属性读取兜 try/catch 归 null。
+  let face;
+  try {
+    face = ctx?.worldseaDataFace;
+  } catch {
+    return null;
+  }
   const value = typeof face?.[field] === 'function' ? face[field]() : null;
   return value === null || value === undefined ? null : String(value);
 }
@@ -452,6 +460,45 @@ function requireString(value, field) {
   if (typeof value !== 'string' || !value.trim()) throw new Error(`WORLDSEA_BAD_ARGS: ${field} 必填（非空字符串）`);
   return value;
 }
+
+/** 外部插件 id 自查：ws. 前缀 + 点分段（与工作台 manifest 的 ID_RE 同形；内置 official.* 域不可冒名）。 */
+function requirePluginId(value) {
+  const id = requireString(value, 'id');
+  if (!/^ws(\.[a-z0-9_-]+)+$/.test(id)) {
+    throw new Error(`WORLDSEA_PLUGIN_ID_INVALID: 插件 id 须为 ws. 开头的小写点分形式（如 ws.counter），收到「${id}」`);
+  }
+  return id;
+}
+
+/** 外部插件最小模板（world_plugin_template 的返回体；管理界面空态提示同源口径）。 */
+const PLUGIN_TEMPLATE = [
+  '(require) => ({',
+  '  manifest: {',
+  "    id: 'ws.counter',",
+  "    name: '实体计数',",
+  "    version: '0.1.0',",
+  "    description: '示例插件：侧栏视图显示当前项目实体数量',",
+  '  },',
+  '  apply(ctx, api) {',
+  "    const { h, ref, onMounted } = require('vue');",
+  "    const { useEntityStore } = require('@worldsea/entity-core');",
+  '    const MyView = {',
+  '      setup() {',
+  '        const count = ref(0);',
+  '        onMounted(async () => {',
+  '          try { await useEntityStore().loadAll(); } catch {}',
+  '          count.value = Object.keys(useEntityStore().entities ?? {}).length;',
+  '        });',
+  "        return () => h('div', { style: 'padding:16px' }, [",
+  "          h('h3', '实体计数'),",
+  "          h('p', `当前项目共 ${count.value} 个实体`),",
+  '        ]);',
+  '      },',
+  '    };',
+  "    api.registerView({ id: 'counter', label: '实体计数', icon: 'puzzle', component: MyView });",
+  '  },',
+  '})',
+].join('\n');
 
 const tools = [
   {
@@ -804,6 +851,110 @@ const tools = [
       return { id };
     },
   },
+
+  /* ─── 外部插件管理（批1，2026-10-13）：worlddata/.worldsea/plugins/<id>.js ───
+   * 文件 = 箭头函数表达式 `(require) => ({ manifest, apply })`；写入后工作台 ~1s 自动热装载
+   * （FsWatcher → 世界树重对账）。id 强制 ws. 前缀（内置 official.* 不可冒名）。 */
+
+  {
+    name: 'world_plugin_list',
+    description: '列出 WorldSea 当前项目的世界树外部插件（worlddata/.worldsea/plugins/ 下的 <id>.js 文件）：id / 大小 / 修改时间。装载状态与被拒原因在工作台「设置 → 插件」里看。',
+    parameters: { type: 'object', properties: {}, required: [] },
+    output: listOutput,
+    async execute(_args, exec) {
+      const wd = worlddataDir(exec, exec?.pluginConfig ?? {});
+      const dir = `${wd}/.worldsea/plugins`;
+      if (!existsSync(dir)) return asItems([]);
+      const items = readdirSync(dir, { withFileTypes: true })
+        .filter((entry) => entry.isFile() && entry.name.endsWith('.js'))
+        .map((entry) => {
+          const stat = statSync(`${dir}/${entry.name}`);
+          return { id: entry.name.replace(/\.js$/, ''), file: entry.name, size: stat.size, mtime: stat.mtime.toISOString() };
+        })
+        .sort((a, b) => a.id.localeCompare(b.id));
+      return asItems(items);
+    },
+  },
+  {
+    name: 'world_plugin_read',
+    description: '读一个 WorldSea 世界树外部插件的完整源码（闭包工厂 JS）。',
+    parameters: {
+      type: 'object',
+      properties: { id: { type: 'string', description: '插件 id（ws. 前缀，与文件名一致）' } },
+      required: ['id'],
+    },
+    output: looseOutput,
+    async execute(args, exec) {
+      const wd = worlddataDir(exec, exec?.pluginConfig ?? {});
+      const id = requirePluginId(args?.id);
+      const path = `${wd}/.worldsea/plugins/${id}.js`;
+      if (!existsSync(path)) throw new Error(`WORLDSEA_PLUGIN_UNKNOWN: 插件不存在（${id}.js）——用 world_plugin_list 看现有清单`);
+      return { id, code: fsRead(path, 'utf-8') };
+    },
+  },
+  {
+    name: 'world_plugin_write',
+    description: '写入/覆盖一个 WorldSea 世界树外部插件（新建界面结构/功能的标准途径）。code = 完整插件源码：`(require) => ({ manifest, apply })` 形状的箭头函数表达式；manifest 含 id（ws. 前缀、与文件名一致）/name/version/description。原子写入，工作台 ~1s 内自动热装载（改代码同此通道）。依赖经 require 取：vue / @worldsea/entity-core / @worldsea/shared-ui。组件用 h() 渲染函数（不支持 SFC 模板编译）。',
+    parameters: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: '插件 id（ws. 前缀；须与 manifest.id 和文件名一致）' },
+        code: { type: 'string', description: '完整插件源码（箭头函数表达式，非 JSON）' },
+      },
+      required: ['id', 'code'],
+    },
+    output: looseOutput,
+    async execute(args, exec) {
+      const config = exec?.pluginConfig ?? {};
+      const wd = worlddataDir(exec, config);
+      requireWorkspaceRoot(exec, config);
+      const id = requirePluginId(args?.id);
+      const code = requireString(args?.code, 'code');
+      if (!code.includes('manifest')) throw new Error('WORLDSEA_PLUGIN_BAD_CODE: code 缺少 manifest（插件源码须为 `(require) => ({ manifest, apply })` 形状；拿模板用 world_plugin_template）');
+      if (!code.includes('apply')) throw new Error('WORLDSEA_PLUGIN_BAD_CODE: code 缺少 apply（装载函数）');
+      const path = `${wd}/.worldsea/plugins/${id}.js`;
+      mkdirSync(`${wd}/.worldsea/plugins`, { recursive: true });
+      // 原子写（临时文件 + 同卷 rename）：读者不会读到半截文件（与 mutateRelations 同口径）
+      const tmp = `${path}.${process.pid}.${Date.now()}.tmp`;
+      try {
+        writeFileSync(tmp, code);
+        renameSync(tmp, path);
+      } catch (error) {
+        try { unlinkSync(tmp); } catch { /* 清理失败不掩盖主错误 */ }
+        throw error;
+      }
+      return { id, file: `.worldsea/plugins/${id}.js`, note: '已写入；工作台约 1 秒内自动热装载（侧栏出现/更新视图）。若未见生效，让用户在工作台「设置 → 插件」看被拒原因。' };
+    },
+  },
+  {
+    name: 'world_plugin_delete',
+    description: '删除一个 WorldSea 世界树外部插件（文件删除；工作台 ~1s 内自动卸载，其注册的视图/能力随插件清理）。内置芽（official.*）不受本工具影响。',
+    parameters: {
+      type: 'object',
+      properties: { id: { type: 'string', description: '插件 id（ws. 前缀）' } },
+      required: ['id'],
+    },
+    output: looseOutput,
+    async execute(args, exec) {
+      const config = exec?.pluginConfig ?? {};
+      const wd = worlddataDir(exec, config);
+      requireWorkspaceRoot(exec, config);
+      const id = requirePluginId(args?.id);
+      const path = `${wd}/.worldsea/plugins/${id}.js`;
+      if (!existsSync(path)) throw new Error(`WORLDSEA_PLUGIN_UNKNOWN: 插件不存在（${id}.js）`);
+      unlinkSync(path);
+      return { id, note: '已删除；工作台约 1 秒内自动卸载。' };
+    },
+  },
+  {
+    name: 'world_plugin_template',
+    description: '返回 WorldSea 世界树外部插件的最小模板源码（world_plugin_write 的 code 素材）。用它起步，替换视图标题/渲染内容后写入。',
+    parameters: { type: 'object', properties: {}, required: [] },
+    output: looseOutput,
+    async execute() {
+      return { code: PLUGIN_TEMPLATE };
+    },
+  },
 ];
 
 /** 安全枚举子目录（不存在 → 空数组）。 */
@@ -859,6 +1010,7 @@ export function apply(ctx, config = {}) {
         '项目清单与当前项目用 world_project_list / world_project_current（项目 = dsh 工作区目录）；' +
         '你的会话工作区（cwd）就是当前项目（dsh 工作区）的根目录，创作数据在其 worlddata/ 子目录。' +
         '★ schema 快照由工作台启动时导出——若 world_schema_get 报 WORLDSEA_NO_SCHEMA_SNAPSHOT，请用户先打开一次工作台（切到工作台窗即可）再重试。' +
+        '★ 新增界面结构/小功能 = 外部插件：world_plugin_template 拿模板 → world_plugin_write 写入（id 用 ws. 前缀）→ 工作台约 1 秒自动热装载出现侧栏视图；world_plugin_list / read / delete 管理。详见工作区 WORLDSEA.md 的外部插件节。' +
         '★ 详细地图见工作区根的 WORLDSEA.md（壳生成的产品域说明书：三通道判定线 + 能力桥清单，用户可编辑）。',
     });
   } catch (error) {

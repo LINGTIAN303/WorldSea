@@ -39,7 +39,7 @@ import { computed, ref, watch } from 'vue'
 import { WsIcon } from '@worldsea/ui-kit'
 import { entitySchemaRegistry, useDetailLayoutStore } from '@worldsea/entity-core'
 import { resolveDetailTabs, PINNED_TAB_IDS } from '@worldsea/plugin-sdk'
-import { DETAIL_TAB_DECLARATIONS } from '../../../world/detailTabDeclarations'
+import { DETAIL_TAB_DECLARATIONS } from '@/world/detailTabDeclarations'
 
 const props = defineProps<{
   entityType: string

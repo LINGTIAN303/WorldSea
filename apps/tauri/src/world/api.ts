@@ -14,6 +14,7 @@ import type {
   EntityTypeSchema,
   FacetDefinition,
   FieldSchema,
+  PluginOverlay,
   PluginView,
   RelationTypeSchemaV2,
   TraitRef,
@@ -25,6 +26,8 @@ import { registerPluginCleanup, unregisterViewFor } from './registry'
 export interface WorldPluginApi {
   /** 注册视图（`pluginId` 锁到本插件；卸载时自动反注册） */
   registerView(view: PluginView): void
+  /** 注册全局覆盖层（弹窗/抽屉类面板；打开 = `ws-open-<id>` 事件，关闭 = 组件 emit close；卸载时自动撤登记） */
+  registerOverlay(overlay: PluginOverlay): void
   /** 注册实体类型（Trait V2 口径） */
   registerEntityV2(params: {
     type: string
@@ -53,6 +56,12 @@ export function createPluginApi(pluginId: string): WorldPluginApi {
       pluginAPI.withPluginScope(pluginId, () => pluginAPI.registerView(view))
       registerPluginCleanup(pluginId, () => {
         unregisterViewFor(pluginId, view.id)
+      })
+    },
+    registerOverlay(overlay: PluginOverlay) {
+      pluginAPI.withPluginScope(pluginId, () => pluginAPI.registerOverlay(overlay))
+      registerPluginCleanup(pluginId, () => {
+        pluginAPI.unregisterOverlay(overlay.id)
       })
     },
     registerEntityV2(params) {

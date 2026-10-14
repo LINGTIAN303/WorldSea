@@ -8,6 +8,9 @@ import {
   loadStoredSproutGroups,
   saveSproutGroups as persistSproutGroups,
   loadProjectSproutGroups as persistProjectSproutGroups,
+  loadStoredExternalSprouts,
+  saveExternalSprouts as persistExternalSprouts,
+  loadProjectExternalSprouts as persistProjectExternalSprouts,
 } from './sproutPersistence'
 
 export interface SproutToggle {
@@ -16,7 +19,7 @@ export interface SproutToggle {
   icon: string
   active: boolean
   dependencies?: { moduleId: string; version?: string; optional?: boolean }[]
-  source?: 'builtin' | 'local' | 'remote'
+  source?: 'builtin' | 'local' | 'remote' | 'external'
   /** 芽分类，用于芽管理页标签筛选 */
   category?: SproutCategory
 }
@@ -140,16 +143,39 @@ const DEFAULT_SPROUTS: SproutToggle[] = [
 /** 芽清单内的 id 集合（持久化面归一用；见 `./sproutPersistence`）。 */
 const KNOWN_SPROUT_IDS = new Set(DEFAULT_SPROUTS.map(s => s.id))
 
+/** 外部持久化条目 → 最小 SproutToggle（label/icon 占位，world 树 sync 后更新为 manifest 真值）。 */
+function externalToggleFrom(entry: { id: string; active: boolean }): SproutToggle {
+  return {
+    id: entry.id,
+    label: entry.id.split('.').pop() ?? entry.id,
+    icon: 'puzzle',
+    active: entry.active,
+    source: 'external',
+  }
+}
+
+/** 并入外部持久化条目（内置骨架后 append；同 id 不重复）。 */
+function mergeExternalPersisted(list: SproutToggle[], entries: { id: string; active: boolean }[] | null): SproutToggle[] {
+  if (!entries || entries.length === 0) return list
+  const known = new Set(list.map(item => item.id))
+  const extras = entries.filter(entry => !known.has(entry.id)).map(externalToggleFrom)
+  return extras.length > 0 ? [...list, ...extras] : list
+}
+
 function loadSprouts(): SproutToggle[] {
   // 同步初始化先从 localStorage 加载（含一次性归一写回）；项目 DB 数据由 loadProjectSprouts 异步更新
-  return loadStoredSproutToggles(DEFAULT_SPROUTS)
+  // 外部插件条目自持独立持久化键（内置归一会滤掉清单外 id），此处并入
+  return mergeExternalPersisted(loadStoredSproutToggles(DEFAULT_SPROUTS), loadStoredExternalSprouts())
 }
 
 /**
  * 异步加载项目级芽开关（项目 DB `project_settings.plugin_toggles`，切换项目后调用）。
+ * 外部插件副本（同项目 DB 的 `external_plugins`）一并并入——项目级插件集随项目切换。
  */
 async function loadProjectSprouts(): Promise<SproutToggle[] | null> {
-  return loadProjectSproutToggles(DEFAULT_SPROUTS)
+  const merged = await loadProjectSproutToggles(DEFAULT_SPROUTS)
+  if (!merged) return null
+  return mergeExternalPersisted(merged, await persistProjectExternalSprouts())
 }
 
 function saveSprouts(sprouts: SproutToggle[]) {
@@ -301,6 +327,22 @@ export const useSettingsStore = defineStore('settings', () => {
     saveSprouts(sprouts.value)
   }
 
+  /**
+   * 外部插件清单对账（world 树装载/重对账后调用）：校正 label/icon 为 manifest 真值、
+   * 剔除已消失的外部条目、写回独立持久化键（内置条目不动、active 尊重用户开关）。
+   */
+  function syncExternalSprouts(incoming: SproutToggle[]) {
+    const builtins = sprouts.value.filter(p => p.source !== 'external')
+    const externals: SproutToggle[] = incoming.map(item => {
+      const existing = sprouts.value.find(p => p.id === item.id)
+      return existing
+        ? { ...existing, label: item.label, icon: item.icon, source: 'external' as const }
+        : { ...item, source: 'external' as const }
+    })
+    sprouts.value = [...builtins, ...externals]
+    persistExternalSprouts(externals.map(p => ({ id: p.id, active: p.active })))
+  }
+
   /** 批量设置激活态（仅影响给定 id 集合，其余不动），持久化——全选/全不选的落点 */
   function setSproutsActive(ids: string[], active: boolean) {
     const set = new Set(ids)
@@ -387,7 +429,7 @@ export const useSettingsStore = defineStore('settings', () => {
     return deriveKeyStoreId(baseUrl)
   }
 
-  return { sprouts, sproutGroups, theme, toggleSprout, setSproutsActive, saveSproutGroup, applySproutGroup, removeSproutGroup, setTheme, isActive, getActiveSproutIds, loadProjectSprouts, loadProjectSproutGroups,
+  return { sprouts, sproutGroups, theme, toggleSprout, syncExternalSprouts, setSproutsActive, saveSproutGroup, applySproutGroup, removeSproutGroup, setTheme, isActive, getActiveSproutIds, loadProjectSprouts, loadProjectSproutGroups,
            undoHistoryLimit, multiStepRedo, maxCenterNodes, panelLimitEnabled,
            smoothCaretEnabled, smoothCaretDuration, smoothCaretVariant,
            autoCreateEntityEnabled, autoCreateSelectorEnabled, autoCreateEntityRefEnabled,

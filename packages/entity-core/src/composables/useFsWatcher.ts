@@ -16,6 +16,20 @@ let _refCount = 0
 /** 当前正在监听的目录（用于检测目录变更） */
 let _watchedDir: string | null = null
 
+/* ─── 插件目录变更分发（批1）：entity-core 不反向依赖 world 树，world 侧订阅 ─── */
+const pluginDirHandlers = new Set<(paths: string[]) => void>()
+
+/**
+ * 订阅「外部插件目录」（`<worlddata>/.worldsea/plugins/`）变更。
+ * @returns 退订函数。多 handler 逐个调用、单点抛错隔离（在 processChanges 内）。
+ */
+export function onPluginDirChange(handler: (paths: string[]) => void): () => void {
+  pluginDirHandlers.add(handler)
+  return () => {
+    pluginDirHandlers.delete(handler)
+  }
+}
+
 export function useFsWatcher() {
   /**
    * 启动项目目录监听。
@@ -159,6 +173,7 @@ function processChanges() {
   let entitiesChanged = false
   let relationsChanged = false
   let filesChanged = false
+  let pluginsChanged = false
   const entityPaths: string[] = []
 
   for (const path of changes) {
@@ -171,13 +186,28 @@ function processChanges() {
       entityPaths.push(path)
     } else if (normalizedPath.startsWith(`${dir}/relations/`)) {
       relationsChanged = true
+    } else if (normalizedPath.startsWith(`${dir}/.worldsea/plugins/`)) {
+      // 外部插件目录（批1）：world 树订阅做热装载
+      pluginsChanged = true
     } else if (normalizedPath.startsWith(`${dir}/.worldsea/files_content/`)) {
       // 监听文件内容变更，支持外部编辑触发 fileStore reload
       filesChanged = true
     }
   }
 
-  console.log(`[FsWatcher] 处理变更: entities=${entitiesChanged}, relations=${relationsChanged}, files=${filesChanged}, paths=${changes.size}`)
+  console.log(`[FsWatcher] 处理变更: entities=${entitiesChanged}, relations=${relationsChanged}, files=${filesChanged}, plugins=${pluginsChanged}, paths=${changes.size}`)
+
+  // 外部插件目录变更 → 分发给订阅方（world 树热装载；单点抛错不影响其余 handler）
+  if (pluginsChanged && pluginDirHandlers.size > 0) {
+    const paths = [...changes]
+    for (const handler of pluginDirHandlers) {
+      try {
+        handler(paths)
+      } catch (err) {
+        console.warn('[FsWatcher] 插件目录处理器抛错（已隔离）:', err)
+      }
+    }
+  }
 
   // 增量更新受影响的 Store
   if (entitiesChanged) {

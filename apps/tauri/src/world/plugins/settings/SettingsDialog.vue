@@ -39,7 +39,7 @@
         <template v-if="searchQuery">
           <template v-for="cat in matchedCategories" :key="cat.id">
             <AppearancePanel v-if="cat.id === 'appearance'" :search-query="searchQuery" @dirty="onDirty" />
-            <SproutsPanel v-if="cat.id === 'plugins'" :search-query="searchQuery" @dirty="onDirty" />
+            <PluginsPanel v-if="cat.id === 'plugins'" :search-query="searchQuery" @dirty="onDirty" />
             <EditorPanel v-if="cat.id === 'editor'" :search-query="searchQuery" @dirty="onDirty" />
             <LayoutPanel v-if="cat.id === 'layout'" :search-query="searchQuery" @dirty="onDirty" />
             <DetailSettingsPanel v-if="cat.id === 'detail'" :search-query="searchQuery" />
@@ -55,7 +55,7 @@
         <!-- 正常模式：只渲染当前激活的分类（均接入 CardDeck 叠放翻卡，左列标题点击翻卡） -->
         <template v-else>
           <AppearancePanel v-if="activeSection === 'appearance'" ref="appearanceRef" @dirty="onDirty" @card-change="onPanelCardChange" />
-          <SproutsPanel v-else-if="activeSection === 'plugins'" ref="pluginsRef" @dirty="onDirty" @card-change="onPanelCardChange" />
+          <PluginsPanel v-else-if="activeSection === 'plugins'" ref="pluginsRef" :search-query="searchQuery" @dirty="onDirty" @card-change="onPanelCardChange" />
           <EditorPanel v-else-if="activeSection === 'editor'" ref="editorRef" @dirty="onDirty" @card-change="onPanelCardChange" />
           <LayoutPanel v-else-if="activeSection === 'layout'" ref="layoutRef" @dirty="onDirty" @card-change="onPanelCardChange" />
           <DetailSettingsPanel v-else-if="activeSection === 'detail'" ref="detailRef" @card-change="onPanelCardChange" />
@@ -81,10 +81,10 @@ import { useResizable, WsIcon } from '@worldsea/ui-kit'
 // 设置面板基座样式（.set-card/.sc-head/.set-row/.set-toggle/.set-hint 唯一权威定义）
 import '@worldsea/ui-kit/components/settings/settings-panels.css'
 import { useFocusTrap } from '@/composables/useFocusTrap'
-import StorageManagementTab from '../data/StorageManagementTab.vue'
+import StorageManagementTab from './data/StorageManagementTab.vue'
 // 设置子面板（已迁移到 ui-kit，通过 re-export 兼容层导入）
 import AppearancePanel from './panels/AppearancePanel.vue'
-import SproutsPanel from './panels/SproutsPanel.vue'
+import PluginsPanel from './panels/PluginsPanel.vue'
 import EditorPanel from './panels/EditorPanel.vue'
 import LayoutPanel from './panels/LayoutPanel.vue'
 import DetailSettingsPanel from './panels/DetailSettingsPanel.vue'
@@ -129,7 +129,7 @@ watch(() => props.show, (val) => {
 
 const categories = [
   { id: 'appearance', icon: 'cat-appearance', label: '外观' },
-  { id: 'plugins', icon: 'cat-plugins', label: '芽' },
+  { id: 'plugins', icon: 'cat-plugins', label: '插件' },
   { id: 'editor', icon: 'cat-editor', label: '编辑' },
   { id: 'layout', icon: 'cat-layout', label: '布局' },
   { id: 'detail', icon: 'data-entity', label: '实体详情' },
@@ -218,7 +218,7 @@ const activeRail = ref(-1)
 const railVisible = computed(() => !searchQuery.value && activeSection.value !== null && railItems.value.length > 0)
 /** 各分类面板实例（均暴露 goToCard，供左列标题点击翻卡；@card-change 上报左列高亮） */
 const appearanceRef = ref<InstanceType<typeof AppearancePanel> | null>(null)
-const pluginsRef = ref<InstanceType<typeof SproutsPanel> | null>(null)
+const pluginsRef = ref<InstanceType<typeof PluginsPanel> | null>(null)
 const editorRef = ref<InstanceType<typeof EditorPanel> | null>(null)
 const layoutRef = ref<InstanceType<typeof LayoutPanel> | null>(null)
 const detailRef = ref<InstanceType<typeof DetailSettingsPanel> | null>(null)
@@ -332,7 +332,7 @@ onMounted(() => nextTick(() => { if (!props.show) return; rebuildRail() }))
 // 各分类的搜索关键词（用于搜索模式下过滤匹配的分类）
 const CATEGORY_KEYWORDS: Record<string, string> = {
   appearance: '主题 外观 深色 浅色 宇宙 极光 锻造 水墨 棱镜 编辑器 高亮 脉冲 动画 淡化 扩散 透明度 theme highlight 字体 字体库 字体分层 导入 变体',
-  plugins: '芽 扩展 模块 启用 禁用 内置 本地 远程 sprout 分组 全选',
+  plugins: '插件 外部插件 内置插件 功能插件 常驻 非芽 芽 扩展 模块 启用 禁用 内置 本地 远程 外部 sprout 分组 全选 源码 重载 装载 plugin external puzzle utility',
   editor: '编辑 撤销 重做 历史 大纲 内嵌 光标 平滑 undo redo outline caret smooth',
   layout: '布局 面板 思维导图 中心节点 字段 预设 宽度 panel mindmap field 时间线 timeline 拖拽 泳道 甘特图 紧凑 分组 手机预览 phone preview',
   relations: '关系 自动 创建 实体 引用 图谱 选择器 relation auto create',

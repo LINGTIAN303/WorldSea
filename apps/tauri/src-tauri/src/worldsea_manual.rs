@@ -50,6 +50,16 @@ Schema：`world_schema_get`（type 省略 = 全部；**组装实体前先取**�
 
 **典型两步**：`world.schema.get {type:"character"}` 拿字段 → `world.entity.put {entity:{type:"character", name:"...", properties:{...}}}`。
 
+## 外部插件（世界树运行时装载，批1）
+
+为工作台新增界面结构/小功能的标准途径 = **外部插件**（无需改代码重编译）：
+
+- 落点：`worlddata/.worldsea/plugins/<id>.js`；文件内容 = 箭头函数表达式 `(require) => ({ manifest, apply })`
+- `manifest` 必填 id（**ws. 前缀**、与文件名一致）/ name / version / description；`apply(ctx, api)` 里 `api.registerView({ id, label, icon, component })` 注册侧栏视图
+- 依赖经 `require` 取：`vue`（h/defineComponent/ref…，组件用 h() 渲染函数，不支持 SFC 模板）/ `@worldsea/entity-core`（useEntityStore 等）/ `@worldsea/shared-ui`
+- 工具链：`world_plugin_template`（拿最小模板）→ `world_plugin_write`（写入，原子替换）→ 约 1 秒自动热装载；`world_plugin_list` / `world_plugin_read` / `world_plugin_delete` 管理
+- 装载状态与被拒原因：工作台「设置 → 插件」的外部插件区块（语法错/清单非法/前缀不符会被拒且不影响其他插件）
+
 ## 边界
 
 - 实体类型的字段与取值以 `world.schema.get` 运行时返回为准（本文件不列字段清单，避免漂移）。

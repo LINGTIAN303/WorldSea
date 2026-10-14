@@ -7,6 +7,7 @@ import { getProjectManager } from '../core'
 
 const STORAGE_KEY_PLUGINS = 'worldsea_plugin_toggles'
 const STORAGE_KEY_SPROUT_GROUPS = 'worldsea_sprout_groups'
+const STORAGE_KEY_EXTERNAL_PLUGINS = 'worldsea_external_plugins'
 
 /** 旧芽 id → 现 id（改名类批次一次性归一；只增不改，条目长期留存）。 */
 const SPROUT_ID_ALIASES: Record<string, string> = {
@@ -174,4 +175,37 @@ export async function loadProjectSproutGroups<T extends PersistedGroupShape>(
   const { merged, changed } = mergeGroups(groups, known)
   if (changed) saveSproutGroups(merged)
   return merged
+}
+
+/* ─── 外部插件芽开关（批1）：独立键自持持久化 ───
+ * 内置清单的归一（mergeToggles）以静态 DEFAULT_SPROUTS 为骨架，清单外 id 一律滤除——
+ * 外部插件（ws.*，运行时装载）若混进同键会被清掉，故独立键存取；形状 = {id, active} 最小集。 */
+
+/** 形状过滤（非对象 / id 或 active 类型不对的条目丢弃）。 */
+function sanitizePersistedToggles(value: unknown): PersistedSproutShape[] {
+  if (!Array.isArray(value)) return []
+  return value.filter(
+    (e): e is PersistedSproutShape =>
+      !!e &&
+      typeof (e as { id?: unknown }).id === 'string' &&
+      typeof (e as { active?: unknown }).active === 'boolean',
+  )
+}
+
+/** 外部插件芽开关（localStorage）。 */
+export function loadStoredExternalSprouts(): PersistedSproutShape[] {
+  return sanitizePersistedToggles(readStored(STORAGE_KEY_EXTERNAL_PLUGINS))
+}
+
+/** 外部插件芽开关写回（localStorage + 项目库副本；键名保持 external_plugins）。 */
+export function saveExternalSprouts(toggles: readonly PersistedSproutShape[]): void {
+  const slim = toggles.map(item => ({ id: item.id, active: item.active }))
+  writeStored(STORAGE_KEY_EXTERNAL_PLUGINS, slim)
+  writeProject('external_plugins', slim)
+}
+
+/** 项目级外部插件芽开关（项目库为准；无记录 → null）。 */
+export async function loadProjectExternalSprouts(): Promise<PersistedSproutShape[] | null> {
+  const saved = await readProject('external_plugins')
+  return saved ? sanitizePersistedToggles(saved) : null
 }

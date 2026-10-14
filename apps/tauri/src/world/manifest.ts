@@ -19,6 +19,10 @@ export interface WorldPluginManifest {
   requires?: string[]
   /** 预留：默认装载开关（当前装载器不消费） */
   defaultEnabled?: boolean
+  /** 插件身份（批4，管理面分流依据）：sprout = 芽类（贡献侧栏视图，默认）；
+   *  utility = 非芽类（纯 overlay/能力贡献，无侧栏入口）——「芽是插件，但插件不等于芽」。
+   *  ★ 声明式而非运行时判定：卸载态下视图/overlay 证据全撤，运行时猜不可靠。 */
+  kind?: 'sprout' | 'utility'
 }
 
 /** 一个树插件：清单 + 装载函数（`ctx` 是 cordis 上下文，`api` 是**作用域化插件 API**）。 */

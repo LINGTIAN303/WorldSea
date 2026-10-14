@@ -10,10 +10,14 @@ export type {
   PluginDependency,
   PluginManifest,
   PluginView,
+  PluginOverlay,
+  PluginOverlayMenu,
   PluginInstance,
   PluginPermissionName,
   ViewChange,
   ViewChangeListener,
+  OverlayChange,
+  OverlayChangeListener,
 } from './plugin'
 export { KNOWN_PERMISSIONS } from './plugin'
 

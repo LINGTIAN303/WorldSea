@@ -6,8 +6,8 @@
  * ① **启停来源** = 芽清单（`settingsStore.isActive`）：起树时过滤 + 订阅变化做**真启停**；
  * ② 开发期热重载：本模块自接受 HMR（更新即拆树→重起）。
  */
-export { startWorldTree, disposeWorldTree, worldTreeState, worldTreeContext, availablePlugins, setPluginEnabled, unloadPlugin, WORLD_SERVICES } from './tree'
-export type { WorldTreeHandle, WorldTreeState, StartOptions } from './tree'
+export { startWorldTree, disposeWorldTree, worldTreeState, worldTreeContext, availablePlugins, setPluginEnabled, unloadPlugin, WORLD_SERVICES, reloadExternalPlugins, externalPluginStates, setExternalProjectDirProvider } from './tree'
+export type { WorldTreeHandle, WorldTreeState, StartOptions, ExternalReloadReport, ExternalPluginState } from './tree'
 export { validateManifest } from './manifest'
 export type { WorldPlugin, WorldPluginManifest } from './manifest'
 export { assemblePlugins, collectWorldPlugins } from './loader'
@@ -15,11 +15,29 @@ export type { AssembleResult, LoadReport } from './loader'
 export { registerViewFor, unregisterViewFor, registerPluginCleanup, runPluginCleanups } from './registry'
 export { createPluginApi } from './api'
 export type { WorldPluginApi } from './api'
+export { registerModule, unregisterModule, createRequire, registeredModuleNames } from './modules'
+export { evaluateExternalPlugin, collectExternalPlugins, externalPluginsDir, EXTERNAL_ID_PREFIX, EXTERNAL_PLUGIN_DIR } from './external'
+export type { ExternalEvalResult, ExternalCollectReport, ExternalIo } from './external'
 
-import { isViewVisible, useEntityStore, useSettingsStore } from '@worldsea/entity-core'
+import { isViewVisible, onPluginDirChange, useEntityStore, useSettingsStore } from '@worldsea/entity-core'
 import { watch } from 'vue'
 
-import { disposeWorldTree, setPluginEnabled, startWorldTree } from './tree'
+import { disposeWorldTree, externalPluginStates, reloadExternalPlugins, setPluginEnabled, startWorldTree, worldTreeState } from './tree'
+
+/** 外部插件装载结果 → sprouts 对账条目（manifest 真值 + 持久化 active）。
+ *  utility 身份的外部插件不进清单（常驻装载，无启停——批5 对齐内置口径）。 */
+function externalSproutEntries(): Array<{ id: string; label: string; icon: string; active: boolean }> {
+  const settings = useSettingsStore()
+  return externalPluginStates()
+    .filter(state => state.status !== 'rejected' && state.kind !== 'utility')
+    .map(state => ({
+      id: state.id,
+      label: state.name,
+      icon: 'puzzle',
+      // 用户开关以 sprouts 持久化为准；新插件缺省 true
+      active: settings.sprouts.find(sprout => sprout.id === state.id)?.active ?? true,
+    }))
+}
 
 /** 起树 + 接线（幂等）。 */
 export async function installWorldTree(): Promise<void> {
@@ -40,6 +58,9 @@ export async function installWorldTree(): Promise<void> {
     console.warn('[world-tree] 装载对账失败（下次 watcher/能力桥 reload 会再归一）:', err)
   }
 
+  // 外部插件对账进芽清单（label/icon = manifest 真值；独立键持久化跨启动留存）
+  settings.syncExternalSprouts(externalSproutEntries())
+
   // 真启停：芽清单开关变化 → 动态装/卸（`sprouts` 是项目级数据，切换项目会整体重载）
   watch(
     () => settings.sprouts.map(sprout => `${sprout.id}:${sprout.active}`).join('|'),
@@ -47,6 +68,18 @@ export async function installWorldTree(): Promise<void> {
       for (const sprout of settings.sprouts) setPluginEnabled(sprout.id, isViewVisible(sprout.id))
     },
   )
+
+  // 外部插件热装载：watcher 感知 `.worldsea/plugins/` 变化（防抖 1s）→ 重对账 → 清单对账
+  onPluginDirChange(() => {
+    if (!worldTreeState().started) return
+    void reloadExternalPlugins()
+      .then(report => {
+        if (report.added.length + report.updated.length + report.removed.length > 0 || report.rejected.length > 0) {
+          settings.syncExternalSprouts(externalSproutEntries())
+        }
+      })
+      .catch(err => console.warn('[world-tree] 外部重对账失败:', err))
+  })
 }
 
 if (import.meta.hot) {

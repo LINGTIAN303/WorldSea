@@ -2,6 +2,8 @@ import type { EntityTypeSchema, FieldSchema } from '../types'
 import type { RelationTypeSchema, RelationTypeSchemaV2 } from '../types'
 import type { PluginView } from '../types'
 import type { ViewChange, ViewChangeListener } from '../types'
+import type { PluginOverlay } from '../types'
+import type { OverlayChange, OverlayChangeListener } from '../types'
 import type { TraitRef, FacetDefinition } from '../types/trait'
 import { entitySchemaRegistry } from './EntitySchema'
 import { relationSchemaRegistry } from './RelationSchema'
@@ -45,6 +47,10 @@ class PluginAPIImpl {
   private currentPluginId = ''
   /** 视图生命周期订阅者（显示侧镜像据此增删；真源是 `_views`）。 */
   private viewListeners = new Set<ViewChangeListener>()
+  /** 覆盖层真源（插件贡献的全局弹窗/面板；OverlayHost 镜像渲染）。 */
+  private _overlays: PluginOverlay[] = []
+  /** 覆盖层生命周期订阅者（OverlayHost 据此镜像增删 + 增删 `ws-open-<id>` 监听）。 */
+  private overlayListeners = new Set<OverlayChangeListener>()
 
   setPluginId(id: string) {
     this.currentPluginId = id
@@ -199,6 +205,52 @@ class PluginAPIImpl {
   clearViews(): void {
     const removed = this._views.splice(0)
     for (const view of removed) this.notifyViewChange('unregistered', view)
+  }
+
+  /* ─── 覆盖层（插件贡献的全局弹窗/面板，批2）——真源模式与 view 同款 ─── */
+
+  registerOverlay(overlay: PluginOverlay): void {
+    overlay.pluginId = this.currentPluginId
+    if (this._overlays.find((o) => o.id === overlay.id)) return
+    this._overlays.push(overlay)
+    this.notifyOverlayChange('registered', overlay)
+  }
+
+  getOverlays(): PluginOverlay[] {
+    return this._overlays
+  }
+
+  unregisterOverlay(overlayId: string): boolean {
+    const idx = this._overlays.findIndex((o) => o.id === overlayId)
+    if (idx === -1) return false
+    const [removed] = this._overlays.splice(idx, 1)
+    if (removed) this.notifyOverlayChange('unregistered', removed)
+    return true
+  }
+
+  /** 订阅覆盖层生命周期（登记 / 反注册），返回退订函数——OverlayHost 的唯一镜像口。 */
+  onOverlayChange(listener: OverlayChangeListener): () => void {
+    this.overlayListeners.add(listener)
+    return () => {
+      this.overlayListeners.delete(listener)
+    }
+  }
+
+  /** 派发覆盖层变更（监听器抛错逐个隔离，不影响登记/反注册本身）。 */
+  private notifyOverlayChange(kind: OverlayChange['kind'], overlay: PluginOverlay): void {
+    for (const listener of [...this.overlayListeners]) {
+      try {
+        listener({ kind, overlay })
+      } catch (error) {
+        console.error('[PluginAPI] 覆盖层变更监听器抛错（已隔离）:', error)
+      }
+    }
+  }
+
+  /** 清空所有已登记的覆盖层（拆树/项目切换时使用；逐条派发反注册事件）。 */
+  clearOverlays(): void {
+    const removed = this._overlays.splice(0)
+    for (const overlay of removed) this.notifyOverlayChange('unregistered', overlay)
   }
 
   unregisterHooksByPlugin(pluginId: string): number {

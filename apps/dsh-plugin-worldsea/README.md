@@ -2,9 +2,9 @@
 
 WorldSea 产品域工具集（dsh 插件）——让 Agent 以**原生工具**直接读写工作台创作数据。工具对象按 ToolDefinition 形状手写（不需 import cordis 包）；唯一第三方 import = `@deepseek-ai/schemastery`（配置 schema，D3-c2）。
 
-**能力面（2026-10-07 预设化）**：本插件不是全局挂载，而是**「产品域模式」预设的能力组成**（见 cordis.patch.yml）——world_* 十二件工具只在产品域模式会话可用，其余预设（标准/PTC/极简/创造）里不可见。升级信号与判据见 D2 批计划 §候选5-1（非产品域模式里只能靠 `/实体` 强制使用、指引互扰）。
+**能力面（2026-10-07 预设化）**：本插件不是全局挂载，而是**「产品域模式」预设的能力组成**（见 cordis.patch.yml）——world_* 十七件工具只在产品域模式会话可用，其余预设（标准/PTC/极简/创造）里不可见。升级信号与判据见 D2 批计划 §候选5-1（非产品域模式里只能靠 `/实体` 强制使用、指引互扰）。
 
-## 工具集（12 条）
+## 工具集（12 条数据 + 5 条外部插件管理）
 
 | 工具 | 用途 |
 |---|---|
@@ -20,6 +20,11 @@ WorldSea 产品域工具集（dsh 插件）——让 Agent 以**原生工具**�
 | `world_relation_list` | 关系清单（entityId/type 过滤；瘦身默认形状 id/type/sourceId/targetId/label，properties 等按需 fields 点路径取；分页 + 排序契约） |
 | `world_relation_put` | 新建/覆盖关系（两端实体必须已存在） |
 | `world_relation_delete` | 按 id 删除关系 |
+| `world_plugin_list` | 外部插件清单（worlddata/.worldsea/plugins/ 下 <id>.js：id/大小/mtime） |
+| `world_plugin_read` | 读外部插件完整源码 |
+| `world_plugin_write` | 写入/覆盖外部插件（`(require) => ({ manifest, apply })` 闭包工厂；id 须 ws. 前缀；原子写；**工作台 ~1s 自动热装载**——新增界面结构/功能的标准途径） |
+| `world_plugin_delete` | 删除外部插件（工作台 ~1s 自动卸载） |
+| `world_plugin_template` | 返回最小插件模板（write 的 code 素材） |
 
 ## 快捷指令 /entity（2026-10-07 三版迭代定稿 · 由 console 插件以纯插件形态承载）
 

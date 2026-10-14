@@ -1,9 +1,8 @@
 /**
  * 多文件栏会话级状态（2026-09-07，模块单例）：
- * 右栏文件 Tab（PreviewPanel）随五 Tab 切换 v-else-if 卸载重挂——tabs/activePath/
- * 脏标记/编辑缓冲必须落在组件外才不丢（切 Tab 回来 tab 与未保存缓冲都还在）。
- * 仅「拥有者」实例（PreviewPanel 传 owns-tabs 的 ProjectFilesPanel）读写；
- * 左栏（SessionSidebar，external 模式）实例恒不写入。
+ * 现存唯一消费方 = FilePreview（只读写 buffers——编辑缓冲跨实例保活）。
+ * tabs/activePath/dirtyPaths 与 resetFileTabs 是 FileTabBar/ProjectFilesPanel（2026-10-14 死代码
+ * 清理删除）时代的遗留面，暂保留以最小化本批边界；后续 notebook 需要多 Tab 时在此扩展。
  */
 import { reactive } from 'vue'
 import type { FsNode } from './FileTreeBrowser.vue'

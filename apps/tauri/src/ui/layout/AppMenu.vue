@@ -26,43 +26,31 @@
           @mouseleave="onLeave"
         >
           <div class="appmenu-list">
-          <button class="menu-item" role="menuitem" @click="openSearch">
-            <WsIcon name="search" size="sm" class="menu-item-icon" />
-            <span class="menu-item-label">搜索</span>
-            <span class="menu-item-shortcut">{{ formatKeysForDisplay(keysOf('search.open', ['ctrl', 'k'])) }}</span>
+          <!-- 插件贡献项（批6）：overlay 真源带 menu 声明的自动渲染，点击 dispatch `ws-open-<id>`；
+               order 升序，L0 固定项「导出到文件夹」占位 order=1.5 插在搜索之后 -->
+          <button v-for="item in menuItemsBeforeExport" :key="item.id" class="menu-item" role="menuitem" @click="openOverlay(item.id)">
+            <WsIcon :name="item.menu.icon" size="sm" class="menu-item-icon" />
+            <span class="menu-item-label">{{ item.menu.label }}</span>
+            <span class="menu-item-shortcut">{{ item.menu.shortcutId ? formatKeysForDisplay(keysOf(item.menu.shortcutId, [])) : '' }}</span>
           </button>
-          <!-- 项目=目录（2026-09-03）：打开/切换项目走 ProjectSwitcher（TitleBar/空态/Ctrl+Shift+P）；导出到文件夹保留 -->
+          <!-- 项目=目录（2026-09-03）：打开/切换项目走 ProjectSwitcher（TitleBar/空态/Ctrl+Shift+P）；导出到文件夹保留（L0：useFileSystemProject 逻辑项） -->
           <button class="menu-item" role="menuitem" @click="saveFolder" :disabled="saving">
             <WsIcon name="save" size="sm" class="menu-item-icon" />
             <span class="menu-item-label">{{ saving ? '导出中...' : '导出到文件夹' }}</span>
             <span class="menu-item-shortcut">{{ formatKeysForDisplay(keysOf('project.save', ['ctrl', 's'])) }}</span>
           </button>
-          <button class="menu-item" role="menuitem" @click="openVersion">
-            <WsIcon name="timeline" size="sm" class="menu-item-icon" />
-            <span class="menu-item-label">最近修改</span>
-            <span class="menu-item-shortcut"></span>
-          </button>
-          <button class="menu-item" role="menuitem" @click="openConsistency">
-            <WsIcon name="shield" size="sm" class="menu-item-icon" />
-            <span class="menu-item-label">一致性检查</span>
-            <span class="menu-item-shortcut"></span>
-          </button>
-          <button class="menu-item" role="menuitem" @click="openArtifacts">
-            <WsIcon name="file-text" size="sm" class="menu-item-icon" />
-            <span class="menu-item-label">产物</span>
-            <span class="menu-item-shortcut"></span>
-          </button>
-          <button class="menu-item" role="menuitem" @click="openThemeEditor">
-            <WsIcon name="palette" size="sm" class="menu-item-icon" />
-            <span class="menu-item-label">主题编辑器</span>
+          <button v-for="item in menuItemsAfterExport" :key="item.id" class="menu-item" role="menuitem" @click="openOverlay(item.id)">
+            <WsIcon :name="item.menu.icon" size="sm" class="menu-item-icon" />
+            <span class="menu-item-label">{{ item.menu.label }}</span>
             <span class="menu-item-shortcut"></span>
           </button>
         </div>
         <div class="menu-divider"></div>
-        <button class="menu-item" role="menuitem" @click="openSettings">
-          <span class="menu-item-icon"><WsIcon name="settings" size="sm" /></span>
-          <span class="menu-item-label">设置</span>
-          <span class="menu-item-shortcut">{{ formatKeysForDisplay(keysOf('settings.open', ['ctrl', ','])) }}</span>
+        <!-- 设置（order=99，settings 插件贡献；快捷键标注读注册表） -->
+        <button v-for="item in menuItemsTail" :key="item.id" class="menu-item" role="menuitem" @click="openOverlay(item.id)">
+          <span class="menu-item-icon"><WsIcon :name="item.menu.icon" size="sm" /></span>
+          <span class="menu-item-label">{{ item.menu.label }}</span>
+          <span class="menu-item-shortcut">{{ item.menu.shortcutId ? formatKeysForDisplay(keysOf(item.menu.shortcutId, [])) : '' }}</span>
         </button>
         </div>
       </Transition>
@@ -182,12 +170,30 @@ onMounted(() => {
   })
 })
 
-function openSearch() { closeMenu(); window.dispatchEvent(new CustomEvent('ws-open-search')) }
-function openVersion() { closeMenu(); window.dispatchEvent(new CustomEvent('ws-open-version')) }
-function openConsistency() { closeMenu(); window.dispatchEvent(new CustomEvent('ws-open-consistency')) }
-function openArtifacts() { closeMenu(); window.dispatchEvent(new CustomEvent('ws-open-artifacts')) }
-function openThemeEditor() { closeMenu(); window.dispatchEvent(new CustomEvent('ws-open-theme-editor')) }
-function openSettings() { closeMenu(); window.dispatchEvent(new CustomEvent('ws-open-settings')) }
+/* ─── 插件贡献的菜单项（批6）：overlay 真源带 menu 声明的自动渲染 ─── */
+import { pluginAPI } from '@worldsea/entity-core'
+import type { PluginOverlay } from '@worldsea/entity-core'
+
+const overlayItems = ref<PluginOverlay[]>([])
+pluginAPI.onOverlayChange(() => { overlayItems.value = [...pluginAPI.getOverlays()] })
+overlayItems.value = [...pluginAPI.getOverlays()]
+
+/** 带 menu 声明的贡献项，order 升序 */
+const menuContribs = computed(() =>
+  overlayItems.value
+    .filter(o => o.menu)
+    .map(o => ({ id: o.id, menu: o.menu! }))
+    .sort((a, b) => a.menu.order - b.menu.order),
+)
+/** L0 固定项「导出到文件夹」占位 order=1.5：前段（≤1）+ 后段（>1 且 <99）+ 尾段（设置 99） */
+const menuItemsBeforeExport = computed(() => menuContribs.value.filter(i => i.menu.order <= 1))
+const menuItemsAfterExport = computed(() => menuContribs.value.filter(i => i.menu.order > 1 && i.menu.order < 99))
+const menuItemsTail = computed(() => menuContribs.value.filter(i => i.menu.order >= 99))
+
+function openOverlay(id: string) {
+  closeMenu()
+  window.dispatchEvent(new CustomEvent(`ws-open-${id}`))
+}
 
 async function saveFolder() {
   closeMenu()

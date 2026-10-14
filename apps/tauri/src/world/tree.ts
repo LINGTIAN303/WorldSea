@@ -16,7 +16,10 @@
 import { Context } from '@deepseek-ai/cordis'
 import type { CordisContext, CordisFiberLike } from '@deepseek-ai/cordis'
 
+import { getFileStorageBackend, pluginAPI } from '@worldsea/entity-core'
+
 import { createPluginApi } from './api'
+import { collectExternalPlugins } from './external'
 import { collectWorldPlugins, type LoadReport } from './loader'
 import type { WorldPlugin } from './manifest'
 import { runPluginCleanups } from './registry'
@@ -55,6 +58,18 @@ const available = new Map<string, WorldPlugin>()
 const fibers = new Map<string, CordisFiberLike>()
 let ctx: CordisContext | null = null
 const drops: Array<() => void> = []
+
+/* ─── 外部插件（运行时来源）记账 ─── */
+/** 外部插件 id 集（reload 只动这一圈，内置不碰） */
+const externalIds = new Set<string>()
+/** id → 源码指纹（重对账「变更即重装」的对比基准） */
+const externalCodes = new Map<string, string>()
+/** 外部被拒条目（含文件路径，管理界面展示） */
+let externalRejected: Array<{ id: string; file: string; reason: string }> = []
+/** 启停过滤（应用侧注入 `isViewVisible`；缺省 = 全启用）——reload 与起树共用 */
+let isEnabledFn: (id: string) => boolean = () => true
+/** 外部插件目录的数据根（worlddata 根；测试可覆写） */
+let projectDirProvider: () => string | null | undefined = () => getFileStorageBackend()?.projectDir ?? null
 
 function publish(): WorldTreeHandle {
   const handle: WorldTreeHandle = {
@@ -146,6 +161,7 @@ export function setPluginEnabled(id: string, enabled: boolean): boolean {
 /** 启动第二棵树（幂等：已启动则直接返回句柄）。 */
 export async function startWorldTree(options?: StartOptions): Promise<WorldTreeHandle> {
   if (state.started) return publish()
+  isEnabledFn = options?.isEnabled ?? (() => true)
   try {
     const context = new Context()
     ctx = context
@@ -170,18 +186,46 @@ export async function startWorldTree(options?: StartOptions): Promise<WorldTreeH
     available.clear()
     for (const plugin of accepted) available.set(plugin.manifest.id, plugin)
 
-    const enabled = new Set(report.loaded)
-    for (const plugin of accepted) {
-      if (enabled.has(plugin.manifest.id)) loadPlugin(plugin)
+    // 外部来源并入（目录缺失 = 空集不算错；id 撞内置 = 拒，先到者生效）
+    const external = await collectExternalPlugins(projectDirProvider())
+    externalCodes.clear()
+    externalIds.clear()
+    externalRejected = external.rejected
+    for (const plugin of external.plugins) {
+      const id = plugin.manifest.id
+      if (available.has(id)) {
+        const entry = external.rejected.find(item => item.id === id)
+        const file = entry?.file ?? `${id}.js`
+        externalRejected.push({ id, file, reason: 'id 与已装载插件冲突（先到者生效）' })
+        continue
+      }
+      available.set(id, plugin)
+      externalIds.add(id)
+      externalCodes.set(id, external.codes.get(id) ?? '')
     }
-    state.skipped = [...report.skipped]
+
+    const enabled = new Set(report.loaded)
+    // utility 插件常驻装载（批5：manifest.kind 声明，不受启停过滤——「内置插件常驻」对齐 dsh 内置语义）
+    const forceLoad = (id: string) => available.get(id)?.manifest.kind === 'utility'
+    for (const plugin of accepted) {
+      if (enabled.has(plugin.manifest.id) || forceLoad(plugin.manifest.id)) loadPlugin(plugin)
+    }
+    // 外部插件装载（启停过滤口径与内置一致；utility 常驻；关掉的进 skipped）
+    const externalSkipped: string[] = []
+    for (const id of externalIds) {
+      if (isEnabledFn(id) || forceLoad(id)) loadPlugin(available.get(id)!)
+      else externalSkipped.push(id)
+    }
+    // isEnabled 过滤可能把 utility 记进 skipped（loader 层无 kind 语义）——常驻者从 skipped 剔除
+    state.skipped = [...report.skipped, ...externalSkipped].filter(id => !forceLoad(id))
     state.rejected = report.rejected
     state.started = true
     console.log(
       `[world-tree] 已启动：装载 ${state.plugins.length} 个插件（跳过 ${state.skipped.length}）= ${state.plugins.join(' / ') || '无'}；` +
-        `服务=${WORLD_SERVICES.join(' / ')}；被拒 ${state.rejected.length}`,
+        `服务=${WORLD_SERVICES.join(' / ')}；内置被拒 ${state.rejected.length}；外部 ${externalIds.size}（被拒 ${externalRejected.length}）`,
     )
     if (state.rejected.length > 0) console.warn('[world-tree] 被拒插件：', state.rejected)
+    if (externalRejected.length > 0) console.warn('[world-tree] 外部被拒：', externalRejected)
   } catch (error) {
     state.error = String(error)
     console.error('[world-tree] 启动失败：', error)
@@ -189,9 +233,118 @@ export async function startWorldTree(options?: StartOptions): Promise<WorldTreeH
   return publish()
 }
 
+/** 外部插件重对账报告。 */
+export interface ExternalReloadReport {
+  /** 新装载（目录里新出现的插件且启用） */
+  added: string[]
+  /** 代码变更 → 卸了重装 */
+  updated: string[]
+  /** 文件消失 → 已卸载 */
+  removed: string[]
+  /** 代码未变（不动） */
+  unchanged: string[]
+  /** 本次收集被拒条目（覆盖上次） */
+  rejected: Array<{ id: string; file: string; reason: string }>
+}
+
+/**
+ * 外部插件重对账（watcher 热装载/管理界面「重载」/项目切换共用）：
+ * diff 目录 vs 现状——新增装载、消失卸载、变更重装（卸+装）；内置插件不碰。
+ */
+export async function reloadExternalPlugins(): Promise<ExternalReloadReport> {
+  const report: ExternalReloadReport = { added: [], updated: [], removed: [], unchanged: [], rejected: [] }
+  if (!state.started) return report
+  const collect = await collectExternalPlugins(projectDirProvider())
+  externalRejected = collect.rejected
+  report.rejected = collect.rejected
+
+  const nextIds = new Set(collect.plugins.map(plugin => plugin.manifest.id))
+  for (const id of [...externalIds]) {
+    if (nextIds.has(id)) continue
+    unloadPlugin(id)
+    externalIds.delete(id)
+    externalCodes.delete(id)
+    report.removed.push(id)
+  }
+  for (const plugin of collect.plugins) {
+    const id = plugin.manifest.id
+    if (available.has(id) && !externalIds.has(id)) {
+      const entry = collect.rejected.find(item => item.id === id)
+      externalRejected.push({ id, file: entry?.file ?? `${id}.js`, reason: 'id 与内置插件冲突（先到者生效）' })
+      continue
+    }
+    const code = collect.codes.get(id) ?? ''
+    if (externalCodes.has(id) && externalCodes.get(id) === code) {
+      report.unchanged.push(id)
+      continue
+    }
+    const isNew = !externalCodes.has(id) && !fibers.has(id)
+    if (fibers.has(id)) unloadPlugin(id)
+    available.set(id, plugin)
+    externalIds.add(id)
+    externalCodes.set(id, code)
+    // utility 常驻装载（与 startWorldTree 同口径）
+    if (isEnabledFn(id) || available.get(id)?.manifest.kind === 'utility') {
+      loadPlugin(plugin)
+      report[isNew ? 'added' : 'updated'].push(id)
+      state.skipped = state.skipped.filter(entry => entry !== id)
+    } else if (!state.skipped.includes(id)) {
+      state.skipped.push(id)
+    }
+  }
+  if (report.added.length + report.updated.length + report.removed.length > 0) {
+    console.log(`[world-tree] 外部重对账：+${report.added.join('/')} ~${report.updated.join('/')} -${report.removed.join('/')}`)
+  }
+  publish()
+  return report
+}
+
+/** 外部插件状态快照（管理界面数据源：装载态 + 被拒报告）。 */
+export interface ExternalPluginState {
+  id: string
+  name: string
+  version: string
+  status: 'loaded' | 'skipped' | 'rejected'
+  file: string
+  reason?: string
+  /** 插件身份（批5：utility = 常驻，不进 sprouts 启停） */
+  kind?: 'sprout' | 'utility'
+}
+
+export function externalPluginStates(): ExternalPluginState[] {
+  const states: ExternalPluginState[] = []
+  for (const id of externalIds) {
+    const plugin = available.get(id)
+    if (!plugin) continue
+    states.push({
+      id,
+      name: plugin.manifest.name,
+      version: plugin.manifest.version,
+      status: fibers.has(id) ? 'loaded' : 'skipped',
+      file: `${EXTERNAL_DIR_DISPLAY}/${id}.js`,
+      kind: plugin.manifest.kind,
+    })
+  }
+  for (const entry of externalRejected) {
+    states.push({
+      id: entry.id,
+      name: entry.id,
+      version: '-',
+      status: 'rejected',
+      file: entry.file,
+      reason: entry.reason,
+    })
+  }
+  return states
+}
+
+/** 管理界面展示用相对路径（worlddata 根以下）。 */
+const EXTERNAL_DIR_DISPLAY = 'worlddata/.worldsea/plugins'
+
 /** 拆树（幂等）：插件清理 → 拆 fiber → 撤服务。 */
 export function disposeWorldTree(): void {
   for (const id of [...fibers.keys()]) runPluginCleanups(id)
+  pluginAPI.clearOverlays()
   for (const [id, fiber] of [...fibers.entries()]) {
     try {
       void fiber.dispose()
@@ -209,6 +362,9 @@ export function disposeWorldTree(): void {
   }
   ctx = null
   available.clear()
+  externalIds.clear()
+  externalCodes.clear()
+  externalRejected = []
   state.started = false
   state.plugins = []
   state.skipped = []
@@ -219,4 +375,9 @@ export function disposeWorldTree(): void {
 /** 树上下文（插件/诊断用；未启动时为 null）。 */
 export function worldTreeContext(): CordisContext | null {
   return ctx
+}
+
+/** 测试接缝：覆写外部插件目录的数据根（null 恢复默认 = FileStorageBackend.projectDir）。 */
+export function setExternalProjectDirProvider(fn: (() => string | null | undefined) | null): void {
+  projectDirProvider = fn ?? (() => getFileStorageBackend()?.projectDir ?? null)
 }

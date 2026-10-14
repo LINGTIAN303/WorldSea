@@ -58,7 +58,9 @@
 | src/components/entity/map/useDrawing.ts | [useDrawing.md](packages/ui-kit/components/entity/map/useDrawing.md) | 绘制模式 composable（手绘 + Alt 边境线） |
 | src/components/entity/GenericTreeView.vue | [批量选择态.md](packages/plugin-sdk/批量选择态.md) | 树行批量态路由：`showCheckbox` 退役（复选框不再使用），新增 `batchMode`（行点击→选中切换）；势力树经 `OrgTreeNode` 接线（2026-10-01） |
 | src/components/TuiButton.vue | [TuiButton.md](tauri/components/TuiButton.md) | 全仓唯一按钮组件（2026-10-01 自 apps 下沉 + `active` 属性）；收编跨文件重复的 `.btn*` 族（映射见档），基座 `button{color:inherit}` 复位 UA 黑字坑 |
-| src/components/settings/panels/SproutsPanel.vue | — | 芽管理面板（26 个世界观芽开关 + 分类筛选 + 拖拽排序；2026-09-10 由 PluginsPanel 更名；原 27 个，`official.module-builder` 已于 2026-09-25 随「自定义模块」整体剪除） |
+| src/components/settings/panels/SproutsPanel.vue | — | 芽管理面板薄壳（CardDeck 包装）；内容拆至 [SproutsCardContent.vue](../../../packages/ui-kit/src/components/settings/panels/SproutsCardContent.vue)（2026-10-13 拆层——「插件」分区多卡叠放：外部插件卡 + 芽管理卡归分区容器 PluginsPanel 的 CardDeck）。26 个世界观芽开关 + 分类筛选 + 拖拽排序；2026-09-10 由 PluginsPanel 更名；原 27 个，`official.module-builder` 已于 2026-09-25 随「自定义模块」整体剪除） |
+| src/components/settings/panels/SproutsCardContent.vue | — | 芽管理**卡内容**（2026-10-13 自 SproutsPanel 拆层）：无 CardDeck 包装的纯卡片段，供单卡薄壳与分区级多卡容器复用；搜索过滤 v-show 留本组件 |
+| apps/tauri/src/ui/settings/panels/PluginsPanel.vue | — | 「插件」分区容器（2026-10-13，apps 侧——外部插件状态源 world 树在 apps 层）：CardDeck count=2 叠放翻卡 = 卡0 外部插件（装载状态/启停/重载/删除/源码查看，对齐 settings-panels.css 基座类 + TuiModal）+ 卡1 芽管理（SproutsCardContent） |
 | src/components/settings/settings-panels.css | [settings-panels-convention.md](packages/ui-kit/settings-panels-convention.md) | 设置面板统一约定（三契约/基座样式/scoped 陷阱/卡片清单） |
 | src/index.ts | [index.md](packages/ui-kit/index.md) | ui-kit FACADE 包说明（聚合/委托导出） |
 | src/composables/useAsk.ts | [useAsk.md](packages/ui-kit/useAsk.md) | 提问面板批量问题协议（对齐 dsh ask_user_question：单选/多选/自定义/跳过/取消）（2026-10-13 注释整改迁入） |

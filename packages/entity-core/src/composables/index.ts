@@ -3,7 +3,7 @@ export { useTheme, ACCENT_PRESETS, DEFAULT_ACCENT_ID } from './useTheme'
 export type { ThemeDefinition, AccentPreset } from './useTheme'
 
 // 文件系统监听（从根 src/composables/useFsWatcher.ts 下沉到 entity-core）
-export { useFsWatcher } from './useFsWatcher'
+export { useFsWatcher, onPluginDirChange } from './useFsWatcher'
 
 // 文件系统项目绑定与导出（从根 src/composables/useFileSystemProject.ts 下沉到 entity-core）
 export { useFileSystemProject } from './useFileSystemProject'
