@@ -118,6 +118,7 @@ class PluginAPIImpl {
     entitySchemaRegistryV2.register(schemaV2)
 
     // 兼容旧版：同时注册到旧版 entitySchemaRegistry 和 fieldRegistry
+    // （replaceBuiltin：schema 覆盖回落时，旧覆盖新增的 builtin 字段同步清除——批7 走查发现残留）
     entitySchemaRegistry.register({
       typeKey: schemaV2.type,
       label: schemaV2.label,
@@ -125,7 +126,7 @@ class PluginAPIImpl {
       fields: schemaV2._compiledFields,
       pluginId: this.currentPluginId,
     })
-    fieldRegistry.registerBuiltin(schemaV2.type, schemaV2._compiledFields)
+    fieldRegistry.registerBuiltin(schemaV2.type, schemaV2._compiledFields, { replaceBuiltin: true })
   }
 
   /**

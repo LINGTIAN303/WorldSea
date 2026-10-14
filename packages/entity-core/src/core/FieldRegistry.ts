@@ -20,7 +20,12 @@ class FieldRegistryClass {
 
   private bump() { this._version.value++ }
 
-  registerBuiltin(entityType: string, fieldDefs: FieldSchema[]): void {
+  /**
+   * 注册 builtin 字段（插件 schema 驱动）。
+   * 默认追加/更新语义；`replaceBuiltin: true` 时（批7 schema 覆盖回落）builtin 字段以本次注册集为准——
+   * 上次注册、本次不再提供的 builtin 字段删除（user/shared 字段保留）。
+   */
+  registerBuiltin(entityType: string, fieldDefs: FieldSchema[], options?: { replaceBuiltin?: boolean }): void {
     if (!this.fields.has(entityType)) {
       this.fields.set(entityType, new Map())
     }
@@ -41,6 +46,16 @@ class FieldRegistryClass {
       }
       typeMap.set(f.key, reg)
       orderBase++
+    }
+    if (options?.replaceBuiltin) {
+      const incomingKeys = new Set(fieldDefs.map(f => f.key))
+      for (const key of Array.from(typeMap.keys())) {
+        if (!incomingKeys.has(key) && typeMap.get(key)!.source === 'builtin') typeMap.delete(key)
+      }
+      let i = 0
+      for (const [, f] of typeMap) {
+        if (f.source === 'builtin') f.order = i++
+      }
     }
     this.bump()
   }
