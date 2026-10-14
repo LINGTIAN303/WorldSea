@@ -111,7 +111,7 @@ function loadAnimations(): Record<string, boolean> {
 }
 
 const DEFAULT_SPROUTS: SproutToggle[] = [
-  // label/icon 以侧边栏视图注册名（apps/tauri/src/sprouts/official/*/index.ts registerView）为权威，2026-09-13 对齐
+  // label/icon 以侧边栏视图注册名（apps/tauri/src/world/plugins/<id>/index.ts registerView）为权威，2026-09-13 对齐；2026-10-14 修正过期路径（原指 sprouts/official/ 已退役）
   { id: 'official.characters', label: '角色', icon: 'character', active: true, category: 'characters' },
   { id: 'official.regions', label: '区域图谱', icon: 'region', active: false, category: 'world' },
   { id: 'official.timeline', label: '时间线', icon: 'timeline', active: true, category: 'narrative' },
