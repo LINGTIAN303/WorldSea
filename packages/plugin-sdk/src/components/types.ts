@@ -1,8 +1,10 @@
+import type { FieldSchema } from '@worldsea/entity-core'
+
 export interface FormFieldDef {
   key: string
   label: string
-  /** schema 原始 fieldType——控件层统一归一，这里不再做「不认识就当天」的白名单收口 */
-  type: 'text' | 'textarea' | 'richtext' | 'select' | 'multiSelect' | 'tags' | 'color' | 'number' | 'boolean' | 'date' | 'entityRef' | 'formula' | 'url' | 'email' | 'image'
+  /** 批8 归一：与 FieldSchema.fieldType 同一枚举（控件层统一归一，这里不做白名单收口） */
+  type: FieldSchema['fieldType']
   required?: boolean
   placeholder?: string
   options?: { value: string; label: string }[]

@@ -162,7 +162,7 @@
       v-model="showForm"
       :title="editingEntity ? `编辑${entityLabel}` : `新建${entityLabel}`"
       :entity="editingEntity"
-      :fields="formFields"
+      :fields="resolvedFormFields"
       :entity-type="entityType"
       @save="onFormSave"
     />
@@ -181,6 +181,7 @@ import UniversalRelationPanel from './UniversalRelationPanel.vue'
 import EntityFormModal from './EntityFormModal.vue'
 import EntityCoverPanel from './EntityCoverPanel.vue'
 import type { FormFieldDef, RelationTabDef, CardFieldDef, CustomTabDef, FilterDef } from './types'
+import { deriveFormFields } from './formFields'
 import { TuiButton, WsIcon, WsEmpty } from '@worldsea/ui-kit'
 import EntityPager from './EntityPager.vue'
 import EntityCard from './EntityCard.vue'
@@ -212,7 +213,8 @@ const emit = defineEmits<{
 
 const props = withDefaults(defineProps<{
   entityType: string
-  formFields: FormFieldDef[]
+  /** 批8：可缺省——缺省从 fieldRegistry 派生（基础字段 + builtin）；显式传 = 覆盖（既有消费方向后兼容） */
+  formFields?: FormFieldDef[]
   iconFn?: (entity: Entity) => string
   filterOptions?: { value: string; label: string }[]
   filterFieldKey?: string
@@ -336,6 +338,11 @@ const entityLevelFields = computed<DetailFieldMeta[]>(() =>
 )
 
 const detailFieldMetas = computed(() => mergeScopedFields(typeLevelFields.value, entityLevelFields.value))
+
+/** 批8：formFields 派生兜底——显式传 = 覆盖（向后兼容），缺省 = 基础字段 + fieldRegistry builtin（派生内部建响应式依赖） */
+const resolvedFormFields = computed<FormFieldDef[]>(() =>
+  props.formFields?.length ? props.formFields : deriveFormFields(props.entityType),
+)
 
 // 载体解析走单点 `useDetailCarrier`（优先序、宽度键、mode 判断都在那里），本件只补「有没有选中实体」
 const { carrierDef, detailPanelId, isSplit, isImmersive } = useDetailCarrier(

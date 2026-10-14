@@ -3,7 +3,6 @@
     <GenericEntityView
       ref="gevRef"
       entityType="character"
-      :form-fields="characterFields"
       :filter-defs="filterDefs"
       :sort-options="sortOptions"
       :custom-tabs="customTabs"
@@ -130,7 +129,6 @@ import CharacterExperience from './components/CharacterExperience.vue'
 
 import { GenericEntityView, EntityRelationSelector, CustomDropdown, useShortcuts, useUndoRedo } from '@worldsea/plugin-sdk'
 import { toastSuccess } from '@worldsea/ui-kit'
-import { characterFields } from './characterConfig'
 import { characterTemplates } from './characterTemplates'
 import { DETAIL_TAB_DECLARATIONS } from '../../detailTabDeclarations'
 import type { FilterDef, CustomTabDef, LayoutSource } from '@worldsea/plugin-sdk'
