@@ -43,6 +43,11 @@ beforeEach(async () => {
   await getProjectManager().initialize()
   for (const e of await storage.getAllEntities()) await storage.deleteEntity(e.id)
   for (const r of await storage.getAllRelations()) await storage.deleteRelation(r.id)
+  // 以清空后的 storage 重载内存——防上一用例实体经任何路径残留进 store
+  //（实测：仅清 storage 时，下一用例的 store 会读到上一用例实体（同 id 重复累积），
+  //  applyNoteRename 的全库重写计数随之虚高；loadAll 以空库覆盖内存后稳定清零）
+  await useEntityStore().loadAll()
+  await useRelationStore().loadAll()
 })
 
 // ────────────────────────────────────────────────

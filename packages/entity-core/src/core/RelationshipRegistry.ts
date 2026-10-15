@@ -2,6 +2,7 @@
 
 import type { RelationTypeSchemaV2 } from '../types/relation'
 import { relationSchemaRegistry } from './RelationSchema'
+import { inverseRegistry } from './inverseRegistry'
 
 // ─────────────────────────────────────────────
 // RelationshipRegistry — 全局关系注册中心
@@ -210,8 +211,13 @@ export const relationshipRegistry = new RelationshipRegistryClass()
 // ─────────────────────────────────────────────
 
 /**
- * 将 relationshipRegistry（V2）中的所有关系同步到旧版 relationSchemaRegistry。
- * 在全局关系定义加载后调用一次，确保旧版依赖的代码仍能正常查询关系。
+ * 将 relationshipRegistry（V2）中的所有关系同步到旧版注册表：
+ * ① relationSchemaRegistry（旧版依赖方仍查它，如 canvas-engine 图数据标签）；
+ * ② inverseRegistry（useBidirectional / useEdgeDedup 的 inverse 查表——2026-10-15 补：
+ *    此前它仅覆盖旧枚举 relationTypes，V2 关系（note_link 等）的 getInverse 恒为 undefined
+ *    ⇒ createBidirectional 只建 forward 单记录（「双向」名不副实）。
+ *    补同步后 V2 关系与旧枚举行为对齐；「已注册不覆盖」保护旧枚举既有语义。
+ * 在全局关系定义加载后调用一次（包入口 side-effect）。
  */
 export function syncToLegacyRegistry(): void {
   for (const schema of relationshipRegistry.getAll()) {
@@ -226,6 +232,10 @@ export function syncToLegacyRegistry(): void {
         properties: schema.properties,
         pluginId: schema.pluginId,
       })
+    }
+    // inverse 同步（幂等；旧枚举已注册者不覆盖）
+    if (schema.inverseType && !inverseRegistry.hasInverse(schema.type)) {
+      inverseRegistry.register(schema.type, schema.inverseType)
     }
   }
 }

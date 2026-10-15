@@ -122,7 +122,7 @@ describe('resolveNoteRef · 三态解析', () => {
 // ③ recomputeNoteLinks · 派生集成
 // ────────────────────────────────────────────────
 describe('recomputeNoteLinks · 派生集成（真实 store + fake-indexeddb）', () => {
-  it('内容含 [[B]] → 重算建立关系（forward 单记录——note_link 现状无 inverse 注册）', async () => {
+  it('内容含 [[B]] → 重算建立关系（双记录：forward + note_linked_from，pairId 配对）', async () => {
     const es = useEntityStore()
     const rs = useRelationStore()
     await es.add(makeNote('nb-A', '笔记A', '内容引用 [[笔记B]]'))
@@ -133,11 +133,13 @@ describe('recomputeNoteLinks · 派生集成（真实 store + fake-indexeddb）'
 
     const fwd = rs.relations.find((r) => r.type === 'note_link' && r.sourceId === 'nb-A' && r.targetId === 'nb-B')
     expect(fwd).toBeDefined()
-    // 现状锁定：note_link（V2 defineRelation 定义）未注册 inverseRegistry（其仅覆盖旧枚举 relationTypes）
-    // → createBidirectional 只建 forward 单记录（现状 BacklinkPanel / Graph 均消费 forward，功能成立）。
-    // 若未来补注册（变双记录），此断言将红——即提醒复核派生器删除逻辑与消费方。
-    expect(rs.relations.filter((r) => r.type === 'note_linked_from')).toHaveLength(0)
-    // 该源笔记的派生关系恰好 1 条（幂等基线）
+    // 2026-10-15 修复：inverseRegistry 已补 V2 注册（syncToLegacyRegistry 扩展）——
+    // note_link 建双记录（forward + note_linked_from，pairId 配对）；消费方（BacklinkPanel /
+    // Graph / 派生器）仍按 forward 维度查询，不受影响。
+    const rev = rs.relations.find((r) => r.type === 'note_linked_from' && r.sourceId === 'nb-B' && r.targetId === 'nb-A')
+    expect(rev).toBeDefined()
+    expect(fwd!.pairId).toBe(rev!.pairId)
+    // 该源笔记的派生 forward 恰好 1 条（幂等基线）
     expect(rs.relations.filter((r) => r.type === 'note_link' && r.sourceId === 'nb-A')).toHaveLength(1)
   })
 
@@ -259,7 +261,7 @@ describe('recomputeAllNoteLinks · 全量重算（进视图时机）', () => {
     const snapshot = rs.relations.length
     await recomputeAllNoteLinks()
     expect(rs.relations.length).toBe(snapshot)
-    expect(snapshot).toBe(1) // note_link A→B（forward 单记录）
+    expect(snapshot).toBe(2) // A→B forward + B→A 反记录（note_linked_from，pairId 配对）
   })
 
   it('孤儿清理：源/目标实体已不存在的 note_link 被清除（无状态自愈）', async () => {

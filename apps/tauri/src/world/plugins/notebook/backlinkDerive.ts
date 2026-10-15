@@ -157,10 +157,10 @@ async function doRecompute(noteId: string): Promise<boolean> {
   const { toAdd, toRemove } = computeLinkDiff(desired, current)
   if (toAdd.length === 0 && toRemove.length === 0) return false // 幂等短路：无变化零写入
 
-  // 删除：forward + pair 反记录成对移除（若存在）。注：note_link 现状无 pair——
-  // inverseRegistry 仅覆盖旧枚举 relationTypes，V2 关系（note_link）的 inverse 未注册，
-  // createBidirectional 实际只建 forward 单记录（BacklinkPanel / Graph 均消费 forward，功能成立）；
-  // 此处的 pair 分支为兼容保留（未来若补注册 inverse 即自动生效）。skipUndo——派生系统行为不进撤销栈。
+  // 删除：forward + pair 反记录成对移除（若存在）。2026-10-15 修复：inverseRegistry 已补
+  // V2 注册（syncToLegacyRegistry 扩展）——note_link 新建即双记录（forward + note_linked_from，
+  // pairId 配对），此处成对删除生效；存量单记录（修复前创建）无 pair，直接单删即可。
+  // skipUndo——派生系统行为不进撤销栈。
   for (const rel of toRemove) {
     const pair = rel.pairId
       ? rs.relations.find((r) => r.pairId === rel.pairId && r.id !== rel.id)
@@ -169,7 +169,7 @@ async function doRecompute(noteId: string): Promise<boolean> {
     await rs.remove(rel.id, 'user', { skipUndo: true })
   }
 
-  // 新增：与既有弹层建联同构（createBidirectional——note_link 现状产出 forward 单记录）
+  // 新增：createBidirectional——note_link 现产出双记录（forward + note_linked_from，pairId 配对）
   const { createBidirectional } = useBidirectional()
   for (const targetId of toAdd) {
     await createBidirectional({ type: 'note_link', sourceId: noteId, targetId }, { skipUndo: true })
