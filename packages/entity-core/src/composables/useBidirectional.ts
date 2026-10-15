@@ -10,13 +10,18 @@ export function useBidirectional() {
   const { beginTransaction, commitTransaction } = useUndoRedo()
   const confirmApi = getConfirmApi()
 
+  /**
+   * 创建双向关系（forward + inverse 两条，pairId 配对）。
+   * @param opts.skipUndo 透传给 relationStore.add——派生/系统类写入不进撤销栈
+   *   （块 2 双链派生重算专用，见 docs/plans/2026-10-15-块2-连接派生-批计划.md §2.3）。
+   */
   async function createBidirectional(params: {
     type: string
     sourceId: string
     targetId: string
     label?: string
     properties?: Record<string, unknown>
-  }): Promise<{ forward: Relation; reverse?: Relation }> {
+  }, opts?: { skipUndo?: boolean }): Promise<{ forward: Relation; reverse?: Relation }> {
     const { type, sourceId, targetId, label, properties } = params
     const inverseType = inverseRegistry.getInverse(type)
     const shouldCreateInverse = !!inverseType
@@ -25,7 +30,9 @@ export function useBidirectional() {
       ? `pair-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
       : undefined
 
-    beginTransaction()
+    // skipUndo（派生/系统类写入）不开撤销事务：本函数内不产生撤销记录，开事务无意义，
+    // 反而会把异步窗口内交错发生的其他记录错误归入本组（见 relationStore.add 注释）。
+    if (!opts?.skipUndo) beginTransaction()
 
     const now = new Date().toISOString()
     const forwardId = `rel-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
@@ -40,7 +47,7 @@ export function useBidirectional() {
       createdAt: now,
       updatedAt: now,
     }
-    await relationStore.add(forward)
+    await relationStore.add(forward, 'user', opts)
 
     let reverse: Relation | undefined
     if (shouldCreateInverse && inverseType && pairId) {
@@ -55,10 +62,10 @@ export function useBidirectional() {
         createdAt: now,
         updatedAt: now,
       }
-      await relationStore.add(reverse)
+      await relationStore.add(reverse, 'user', opts)
     }
 
-    commitTransaction(`创建双向关系: ${getRelationLabel(type)}`)
+    if (!opts?.skipUndo) commitTransaction(`创建双向关系: ${getRelationLabel(type)}`)
 
     return { forward, reverse }
   }

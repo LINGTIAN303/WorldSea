@@ -15,6 +15,7 @@ import suggestion from '@tiptap/suggestion'
 import type { SuggestionOptions } from '@tiptap/suggestion'
 import type { Editor } from '@tiptap/core'
 import { useEntityStore } from '@worldsea/entity-core'
+import { resolveNoteRef } from '../backlinkDerive'
 
 /** `[[ ]]` 选择器条目（MentionItem 形状——弹层复用 MentionPopover） */
 export interface NoteLinkCandidate {
@@ -157,14 +158,15 @@ export function findNoteLinkAnchor(target: EventTarget | null): HTMLElement | nu
 }
 
 /**
- * 名称 → 唯一笔记实体（md 解析用；块 1，2026-10-15）。
- * 未命中 / 多匹配（歧义，协议裁决 E 归块 2）/ 异常（store 未就绪）→ null → 字面文本回退。
+ * 名称 → 唯一笔记实体（md 解析用；块 1，2026-10-15）。块 2 阶段 1 起复用派生器的
+ * 三态解析 resolveNoteRef（单一事实源，见 backlinkDerive.ts）。
+ * 未命中 / 多匹配（歧义——协议裁决 E：不自动猜）/ 异常（store 未就绪）→ null → 字面文本回退。
  */
 function resolveNoteByName(name: string): { id: string } | null {
   try {
     const es = useEntityStore()
-    const matches = (es.entities ?? []).filter((e) => e.type === 'notebook' && e.name === name)
-    return matches.length === 1 ? { id: matches[0].id } : null
+    const hit = resolveNoteRef(name, es.entities ?? [])
+    return hit.kind === 'hit' ? { id: hit.id } : null
   } catch {
     return null
   }

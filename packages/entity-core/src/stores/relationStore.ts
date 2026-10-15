@@ -33,13 +33,20 @@ export const useRelationStore = defineStore('relation', () => {
     loading.value = false
   }
 
-  async function add(relation: Relation, source: 'user' | 'agent' | 'import' = 'user'): Promise<string> {
+  /**
+   * 添加关系。
+   * @param opts.skipUndo 跳过撤销栈记录。**仅用于派生/系统类写入**（如笔记本双链派生重算，
+   *   见 docs/plans/2026-10-15-块2-连接派生-批计划.md §2.3）：这类写入在每次保存/装载时
+   *   批量发生，若记撤销会迅速填满撤销上限（默认 20）并把用户真实操作的撤销历史挤掉；
+   *   文本级撤销由编辑器自身负责，关系随内容重算自愈。对齐 entityStore.update 的 skipUndo 模式。
+   */
+  async function add(relation: Relation, source: 'user' | 'agent' | 'import' = 'user', opts?: { skipUndo?: boolean }): Promise<string> {
     const existingId = relation.id
     await storage.putRelation(relation)
     if (!findById(existingId)) {
       push({ ...relation, id: existingId })
     }
-    if (!isUndoing) record('relation', 'add', existingId, null, { ...relation, id: existingId })
+    if (!isUndoing && !opts?.skipUndo) record('relation', 'add', existingId, null, { ...relation, id: existingId })
     getEventBus().emit('relation:create', {
       relationId: existingId,
       sourceId: relation.sourceId,
@@ -64,9 +71,10 @@ export const useRelationStore = defineStore('relation', () => {
     updateById(id, changes)
   }
 
-  async function remove(id: string, source: 'user' | 'agent' | 'import' = 'user') {
+  /** 删除关系。@param opts.skipUndo 同 add——派生/系统类写入不进撤销栈（见 add 注释）。 */
+  async function remove(id: string, source: 'user' | 'agent' | 'import' = 'user', opts?: { skipUndo?: boolean }) {
     const old = findById(id)
-    if (!isUndoing && old) record('relation', 'delete', id, { ...old }, null)
+    if (!isUndoing && !opts?.skipUndo && old) record('relation', 'delete', id, { ...old }, null)
     if (old) {
       getEventBus().emit('relation:delete', {
         relationId: id,
