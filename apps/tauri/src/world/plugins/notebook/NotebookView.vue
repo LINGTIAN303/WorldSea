@@ -164,7 +164,7 @@ import { markdownToPlainText } from '@/composables/markdownText'
 import { VIEW_MODES } from './notebookConfig'
 import type { ViewMode } from './notebookConfig'
 import type { NotebookEntity } from './types'
-import { recomputeAllNoteLinks } from './backlinkDerive'
+import { recomputeAllNoteLinks, applyNoteRename } from './backlinkDerive'
 
 interface NotebookFolder {
   id: string
@@ -535,6 +535,19 @@ async function flushPendingWrites(): Promise<void> {
     const live = notebookNotes.value.find((n) => n.id === id)
     if (!live) continue  // 已被删除，丢弃
     const partial = (item.changes.properties ?? {}) as Record<string, unknown>
+    // 块 2 阶段 3：改名检测——名字变化走「改名 + 全库引用重写」原子流程（改名与重写
+    // 打进同一条撤销记录，一次 Ctrl+Z 整体回退；重写器与建联派生共用扫描语义）。
+    // applyNoteRename 内部自兜底（不抛出），无需 try 包裹。
+    const nextName = typeof item.changes.name === 'string' ? item.changes.name : undefined
+    if (nextName !== undefined && nextName !== live.name) {
+      applyNoteRename({
+        noteId: id,
+        oldName: live.name,
+        newName: nextName,
+        changes: { ...item.changes, properties: { ...live.properties, ...partial } },
+      })
+      continue
+    }
     try {
       await entityStore.update(id, {
         ...item.changes,

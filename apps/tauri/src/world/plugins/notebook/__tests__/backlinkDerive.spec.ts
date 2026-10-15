@@ -295,6 +295,15 @@ describe('computeDesiredLinks / computeLinkDiff · 纯函数', () => {
     expect([...desired]).toEqual(['nb-B'])
   })
 
+  it('code 型笔记：desired 恒为空集（content 非 md，不参与派生）', () => {
+    const codeNote: Entity = {
+      ...makeNote('nb-X', '代码笔记'),
+      properties: { content: 'x = "[[笔记B]]"', noteType: 'code' },
+    }
+    const others = [makeNote('nb-B', '笔记B')]
+    expect(computeDesiredLinks(codeNote, others).size).toBe(0)
+  })
+
   it('diff：增删集合正确、互不相交', () => {
     const rel = (id: string, targetId: string) => ({
       id, type: 'note_link', sourceId: 'nb-A', targetId,

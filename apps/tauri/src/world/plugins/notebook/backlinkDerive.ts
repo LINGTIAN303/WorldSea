@@ -20,7 +20,7 @@
  * - 半转义 `\[[x]]`（仅转义首括号处）会被扫到（渲染上该处非链接）；
  * - 行内反引号按「先到先得最短配对」简化（GFM 复杂配对未全量复刻）。
  */
-import { useEntityStore, useRelationStore, useBidirectional } from '@worldsea/entity-core'
+import { useEntityStore, useRelationStore, useBidirectional, useUndoRedo } from '@worldsea/entity-core'
 import type { Entity, Relation } from '@worldsea/entity-core'
 
 /** 双链引用正则——与 noteLinkExt.tokenizer 同源（非 global；扫描侧克隆 global 版使用） */
@@ -95,9 +95,13 @@ export function resolveNoteRef(name: string, notes: readonly Entity[]): NoteRefR
   return { kind: 'ambiguous', ids }
 }
 
-/** 目标关系集（当前 content 应指向的笔记 id 集合）：扫描 → 解析 → 过滤（miss/歧义/自引用跳过） */
+/**
+ * 目标关系集（当前 content 应指向的笔记 id 集合）：扫描 → 解析 → 过滤（miss/歧义/自引用跳过）。
+ * code 型笔记的 content 非 md（CodeCell 不解析双链）——返回空集（其历史关系经 diff 自然清除）。
+ */
 export function computeDesiredLinks(note: Entity, notes: readonly Entity[]): Set<string> {
   const desired = new Set<string>()
+  if (note.properties?.noteType === 'code') return desired
   const md = String(note.properties?.content ?? '')
   for (const name of extractNoteRefs(md)) {
     const r = resolveNoteRef(name, notes)
@@ -204,4 +208,142 @@ export async function recomputeAllNoteLinks(): Promise<number> {
     }
   }
   return notes.length
+}
+
+// ────────────────────────────────────────────────
+// 引用重写器（阶段 3——改名治理；协议裁决 D：全库重写 S-1）
+// ────────────────────────────────────────────────
+
+/**
+ * 将一篇 md 中的 `[[旧名]]` 引用整体替换为 `[[新名]]`（协议 §3.5 / 批计划 §2.5）。
+ *
+ * 规则（与派生扫描同语义——同一围栏/反引号状态机）：
+ * - 仅替换 `trim(raw) === oldName` 的引用（顺带规范化空格形态 `[[ 旧名 ]]` → `[[新名]]`）；
+ * - 围栏代码块与行内反引号段跳过；
+ * - 转义形态（`\[\[旧名\]\]`）不匹配（字符间夹反斜杠）——「从来不是链接」的文本不重写；
+ * - 无替换时 md 原样返回（count=0）。
+ */
+export function rewriteNoteRefs(md: string, oldName: string, newName: string): { md: string; count: number } {
+  if (!md || !oldName || !newName || oldName === newName) return { md, count: 0 }
+  let count = 0
+  let fenceChar: string | null = null
+  let fenceLen = 0
+  const outLines: string[] = []
+  for (const line of md.split('\n')) {
+    if (fenceChar !== null) {
+      // 围栏内：仅识别闭合行（同字符、长度 ≥ 开启、行内除围栏仅空白）；内容原样保留
+      const close = /^ {0,3}(`{3,}|~{3,})[ \t]*$/.exec(line)
+      if (close && close[1][0] === fenceChar && close[1].length >= fenceLen) {
+        fenceChar = null
+        fenceLen = 0
+      }
+      outLines.push(line)
+      continue
+    }
+    const open = /^ {0,3}(`{3,}|~{3,})/.exec(line)
+    if (open) {
+      fenceChar = open[1][0]
+      fenceLen = open[1].length
+      outLines.push(line)
+      continue
+    }
+    const r = rewriteRefsInPlainLine(line, oldName, newName)
+    outLines.push(r.line)
+    count += r.count
+  }
+  return { md: outLines.join('\n'), count }
+}
+
+/** 单行重写：行内反引号段原样保留，仅对普通段做引用替换 */
+function rewriteRefsInPlainLine(line: string, oldName: string, newName: string): { line: string; count: number } {
+  const codeRe = /(`+)([\s\S]*?)\1/g
+  let result = ''
+  let last = 0
+  let count = 0
+  let m: RegExpExecArray | null
+  while ((m = codeRe.exec(line)) !== null) {
+    const r = replaceRefsInSegment(line.slice(last, m.index), oldName, newName)
+    result += r.segment + m[0] // 反引号段原样保留
+    count += r.count
+    last = m.index + m[0].length
+  }
+  const tail = replaceRefsInSegment(line.slice(last), oldName, newName)
+  result += tail.segment
+  count += tail.count
+  return { line: result, count }
+}
+
+/** 段内替换：同源正则匹配，`trim(raw) === oldName` 的引用整体替换为 `[[newName]]` */
+function replaceRefsInSegment(seg: string, oldName: string, newName: string): { segment: string; count: number } {
+  const re = new RegExp(NOTE_REF_RE.source, 'g')
+  let out = ''
+  let last = 0
+  let count = 0
+  let m: RegExpExecArray | null
+  while ((m = re.exec(seg)) !== null) {
+    if (m[1].trim() !== oldName) continue // 非目标引用：留待尾段原样输出
+    out += seg.slice(last, m.index) + `[[${newName}]]`
+    last = m.index + m[0].length
+    count++
+  }
+  out += seg.slice(last)
+  return { segment: out, count }
+}
+
+/**
+ * 执行笔记改名 + 全库引用重写（阶段 3；协议裁决 D：全库重写 S-1）。
+ *
+ * **原子语义**：改名本体 + 全部受影响笔记的 content 重写打进**同一条撤销记录**——
+ * 一次 Ctrl+Z 整体回退（名字 / 引用一起回；关系存 id 不存名，回退后天然一致。
+ * 撤销不触发重算：若撤销前后歧义面变化（罕见边界），由下次保存 / 进视图重算自愈）。
+ *
+ * 实现要点：
+ * - 事务窗口＝纯同步段（entityStore.update 的 record 同步入组；persist 异步跑）——
+ *   与 NotebookView.asSingleUndoStep 同模式；
+ * - code 型笔记跳过（content 非 md，不做引用重写）；
+ * - 重写命中的笔记在事务外触发重算（内容变 → 关系重导；一般因「关系存 id」而短路零写入，
+ *   歧义消解等边界由重算收敛）；
+ * - 失败兜底不抛出（console.warn）——调用方（flushPendingWrites）不因改名重写失败中断。
+ *
+ * @returns 重写涉及（替换命中）的笔记数
+ */
+export function applyNoteRename(params: {
+  noteId: string
+  oldName: string
+  newName: string
+  /** 改名 update 的载荷（name + 合并后的 properties） */
+  changes: Record<string, unknown>
+}): number {
+  const es = useEntityStore()
+  const { beginTransaction, commitTransaction, rollbackTransaction } = useUndoRedo()
+  const rewrittenIds: string[] = []
+
+  beginTransaction()
+  try {
+    // ① 改名本体（先落名；重写扫描基于名字匹配，与执行顺序无关）
+    es.update(params.noteId, params.changes, 'user')
+    // ② 全库扫描重写（纯同步段：record 全部归入本事务组）
+    for (const note of es.entities) {
+      if (note.type !== 'notebook' || note.properties?.noteType === 'code') continue
+      const md = String(note.properties?.content ?? '')
+      const r = rewriteNoteRefs(md, params.oldName, params.newName)
+      if (r.count > 0) {
+        es.update(note.id, { properties: { ...note.properties, content: r.md } }, 'user')
+        rewrittenIds.push(note.id)
+      }
+    }
+    commitTransaction(
+      `重命名笔记「${params.oldName} → ${params.newName}」（重写 ${rewrittenIds.length} 篇引用）`,
+    )
+  } catch (err) {
+    rollbackTransaction()
+    console.warn('[backlinkDerive] 改名重写失败（已回滚事务组）:', err)
+    return 0
+  }
+
+  // ③ 重写后重算（事务外；skipUndo 派生写入 + 幂等短路）
+  for (const id of rewrittenIds) {
+    void recomputeNoteLinks(id)
+  }
+  return rewrittenIds.length
 }
