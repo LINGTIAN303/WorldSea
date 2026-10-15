@@ -172,3 +172,36 @@ async function doRecompute(noteId: string): Promise<boolean> {
   }
   return true
 }
+
+/**
+ * 全量重算（进视图时机，阶段 2）：逐笔记重算 + 孤儿关系清理。
+ *
+ * - 逐笔记走 recomputeNoteLinks（幂等短路下无变化零写入；同笔记串行链自动排队）；
+ * - 孤儿清理：source / target 实体已不存在的 note_link 类记录（崩溃残留、外部直改存储兜底）——
+ *   删除笔记的常规路径已有级联清理（entityStore.remove），此处为无状态自愈的最后防线；
+ * - 失败不抛出（各步内部兜底）——返回处理的笔记数（供测试与日志）。
+ */
+export async function recomputeAllNoteLinks(): Promise<number> {
+  const es = useEntityStore()
+  const notes = es.entities.filter((e) => e.type === 'notebook')
+  for (const note of notes) {
+    await recomputeNoteLinks(note.id)
+  }
+
+  // 孤儿清理（note_link 类：source / target 实体已不存在）
+  const rs = useRelationStore()
+  const alive = new Set(es.entities.map((e) => e.id))
+  const orphans = rs.relations.filter(
+    (r) =>
+      (r.type === 'note_link' || r.type === 'note_linked_from') &&
+      (!alive.has(r.sourceId) || !alive.has(r.targetId)),
+  )
+  for (const rel of orphans) {
+    try {
+      await rs.remove(rel.id, 'user', { skipUndo: true })
+    } catch (err) {
+      console.warn('[backlinkDerive] 孤儿关系清理失败（跳过该条）:', err)
+    }
+  }
+  return notes.length
+}

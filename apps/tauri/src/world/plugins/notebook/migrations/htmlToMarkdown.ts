@@ -21,7 +21,6 @@ const MIGRATION_HOOKS: EditorExtensionHooks = {
   updateNoteLinkPopover: () => {},
   closeNoteLinkPopover: () => {},
   onNoteLinkKeyDown: () => false,
-  onNoteLinkInsert: () => {},
   currentNoteId: () => null,
 }
 

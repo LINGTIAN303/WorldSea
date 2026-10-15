@@ -2,7 +2,8 @@ import { ref, shallowRef, onMounted, onBeforeUnmount, type Ref } from 'vue'
 import { Editor } from '@tiptap/vue-3'
 import { pickImageFiles, insertImageFilesInto } from '@/composables/imageInsert'
 import { normalizeNoteContent } from '../contentNormalize'
-import { useEntityStore, useRelationStore, useBidirectional } from '@worldsea/entity-core'
+import { recomputeNoteLinks } from '../backlinkDerive'
+import { useEntityStore } from '@worldsea/entity-core'
 import { buildNotebookExtensions, fireMentionCommand, fireSlashCommand, fireNoteLinkCommand, type MentionItem } from './editorExtensions'
 import { findNoteLinkAnchor } from './noteLinkExt'
 import type { SlashCommandItem } from './slashCommandExtension'
@@ -21,8 +22,6 @@ export function useNoteEditor(
   onNavigate?: (noteId: string) => void,
 ) {
   const es = useEntityStore()
-  const relationStore = useRelationStore()
-  const { createBidirectional } = useBidirectional()
   const saveStatus = ref<SaveStatus>('saved')
   const wordCount = ref(0)
   let saveTimer: ReturnType<typeof setTimeout> | null = null
@@ -123,7 +122,8 @@ export function useNoteEditor(
           }
           return false
         },
-        onNoteLinkInsert: (targetId) => { void linkCurrentTo(targetId) },
+        // 块 2 阶段 2：onNoteLinkInsert 关系落库回调已退役——弹层选中仅插入 `[[名]]` 文本，
+        // 建联统一由保存后派生（recomputeNoteLinks，见 backlinkDerive §3.4「连接即内容的函数」）
         currentNoteId: () => loadedNoteId ?? currentNote.value?.id ?? null,
       }),
       content: '',
@@ -179,22 +179,6 @@ export function useNoteEditor(
   }
 
   /**
-   * 双链关系落库（批 3 I4）：双向 note_link，幂等（存在性检查，与 migrateBacklinks 同口径）。
-   * 删除 mark 不清理关系（挂账：BacklinkPanel 展示侧容忍）。
-   */
-  async function linkCurrentTo(targetId: string): Promise<void> {
-    const sourceId = loadedNoteId ?? currentNote.value?.id
-    if (!sourceId || sourceId === targetId) return
-    const exists = relationStore.relations.some(
-      (r) => r.type === 'note_link' &&
-        ((r.sourceId === sourceId && r.targetId === targetId) ||
-          (r.sourceId === targetId && r.targetId === sourceId)),
-    )
-    if (exists) return
-    await createBidirectional({ type: 'note_link', sourceId, targetId })
-  }
-
-  /**
    * 内容持久化。
    *
    * 自动保存类写入统一带 `skipUndo`：编辑器内容按「输入暂停」落库，每次都记撤销会迅速
@@ -205,17 +189,23 @@ export function useNoteEditor(
    * loadNote 的「切走前落盘」被 watch 触发时 props（currentNote）已是新笔记——若以它为
    * 目标，旧笔记的未落库正文会被写到**新笔记**上。properties 同理取 store 实时值，
    * 而非 props 快照（快照可能在防抖窗口内过期）。
+   *
+   * 块 2 阶段 2：落库成功后派生重算关系（await 串联——flushSave 收敛即关系收敛）；
+   * 本函数是内容落库的**唯一出口**（防抖保存 / 切走前落盘 / 卸载落盘三路径共用），
+   * 故此一处接线即覆盖全部保存路径。recomputeNoteLinks 失败不抛出（保存不因派生失败误报）。
    */
   async function persistContent(md: string): Promise<void> {
-    if (!loadedNoteId) return
-    const live = es.entityMap.get(loadedNoteId)
+    const noteId = loadedNoteId
+    if (!noteId) return
+    const live = es.entityMap.get(noteId)
     if (!live) return // 实体已不在（被删除等）——无从落盘
-    await es.update(loadedNoteId, {
+    await es.update(noteId, {
       properties: {
         ...live.properties,
         content: md,
       },
     }, 'user', { skipUndo: true })
+    await recomputeNoteLinks(noteId)
   }
 
   async function flushSave() {
@@ -256,6 +246,9 @@ export function useNoteEditor(
       editor.value.commands.setContent(md, { emitUpdate: false, contentType: 'markdown' })
       wordCount.value = editor.value.getText().length
       loadedNoteId = entity.id
+      // 块 2 阶段 2：装载后重算关系（fire-and-forget）——兜底「装载前被外部改过」
+      // （Agent 经能力桥写入 / 直改存储等）导致的陈旧关系；幂等短路，无变化零写入。
+      void recomputeNoteLinks(entity.id)
     } else if (editor.value) {
       editor.value.commands.setContent('', { emitUpdate: false })
       wordCount.value = 0

@@ -147,8 +147,7 @@
 
 <script setup lang="ts">
 import { ref, computed, reactive, watch, onMounted, onBeforeUnmount } from 'vue'
-import { useEntityStore, useRelationStore, useBidirectional, useUndoRedo } from '@worldsea/entity-core'
-import type { Relation } from '@worldsea/entity-core'
+import { useEntityStore, useUndoRedo } from '@worldsea/entity-core'
 import { WsEmpty, WsIcon, useConfirm } from '@worldsea/ui-kit'
 import NotebookEditor from './components/NotebookEditor.vue'
 import NotebookBoard from './components/NotebookBoard.vue'
@@ -165,6 +164,7 @@ import { markdownToPlainText } from '@/composables/markdownText'
 import { VIEW_MODES } from './notebookConfig'
 import type { ViewMode } from './notebookConfig'
 import type { NotebookEntity } from './types'
+import { recomputeAllNoteLinks } from './backlinkDerive'
 
 interface NotebookFolder {
   id: string
@@ -172,8 +172,6 @@ interface NotebookFolder {
 }
 
 const entityStore = useEntityStore()
-const relationStore = useRelationStore()
-const { createBidirectional } = useBidirectional()
 const { beginTransaction, commitTransaction, rollbackTransaction } = useUndoRedo()
 const currentMode = ref<ViewMode>('editor')
 const searchQuery = ref('')
@@ -553,43 +551,16 @@ watch(sidebarOpen, () => { saveSidebar() })
 // 切笔记即落库，避免防抖窗口内的改动滞留到用户看不见的地方
 watch(selectedNoteId, () => { flushPendingWrites() })
 
-onMounted(async () => {
-  await migrateBacklinks()
+onMounted(() => {
+  // 块 2 阶段 2：进视图全量重算（关系＝f(内容) 的无状态自愈）——替代 migrateBacklinks：
+  // 内容支撑的引用统一重建（幂等短路零写入）；旧 picker「无内容关系」与脏数据（孤儿关系）
+  // 在全量重算 + 孤儿清理中自然收敛（协议语义：建联＝内容的函数）。
+  // fire-and-forget：不阻塞视图渲染；完成后消费方（反链面板 / 图谱）响应式刷新。
+  void recomputeAllNoteLinks()
 })
 
 onBeforeUnmount(() => { flushPendingWrites() })
 
-async function migrateBacklinks(): Promise<void> {
-  const notesWithBacklinks = notebookNotes.value.filter((n) => {
-    const bl = n.properties?.backlinks
-    return Array.isArray(bl) && bl.length > 0
-  })
-  if (notesWithBacklinks.length === 0) return
-
-  for (const note of notesWithBacklinks) {
-    const targetIds: string[] = note.properties.backlinks || []
-    const sourceIds: string[] = note.properties.forwardLinks || []
-    for (const targetId of targetIds) {
-      const exists = relationStore.relations.some(
-        (r: Relation) => r.type === 'note_link' && r.sourceId === targetId && r.targetId === note.id
-      )
-      if (!exists) {
-        await createBidirectional({ type: 'note_link', sourceId: targetId, targetId: note.id })
-      }
-    }
-    for (const targetId of sourceIds) {
-      const exists = relationStore.relations.some(
-        (r: Relation) => r.type === 'note_link' && r.sourceId === note.id && r.targetId === targetId
-      )
-      if (!exists) {
-        await createBidirectional({ type: 'note_link', sourceId: note.id, targetId })
-      }
-    }
-    await entityStore.update(note.id, {
-      properties: { ...note.properties, backlinks: [], forwardLinks: [] },
-    }, 'user', { skipUndo: true })  // 一次性数据迁移，非用户操作，不进撤销栈
-  }
-}
 // Agent→notebook 的 8 个数据动作原经 app 级全局桥（@/agent/agentDataBridges.ts，2026-09-14 架构拍板：
 // 与视图挂载解耦、未挂载也必达）——该桥已于 2026-09-27 随旧 Agent 面退场删除；视图内无 UI 动作残留。
 </script>

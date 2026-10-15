@@ -17,7 +17,6 @@ export const noopHooks: EditorExtensionHooks = {
   updateNoteLinkPopover: () => {},
   closeNoteLinkPopover: () => {},
   onNoteLinkKeyDown: () => false,
-  onNoteLinkInsert: () => {},
   currentNoteId: () => null,
 }
 

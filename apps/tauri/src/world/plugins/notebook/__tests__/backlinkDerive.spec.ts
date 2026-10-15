@@ -27,6 +27,7 @@ import {
   computeDesiredLinks,
   computeLinkDiff,
   recomputeNoteLinks,
+  recomputeAllNoteLinks,
 } from '../backlinkDerive'
 
 function makeNote(id: string, name: string, content = '', type = 'notebook'): Entity {
@@ -229,6 +230,57 @@ describe('recomputeNoteLinks · 派生集成（真实 store + fake-indexeddb）'
 
   it('实体不存在 → 安全返回 false（不炸）', async () => {
     expect(await recomputeNoteLinks('不存在的id')).toBe(false)
+  })
+})
+
+// ────────────────────────────────────────────────
+// ③b recomputeAllNoteLinks · 全量重算（进视图时机，阶段 2）
+// ────────────────────────────────────────────────
+describe('recomputeAllNoteLinks · 全量重算（进视图时机）', () => {
+  it('全量：多篇笔记引用统一重建', async () => {
+    const es = useEntityStore()
+    const rs = useRelationStore()
+    await es.add(makeNote('nb-A', '笔记A', '[[笔记B]]'))
+    await es.add(makeNote('nb-B', '笔记B', '[[笔记A]]'))
+    await es.add(makeNote('nb-C', '笔记C', ''))
+
+    const count = await recomputeAllNoteLinks()
+    expect(count).toBe(3)
+    const links = rs.relations.filter((r) => r.type === 'note_link')
+    expect(links.map((r) => `${r.sourceId}->${r.targetId}`).sort()).toEqual(['nb-A->nb-B', 'nb-B->nb-A'])
+  })
+
+  it('幂等：无变化全量重跑 → 关系数不变（短路零写入）', async () => {
+    const es = useEntityStore()
+    const rs = useRelationStore()
+    await es.add(makeNote('nb-A', '笔记A', '[[笔记B]]'))
+    await es.add(makeNote('nb-B', '笔记B', ''))
+    await recomputeAllNoteLinks()
+    const snapshot = rs.relations.length
+    await recomputeAllNoteLinks()
+    expect(rs.relations.length).toBe(snapshot)
+    expect(snapshot).toBe(1) // note_link A→B（forward 单记录）
+  })
+
+  it('孤儿清理：源/目标实体已不存在的 note_link 被清除（无状态自愈）', async () => {
+    const es = useEntityStore()
+    const rs = useRelationStore()
+    await es.add(makeNote('nb-B', '笔记B', ''))
+    // 模拟残留（崩溃窗口 / 外部直改存储）：
+    await rs.add({
+      id: 'rel-orphan-src', type: 'note_link', sourceId: 'ghost-1', targetId: 'nb-B',
+      properties: {}, createdAt: '', updatedAt: '',
+    }, 'user', { skipUndo: true })
+    await rs.add({
+      id: 'rel-orphan-tgt', type: 'note_link', sourceId: 'nb-B', targetId: 'ghost-2',
+      properties: {}, createdAt: '', updatedAt: '',
+    }, 'user', { skipUndo: true })
+
+    await recomputeAllNoteLinks()
+    // 前者（source 不存在）任何笔记的重算都覆盖不到——只能由孤儿清理删除；
+    // 后者（source=nb-B 但 target 不存在）同时会被 nb-B 的重算自然收敛——最终态一致即可。
+    expect(rs.relations.find((r) => r.id === 'rel-orphan-src')).toBeUndefined()
+    expect(rs.relations.find((r) => r.id === 'rel-orphan-tgt')).toBeUndefined()
   })
 })
 

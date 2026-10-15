@@ -76,8 +76,8 @@ export interface EditorExtensionHooks {
   updateNoteLinkPopover: (items: NoteLinkCandidate[]) => void
   closeNoteLinkPopover: () => void
   onNoteLinkKeyDown: (event: KeyboardEvent) => boolean
-  /** 双链插入后的关系落库回调（useNoteEditor 内做幂等 note_link） */
-  onNoteLinkInsert: (targetId: string) => void
+  // 注：原 onNoteLinkInsert（选中后关系落库回调）已随块 2 阶段 2 退役——弹层选中仅插入
+  // `[[名]]` 文本；建联统一由保存后派生（backlinkDerive.recomputeNoteLinks）。
   /** 当前笔记 id（双链选择器排除自身；null = 未打开笔记不出弹层） */
   currentNoteId: () => string | null
 }
@@ -176,8 +176,8 @@ export function buildNotebookExtensions(hooks: EditorExtensionHooks): any[] {
           return all.filter(i => i.name.toLowerCase().includes(q)).slice(0, 20)
         },
         command: ({ editor, range, props }: { editor: Editor; range: { from: number; to: number }; props: NoteLinkCandidate }) => {
+          // 仅插入 `[[名]]` 文本（块 2 阶段 2：建联由保存后派生，不再即席落库）
           insertNoteLink(editor, range, props)
-          hooks.onNoteLinkInsert(props.id)
         },
         render: () => ({
           onStart: (props) => {
@@ -319,14 +319,15 @@ export function fireSlashCommand(item: SlashCommandItem): void {
   slashCommandRef?.({ id: item.id, label: item.label })
 }
 
-/** 双链：弹层选中的条目回灌给 suggestion 命令句柄 → 框架执行 insertNoteLink + 关系落库 */
+/** 双链：弹层选中的条目回灌给 suggestion 命令句柄 → 框架执行 insertNoteLink
+ *（仅插入文本；建联由保存后派生落库——块 2 阶段 2） */
 export function fireNoteLinkCommand(item: { id: string; name: string }): void {
   noteLinkCommandRef?.({ ...item })
 }
 
 /**
  * 名称 → 唯一实体（md 解析用；块 1，2026-10-15）。
- * 未命中 / 多匹配（歧义归块 2）/ 异常（store 未就绪）→ null → 字面文本回退。
+ * 未命中 / 多匹配（歧义——裁决 E：不自动猜，编辑器高亮后置）/ 异常（store 未就绪）→ null → 字面文本回退。
  */
 function resolveEntityByName(name: string): { id: string } | null {
   try {
