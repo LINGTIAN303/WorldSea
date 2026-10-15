@@ -161,11 +161,12 @@ const backlinkNotes = computed(() => {
 
 /**
  * 富文本正文不再经本组件回写 —— 见 useNoteEditor：它独占持久化富文本正文
- * （300ms 防抖 + skipUndo）。此处只同步本地状态，供 CodeCell 的 code 型取值。
+ * （300ms 防抖 + skipUndo）。此处只同步本地状态（md 形态，块 1 阶段 3 起），
+ * 供 CodeCell 的 code 型取值。
  * 此前每次按键都会 emit → 与 useNoteEditor 形成「一次输入两次写库」的双写入。
  */
-function onContentChange(html: string): void {
-  editContent.value = html
+function onContentChange(md: string): void {
+  editContent.value = md
 }
 
 /**

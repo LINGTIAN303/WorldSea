@@ -1,7 +1,5 @@
 import type { WorldPluginApi } from '../../api'
 import NotebookView from './NotebookView.vue'
-import { registerIngestNormalizer } from '@worldsea/entity-core'
-import { normalizeNoteContent } from './contentNormalize'
 
 export const manifest = {
   id: 'official.notebook',
@@ -33,17 +31,9 @@ export function apply(_ctx: unknown, api: WorldPluginApi) {
     ],
   })
 
-  // 装载网关归一器（2026-10-11）：外部写入的 markdown 纯文本正文在进 store 前
-  // 渲染为 HTML —— Agent 写的标题/表格/代码块打开即得渲染，编辑器/预览/导出零兜底。
-  // 幂等（HTML 放行）；无变化返回原引用，不触发响应式抖动。
-  registerIngestNormalizer('notebook', (entity) => {
-    const content = entity.properties?.content
-    if (typeof content !== 'string') return entity
-    const normalized = normalizeNoteContent(content)
-    return normalized === content
-      ? entity
-      : { ...entity, properties: { ...entity.properties, content: normalized } }
-  })
+  // 【块 1 阶段 3（2026-10-15）】装载网关归一器已退役：正文真相源＝md，装载走
+  // contentType:'markdown' 直装；解析前容错（contentNormalize.normalizeNoteContent）
+  // 移至 useNoteEditor 装载边界调用。原「md 纯文本 → HTML 渲染」职能随转型取消。
 
   api.registerView({ id: 'notebook', label: '笔记本', icon: 'notebook', component: NotebookView })
 }

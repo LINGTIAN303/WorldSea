@@ -62,6 +62,47 @@ export const NotebookImage = Image.extend({
     if (styleParts.length) attrs.style = styleParts.join(';')
     return ['img', mergeAttributes(this.options.HTMLAttributes, attrs)]
   },
+  /**
+   * Markdown 序列化（块 1，2026-10-15；协议 D-3 裁决 B）：
+   * - 无尺寸 / 对齐 → 标准图片语法 `![alt](src)`（与官方默认行为一致）；
+   * - 有尺寸 / 对齐 → 内嵌 HTML `<img width height data-align style>`（尺寸属「可能离开
+   *   系统」的呈现信息，走标准语法；style 与 renderHTML 同源合成，两端口径一致）。
+   * 解析侧由官方 parseHTML 规则接住（width/height/align 进 attrs——冒烟已实证）。
+   */
+  renderMarkdown(node, helpers) {
+    void helpers
+    const attrs = (node.attrs ?? {}) as {
+      src?: string | null
+      alt?: string | null
+      width?: number | string | null
+      height?: number | string | null
+      align?: string | null
+    }
+    const src = attrs.src ?? ''
+    const alt = attrs.alt ?? ''
+    const align = attrs.align ?? null
+    const hasSize = attrs.width != null || attrs.height != null
+    if (!hasSize && !align) {
+      return `![${alt}](${src})`
+    }
+    const parts = [`src="${escapeHtmlAttr(src)}"`]
+    if (alt) parts.push(`alt="${escapeHtmlAttr(alt)}"`)
+    if (attrs.width != null) parts.push(`width="${Number(attrs.width)}"`)
+    if (attrs.height != null) parts.push(`height="${Number(attrs.height)}"`)
+    if (align) parts.push(`data-align="${escapeHtmlAttr(align)}"`)
+    const styleParts = alignStyleParts(align)
+    if (styleParts.length) parts.push(`style="${styleParts.join(';')}"`)
+    return `<img ${parts.join(' ')}>`
+  },
 })
+
+/** 内嵌 HTML 属性值转义（renderMarkdown 输出用；覆盖 & < > "） */
+function escapeHtmlAttr(v: string): string {
+  return v
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
 
 export default NotebookImage

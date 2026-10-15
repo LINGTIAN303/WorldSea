@@ -55,7 +55,7 @@ export type DocxBlock =
   | { kind: 'listItem'; ordered: boolean; listId: number; level: number; runs: DocxRun[] }
   | { kind: 'code'; lines: string[] }
   | { kind: 'hr' }
-  | { kind: 'image'; src: string; alt?: string }
+  | { kind: 'image'; src: string; alt?: string; width?: number; height?: number }
   | { kind: 'table'; rows: DocxRowIr[] }
 
 interface ParseState {
@@ -220,7 +220,19 @@ function walkBlocks(parent: Element, quote: boolean, state: ParseState, out: Doc
       // src 通常是 data URL（本地图片 MVP 存储），也可能是外部 URL —— 由映射层决定
       // 真实嵌入或占位降级（解析层不做 IO）。
       const src = el.getAttribute('src') || ''
-      if (src) out.push({ kind: 'image', src, ...(el.getAttribute('alt') ? { alt: el.getAttribute('alt') as string } : {}) })
+      // 块 1 阶段 3 顺带：尺寸透传——编辑器拖拽落库的 width/height（数字属性）进 IR，
+      // 映射层优先采用（缺省回退图片头读数）。
+      const w = Number(el.getAttribute('width'))
+      const h = Number(el.getAttribute('height'))
+      if (src) {
+        out.push({
+          kind: 'image',
+          src,
+          ...(el.getAttribute('alt') ? { alt: el.getAttribute('alt') as string } : {}),
+          ...(Number.isFinite(w) && w > 0 ? { width: w } : {}),
+          ...(Number.isFinite(h) && h > 0 ? { height: h } : {}),
+        })
+      }
     } else if (tag === 'TABLE') {
       out.push(parseTable(el))
     } else {

@@ -144,9 +144,11 @@ function imageBlockToDocx(block: Extract<DocxBlock, { kind: 'image' }>, base: Ru
   }
   try {
     const bytes = decodeBase64(parsed.base64)
-    // 尺寸优先读图片头（无变形）；读不出（ exotic 编码/损坏）退默认 480×320 ——
-    // 比例可能不准，但比「整个图片因缺 transformation 而无法生成」可取
-    const dims = readImageSize(bytes, parsed.mime) ?? { width: 480, height: 320 }
+    // 尺寸优先级（块 1 阶段 3 起）：① IR 透传（编辑器拖拽落库的 width/height——用户意图）；
+    // ② 图片头读数（无变形）；③ 默认 480×320（exotic 编码/损坏——比例可能不准，但比
+    // 「整个图片因缺 transformation 而无法生成」可取）
+    const fromIr = block.width && block.height ? { width: block.width, height: block.height } : null
+    const dims = fromIr ?? readImageSize(bytes, parsed.mime) ?? { width: 480, height: 320 }
     const { width, height } = clampImageDims(dims)
     return [new Paragraph({
       children: [new ImageRun({ type, data: bytes, transformation: { width, height } })],

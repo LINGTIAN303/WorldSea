@@ -141,6 +141,15 @@ describe('htmlToDocxBlocks · HTML → IR', () => {
     expect(blocks[1]).toEqual({ kind: 'image', src: 'data:image/png;base64,AAAA', alt: '截图' })
   })
 
+  it('img 尺寸透传（块 1 阶段 3）：width/height 数字属性进 IR；非法值不产字段', () => {
+    const withSize = htmlToBlocks('<img src="data:image/png;base64,AAAA" width="300" height="200">')
+    expect(withSize[0]).toEqual({
+      kind: 'image', src: 'data:image/png;base64,AAAA', width: 300, height: 200,
+    })
+    const badSize = htmlToBlocks('<img src="data:image/png;base64,AAAA" width="abc">')
+    expect(badSize[0]).toEqual({ kind: 'image', src: 'data:image/png;base64,AAAA' })
+  })
+
   it('无 src 的 img 不产块', () => {
     expect(htmlToBlocks('<img alt="空">')).toEqual([])
   })

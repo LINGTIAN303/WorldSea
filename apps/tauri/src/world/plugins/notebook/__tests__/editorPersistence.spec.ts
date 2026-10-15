@@ -70,8 +70,8 @@ describe('笔记本编辑器 · 切换窗口 · 脏内容归属（回归）', ()
     const es = useEntityStore(pinia)
     updateSpy = vi.spyOn(es, 'update') // 保留真实实现，仅记录调用参数
 
-    const A = makeNote('nb-A', '<p>甲内容</p>')
-    const B = makeNote('nb-B', '<p>乙内容</p>')
+    const A = makeNote('nb-A', '甲内容')
+    const B = makeNote('nb-B', '乙内容')
     await es.add(A, 'user')
     await es.add(B, 'user')
 
@@ -122,7 +122,7 @@ describe('笔记本编辑器 · 同 id 回流短路（回归）', () => {
 
   it('同笔记同内容的 loadNote 短路：选区保持不塌缩（自动保存回流场景）', async () => {
     const es = useEntityStore(pinia)
-    const A = makeNote('nb-A2', '<p>甲内容</p>')
+    const A = makeNote('nb-A2', '甲内容')
     await es.add(A, 'user')
 
     const currentRef = ref<Entity | null>(A)
@@ -156,7 +156,7 @@ describe('NotebookTipTapEditor · 保存回流不打断输入（组件级回归�
 
   it('props 换引用（同 id 保存回流）不重载、选区保持；切换笔记仍正常重载', async () => {
     const es = useEntityStore(pinia)
-    const A = makeNote('nb-C1', '<p>甲一</p>')
+    const A = makeNote('nb-C1', '甲一')
     await es.add(A, 'user')
 
     const wrapper = mount(NotebookTipTapEditor, {
@@ -177,7 +177,7 @@ describe('NotebookTipTapEditor · 保存回流不打断输入（组件级回归�
     ed.commands.setTextSelection(2)
     const before = ed.state.selection.from
     const liveProps = es.entities.find((e) => e.id === 'nb-C1')!.properties ?? {}
-    await es.update('nb-C1', { properties: { ...liveProps, content: ed.getHTML() } }, 'user', { skipUndo: true })
+    await es.update('nb-C1', { properties: { ...liveProps, content: ed.getMarkdown() } }, 'user', { skipUndo: true })
     const liveA = es.entities.find((e) => e.id === 'nb-C1')!
     await wrapper.setProps({ note: liveA })
     await drain()
@@ -185,7 +185,7 @@ describe('NotebookTipTapEditor · 保存回流不打断输入（组件级回归�
     expect(ed.state.selection.from, '回流（props 换引用）不得重置选区').toBe(before)
 
     // 切换笔记 → 仍正常重载（防「改按 id 后切换失效」的回退）
-    const B = makeNote('nb-C2', '<p>乙二</p>')
+    const B = makeNote('nb-C2', '乙二')
     await es.add(B, 'user')
     const liveB = es.entities.find((e) => e.id === 'nb-C2')!
     await wrapper.setProps({ note: liveB })

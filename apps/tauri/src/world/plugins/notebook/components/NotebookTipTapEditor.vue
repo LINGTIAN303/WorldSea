@@ -127,7 +127,7 @@
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { EditorContent } from '@tiptap/vue-3'
 import { WsIcon } from '@worldsea/ui-kit'
-import { sanitizeMarkdownHtml } from '@worldsea/shared-ui/markdown'
+import { renderMarkdownForEditor } from '@worldsea/shared-ui/markdown'
 import MentionPopover from './MentionPopover.vue'
 import SlashCommandMenu from './SlashCommandMenu.vue'
 import BubbleToolbar from './BubbleToolbar.vue'
@@ -150,7 +150,7 @@ type SlashCommandPopoverApi = {
 }
 
 const props = defineProps<{ note: Entity }>()
-const emit = defineEmits<{ contentChange: [html: string]; navigate: [noteId: string] }>()
+const emit = defineEmits<{ contentChange: [md: string]; navigate: [noteId: string] }>()
 
 /** 三态视图（批 4 V8/I10）：编辑 / 分栏 / 预览 */
 type EditorViewMode = 'edit' | 'split' | 'preview'
@@ -344,11 +344,10 @@ function schedulePreviewRefresh(): void {
 }
 
 const previewHtml = computed(() => {
-  // 编辑器产物是 HTML（非 markdown）——历史实现 marked.parse(getHTML()) 是概念错位：
-  // HTML passthrough 靠运气，而未解析的外部 md 文本反而会在预览「突然」渲染，与编辑态
-  // 自相矛盾。现与编辑态同源：HTML 经 DOMPurify 消毒直渲染（2026-10-11 装载网关配套）。
+  // 块 1 阶段 3：预览渲染源＝编辑器 md（真相源形态）→ marked 渲染链（renderMarkdownForEditor，
+  // 与装载/导出同源；内含 DOMPurify 消毒与未闭合围栏降级）。协议 §3.1：HTML 作渲染中间态保留。
   void previewTick.value
-  return sanitizeMarkdownHtml(editor.value?.getHTML() || '')
+  return renderMarkdownForEditor(editor.value?.getMarkdown() || '')
 })
 
 // ── 分栏滚动同步（批 4 V8/I10）：标题锚点映射 + 双向防环 ──

@@ -2,7 +2,8 @@
  * editorExtensions — 笔记本编辑器扩展集组装（批 1，2026-10-12）。
  *
  * 从 useNoteEditor 的内联扩展清单收敛至此，职责：
- * ① 组装全部扩展（StarterKit 减 codeBlock 让位给增强版；任务列表；表格；图片；mention；斜杠命令）；
+ * ① 组装全部扩展（StarterKit 减 codeBlock 让位给增强版；任务列表；表格；图片；mention；斜杠命令；
+ *    Markdown —— md 往返底座，块 1 接线）；
  * ② **marked GFM 任务列表兼容**：装载网关把 Agent 写的 `- [ ] 待办` 渲染成
  *    `<li><input disabled type="checkbox"> 文本</li>`（marked 18 实证形态，无 class 无 data-*），
  *    官方 TaskItem 只认 `li[data-type="taskItem"]` —— 此处 extend parseHTML 兼容：匹配普通 li
@@ -15,6 +16,7 @@
  */
 import StarterKit from '@tiptap/starter-kit'
 import Mention from '@tiptap/extension-mention'
+import { Markdown } from '@tiptap/markdown'
 import { TaskList, TaskItem } from '@tiptap/extension-list'
 import { TableKit } from '@tiptap/extension-table'
 import type { Editor } from '@tiptap/core'
@@ -91,6 +93,9 @@ export function buildNotebookExtensions(hooks: EditorExtensionHooks): any[] {
       // 编辑态链接不可点开（打断编辑流）；外链走预览态
       link: { openOnClick: false },
     }),
+    // md 往返底座（块 1，2026-10-15）：解析/序列化用官方 marked 内核，与渲染链同源；
+    // 缩进 2 空格与协议一致。自定义节点 handler 见各自扩展（notebookImage / noteLinkExt / Mention）。
+    Markdown.configure({ indentation: { style: 'space', size: 2 } }),
     CodeBlockEnhanced,
     // 任务列表：官方结构（li[data-type=taskItem]）+ marked GFM 兼容（实证形态：
     // `<ul><li><input disabled type="checkbox"> 文本</li></ul>`，无 class 无 data-*）。
@@ -192,7 +197,35 @@ export function buildNotebookExtensions(hooks: EditorExtensionHooks): any[] {
         }),
       },
     }),
-    Mention.configure({
+    Mention.extend({
+      // ── Markdown 往返（块 1，2026-10-15；协议裁决 A：`@实体名` 文本直写 + 解析匹配）──
+      // 序列化：节点 → `@label`（inline 文本）；解析：tokenizer 识别 `@词形` → 查库唯一命中
+      // → mention 节点；未命中 / 多匹配（歧义归块 2）→ 字面文本回退（email 等误形态同理，
+      // 「实体唯一命中」为最终防线）。
+      markdownTokenName: 'mention',
+      markdownTokenizer: {
+        name: 'mention',
+        level: 'inline',
+        // 显式 start：省略时 manager 以「全串 tokenize 探测」定位，锚定正则必然落空
+        start: (src: string) => src.indexOf('@'),
+        tokenize(src: string) {
+          const m = /^@([\u4e00-\u9fa5A-Za-z0-9_]{1,30})/.exec(src)
+          if (!m) return undefined
+          return { type: 'mention', raw: m[0] }
+        },
+      },
+      parseMarkdown(token, helpers) {
+        const raw = String((token as { raw?: string }).raw ?? '')
+        const m = /^@([\u4e00-\u9fa5A-Za-z0-9_]{1,30})/.exec(raw)
+        const label = m ? m[1] : ''
+        const hit = label ? resolveEntityByName(label) : null
+        if (!hit) return { type: 'text', text: raw || `@${label}` }
+        return helpers.createNode('mention', { id: hit.id, label })
+      },
+      renderMarkdown(node) {
+        return `@${node.attrs?.label ?? ''}`
+      },
+    }).configure({
       HTMLAttributes: { class: 'nb-mention' },
       suggestion: {
         char: '@',
@@ -289,4 +322,18 @@ export function fireSlashCommand(item: SlashCommandItem): void {
 /** 双链：弹层选中的条目回灌给 suggestion 命令句柄 → 框架执行 insertNoteLink + 关系落库 */
 export function fireNoteLinkCommand(item: { id: string; name: string }): void {
   noteLinkCommandRef?.({ ...item })
+}
+
+/**
+ * 名称 → 唯一实体（md 解析用；块 1，2026-10-15）。
+ * 未命中 / 多匹配（歧义归块 2）/ 异常（store 未就绪）→ null → 字面文本回退。
+ */
+function resolveEntityByName(name: string): { id: string } | null {
+  try {
+    const es = useEntityStore()
+    const matches = (es.entities ?? []).filter((e: Entity) => e.name === name)
+    return matches.length === 1 ? { id: matches[0].id } : null
+  } catch {
+    return null
+  }
 }

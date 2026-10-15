@@ -161,6 +161,7 @@ import { resolveEntityDataDir } from '@/composables/workspace'
 import { toastInfo, toastSuccess, toastWarn } from '@/composables/useToast'
 import { collectAssetDiskPaths, deleteOrphanAssets, findOrphanAssets, listAssetFiles } from '@/composables/imageAssets'
 import { isSupportedAsset } from './assetFilter'
+import { markdownToPlainText } from '@/composables/markdownText'
 import { VIEW_MODES } from './notebookConfig'
 import type { ViewMode } from './notebookConfig'
 import type { NotebookEntity } from './types'
@@ -315,9 +316,9 @@ function togglePin(noteId: string): void {
   })
 }
 
-/** 正文以 TipTap HTML 存储，检索前剥标签，避免 `<p>`/`<strong>` 之类标签命中产生噪声 */
-function plainText(html?: string): string {
-  return (html || '').replace(/<[^>]*>/g, ' ')
+/** 正文检索文本：剥 md 标记（单源 `@/composables/markdownText`，块 1 阶段 3）；压平保证摘要单行 */
+function plainText(md?: string): string {
+  return markdownToPlainText(md).replace(/\s+/g, ' ')
 }
 
 /**

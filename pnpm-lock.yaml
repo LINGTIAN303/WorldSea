@@ -336,6 +336,9 @@ importers:
       '@tiptap/extension-table':
         specifier: 3.29.1
         version: 3.29.1(@tiptap/core@3.29.1(@tiptap/pm@3.29.1))(@tiptap/pm@3.29.1)
+      '@tiptap/markdown':
+        specifier: 3.29.1
+        version: 3.29.1(@tiptap/core@3.29.1(@tiptap/pm@3.29.1))(@tiptap/pm@3.29.1)
       '@tiptap/pm':
         specifier: 3.29.1
         version: 3.29.1
@@ -1756,6 +1759,12 @@ packages:
       '@tiptap/core': 3.29.1
       '@tiptap/pm': 3.29.1
 
+  '@tiptap/markdown@3.29.1':
+    resolution: {integrity: sha512-Q+pUnCeMOoD2cLgRPwmEYnsa6R0osKpXvXToNsnrZ9HNu80zDsdisRm5F0cmVVA2aZ1wOAIzGn3gWyTg8ZIL4w==}
+    peerDependencies:
+      '@tiptap/core': 3.29.1
+      '@tiptap/pm': 3.29.1
+
   '@tiptap/pm@3.29.1':
     resolution: {integrity: sha512-fAzlr2RoV9amvMzioJ0dJHtehsMAO8RZktA9XwDk/Qy+WwgMjlCi9g19d4e6cR/WEwaC5KBsQkAyaWzQYGFxAA==}
 
@@ -2723,6 +2732,11 @@ packages:
 
   marked@16.1.2:
     resolution: {integrity: sha512-rNQt5EvRinalby7zJZu/mB+BvaAY2oz3wCuCjt1RDrWNpS1Pdf9xqMOeC9Hm5adBdcV/3XZPJpG58eT+WBc0XQ==}
+    engines: {node: '>= 20'}
+    hasBin: true
+
+  marked@17.0.6:
+    resolution: {integrity: sha512-gB0gkNafnonOw0obSTEGZTT86IuhILt2Wfx0mWH/1Au83kybTayroZ/V6nS25mN7u8ASy+5fMhgB3XPNrOZdmA==}
     engines: {node: '>= 20'}
     hasBin: true
 
@@ -4498,6 +4512,12 @@ snapshots:
       '@tiptap/core': 3.29.1(@tiptap/pm@3.29.1)
       '@tiptap/pm': 3.29.1
 
+  '@tiptap/markdown@3.29.1(@tiptap/core@3.29.1(@tiptap/pm@3.29.1))(@tiptap/pm@3.29.1)':
+    dependencies:
+      '@tiptap/core': 3.29.1(@tiptap/pm@3.29.1)
+      '@tiptap/pm': 3.29.1
+      marked: 17.0.6
+
   '@tiptap/pm@3.29.1':
     dependencies:
       prosemirror-changeset: 2.4.1
@@ -5589,6 +5609,8 @@ snapshots:
       xmlbuilder: 10.1.1
 
   marked@16.1.2: {}
+
+  marked@17.0.6: {}
 
   marked@18.0.7: {}
 

@@ -48,6 +48,7 @@
     "@tiptap/extension-list": "3.29.1",
     "@tiptap/extension-mention": "^3.29.1",
     "@tiptap/extension-table": "3.29.1",
+    "@tiptap/markdown": "3.29.1",
     "@tiptap/pm": "3.29.1",
     "@tiptap/starter-kit": "^3.29.1",
     "@tiptap/suggestion": "^3.29.1",

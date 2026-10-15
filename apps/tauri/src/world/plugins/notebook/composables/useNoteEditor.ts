@@ -1,7 +1,7 @@
 import { ref, shallowRef, onMounted, onBeforeUnmount, type Ref } from 'vue'
 import { Editor } from '@tiptap/vue-3'
 import { pickImageFiles, insertImageFilesInto } from '@/composables/imageInsert'
-import { plainTextToEditorHtml } from '@/composables/plainTextToEditorHtml'
+import { normalizeNoteContent } from '../contentNormalize'
 import { useEntityStore, useRelationStore, useBidirectional } from '@worldsea/entity-core'
 import { buildNotebookExtensions, fireMentionCommand, fireSlashCommand, fireNoteLinkCommand, type MentionItem } from './editorExtensions'
 import { findNoteLinkAnchor } from './noteLinkExt'
@@ -17,7 +17,7 @@ type SaveStatus = 'saved' | 'saving' | 'unsaved'
  */
 export function useNoteEditor(
   currentNote: Ref<Entity | null>,
-  onContentChange?: (html: string) => void,
+  onContentChange?: (md: string) => void,
   onNavigate?: (noteId: string) => void,
 ) {
   const es = useEntityStore()
@@ -158,10 +158,10 @@ export function useNoteEditor(
         },
       },
       onUpdate: ({ editor: ed }) => {
-        // 批 5 F5（2026-10-12，「先量化再优化」）：**不要**在每键路径调 getHTML()。
+        // 批 5 F5（2026-10-12，「先量化再优化」）：**不要**在每键路径调 getHTML()/getMarkdown()。
         // 实测（notebookPerf.bench）：大文档全量序列化 10k≈7ms / 50k≈38ms，而单键
-        // transaction 本身仅 ~0.6-1.1ms —— 每键 getHTML 是输入延迟的头号来源。
-        // contentChange 的 HTML 改由 flushSave（300ms 防抖）与卸载路径统一发出；
+        // transaction 本身仅 ~0.6-1.1ms —— 每键全量序列化是输入延迟的头号来源。
+        // contentChange 的 md 改由 flushSave（300ms 防抖）与卸载路径统一发出；
         // 下游（NotebookEditor.editContent）仅是本地状态同步，无实时性依赖。
         const text = ed.getText()
         wordCount.value = text.length
@@ -206,26 +206,26 @@ export function useNoteEditor(
    * 目标，旧笔记的未落库正文会被写到**新笔记**上。properties 同理取 store 实时值，
    * 而非 props 快照（快照可能在防抖窗口内过期）。
    */
-  async function persistContent(html: string): Promise<void> {
+  async function persistContent(md: string): Promise<void> {
     if (!loadedNoteId) return
     const live = es.entityMap.get(loadedNoteId)
     if (!live) return // 实体已不在（被删除等）——无从落盘
     await es.update(loadedNoteId, {
       properties: {
         ...live.properties,
-        content: html,
+        content: md,
       },
     }, 'user', { skipUndo: true })
   }
 
   async function flushSave() {
     if (!currentNote.value || !editor.value) return
-    const html = editor.value.getHTML()
+    const md = editor.value.getMarkdown()
     // 批 5 F5：contentChange 与落库同帧发出（替代原「每键」调用——见 onUpdate 注释）
-    if (onContentChange) onContentChange(html)
+    if (onContentChange) onContentChange(md)
     saveStatus.value = 'saving'
     try {
-      await persistContent(html)
+      await persistContent(md)
       saveStatus.value = 'saved'
     } catch {
       saveStatus.value = 'unsaved'
@@ -241,19 +241,19 @@ export function useNoteEditor(
     // watch 触发本次 loadNote 时 props 已是新笔记，以 currentNote 为目标会把旧笔记的
     // 未落库正文写到新笔记上（2026-10-11 修复，回归测试锁定）。
     if (editor.value && loadedNoteId && saveStatus.value === 'unsaved') {
-      void persistContent(editor.value.getHTML())
+      void persistContent(editor.value.getMarkdown())
     }
     if (entity && editor.value) {
-      // 纯文本归一：JSON 外部写入的 \n 在 HTML 语境会被折叠成空格，加载边界拆成 <p> 段
-      // （装载网关已把 md 归一为 HTML，此处为网关外的最后兜底——已是 HTML 的内容原样放行）
-      const content = plainTextToEditorHtml((entity.properties.content as string) || '')
+      // 块 1 阶段 3：装载＝md 直装（正文真相源）；解析前容错（表格空行修复等）在此边界施加，
+      // 不改写存储原文（见 contentNormalize 头注释）。
+      const md = normalizeNoteContent((entity.properties.content as string) || '')
       // 同一篇笔记的回流/外部更新**不重载**：内容一致（自动保存回流）或编辑器持焦
       // （用户输入中）→ 直接短路。setContent 是全文档 replaceWith，会重置选区——
-      // 重载即「光标跳走」（2026-10-11 修复，回归测试锁定）。
-      if (loadedNoteId === entity.id && (content === editor.value.getHTML() || editor.value.isFocused)) {
+      // 重载即「光标跳走」（2026-10-11 修复，回归测试锁定）。比较基准＝md 形态。
+      if (loadedNoteId === entity.id && (md === editor.value.getMarkdown() || editor.value.isFocused)) {
         return
       }
-      editor.value.commands.setContent(content, { emitUpdate: false })
+      editor.value.commands.setContent(md, { emitUpdate: false, contentType: 'markdown' })
       wordCount.value = editor.value.getText().length
       loadedNoteId = entity.id
     } else if (editor.value) {
@@ -264,8 +264,9 @@ export function useNoteEditor(
     saveStatus.value = 'saved'
   }
 
-  function getHTML(): string {
-    return editor.value?.getHTML() || ''
+  /** 当前内容（md 形态——块 1 阶段 3 起正文真相源＝md） */
+  function getMarkdown(): string {
+    return editor.value?.getMarkdown() || ''
   }
 
   function getText(): string {
@@ -281,10 +282,10 @@ export function useNoteEditor(
       saveTimer = null
     }
     if (editor.value && loadedNoteId && saveStatus.value === 'unsaved') {
-      const html = editor.value.getHTML()
-      void persistContent(html)
+      const md = editor.value.getMarkdown()
+      void persistContent(md)
       // 批 5 F5：卸载路径同样补发 contentChange（防抖窗口内切走/切类型时下游拿到最新）
-      if (onContentChange) onContentChange(html)
+      if (onContentChange) onContentChange(md)
     }
     editor.value?.destroy()
     editor.value = undefined
@@ -296,7 +297,7 @@ export function useNoteEditor(
     wordCount,
     loadNote,
     flushSave,
-    getHTML,
+    getMarkdown,
     getText,
     setMentionPopover,
     setNoteLinkPopover,

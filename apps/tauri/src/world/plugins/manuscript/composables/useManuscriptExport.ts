@@ -1,5 +1,7 @@
 import type { Entity } from '@worldsea/entity-core'
 import { useFontStore } from '@/stores/fontStore'
+import { renderMarkdownForEditor } from '@worldsea/shared-ui/markdown'
+import { markdownToPlainText } from '@/composables/markdownText'
 
 function stripHTML(html: string): string {
   const div = document.createElement('div')
@@ -16,26 +18,47 @@ function htmlToText(html: string, includeTitle: boolean, title: string): string 
   return paragraphs
 }
 
+/**
+ * 正文双形态解析（块 1 过渡期，2026-10-15）：
+ * - notebook：content 为 md（真相源）——html 由渲染链（marked）按需生成；
+ * - 其它类型（manuscript 等）：content 仍为 HTML（自身转型后续批——届时本分支退役）。
+ */
+function resolveContent(entity: Entity): { md: string; html: string } {
+  const raw = (entity.properties.content as string) || ''
+  if (entity.type === 'notebook') {
+    return { md: raw, html: renderMarkdownForEditor(raw) }
+  }
+  return { md: '', html: raw }
+}
+
+/** 章节级 frontmatter（md 导出；原 htmlToMarkdown 内联逻辑抽出，notebook 直出路径复用） */
+function chapterFrontmatter(entity: Entity): string {
+  return [
+    '---',
+    `title: "${entity.name}"`,
+    `status: ${entity.properties.status || '草稿'}`,
+    `wordCount: ${entity.properties.wordCount || 0}`,
+    `createdAt: ${entity.createdAt}`,
+    '---',
+    '',
+  ].join('\n')
+}
+
+/** notebook md 导出正文（原文直出，零转换；含 frontmatter 时前置） */
+function notebookMarkdownBody(entity: Entity, includeFrontmatter: boolean): string {
+  const raw = (entity.properties.content as string) || ''
+  return includeFrontmatter ? chapterFrontmatter(entity) + raw : raw
+}
+
 async function htmlToMarkdown(html: string, includeFrontmatter: boolean, entity: Entity): Promise<string> {
+  // manuscript 路径（HTML→md，Turndown）；notebook 走 md 原文直出（见 exportChapter）
   const { default: TurndownService } = await import('turndown')
   const turndown = new TurndownService({
     headingStyle: 'atx',
     bulletListMarker: '-',
   })
-  let md = turndown.turndown(html)
-  if (includeFrontmatter) {
-    const fm = [
-      '---',
-      `title: "${entity.name}"`,
-      `status: ${entity.properties.status || '草稿'}`,
-      `wordCount: ${entity.properties.wordCount || 0}`,
-      `createdAt: ${entity.createdAt}`,
-      '---',
-      '',
-    ].join('\n')
-    md = fm + md
-  }
-  return md
+  const md = turndown.turndown(html)
+  return includeFrontmatter ? chapterFrontmatter(entity) + md : md
 }
 
 /**
@@ -85,22 +108,29 @@ export function useManuscriptExport() {
     format: 'txt' | 'md' | 'docx',
     options: { includeTitle?: boolean; includeFrontmatter?: boolean } = {}
   ) {
-    const html = (entity.properties.content as string) || ''
+    const { md: mdSource, html } = resolveContent(entity)
+    const isNotebook = entity.type === 'notebook'
     const title = entity.name
     const safeName = title.replace(/[/\\?%*:|"<>]/g, '_')
 
     switch (format) {
       case 'txt': {
-        const text = htmlToText(html, options.includeTitle !== false, title)
+        // notebook：md 剥标记 → 纯文本；manuscript：HTML 剥标签（现状）
+        const body = isNotebook ? markdownToPlainText(mdSource) : htmlToText(html, false, '')
+        const text = (options.includeTitle !== false && title) ? `${title}\n\n${body}` : body
         downloadText(text, `${safeName}.txt`)
         break
       }
       case 'md': {
-        const md = await htmlToMarkdown(html, options.includeFrontmatter !== false, entity)
+        // notebook：md 原文直出（零转换）；manuscript：Turndown（现状）
+        const md = isNotebook
+          ? notebookMarkdownBody(entity, options.includeFrontmatter !== false)
+          : await htmlToMarkdown(html, options.includeFrontmatter !== false, entity)
         downloadText(md, `${safeName}.md`, 'text/markdown')
         break
       }
       case 'docx': {
+        // html 已由 resolveContent 分流备好（notebook：md→HTML 渲染链；manuscript：原 HTML）
         const blob = await htmlToDocx(html, title, options.includeTitle !== false)
         downloadBlob(blob, `${safeName}.docx`)
         break
@@ -114,20 +144,27 @@ export function useManuscriptExport() {
     options: { includeTitle?: boolean; includeFrontmatter?: boolean } = {}
   ) {
     if (format === 'docx') {
-      const allHtml = entities.map(e => `<h1>${e.name}</h1>${(e.properties.content as string) || ''}`).join('<hr/>')
+      // html 由 resolveContent 分流（notebook：md→HTML；manuscript：原 HTML）
+      const allHtml = entities.map(e => `<h1>${e.name}</h1>${resolveContent(e).html}`).join('<hr/>')
       const blob = await htmlToDocx(allHtml, '全部章节')
       downloadBlob(blob, '全部章节.docx')
     } else if (format === 'md') {
       const parts: string[] = []
       for (const e of entities) {
-        parts.push(await htmlToMarkdown((e.properties.content as string) || '', options.includeFrontmatter !== false, e))
+        const body = e.type === 'notebook'
+          ? notebookMarkdownBody(e, options.includeFrontmatter !== false)
+          : await htmlToMarkdown(resolveContent(e).html, options.includeFrontmatter !== false, e)
+        parts.push(body)
         parts.push('\n---\n')
       }
       downloadText(parts.join('\n'), '全部章节.md', 'text/markdown')
     } else {
       const parts: string[] = []
       for (const e of entities) {
-        parts.push(htmlToText((e.properties.content as string) || '', true, e.name))
+        const body = e.type === 'notebook'
+          ? markdownToPlainText((e.properties.content as string) || '')
+          : htmlToText(resolveContent(e).html, false, '')
+        parts.push((e.name ? `${e.name}\n\n` : '') + body)
         parts.push('---')
       }
       downloadText(parts.join('\n\n'), '全部章节.txt')
@@ -153,7 +190,8 @@ export function useManuscriptExport() {
 
     switch (format) {
       case 'docx': {
-        const allHtml = chapters.map(e => `<h1>${e.name}</h1>${(e.properties.content as string) || ''}`).join('<hr/>')
+        // html 由 resolveContent 分流（notebook：md→HTML；manuscript：原 HTML）
+        const allHtml = chapters.map(e => `<h1>${e.name}</h1>${resolveContent(e).html}`).join('<hr/>')
         const blob = await htmlToDocx(allHtml, bookName, options.includeTitle !== false)
         downloadBlob(blob, `${safeName}.docx`)
         break
@@ -173,7 +211,9 @@ export function useManuscriptExport() {
           ].join('\n'))
         }
         for (const e of chapters) {
-          const body = await htmlToMarkdown((e.properties.content as string) || '', false, e)
+          const body = e.type === 'notebook'
+            ? (e.properties.content as string) || ''
+            : await htmlToMarkdown(resolveContent(e).html, false, e)
           parts.push(`# ${e.name}\n\n${body}`)
         }
         downloadText(parts.join('\n\n'), `${safeName}.md`, 'text/markdown')
@@ -182,7 +222,10 @@ export function useManuscriptExport() {
       default: {
         const parts: string[] = [bookName, '']
         for (const e of chapters) {
-          parts.push(htmlToText((e.properties.content as string) || '', true, e.name))
+          const body = e.type === 'notebook'
+            ? markdownToPlainText((e.properties.content as string) || '')
+            : htmlToText(resolveContent(e).html, false, '')
+          parts.push(`${e.name}\n\n${body}`)
           parts.push('---')
         }
         downloadText(parts.join('\n\n'), `${safeName}.txt`)
