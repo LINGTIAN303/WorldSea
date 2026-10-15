@@ -43,7 +43,7 @@ import {
   type LspStatus,
 } from './lspAssist'
 
-const props = defineProps<{ modelValue: string; lang: string; minimal?: boolean; filePath?: string }>()
+const props = defineProps<{ modelValue: string; lang: string; minimal?: boolean; filePath?: string; /** 调用侧追加扩展（块 3 源码视图补全等——追加在语言扩展之后，可响应式重建） */ extraExtensions?: Extension[] }>()
 const emit = defineEmits<{ 'update:modelValue': [v: string]; save: [] }>()
 
 // v-model 桥接：内部输入经 change 事件上抛；外部注入（换文件/进入编辑）由
@@ -264,6 +264,8 @@ const exts = computed<Extension[]>(() => {
   )
   const mk = cmLangOf(props.lang)
   if (mk) list.push(mk)
+  // 调用侧追加扩展（块 3 源码视图补全等）——置于语言扩展之后，可按 props 响应式重建
+  if (props.extraExtensions?.length) list.push(...props.extraExtensions)
   return list
 })
 

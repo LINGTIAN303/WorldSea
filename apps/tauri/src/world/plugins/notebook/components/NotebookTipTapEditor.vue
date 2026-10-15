@@ -71,39 +71,51 @@
         <button class="tb-btn" @click="editor?.chain().focus().redo().run()" :disabled="!editor?.can().redo()" title="重做" aria-label="重做"><WsIcon name="redo" size="xs" /></button>
       </div>
       <div class="toolbar-spacer"></div>
-      <!-- 三态视图切换（批 4 V8）：编辑 / 分栏 / 预览 -->
+      <!-- 四态视图切换（批 4 V8 三态 + 块 3「源码」）：编辑 / 分栏 / 预览 / 源码 -->
       <div class="nb-view-switch" role="group" aria-label="视图模式">
         <button class="nb-vs-btn" :class="{ active: viewMode === 'edit' }" title="编辑模式" @click="viewMode = 'edit'">编辑</button>
         <button class="nb-vs-btn" :class="{ active: viewMode === 'split' }" title="分栏实时预览" @click="viewMode = 'split'">分栏</button>
         <button class="nb-vs-btn" :class="{ active: viewMode === 'preview' }" title="预览模式" @click="viewMode = 'preview'">预览</button>
+        <button class="nb-vs-btn" :class="{ active: viewMode === 'source' }" title="源码模式（md 真相源直读直写）" @click="viewMode = 'source'">源码</button>
       </div>
       <span class="save-status" :class="saveStatus">{{ saveLabel }}</span>
       <span class="word-count">{{ wordCount }} 字</span>
     </div>
     <!-- 定位锚层（批 3 走查修复）：TOC 按钮/面板挂这里（不随正文滚动）；滚动容器是各 pane -->
-    <!-- 批 4 V8/I10 三态视图（编辑 / 分栏 / 预览），按状态严格隔离（走查修正）：
+    <!-- 批 4 V8/I10 三态视图（编辑 / 分栏 / 预览）+ 块 3「源码」，按状态严格隔离（走查修正）：
          ① 预览 = v-if 按状态挂载——编辑态预览完全不渲染（DOM 不存在、previewHtml 不求值）。
          ② 编辑器 = v-show 有意常驻——卸载编辑器 DOM 会销毁 TipTap 视图（丢光标/选区/撤销上下文），
-            这是技术硬约束；display:none 不绘制，无渲染开销。 -->
+            这是技术硬约束；display:none 不绘制，无渲染开销。
+         ③ 源码 = v-if 按状态挂载（CM6 CodeEditor），进入注入 / 编辑防抖冲回（见 sourceBuf 段）。 -->
     <div class="nb-tt-wrap">
       <div class="nb-tt-body" :class="{ 'nb-tt-body--split': viewMode === 'split' }">
-        <div v-show="viewMode !== 'preview'" ref="editPaneRef" class="nb-split-pane nb-split-pane--editor">
+        <div v-show="viewMode !== 'preview' && viewMode !== 'source'" ref="editPaneRef" class="nb-split-pane nb-split-pane--editor">
           <div class="nb-editor-wrap">
             <EditorContent v-if="editor" :editor="editor" />
             <textarea v-else v-model="fallbackContent" class="editor-fallback" aria-label="文本编辑器（备选）" @input="onFallbackInput" />
             <BubbleToolbar :editor="editor" />
           </div>
         </div>
-        <div v-if="viewMode !== 'edit'" ref="previewPaneRef" class="nb-split-pane nb-split-pane--preview">
+        <div v-if="viewMode === 'split' || viewMode === 'preview'" ref="previewPaneRef" class="nb-split-pane nb-split-pane--preview">
           <div class="nb-preview-wrap ws-nb-prose" v-html="previewHtml" @click="onPreviewClick"></div>
+        </div>
+        <div v-if="viewMode === 'source'" class="nb-split-pane nb-split-pane--source">
+          <CodeEditor
+            :model-value="sourceBuf"
+            lang="markdown"
+            :extra-extensions="sourceExts"
+            class="nb-source-editor"
+            @update:model-value="onSourceChange"
+            @save="flushSourceToDoc"
+          />
         </div>
       </div>
       <!-- 目录（批 3 I5）：右下角悬浮按钮 + 标题层级面板 -->
       <button class="nb-toc-btn" :class="{ active: showToc }" title="目录" aria-label="目录" @click="showToc = !showToc">
         <WsIcon name="outline" size="xs" />
       </button>
-      <!-- 块手柄层（批 5 V4）：悬停块左侧手柄 + 拖拽重排 + 快捷菜单；预览态无编辑语义不挂 -->
-      <BlockHandleLayer v-if="viewMode !== 'preview'" :editor="editor" />
+      <!-- 块手柄层（批 5 V4）：悬停块左侧手柄 + 拖拽重排 + 快捷菜单；预览/源码态无编辑语义不挂 -->
+      <BlockHandleLayer v-if="viewMode === 'edit' || viewMode === 'split'" :editor="editor" />
       <div v-if="showToc && tocItems.length > 0" class="nb-toc-panel">
         <div
           v-for="item in tocItems"
@@ -137,6 +149,8 @@ import { useNoteEditor } from '../composables/useNoteEditor'
 import { findNoteLinkAnchor } from '../composables/noteLinkExt'
 import { SLASH_COMMANDS, type SlashCommandItem } from '../composables/slashCommandExtension'
 import { normalizeNoteContent } from '../contentNormalize'
+import CodeEditor from '@/components/files/CodeEditor.vue'
+import { sourceAutocompleteExts } from './sourceAutocomplete'
 import '../prose.css'
 import { insertImageFilesInto } from '@/composables/imageInsert'
 import { toastSuccess, toastWarn } from '@/composables/useToast'
@@ -152,10 +166,36 @@ type SlashCommandPopoverApi = {
 const props = defineProps<{ note: Entity }>()
 const emit = defineEmits<{ contentChange: [md: string]; navigate: [noteId: string] }>()
 
-/** 三态视图（批 4 V8/I10）：编辑 / 分栏 / 预览 */
-type EditorViewMode = 'edit' | 'split' | 'preview'
+/** 四态视图（批 4 V8 三态 + 块 3「源码」）：编辑 / 分栏 / 预览 / 源码 */
+type EditorViewMode = 'edit' | 'split' | 'preview' | 'source'
 const viewMode = ref<EditorViewMode>('edit')
 const fallbackContent = ref(String(props.note.properties?.content || ''))
+
+// ── 源码视图（块 3）：md 真相源直读直写 ──
+// 数据流：进入态注入（getMarkdown，含未落库输入）→ CM 编辑缓冲（防抖 300ms）→ 冲回 TipTap
+//（setContent emitUpdate:true → onUpdate → 既有防抖保存链 → persistContent → 派生重算）。
+// 不回写 CM（单向：CM→TipTap）——TipTap 侧的规范化差异一次性，切态收敛即可（Joplin 同款）。
+const sourceBuf = ref('')
+let sourceDebounceTimer: ReturnType<typeof setTimeout> | null = null
+
+/** 冲回：把源码缓冲喂给 TipTap（emitUpdate 触发既有保存链）；与当前文档无差异时跳过 */
+function flushSourceToDoc(): void {
+  if (sourceDebounceTimer) {
+    clearTimeout(sourceDebounceTimer)
+    sourceDebounceTimer = null
+  }
+  const ed = editor.value
+  if (!ed) return
+  const md = sourceBuf.value
+  if (md === ed.getMarkdown()) return
+  ed.commands.setContent(md, { emitUpdate: true, contentType: 'markdown' })
+}
+
+function onSourceChange(v: string): void {
+  sourceBuf.value = v
+  if (sourceDebounceTimer) clearTimeout(sourceDebounceTimer)
+  sourceDebounceTimer = setTimeout(flushSourceToDoc, 300)
+}
 
 // 图片插入（工具栏按钮 → 隐藏文件选择器）；粘贴 / 拖拽走 useNoteEditor 的 handlePaste/handleDrop
 const imageInput = ref<HTMLInputElement | null>(null)
@@ -189,6 +229,7 @@ const {
   saveStatus,
   wordCount,
   loadNote,
+  persistContent,
   setMentionPopover,
   setNoteLinkPopover,
   onMentionSelect,
@@ -200,6 +241,9 @@ const {
   (html) => emit('contentChange', html),
   (noteId) => emit('navigate', noteId),
 )
+
+// 源码态补全（块 3 阶段 2，拍板并入一期）：`[[` 双链 / `@` mention——selfId 实时取
+const sourceExts = sourceAutocompleteExts(() => props.note?.id ?? null)
 
 const mentionPopoverRef = ref<{ open: (clientRect: (() => DOMRect | null) | null) => void; close: () => void } | null>(null)
 const noteLinkPopoverRef = ref<{ open: (clientRect: (() => DOMRect | null) | null) => void; close: () => void } | null>(null)
@@ -224,8 +268,12 @@ onMounted(() => {
 // setContent 重置选区 → 光标跳走（2026-10-11 修复「打字丢光标」，回归测试锁定）。
 watch(() => props.note?.id, (id, oldId) => {
   if (id && id !== oldId) {
+    // 块 3 源码态切笔记：先冲回缓冲（同「切走前落盘」口径——loadNote 的落盘读 TipTap 文档，
+    // 300ms 防抖窗口内的源码编辑不在其中，须先冲回），再装载并重置缓冲为新笔记文档
+    if (viewMode.value === 'source') flushSourceToDoc()
     loadNote(props.note)
     if (viewMode.value !== 'edit') previewTick.value++ // 切笔记立即刷预览（不等防抖窗口）
+    if (viewMode.value === 'source') sourceBuf.value = editor.value?.getMarkdown() ?? ''
   }
 })
 
@@ -253,8 +301,8 @@ watch(editor, (ed) => {
   const handler = () => {
     tocTick.value++
     toolbarTick.value++
-    // 批 4 V8：分栏/预览模式下防抖刷新预览（编辑模式不刷，省性能）
-    if (viewMode.value !== 'edit') schedulePreviewRefresh()
+    // 批 4 V8：分栏/预览模式下防抖刷新预览（编辑/源码模式不刷——源码态预览面板不挂载，省性能）
+    if (viewMode.value === 'split' || viewMode.value === 'preview') schedulePreviewRefresh()
   }
   ed.on('transaction', handler)
   offTocTransaction = () => ed.off('transaction', handler)
@@ -401,7 +449,7 @@ function attachSplitSync(): void {
   }
 }
 
-watch(viewMode, (mode) => {
+watch(viewMode, (mode, oldMode) => {
   // 编辑态零预览活动（走查修正·严格状态隔离）：取消挂起的防抖刷新
   // （覆盖「分栏打字后 250ms 内切回编辑」的残留计时器场景；预览 DOM 已随 v-if 卸载）
   if (mode !== 'edit') {
@@ -409,6 +457,13 @@ watch(viewMode, (mode) => {
   } else if (previewTimer) {
     clearTimeout(previewTimer)
     previewTimer = null
+  }
+  // 块 3 源码态：进入 = 以编辑器当前文档注入缓冲（含未落库输入）；离开 = 冲回 TipTap
+  //（emitUpdate 触发既有防抖保存链 → persistContent → 派生重算）
+  if (mode === 'source') {
+    sourceBuf.value = editor.value?.getMarkdown() ?? ''
+  } else if (oldMode === 'source') {
+    flushSourceToDoc()
   }
   void nextTick(() => {
     attachSplitSync() // 仅 split 模式挂双向监听；其余模式（含切离）解除
@@ -442,6 +497,14 @@ onBeforeUnmount(() => {
   setSlashCommandCallback(null as any)
   if (previewTimer) clearTimeout(previewTimer)
   detachSplitSync?.()
+  // 块 3 源码兜底：源码缓冲未回流（防抖窗口内卸载）→ 直接按 persistContent 口径落库。
+  // 本钩子晚于 useNoteEditor 的卸载落盘执行（后者读 TipTap 文档、不含源码未回流编辑），
+  // 源码在途编辑只能由此自兜底；随后 timer 复位避免卸载后再触发冲回（editor 已销毁）。
+  if (sourceDebounceTimer) {
+    clearTimeout(sourceDebounceTimer)
+    sourceDebounceTimer = null
+    void persistContent(sourceBuf.value)
+  }
 })
 </script>
 
@@ -538,4 +601,8 @@ onBeforeUnmount(() => {
 .editor-fallback { width: 100%; height: 100%; min-height: 200px; border: 1px solid var(--color-border-subtle); border-radius: var(--radius-sm); padding: 12px; font-family: var(--font-family-content); font-size: var(--font-size-base); line-height: 1.7; color: var(--color-text-primary); background: var(--color-bg-base); resize: vertical; outline: none; }
 .editor-fallback:focus { border-color: var(--color-primary); }
 .editor-loading { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--color-text-tertiary); }
+
+/* 源码视图（块 3）：CM6 撑满 pane（CodeEditor 自带 flex 布局与令牌主题；单 pane 全宽） */
+.nb-split-pane--source { display: flex; flex-direction: column; padding: 8px; }
+.nb-source-editor { flex: 1; min-height: 0; border: 1px solid var(--color-border-subtle); border-radius: var(--radius-sm); overflow: hidden; }
 </style>

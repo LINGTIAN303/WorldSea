@@ -290,6 +290,9 @@ export function useNoteEditor(
     wordCount,
     loadNote,
     flushSave,
+    // 块 3 源码视图兜底：卸载顺序中本组合函数的卸载落盘（TipTap 版）先于组件自身的
+    // onBeforeUnmount 执行，源码缓冲未回流的编辑须由组件在此后自兜底直写（同口径）。
+    persistContent,
     getMarkdown,
     getText,
     setMentionPopover,
