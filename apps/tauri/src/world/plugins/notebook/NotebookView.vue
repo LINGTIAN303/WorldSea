@@ -376,7 +376,6 @@ async function createNote(targetFolderId?: string): Promise<void> {
     properties: {
       content: '',
       noteType: 'markdown',
-      linkedEntities: [],
       codeLanguage: '',
       codeOutput: '',
       sortOrder: Date.now().toString(),

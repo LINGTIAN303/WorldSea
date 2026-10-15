@@ -22,9 +22,9 @@ export function apply(_ctx: unknown, api: WorldPluginApi) {
     ownFields: [
       // 批 5 F6：移除 canvas（未实现占位）；与 notebookConfig.NOTE_TYPES 保持一致
       { key: 'noteType', label: '笔记类型', fieldType: 'select', options: ['markdown', 'code', 'reference'].map(s => ({ value: s, label: s })) },
-      { key: 'backlinks', label: '反向链接', fieldType: 'text' },
-      { key: 'forwardLinks', label: '正向链接', fieldType: 'text' },
-      { key: 'linkedEntities', label: '关联实体', fieldType: 'text' },
+      // 块 2 阶段 4：backlinks / forwardLinks / linkedEntities 三字段声明退役
+      //（其数据角色已由 note_link 关系表承接——建联＝内容的函数，由 backlinkDerive 派生；
+      //  存量 properties 旧值不主动清理，无 UI 露出）
       { key: 'codeLanguage', label: '代码语言', fieldType: 'text' },
       { key: 'codeOutput', label: '代码输出', fieldType: 'text' },
       { key: 'folderId', label: '所属文件夹', fieldType: 'text' },

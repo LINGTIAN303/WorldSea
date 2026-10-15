@@ -2,9 +2,7 @@
   <div class="backlink-panel">
     <div class="bl-header">
       <span class="bl-title">反向链接 ({{ links.length }})</span>
-      <button class="bl-create-btn" @click="$emit('createLink')" title="创建链接">
-        <WsIcon name="link" size="xs" /> 创建链接
-      </button>
+      <!-- 块 2 阶段 4：「创建链接」picker 已退役——建联唯一入口＝正文 `[[`（保存后派生落库） -->
     </div>
     <div v-if="links.length" class="bl-list">
       <div v-for="link in links" :key="link.id" class="bl-item" role="button" tabindex="0" :aria-label="`打开 ${link.name}`" @click="$emit('navigate', link.id)" @keydown.enter.prevent="$emit('navigate', link.id)" @keydown.space.prevent="$emit('navigate', link.id)">
@@ -17,18 +15,15 @@
 
 <script setup lang="ts">
 import type { Entity } from '@worldsea/entity-core'
-import { WsIcon } from '@worldsea/ui-kit'
 
 defineProps<{ links: Entity[] }>()
-defineEmits<{ navigate: [id: string]; createLink: [] }>()
+defineEmits<{ navigate: [id: string] }>()
 </script>
 
 <style scoped>
 .backlink-panel { border-top: 1px solid var(--color-border-subtle); padding: 8px 16px; }
 .bl-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
 .bl-title { font-size: var(--font-size-xs); font-weight: var(--font-weight-semibold); color: var(--color-text-tertiary); text-transform: uppercase; }
-.bl-create-btn { font-size: var(--font-size-xs); padding: 2px 8px; border-radius: var(--radius-xs); border: 1px solid var(--color-border); background: transparent; color: var(--color-text-secondary); cursor: pointer; display: flex; align-items: center; gap: 4px; }
-.bl-create-btn:hover { background: var(--color-bg-hover); color: var(--color-primary); border-color: var(--color-primary); }
 .bl-list { max-height: 200px; overflow-y: auto; }
 .bl-item { font-size: var(--font-size-sm); color: var(--color-primary); cursor: pointer; padding: 2px 0; }
 .bl-item:hover { text-decoration: underline; }

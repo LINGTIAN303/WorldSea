@@ -8,9 +8,9 @@ export interface NotebookEntity extends Entity {
     sortOrder?: string
     // 批 5 F6：canvas 已移除（未实现占位）；历史数据如有残留以 markdown 语义兜底展示
     noteType: 'markdown' | 'code' | 'reference'
-    backlinks?: string[]
-    forwardLinks?: string[]
-    linkedEntities?: string[]
+    // 块 2 阶段 4：backlinks / forwardLinks / linkedEntities 三字段已退役
+    //（建联＝内容的函数——关系统一由 backlinkDerive 派生落库，不再经 properties 中转；
+    //  存量 properties 旧值不主动清理，无 UI 露出）
     codeLanguage?: string
     codeOutput?: string
     folderId?: string

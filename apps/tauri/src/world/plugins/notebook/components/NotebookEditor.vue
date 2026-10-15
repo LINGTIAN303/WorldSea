@@ -50,35 +50,16 @@
         />
       </ErrorBoundary>
     </div>
-    <BacklinkPanel :links="backlinkNotes" @navigate="$emit('navigate', $event)" @createLink="showLinkPicker = true" />
-    <div v-if="showLinkPicker" class="nb-link-picker-overlay" @click.self="showLinkPicker = false">
-      <div class="nb-link-picker">
-        <div class="nlp-header">
-          <span>创建链接</span>
-          <button class="nlp-close" @click="showLinkPicker = false"><WsIcon name="close" size="xs" /></button>
-        </div>
-        <input v-model="linkSearch" class="nlp-search" placeholder="搜索笔记..." />
-        <div class="nlp-list">
-          <div
-            v-for="n in linkableNotes"
-            :key="n.id"
-            class="nlp-item"
-            @click="createLink(n.id)"
-          >
-            <WsIcon :name="getNoteIcon(n)" size="xs" />
-            <span class="nlp-item-name">{{ n.name }}</span>
-          </div>
-          <div v-if="linkableNotes.length === 0" class="nlp-empty">无匹配笔记</div>
-        </div>
-      </div>
-    </div>
+    <!-- 反向链接面板（块 2 阶段 4：picker 已退役——建联唯一入口＝正文 `[[`，
+         关系由保存后派生落库；面板为纯展示） -->
+    <BacklinkPanel :links="backlinkNotes" @navigate="$emit('navigate', $event)" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, computed, nextTick } from 'vue'
 import { WsIcon } from '@worldsea/ui-kit'
-import { useEntityStore, useRelationStore, useBidirectional } from '@worldsea/entity-core'
+import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
 import type { Relation } from '@worldsea/entity-core'
 import CodeCell from './CodeCell.vue'
 import ErrorBoundary from './ErrorBoundary.vue'
@@ -101,7 +82,6 @@ const emit = defineEmits<{
 
 const entityStore = useEntityStore()
 const relationStore = useRelationStore()
-const { createBidirectional } = useBidirectional()
 
 const editName = ref(props.note.name || '')
 const editContent = ref(String(props.note.properties?.content || ''))
@@ -193,27 +173,6 @@ function emitUpdate(opts?: { skipUndo?: boolean }): void {
   })
 }
 
-const showLinkPicker = ref(false)
-const linkSearch = ref('')
-
-const linkableNotes = computed(() => {
-  const all = entityStore.entities.filter((e): e is NotebookEntity => e.type === 'notebook' && e.id !== props.note.id)
-  if (!linkSearch.value) return all.slice(0, 50)
-  const q = linkSearch.value.toLowerCase()
-  return all.filter(n => n.name.toLowerCase().includes(q)).slice(0, 50)
-})
-
-function getNoteIcon(note: NotebookEntity): string {
-  const noteType = note.properties?.noteType || 'markdown'
-  return NOTE_TYPES.find(t => t.value === noteType)?.icon || 'edit'
-}
-
-async function createLink(targetId: string): Promise<void> {
-  await createBidirectional({ type: 'note_link', sourceId: props.note.id, targetId })
-  showLinkPicker.value = false
-  linkSearch.value = ''
-}
-
 function onCodeRun(output: string): void {
   entityStore.update(props.note.id, {
     properties: {
@@ -257,17 +216,4 @@ function onCodeRun(output: string): void {
   color: var(--color-text-primary); font-size: var(--font-size-2xs); outline: none;
 }
 .nb-tag-input:focus { border-color: var(--color-primary); }
-
-.nb-link-picker-overlay { position: fixed; inset: 0; background: var(--overlay); z-index: 1000; display: flex; align-items: center; justify-content: center; }
-.nb-link-picker { background: var(--color-bg-surface); border-radius: var(--radius-mid); width: 360px; max-height: 400px; display: flex; flex-direction: column; box-shadow: 0 8px 32px rgba(0,0,0,0.2); }
-.nlp-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); color: var(--color-text-primary); border-bottom: 1px solid var(--color-border-subtle); }
-.nlp-close { padding: 2px 6px; border: none; background: transparent; color: var(--color-text-tertiary); cursor: pointer; border-radius: var(--radius-xs); }
-.nlp-close:hover { background: var(--color-bg-hover); }
-.nlp-search { margin: 8px 12px; padding: 6px 8px; border-radius: var(--radius-xs); border: 1px solid var(--color-border); background: var(--color-bg-base); color: var(--color-text-primary); font-size: var(--font-size-sm); outline: none; }
-.nlp-search:focus { border-color: var(--color-primary); }
-.nlp-list { flex: 1; overflow-y: auto; padding: 4px 8px; }
-.nlp-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--radius-xs); cursor: pointer; font-size: var(--font-size-sm); color: var(--color-text-primary); }
-.nlp-item:hover { background: var(--color-bg-hover); }
-.nlp-item-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.nlp-empty { padding: 16px; text-align: center; font-size: var(--font-size-xs); color: var(--color-text-tertiary); }
 </style>
