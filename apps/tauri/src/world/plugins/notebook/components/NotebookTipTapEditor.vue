@@ -1,86 +1,11 @@
 <template>
   <div class="nb-tiptap-editor">
-    <div class="nb-tt-toolbar">
-      <div class="toolbar-group">
-        <select class="toolbar-select" :value="headingLevel" @change="setHeading">
-          <option value="0">正文</option>
-          <option value="1">标题 1</option>
-          <option value="2">标题 2</option>
-          <option value="3">标题 3</option>
-        </select>
-      </div>
-      <div class="toolbar-divider"></div>
-      <div class="toolbar-group">
-        <button class="tb-btn" :class="{ active: editor?.isActive('bold') }" @click="editor?.chain().focus().toggleBold().run()" title="粗体" aria-label="粗体"><WsIcon name="bold" size="xs" /></button>
-        <button class="tb-btn" :class="{ active: editor?.isActive('italic') }" @click="editor?.chain().focus().toggleItalic().run()" title="斜体" aria-label="斜体"><WsIcon name="italic" size="xs" /></button>
-        <button class="tb-btn" :class="{ active: editor?.isActive('strike') }" @click="editor?.chain().focus().toggleStrike().run()" title="删除线" aria-label="删除线"><WsIcon name="strikethrough" size="xs" /></button>
-        <button class="tb-btn" :class="{ active: editor?.isActive('code') }" @click="editor?.chain().focus().toggleCode().run()" title="行内代码" aria-label="行内代码"><WsIcon name="code" size="xs" /></button>
-      </div>
-      <div class="toolbar-divider"></div>
-      <div class="toolbar-group">
-        <button class="tb-btn" :class="{ active: editor?.isActive('blockquote') }" @click="editor?.chain().focus().toggleBlockquote().run()" title="引用" aria-label="引用"><WsIcon name="quote" size="xs" /></button>
-        <button class="tb-btn" :class="{ active: editor?.isActive('bulletList') }" @click="editor?.chain().focus().toggleBulletList().run()" title="无序列表" aria-label="无序列表"><WsIcon name="list" size="xs" /></button>
-        <button class="tb-btn" :class="{ active: editor?.isActive('orderedList') }" @click="editor?.chain().focus().toggleOrderedList().run()" title="有序列表" aria-label="有序列表"><WsIcon name="list-ordered" size="xs" /></button>
-        <button class="tb-btn" :class="{ active: editor?.isActive('taskList') }" @click="editor?.chain().focus().toggleTaskList().run()" title="任务列表" aria-label="任务列表"><WsIcon name="task-plan" size="xs" /></button>
-        <button class="tb-btn" @click="editor?.chain().focus().setHorizontalRule().run()" title="分割线" aria-label="分割线"><WsIcon name="minus" size="xs" /></button>
-        <button class="tb-btn" @click="editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()" title="插入表格" aria-label="插入表格"><WsIcon name="table" size="xs" /></button>
-        <button class="tb-btn" @click="imageInput?.click()" title="插入图片（本地文件，≤2MB）" aria-label="插入图片"><WsIcon name="image" size="xs" /></button>
-        <input ref="imageInput" type="file" accept="image/*" multiple class="tb-hidden-input" @change="onPickImages" />
-      </div>
-      <!-- 表格上下文组：光标在表格内才出现（结构操作）；禁用态由 can() 判定（如只剩一行时禁删行），不留无反馈的死按钮 -->
-      <template v-if="inTable">
-        <div class="toolbar-divider"></div>
-        <div class="toolbar-group">
-          <span class="tb-group-label">表格</span>
-          <button class="tb-btn tb-btn--txt" @click="editor?.chain().focus().addRowAfter().run()" title="在下方插入行">行+</button>
-          <button class="tb-btn tb-btn--txt" :disabled="!editor?.can().deleteRow()" @click="editor?.chain().focus().deleteRow().run()" title="删除当前行">行−</button>
-          <button class="tb-btn tb-btn--txt" @click="editor?.chain().focus().addColumnAfter().run()" title="在右侧插入列">列+</button>
-          <button class="tb-btn tb-btn--txt" :disabled="!editor?.can().deleteColumn()" @click="editor?.chain().focus().deleteColumn().run()" title="删除当前列">列−</button>
-          <button class="tb-btn tb-btn--txt" :class="{ active: editor?.isActive('tableHeader') }" @click="editor?.chain().focus().toggleHeaderRow().run()" title="切换表头行">表头</button>
-          <button class="tb-btn tb-btn--txt tb-btn--danger" @click="editor?.chain().focus().deleteTable().run()" title="删除整个表格">删除表格</button>
-        </div>
-      </template>
-      <!-- 图片上下文组（批 5 I7）：选中图片才出现——对齐三钮（再点取消回原样）+ alt 编辑；
-           宽度由图片四角手柄拖拽（官方 resize 引擎，等比），无需工具栏介入 -->
-      <template v-if="onImage">
-        <div class="toolbar-divider"></div>
-        <div class="toolbar-group">
-          <span class="tb-group-label">图片</span>
-          <button
-            v-for="a in IMAGE_ALIGN_BUTTONS"
-            :key="a.value"
-            class="tb-btn"
-            :class="{ active: imageAlign === a.value }"
-            :title="a.title"
-            :aria-label="a.title"
-            @click="setImageAlign(a.value)"
-          ><WsIcon :name="a.icon" size="xs" /></button>
-          <input
-            class="tb-img-alt"
-            :value="imageAlt"
-            placeholder="替代文本 alt"
-            aria-label="图片替代文本"
-            @change="onImageAltChange"
-            @keydown.enter.prevent="($event.target as HTMLInputElement).blur()"
-          />
-        </div>
-      </template>
-      <div class="toolbar-divider"></div>
-      <div class="toolbar-group">
-        <button class="tb-btn" @click="editor?.chain().focus().undo().run()" :disabled="!editor?.can().undo()" title="撤销" aria-label="撤销"><WsIcon name="undo" size="xs" /></button>
-        <button class="tb-btn" @click="editor?.chain().focus().redo().run()" :disabled="!editor?.can().redo()" title="重做" aria-label="重做"><WsIcon name="redo" size="xs" /></button>
-      </div>
-      <div class="toolbar-spacer"></div>
-      <!-- 四态视图切换（批 4 V8 三态 + 块 3「源码」）：编辑 / 分栏 / 预览 / 源码 -->
-      <div class="nb-view-switch" role="group" aria-label="视图模式">
-        <button class="nb-vs-btn" :class="{ active: viewMode === 'edit' }" title="编辑模式" @click="viewMode = 'edit'">编辑</button>
-        <button class="nb-vs-btn" :class="{ active: viewMode === 'split' }" title="分栏实时预览" @click="viewMode = 'split'">分栏</button>
-        <button class="nb-vs-btn" :class="{ active: viewMode === 'preview' }" title="预览模式" @click="viewMode = 'preview'">预览</button>
-        <button class="nb-vs-btn" :class="{ active: viewMode === 'source' }" title="源码模式（md 真相源直读直写）" @click="viewMode = 'source'">源码</button>
-      </div>
-      <span class="save-status" :class="saveStatus">{{ saveLabel }}</span>
-      <span class="word-count">{{ wordCount }} 字</span>
-    </div>
+    <NotebookEditorToolbar
+      :editor="editor"
+      v-model:view-mode="viewMode"
+      :save-status="saveStatus"
+      :word-count="wordCount"
+    />
     <!-- 定位锚层（批 3 走查修复）：TOC 按钮/面板挂这里（不随正文滚动）；滚动容器是各 pane -->
     <!-- 批 4 V8/I10 三态视图（编辑 / 分栏 / 预览）+ 块 3「源码」，按状态严格隔离（走查修正）：
          ① 预览 = v-if 按状态挂载——编辑态预览完全不渲染（DOM 不存在、previewHtml 不求值）。
@@ -140,20 +65,21 @@ import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { EditorContent } from '@tiptap/vue-3'
 import { WsIcon } from '@worldsea/ui-kit'
 import { renderMarkdownForEditor } from '@worldsea/shared-ui/markdown'
+import NotebookEditorToolbar from './NotebookEditorToolbar.vue'
+import type { EditorViewMode } from './notebookEditorTypes'
 import MentionPopover from './MentionPopover.vue'
 import SlashCommandMenu from './SlashCommandMenu.vue'
 import BubbleToolbar from './BubbleToolbar.vue'
 import BlockHandleLayer from './BlockHandleLayer.vue'
-import { mapScrollTop, collectHeadingOffsets } from '../composables/splitScrollSync'
 import { useNoteEditor } from '../composables/useNoteEditor'
+import { useSplitScrollSync } from '../composables/useSplitScrollSync'
 import { findNoteLinkAnchor } from '../composables/noteLinkExt'
 import { SLASH_COMMANDS, type SlashCommandItem } from '../composables/slashCommandExtension'
 import { normalizeNoteContent } from '../contentNormalize'
 import CodeEditor from '@/components/files/CodeEditor.vue'
 import { sourceAutocompleteExts } from './sourceAutocomplete'
 import '../prose.css'
-import { insertImageFilesInto } from '@/composables/imageInsert'
-import { toastSuccess, toastWarn } from '@/composables/useToast'
+import { toastWarn } from '@/composables/useToast'
 import type { Entity } from '@worldsea/entity-core'
 
 type SlashCommandPopoverApi = {
@@ -166,8 +92,6 @@ type SlashCommandPopoverApi = {
 const props = defineProps<{ note: Entity }>()
 const emit = defineEmits<{ contentChange: [md: string]; navigate: [noteId: string] }>()
 
-/** 四态视图（批 4 V8 三态 + 块 3「源码」）：编辑 / 分栏 / 预览 / 源码 */
-type EditorViewMode = 'edit' | 'split' | 'preview' | 'source'
 const viewMode = ref<EditorViewMode>('edit')
 const fallbackContent = ref(String(props.note.properties?.content || ''))
 
@@ -195,17 +119,6 @@ function onSourceChange(v: string): void {
   sourceBuf.value = v
   if (sourceDebounceTimer) clearTimeout(sourceDebounceTimer)
   sourceDebounceTimer = setTimeout(flushSourceToDoc, 300)
-}
-
-// 图片插入（工具栏按钮 → 隐藏文件选择器）；粘贴 / 拖拽走 useNoteEditor 的 handlePaste/handleDrop
-const imageInput = ref<HTMLInputElement | null>(null)
-async function onPickImages(e: Event) {
-  const input = e.target as HTMLInputElement
-  const files = Array.from(input.files ?? [])
-  input.value = '' // 允许连续选择同一文件
-  if (!files.length) return
-  const n = await insertImageFilesInto(editor.value, files)
-  if (n > 0) toastSuccess(`已插入 ${n} 张图片（base64 存入正文，单张上限 2MB）`)
 }
 
 function onFallbackInput(e: Event) {
@@ -277,22 +190,10 @@ watch(() => props.note?.id, (id, oldId) => {
   }
 })
 
-const headingLevel = computed(() => {
-  if (!editor.value) return '0'
-  for (let i = 1; i <= 3; i++) {
-    if (editor.value.isActive('heading', { level: i })) return String(i)
-  }
-  return '0'
-})
 
 // ── 目录（批 3 I5）：transaction 驱动重算；点击 scrollIntoView 定位 ──
 const showToc = ref(false)
 const tocTick = ref(0)
-// 工具栏上下文响应（批 5 I7）：表格/图片上下文组依赖 selection 态（isActive），而
-// 「点选节点/光标移动」不一定伴随输入（wordCount/saveStatus 不变）——需要显式 tick
-// 驱动重渲，否则选中图片时「图片组」不出现。打字路径本就被 wordCount 触发 re-render，
-// 此 tick 不增加实际渲染成本。
-const toolbarTick = ref(0)
 let offTocTransaction: (() => void) | null = null
 watch(editor, (ed) => {
   offTocTransaction?.()
@@ -300,7 +201,6 @@ watch(editor, (ed) => {
   if (!ed) return
   const handler = () => {
     tocTick.value++
-    toolbarTick.value++
     // 批 4 V8：分栏/预览模式下防抖刷新预览（编辑/源码模式不刷——源码态预览面板不挂载，省性能）
     if (viewMode.value === 'split' || viewMode.value === 'preview') schedulePreviewRefresh()
   }
@@ -309,41 +209,6 @@ watch(editor, (ed) => {
 }, { immediate: true })
 onBeforeUnmount(() => { offTocTransaction?.() })
 
-// ── 图片上下文（批 5 I7）：对齐 + alt（宽度由图片四角手柄拖拽）──
-const IMAGE_ALIGN_BUTTONS = [
-  { value: 'left', icon: 'align-left', title: '左对齐' },
-  { value: 'center', icon: 'align-center', title: '居中对齐' },
-  { value: 'right', icon: 'align-right', title: '右对齐' },
-] as const
-
-const inTable = computed(() => {
-  void toolbarTick.value
-  return editor.value?.isActive('table') ?? false
-})
-const onImage = computed(() => {
-  void toolbarTick.value
-  return editor.value?.isActive('image') ?? false
-})
-const imageAlign = computed(() => {
-  void toolbarTick.value
-  return (editor.value?.getAttributes('image').align as string | null) ?? null
-})
-const imageAlt = computed(() => {
-  void toolbarTick.value
-  return (editor.value?.getAttributes('image').alt as string | null) ?? ''
-})
-
-/** 点当前对齐 → 取消回原样（null）；换一个 → 应用 */
-function setImageAlign(v: 'left' | 'center' | 'right'): void {
-  const ed = editor.value
-  if (!ed) return
-  const cur = ed.getAttributes('image').align
-  ed.chain().focus().updateAttributes('image', { align: cur === v ? null : v }).run()
-}
-
-function onImageAltChange(e: Event): void {
-  editor.value?.chain().focus().updateAttributes('image', { alt: (e.target as HTMLInputElement).value }).run()
-}
 
 interface TocItem { pos: number; level: number; text: string }
 const tocItems = computed<TocItem[]>(() => {
@@ -369,13 +234,6 @@ function scrollToHeading(pos: number): void {
   el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
-const saveLabel = computed(() => {
-  switch (saveStatus.value) {
-    case 'saved': return '已保存'
-    case 'saving': return '保存中...'
-    case 'unsaved': return '未保存'
-  }
-})
 
 // ── 分栏实时预览（批 4 V8/I10）──
 // 旧实现 previewHtml 无文档级响应依赖（getHTML() 非响应式）→ 预览内容只在首次求值时生成（陈旧）。
@@ -398,56 +256,10 @@ const previewHtml = computed(() => {
   return renderMarkdownForEditor(editor.value?.getMarkdown() || '')
 })
 
-// ── 分栏滚动同步（批 4 V8/I10）：标题锚点映射 + 双向防环 ──
+// ── 分栏滚动同步（批 4 V8/I10）：算法与监听在 useSplitScrollSync（2026-10-18 拆件）──
 const editPaneRef = ref<HTMLElement | null>(null)
 const previewPaneRef = ref<HTMLElement | null>(null)
-let syncOwner: 'editor' | 'preview' | null = null
-let syncAt = 0
-let detachSplitSync: (() => void) | null = null
-
-function applySync(source: 'editor' | 'preview'): void {
-  const ed = editPaneRef.value
-  const pv = previewPaneRef.value
-  if (!ed || !pv) return
-  const from = source === 'editor' ? ed : pv
-  const to = source === 'editor' ? pv : ed
-  const target = mapScrollTop(
-    collectHeadingOffsets(from),
-    collectHeadingOffsets(to),
-    Math.max(0, from.scrollHeight - from.clientHeight),
-    Math.max(0, to.scrollHeight - to.clientHeight),
-    from.scrollTop,
-  )
-  // 差值过小时跳过赋值：避免生成无意义的 scroll 回声（防环第二道保险）
-  if (Math.abs(to.scrollTop - target) > 2) to.scrollTop = target
-}
-
-function onPaneScroll(source: 'editor' | 'preview'): void {
-  const now = performance.now()
-  // 另一侧刚带动我（150ms 回声窗内）→ 忽略；这是防环第一道保险
-  if (syncOwner !== source && now - syncAt < 150) return
-  syncOwner = source
-  syncAt = now
-  applySync(source)
-}
-
-/** 仅分栏模式挂双向滚动监听；切走或卸载时解除 */
-function attachSplitSync(): void {
-  detachSplitSync?.()
-  detachSplitSync = null
-  if (viewMode.value !== 'split') return
-  const ed = editPaneRef.value
-  const pv = previewPaneRef.value
-  if (!ed || !pv) return
-  const onEd = () => onPaneScroll('editor')
-  const onPv = () => onPaneScroll('preview')
-  ed.addEventListener('scroll', onEd, { passive: true })
-  pv.addEventListener('scroll', onPv, { passive: true })
-  detachSplitSync = () => {
-    ed.removeEventListener('scroll', onEd)
-    pv.removeEventListener('scroll', onPv)
-  }
-}
+const { attachSplitSync, alignToEditor } = useSplitScrollSync(editPaneRef, previewPaneRef)
 
 watch(viewMode, (mode, oldMode) => {
   // 编辑态零预览活动（走查修正·严格状态隔离）：取消挂起的防抖刷新
@@ -466,11 +278,8 @@ watch(viewMode, (mode, oldMode) => {
     flushSourceToDoc()
   }
   void nextTick(() => {
-    attachSplitSync() // 仅 split 模式挂双向监听；其余模式（含切离）解除
-    if (mode === 'split') {
-      syncOwner = null
-      applySync('editor') // 首次进入：以编辑侧为准对齐一次
-    }
+    attachSplitSync(mode === 'split') // 仅 split 模式挂双向监听；其余模式（含切离）解除
+    if (mode === 'split') alignToEditor() // 首次进入：以编辑侧为准对齐一次
   })
 })
 
@@ -484,19 +293,11 @@ watch(previewHtml, () => {
   if (pv && viewMode.value !== 'edit') pv.scrollTop = previewScrollSave
 }, { flush: 'post' })
 
-function setHeading(e: Event) {
-  const val = parseInt((e.target as HTMLSelectElement).value, 10)
-  if (val === 0) {
-    editor.value?.chain().focus().setParagraph().run()
-  } else {
-    editor.value?.chain().focus().toggleHeading({ level: val as 1 | 2 | 3 }).run()
-  }
-}
 
 onBeforeUnmount(() => {
   setSlashCommandCallback(null as any)
   if (previewTimer) clearTimeout(previewTimer)
-  detachSplitSync?.()
+  // 分栏滚动监听的解除在 useSplitScrollSync 自身的 onBeforeUnmount（拆件后不再由本组件卸载）
   // 块 3 源码兜底：源码缓冲未回流（防抖窗口内卸载）→ 直接按 persistContent 口径落库。
   // 本钩子晚于 useNoteEditor 的卸载落盘执行（后者读 TipTap 文档、不含源码未回流编辑），
   // 源码在途编辑只能由此自兜底；随后 timer 复位避免卸载后再触发冲回（editor 已销毁）。
@@ -510,56 +311,6 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .nb-tiptap-editor { display: flex; flex-direction: column; height: 100%; }
-.nb-tt-toolbar {
-  display: flex; align-items: center; gap: 4px; padding: 6px 10px;
-  border-bottom: 1px solid var(--color-border-subtle); background: var(--color-bg-surface);
-  flex-shrink: 0; flex-wrap: wrap; font-family: var(--font-family-editor-ui);
-}
-.toolbar-group { display: flex; gap: 2px; }
-.toolbar-divider { width: 1px; height: 20px; background: var(--color-border-subtle); margin: 0 4px; }
-.toolbar-spacer { flex: 1; }
-.tb-btn {
-  width: 28px; height: 28px; border: none; background: transparent;
-  cursor: pointer; border-radius: var(--radius-xs); font-size: var(--font-size-sm);
-  color: var(--color-text-secondary); display: flex; align-items: center; justify-content: center;
-}
-.tb-btn:hover { background: var(--color-bg-hover); }
-.tb-btn.active { background: color-mix(in srgb, var(--color-primary) 15%, transparent); color: var(--color-primary); }
-.tb-btn:disabled { opacity: 0.3; cursor: default; }
-/* 工具栏内嵌的隐藏文件选择器（插入图片按钮触发） */
-.tb-hidden-input { display: none; }
-/* 文字按钮（表格结构操作）：宽度随文字，与图标按钮同高 */
-.tb-btn--txt { width: auto; min-width: 28px; padding: 0 7px; font-size: var(--font-size-xs); font-weight: var(--font-weight-medium); }
-.tb-btn--danger { color: var(--color-danger); }
-.tb-btn--danger:hover { background: var(--danger-soft); }
-.tb-group-label { font-size: var(--font-size-2xs); color: var(--color-text-tertiary); align-self: center; padding-right: 2px; user-select: none; }
-/* 图片 alt 输入框（批 5 I7）：图片上下文组内联，窄宽、与按钮同高 */
-.tb-img-alt {
-  width: 150px; height: 24px; padding: 0 8px; margin-left: 2px;
-  border: 1px solid var(--color-border); border-radius: var(--radius-xs);
-  background: var(--color-bg-base); color: var(--color-text-primary);
-  font-size: var(--font-size-xs); outline: none;
-}
-.tb-img-alt:focus { border-color: var(--color-primary); }
-.toolbar-select {
-  padding: 2px 6px; border: 1px solid var(--color-border); border-radius: var(--radius-xs);
-  font-size: var(--font-size-sm); background: var(--color-bg-base); color: var(--color-text-primary);
-}
-/* 三态视图切换（批 4 V8）：编辑 / 分栏 / 预览 分段控件 */
-.nb-view-switch { display: inline-flex; border: 1px solid var(--color-border); border-radius: var(--radius-xs); overflow: hidden; }
-.nb-vs-btn {
-  padding: 3px 10px; border: none; background: transparent;
-  color: var(--color-text-secondary); font-size: var(--font-size-xs); cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-}
-.nb-vs-btn + .nb-vs-btn { border-left: 1px solid var(--color-border); }
-.nb-vs-btn:hover { background: var(--color-bg-hover); }
-.nb-vs-btn.active { background: color-mix(in srgb, var(--color-primary) 15%, transparent); color: var(--color-primary); }
-.save-status { font-size: var(--font-size-xs); margin-right: 8px; }
-.save-status.saved { color: var(--color-text-tertiary); }
-.save-status.saving { color: var(--color-primary); }
-.save-status.unsaved { color: var(--color-warning); }
-.word-count { font-size: var(--font-size-xs); color: var(--color-text-tertiary); }
 
 /* 定位锚层：TOC 按钮固定于视口右下（不随正文滚动） */
 .nb-tt-wrap { flex: 1; min-height: 0; position: relative; display: flex; flex-direction: column; }
