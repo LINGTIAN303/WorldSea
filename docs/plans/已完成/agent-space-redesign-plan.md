@@ -5,7 +5,7 @@ status: 已完成
 
 ## 依据
 
-- 视觉稿：[docs/重构视觉稿/agent-space-redesign-v1.html](../../重构视觉稿/agent-space-redesign-v1.html)（已认可，双线分隔已补充）
+- 视觉稿：[docs/重构视觉稿/agent-space-redesign-v1.html](../../misc/留档/agent-space-redesign-v1.html)（已认可，双线分隔已补充）
 - 已确认决策：模型 B 三区重组 / 执行轨迹入右侧执行面板 / 设置纵向分组导航
 - 项目规则：双线分隔（double-rule separation，见 project_memory Hard Constraints 首条）
 

@@ -22,14 +22,14 @@
 
 ## A. 壳层矩阵
 
-> 布局基准已与 [agent-space-layout.md](../details/前后端/agent-space-layout.md) 交叉核对（窗口栏 32px / 顶栏 48px / 主区 gap 8px padding 8px / 三栏宽度 200–400 与 240–560 / 双线分隔规范）；与本矩阵差异处已就地标注。
+> 布局基准已与 [agent-space-layout.md](../../details/前后端/agent-space-layout.md) 交叉核对（窗口栏 32px / 顶栏 48px / 主区 gap 8px padding 8px / 三栏宽度 200–400 与 240–560 / 双线分隔规范）；与本矩阵差异处已就地标注。
 
 ### A.1 主壳结构（AgentSpace）
 
 | 组件/文件 | 职责 | 形态与尺寸 | 设计 token | 图标 | 交互与 a11y | 已知问题 |
 |---|---|---|---|---|---|---|
 | `AgentSpace.vue` | Agent 空间主壳：窗口栏 + 顶栏 + 三栏主区（会话/主对话/右侧面板） | 纵向 flex column `100vh`；`.space-body` 行向 `gap:8px` `padding:8px`；`.agent-space` 底 `--bg-muted` | `--bg-muted`、`--color-border`、`--radius-md(10px)`、`--color-surface-elevated` | 右侧面板 Tab 用 WsIcon chart/settings/close | resize-handle 6px 拖拽（rAF 节流）；`#agent-space-main` tabindex=-1 可聚焦 | 面板滑入/滑出动画（`.sidebar-slide-*`/`.panel-slide-right-*`）未进 reduced-motion 集中文件（全局 transition-duration 压缩覆盖，位移距离未消除） |
-| [TitleBar.vue](../../apps/tauri/src/ui/layout/TitleBar.vue) `variant="space"` | 窗口栏精简变体：拖拽区 + 居中标题 + 窗口控制三键 | 32px 固定高度；下边框 1px；`data-tauri-drag-region` | 全局 theme.css 令牌 | 窗口控制为系统原生按钮 | 拖拽区为 Tauri 窗口拖拽 | 标题随模式动态（「Agent 空间 / 群聊空间」） |
+| [TitleBar.vue](../../../apps/tauri/src/ui/layout/TitleBar.vue) `variant="space"` | 窗口栏精简变体：拖拽区 + 居中标题 + 窗口控制三键 | 32px 固定高度；下边框 1px；`data-tauri-drag-region` | 全局 theme.css 令牌 | 窗口控制为系统原生按钮 | 拖拽区为 Tauri 窗口拖拽 | 标题随模式动态（「Agent 空间 / 群聊空间」） |
 | `.session-panel`（AgentSpace 内） | 会话栏独立块 | 宽 200–400px（默认 260）；`border:1px` `radius-md`；右侧 resize-handle | `--color-border`、`--radius-md`、`--color-surface-elevated` | — | 拖拽收起阈值 180px | 双线分隔已满足（独立块 + 8px 缝隙） |
 | `.space-main`（AgentSpace 内） | 主对话区独立块 | `flex:1` `min-width:0`；`border:1px` `radius-md` | 同上 | — | 内嵌 SpaceChat / GroupChatView | — |
 | `.right-panel`（AgentSpace 内） | 右侧面板独立块（执行/配置 合并） | 宽 240–560px；`border:1px` `radius-md`；`contain` `will-change` | 同上 | 右 Tab：chart/settings；关闭 close | `.right-tab` 下划线指示条 2px 主色；子 Tab（记忆/人格）`.right-subtab` 同款 | 双层下划线 Tab（Level-1 + Level-2）层级靠字号区分，无 role=tablist 语义 |
@@ -290,14 +290,14 @@ Space/Agent 语义 | `--color-surface(-elevated)` / `--color-text(-muted)` / `--
 
 组件 | 职责 | token | 主题三态 | 备注
 ---|---|---|---|---
-[TuiButton.vue](../../packages/ui-kit/src/components/TuiButton.vue) | 按钮 | `--radius-* --fs-* --dur-* --accent-* --bg-* --text-*` | ✓ | 含按压反馈与 reduced-motion
+[TuiButton.vue](../../../packages/ui-kit/src/components/TuiButton.vue) | 按钮 | `--radius-* --fs-* --dur-* --accent-* --bg-* --text-*` | ✓ | 含按压反馈与 reduced-motion
 TuiCheckbox | 复选框 | 全局 | ✓ | — |
 TuiConfirm | 确认弹窗 | — | ✓ | — |
 TuiDrawer | 抽屉 | — | ✓ | — |
 TuiEmpty | 空态 | — | ✓ | — |
-[TuiModal.vue](../../apps/tauri/src/components/ui/TuiModal.vue) | 弹窗 | `--z-modal --overlay --bg-surface --radius-lg --shadow-lg` | ✓ | 遮罩模糊
+[TuiModal.vue](../../../apps/tauri/src/components/ui/TuiModal.vue) | 弹窗 | `--z-modal --overlay --bg-surface --radius-lg --shadow-lg` | ✓ | 遮罩模糊
 TuiSegmented | 分段滑块 | — | ✓ | 顶栏模式滑块用 |
-[TuiSelect.vue](../../apps/tauri/src/components/ui/TuiSelect.vue) | 下拉选择 | — | ✓ | 配置层 27 处替换用 |
+[TuiSelect.vue](../../../apps/tauri/src/components/ui/TuiSelect.vue) | 下拉选择 | — | ✓ | 配置层 27 处替换用 |
 TuiSpinner | 加载 | — | ✓ | — |
 TuiToast | 轻提示 | — | ✓ | — |
 ToolbarOverflow | 工具栏溢出 | — | ✓ | — |
@@ -306,8 +306,8 @@ ToolbarOverflow | 工具栏溢出 | — | ✓ | — |
 
 能力 | 说明
 ---|---
-[WsIcon.vue](../../packages/ui-kit/src/components/WsIcon.vue) | 尺寸档 xs/sm/md/lg/xl（`--icon-size-*`）；SVG stroke round；从 iconRegistry 解析
-[iconRegistry.ts](../../packages/ui-kit/src/assets/icons/index.ts) | action/nav/data/world/theme/category 六组注册；`getAllIconNames()` 可枚举
+[WsIcon.vue](../../../packages/ui-kit/src/components/WsIcon.vue) | 尺寸档 xs/sm/md/lg/xl（`--icon-size-*`）；SVG stroke round；从 iconRegistry 解析
+[iconRegistry.ts](../../../packages/ui-kit/src/assets/icons/index.ts) | action/nav/data/world/theme/category 六组注册；`getAllIconNames()` 可枚举
 action 组 | close/edit/delete/save/search/settings/refresh/undo/redo/folder-open/folder/file-select/print/link/list/brush/tag/warning/palette/keyboard/star/star-outline/check/unlock/grip/image/arrow-up/chevron-down/chevron-right/play/pause
 nav 组 | chat/terminal/subagent/memory/send/stop/plus/bulb/info/arrow-left/trash/copy/sparkle/dots/book/wrench/grid/moon/sun/upload/file/monitor/video/paperclip/tree/download/package/activity/chart/task
 其他被引用名 | x/document/zap/archive/volume-on/workflow/square/outline/maximize/download/clipboard-list/bot/key/panel-right-open/panel-right-close/more-horizontal/pencil/globe/mindmap/handshake/users/manuscript/trending-*
