@@ -149,3 +149,26 @@ describe('world_plugin_* 五件工具', () => {
     expect(readFileSync(join(root, 'worlddata', '.worldsea', 'plugins', 'ws.counter.js'), 'utf-8')).toBe(VALID_CODE)
   })
 })
+
+/**
+ * 注册面守卫（2026-10-18）。
+ *
+ * 为什么需要它：壳侧说明书模板（`src-tauri/src/worldsea_manual.rs` 的 NATIVE_TOOLS）与本插件
+ * 注册面是**两地维护的同一份事实**——批 7 加 schema 四件时模板漏更，Agent 的默认地图少四条能力
+ * （2026-10-18 源码复核发现）。两侧各守一端：本用例守「实际注册 = 清单」，Rust 侧
+ * `说明书_原生工具清单与模板双向一致` 守「模板 = 清单」。改工具面时三处必须同步。
+ */
+describe('注册面：world_* 工具清单（与壳侧 NATIVE_TOOLS 同步）', () => {
+  const EXPECTED = [
+    'world_project_list', 'world_project_current',
+    'world_schema_get', 'world_schema_list', 'world_schema_read', 'world_schema_write', 'world_schema_delete',
+    'world_entity_list', 'world_entity_search', 'world_entity_get', 'world_entity_put', 'world_entity_update', 'world_entity_delete',
+    'world_relation_list', 'world_relation_put', 'world_relation_delete',
+    'world_plugin_template', 'world_plugin_write', 'world_plugin_list', 'world_plugin_read', 'world_plugin_delete',
+  ]
+
+  it('实际注册面 = 21 条具名清单（多一条或少一条都报红）', () => {
+    const names = [...loadTools().keys()].sort()
+    expect(names).toEqual([...EXPECTED].sort())
+  })
+})

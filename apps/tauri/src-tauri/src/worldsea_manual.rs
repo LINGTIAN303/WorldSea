@@ -20,16 +20,31 @@ const MANUAL_TEMPLATE: &str = r#"# WorldSea 产品域说明书（给 Agent 的�
 | **能力调用**（下节 world.*，经壳能力桥） | 需要工作台运行时参与的操作 | 带校验、带审计；单实体粒度；改完工作台即见 |
 | **FS 直写**（write_file 等通用工具） | 批量/原始文件操作（`worlddata/` 下的 JSON、`agent/` 下任意文件） | 绕过数据层校验，格式自负；worlddata 内的外部写入同样经 FsWatcher 刷新界面 |
 
-## 原生工具集（12 条 world_*，会话工具面直接可用）
+## 原生工具集（21 条 world_*，会话工具面直接可用）
 
 项目：`world_project_list`（项目 = dsh 工作区）· `world_project_current`（cwd 对齐的项目）
-Schema：`world_schema_get`（type 省略 = 全部；**组装实体前先取**；单类型返回附 snapshotGeneratedAt）
+Schema：`world_schema_get`（type 省略 = 全部；**组装实体前先取**；单类型返回附 snapshotGeneratedAt）· `world_schema_list` / `world_schema_read` / `world_schema_write` / `world_schema_delete`（项目级覆盖，见「Schema 覆盖」节）
 实体：`world_entity_list` · `world_entity_search`（关键词 + tag 标签过滤）· `world_entity_get` · `world_entity_put` · `world_entity_update` · `world_entity_delete`（原子清理关联关系）
 关系：`world_relation_list` · `world_relation_put`（两端实体必须已存在）· `world_relation_delete`
+外部插件：`world_plugin_template` · `world_plugin_write` · `world_plugin_list` · `world_plugin_read` · `world_plugin_delete`（见「外部插件」节）
 
 **清单类共性**：返回 `{items, total, offset, limit}`——total 超过 items 数即有更多，用 offset 翻页（缺省 200 条上限）；统一按 updatedAt 降序 → id 升序稳定排序；空结果附 `state`（`uninitialized` = 数据目录未初始化，请用户先打开一次工作台 / `empty` = 暂无数据）。
 **按需取字段**：`world_entity_get` 与 `world_relation_list` 支持 `fields` 点路径数组（如 `["properties.age"]`），id/type 恒返回，减载荷。
 **写操作两条**：① 写前守卫——会话 cwd 必须正好是已登记工作区根，否则报 `WORLDSEA_NOT_A_WORKSPACE`（防误写非项目目录）；② `world_entity_update` 的 `changes.properties` 缺省整包替换，`mergeProperties: true` 按字段合并（只改动点名字段）。
+
+## Schema 覆盖（加字段 / 改标签 / 改取值）
+
+内置 schema 是**代码注册表（只读）**；调整实体类型的字段与标签 = 写**项目级覆盖文件**
+`worlddata/.worldsea/schemas/<type>.json`（四件工具：list / read / write / delete）：
+
+- `world_schema_list` —— 现有覆盖清单（type / 大小 / 修改时间）；空 = 全部使用内置默认
+- `world_schema_read` —— 读一份覆盖的完整 JSON
+- `world_schema_write` —— 写入/覆盖（原子替换）；`json` 传**覆盖对象**（非整份 schema）
+- `world_schema_delete` —— 删除覆盖 → 该类型回落内置默认
+
+覆盖对象形状：`{ type（必填，与文件名一致）, label?, icon?, traits?, ownFields?（按 key 匹配：同 key 整字段替换、新 key 追加）, fieldOverrides?（traitId → fieldKey → 覆盖）, detailLayout? }`。
+与内置默认**逐键深合并**；写入后工作台约 1 秒热重填（字段直接进该类型视图的表单 / 筛选 / 详情）。
+`type` 必须是已存在的实体类型（内置芽或外部插件注册）；写前守卫与实体写操作相同。
 
 ## 能力桥清单（world.*，经壳受控调用）
 
@@ -78,7 +93,7 @@ const AGENTS_POINTER_TEMPLATE: &str = r#"# WorldSea 产品域工作区（壳生�
 本项目是 **WorldSea 产品域工作区**（项目 = dsh 工作区，单一真相源在 dsh 侧）：
 
 - 你的 cwd = 项目根目录；创作数据在 `worlddata/`（实体/关系/文件），`agent/` 是你的工作路径。
-- **先读 `WORLDSEA.md`**——产品域能力地图：三条写入通道判定线 + `world.*` 能力桥清单 + 12 条 `world_*` 原生工具。
+- **先读 `WORLDSEA.md`**——产品域能力地图：三条写入通道判定线 + `world.*` 能力桥清单 + 21 条 `world_*` 原生工具。
 - 会话工具面里的 `world_*` 工具可直接读写创作数据；清单类返回带分页与稳定排序，写操作要求 cwd 为本项目根。
 "#;
 
@@ -182,12 +197,68 @@ mod tests {
         let first = std::fs::read_to_string(&path).unwrap();
         assert!(first.contains("WORLDSEA.md"), "薄指针必须指向说明书");
         assert!(first.contains("worlddata"), "薄指针必须交代数据目录口径");
+        assert!(
+            first.contains(&format!("{} 条 `world_*` 原生工具", NATIVE_TOOLS.len())),
+            "薄指针的工具条数须与 NATIVE_TOOLS 一致"
+        );
 
         std::fs::write(&path, "用户自定义 AGENTS.md").unwrap();
         ensure_agents_pointer(&dir);
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "用户自定义 AGENTS.md");
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 原生工具清单（21 条）——与 `apps/dsh-plugin-worldsea` 的注册面同步维护：
+    /// 改动任一侧必须同步另一侧（JS 侧 `__tests__/plugin-tools.spec.ts` 守「实际注册 = 本清单」）。
+    const NATIVE_TOOLS: [&str; 21] = [
+        "world_project_list",
+        "world_project_current",
+        "world_schema_get",
+        "world_schema_list",
+        "world_schema_read",
+        "world_schema_write",
+        "world_schema_delete",
+        "world_entity_list",
+        "world_entity_search",
+        "world_entity_get",
+        "world_entity_put",
+        "world_entity_update",
+        "world_entity_delete",
+        "world_relation_list",
+        "world_relation_put",
+        "world_relation_delete",
+        "world_plugin_template",
+        "world_plugin_write",
+        "world_plugin_list",
+        "world_plugin_read",
+        "world_plugin_delete",
+    ];
+
+    /// 说明书＝Agent 的默认地图。缺一条 = 能力不可发现（批 7 的 schema 四件曾漏）；
+    /// 多一条 = 指向不存在的工具（比缺更坏）。故双向守卫：不漏写、不多写、条数声明一致。
+    #[test]
+    fn 说明书_原生工具清单与模板双向一致() {
+        use std::collections::BTreeSet;
+
+        for tool in NATIVE_TOOLS {
+            assert!(MANUAL_TEMPLATE.contains(tool), "说明书模板缺少工具 {tool}");
+        }
+
+        // 模板里出现的 world_* 必须全部在清单内（"world_*" 通配写法自身不算工具名）
+        let declared: BTreeSet<&str> = NATIVE_TOOLS.iter().copied().collect();
+        let found: BTreeSet<&str> = MANUAL_TEMPLATE
+            .split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+            .filter(|token| token.len() > "world_".len() && token.starts_with("world_"))
+            .collect();
+        let unknown: Vec<&&str> = found.difference(&declared).collect();
+        assert!(unknown.is_empty(), "说明书模板出现未登记工具 {unknown:?}（改工具面时同步 NATIVE_TOOLS）");
+
+        // 标题声明的条数必须与清单长度一致（防「改了清单忘改标题」）
+        assert!(
+            MANUAL_TEMPLATE.contains(&format!("（{} 条 world_*", NATIVE_TOOLS.len())),
+            "说明书标题声明的条数与 NATIVE_TOOLS 不一致"
+        );
     }
 
     #[test]
