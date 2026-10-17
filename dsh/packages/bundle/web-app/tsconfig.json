@@ -18,9 +18,6 @@
       "path": "../../../vendor/loader"
     },
     {
-      "path": "../../api/gateway/tsconfig.host.json"
-    },
-    {
       "path": "../../boot/app-boot"
     },
     {
@@ -37,9 +34,6 @@
     },
     {
       "path": "../../util/launch-environment"
-    },
-    {
-      "path": "../../core/system-prompt"
     },
     {
       "path": "../../shell/shell-env"
