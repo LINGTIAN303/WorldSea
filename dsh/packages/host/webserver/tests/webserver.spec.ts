@@ -576,6 +576,7 @@ describe('real Loader composition', () => {
       host: '127.0.0.1',
       port: 0,
       tls,
+      external: false,
       compression: 'none',
       compressionLevel: 1,
       compressionThresholdBytes: 1024,

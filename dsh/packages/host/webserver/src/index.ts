@@ -332,9 +332,9 @@ export class WebServer extends Service {
     this.gzip = resolved.compression === 'gzip' ? createGzipMiddleware(resolved) : undefined
   }
 
-  /** The listening port (the OS-assigned value when config.port is 0); the declared authority in external-carrier mode. */
-  get port(): number {
-    return this.listenedPort ?? this.config.port
+  /** The listening port (the OS-assigned value when config.port is 0), or `undefined` before `listen` binds. */
+  get port(): number | undefined {
+    return this.listenedPort
   }
 
   /** The configured bind address (one concrete local interface). */
