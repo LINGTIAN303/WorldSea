@@ -8,7 +8,7 @@
 基线提交：`962c6f6`
 
 对应上游：tag `dsh-v0.2.1-rc.2`（上游提交 `687f282e8625c6b8d11ff58211a90524be2e4317` 的干净树；换树记录见该提交信息）。
-**前次基线**：`096a48c`（tag `dsh-v0.2.0-rc.2`，上游 `639ed015…`）——追版记录见 [F5 批计划](../../plans/2026-10-17-F5-追版dsh-0.2.1-rc.2批计划.md)。
+**前次基线**：`096a48c`（tag `dsh-v0.2.0-rc.2`，上游 `639ed015…`）——追版记录见 [F5 批计划](../../plans/已完成/2026-10-17-F5-追版dsh-0.2.1-rc.2批计划.md)。
 **更早基线**：`0c6f8b2`（tag `dsh-v0.2.0-rc.1`，上游 `4878cdab…`）——追版记录见 [F2 批计划](../../plans/已完成/2026-09-29-F2-追版0.2.0-rc.1批计划.md)；`cde62e7`（tag `dsh-v0.1.7-rc.2`，上游 `477b4f42…`）——见 [F1 批计划](../../plans/已完成/2026-09-24-F1-追版rc2批计划.md)。
 
 **追版重放（2026-10-18，0.2.0-rc.2 → 0.2.1-rc.2）**：上游 delta **9,058 路径**（改 4,399 / 增 3,426 / 删 1,233），39 个命脉接缝被改，我方 11 处改动 **8 处重叠**。`git apply --3way` **4 文件 / 19 处冲突**：`bundle/web-app/src/startup.ts`（6，新增 `--public-url`/TLS 旗标族与 `--ipc-pipe` 合并）、`bundle/web-app/src/index.ts`（5，上游 `WebApp`/`publicUrl`/就绪行新结构与 pipe carrier 合并）、`host/webserver/src/index.ts`（5，上游 TLS/地址谓词重构与 `external`/`dispatch` 合并，保留 unbound dispose 保护）、`bundle/web-app/cordis.patch.yml`（3，`tls`+`external` 双键、`publicUrl`+`ipcPipe`，保留上游 `harness-dev-context` 行）。`package.json` / `tsconfig.json` / `webserver.spec.ts` 自动合并干净；3 个新增文件无冲突。**非冲突适配**：`TypertGatewayWireStream.open` 的 `peer` 变必填 → 管道改用 `connection.browserPeer`；`trustedHosts` 迁到连接层直接读 `webStartup`（web-app Config 删除该项）；`webServer.port` 保留上游 `number | undefined`，external 模式在 init 写入 `listenedPort`（读到声明端口）。锁文件按既有纪律重放。
