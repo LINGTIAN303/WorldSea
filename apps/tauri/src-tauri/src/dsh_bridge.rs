@@ -341,10 +341,10 @@ pub fn navigate_to_app(window: &WebviewWindow) {
     match APP_URL.parse::<tauri::Url>() {
         Ok(parsed) => {
             if let Err(e) = window.navigate(parsed) {
-                crate::dsh_shell::show_error(window, "无法加载 dsh 界面", &format!("窗口导航失败：{e}"));
+                crate::dsh_error::show_error(window, "无法加载 dsh 界面", &format!("窗口导航失败：{e}"));
             }
         }
-        Err(e) => crate::dsh_shell::show_error(window, "无法加载 dsh 界面", &format!("URL 解析失败：{e}")),
+        Err(e) => crate::dsh_error::show_error(window, "无法加载 dsh 界面", &format!("URL 解析失败：{e}")),
     }
 }
 

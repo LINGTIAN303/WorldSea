@@ -1,0 +1,181 @@
+/* 基座样式（.set-card/.sc-head/.set-row/.set-toggle）见 ui-kit settings-panels.css。
+   本面板私有：布局类（sm-*）与 sc-head 的 flex 覆盖（标题行右侧带操作按钮，同 Plugins 特例） */
+.sm-tab {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.sc-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sc-head > span {
+  flex: 1;
+  min-width: 0;
+}
+.set-row .set-toggle { margin-left: auto; }
+.sm-row-hint { margin-left: 12px; font-size: var(--font-size-xs); color: var(--color-text-tertiary); }
+.sm-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+.sm-stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px;
+  background: var(--color-bg-hover);
+  border-radius: var(--radius-md);
+}
+/* E 项入口：键值项统计块可点击打开只读浏览器 */
+.sm-stat-click {
+  cursor: pointer;
+}
+.sm-stat-click:hover {
+  background: var(--color-bg-active, var(--color-bg-hover));
+  outline: 1px solid var(--border);
+}
+.sm-stat-value {
+  font-size: var(--text-heading-font-size);
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+.sm-stat-label {
+  font-size: var(--text-caption-font-size);
+  color: var(--color-text-tertiary);
+  margin-top: 2px;
+}
+.sm-consistency-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 8px 10px;
+  background: var(--color-bg-hover);
+  border-radius: var(--radius-md);
+  font-size: var(--text-body-sm-font-size);
+  color: var(--color-text-secondary);
+}
+.sm-consistency-row > span {
+  flex: 1;
+  min-width: 0;
+}
+.sm-dir-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+  padding: 6px 8px;
+  background: var(--color-bg-hover);
+  border-radius: var(--radius-md);
+  font-size: var(--text-body-sm-font-size);
+}
+.sm-dir-path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl; /* 长路径省略号保留末段（离文件名近的一端） */
+  text-align: left;
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono, monospace);
+}
+.sm-comp-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.sm-comp-chip {
+  padding: 3px 10px;
+  background: var(--color-bg-hover);
+  border-radius: var(--radius-pill, 999px);
+  font-size: var(--text-caption-font-size);
+  color: var(--color-text-secondary);
+}
+.sm-usage-list {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sm-usage-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-caption-font-size);
+}
+.sm-usage-item:hover { background: var(--color-bg-hover); }
+.sm-usage-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-secondary);
+}
+.sm-usage-count { color: var(--color-text-tertiary); }
+.sm-usage-size { color: var(--color-text-primary); font-variant-numeric: tabular-nums; }
+.sm-usage-note {
+  margin-top: 6px;
+  font-size: var(--text-caption-font-size);
+  color: var(--color-text-tertiary);
+}
+.sm-usage-warn { color: var(--color-warning); }
+.sm-orphan-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 6px 10px;
+  background: var(--color-primary-subtle);
+  border-radius: var(--radius-md);
+  font-size: var(--text-body-sm-font-size);
+  color: var(--color-primary);
+}
+.sm-orphan-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sm-orphan-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sm-selected-info {
+  font-size: var(--text-caption-font-size);
+  color: var(--color-text-secondary);
+  margin-left: auto;
+}
+.sm-orphan-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-hover);
+}
+.sm-orphan-name {
+  flex: 1;
+  font-size: var(--text-body-sm-font-size);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sm-orphan-size {
+  font-size: var(--text-caption-font-size);
+  color: var(--color-text-tertiary);
+}
+.sm-empty-hint {
+  font-size: var(--text-body-sm-font-size);
+  color: var(--color-text-tertiary);
+  text-align: center;
+  padding: 12px;
+}
