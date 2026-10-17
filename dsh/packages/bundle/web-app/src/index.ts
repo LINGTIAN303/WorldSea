@@ -224,8 +224,8 @@ function installPipeMode(ctx: Context, pipePath: string): void {
 }
 
 /**
- * Mount the Web runtime: dist serving, surface prompt, the bash runtime
- * variable, the URL line, and the default-browser handoff.
+ * Mount the Web runtime: dist serving, the bash runtime variable, the URL
+ * line, and the default-browser handoff.
  * @param ctx - plugin context carrying the webServer service.
  * @param config - validated {@link Config}.
  */
