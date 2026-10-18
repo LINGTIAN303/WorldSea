@@ -1,4 +1,4 @@
-import { computed, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useEntityStore, useRelationStore, type Entity } from '@worldsea/entity-core'
 import { genBoardId, type OutlineBoardLayout } from '../layoutSchema'
 import { cloneContainerIntoLayout } from '../duplicateContainer'
@@ -196,6 +196,17 @@ export function useBoardNodeActions(opts: Options) {
   async function removeEntities(payload: EntityDeletePayload): Promise<void> {
     await deleteOutlineNodes(deleteApi, payload.nodes.map(n => n.id))
   }
+
+  /**
+   * 跨组件删除请求（2026-10-19）：表格式的「管理行」等派生型形式不持有本 composable 实例，
+   * 通过事件把删除意图送回这里——**保证删除永远只有一条路径**（四策略对话框 + 撤销记录）。
+   */
+  function onDeleteRequest(e: Event): void {
+    const nodeId = (e as CustomEvent<{ nodeId?: string }>).detail?.nodeId
+    if (nodeId) askDeleteNode(nodeId)
+  }
+  onMounted(() => window.addEventListener('ws-outline-delete-node', onDeleteRequest))
+  onUnmounted(() => window.removeEventListener('ws-outline-delete-node', onDeleteRequest))
 
   return {
     duplicateContainer,

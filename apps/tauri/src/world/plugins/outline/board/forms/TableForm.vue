@@ -13,6 +13,27 @@
   >
     <div v-if="built.empty" class="tb-empty">暂无子节点</div>
     <DataTable v-else :columns="built.columns" :rows="built.rows" />
+
+    <button class="tb-manage" type="button" @click="openManage">管理行（{{ children.length }}）</button>
+
+    <FloatingPanel
+      v-model:visible="manageOpen"
+      v-model:pinned="managePinned"
+      title="管理行"
+      :width="300"
+      :height="340"
+      :trigger-rect="triggerRect"
+    >
+      <div class="tb-rows">
+        <div v-for="row in children" :key="row.id" class="tb-row">
+          <span class="tb-row-name" :title="row.name || '未命名'">{{ row.name || '未命名' }}</span>
+          <button class="tb-row-btn" type="button" @click="openRow(row.id)">改</button>
+          <button class="tb-row-btn tb-row-btn--danger" type="button" @click="requestDelete(row.id)">删</button>
+        </div>
+        <div v-if="!children.length" class="tb-rows-empty">暂无子节点</div>
+        <button class="tb-add" type="button" @click="addRow">＋ 添加行</button>
+      </div>
+    </FloatingPanel>
   </div>
 </template>
 
@@ -21,11 +42,15 @@
  * 表格式组件：纯派生渲染，无写入路径、无就地编辑（规格 §3.2-③）。
  * 表格数据由 tableRows.ts 的纯函数构建（仅直接子节点、缺值占位），组件只做配置归一化与渲染。
  */
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useEntityStore } from '@worldsea/entity-core'
-import { DataTable } from '@worldsea/ui-kit'
+import { DataTable, FloatingPanel } from '@worldsea/ui-kit'
 import { resolveFormConfig } from './registry'
 import { buildTableRows, type TableSourceNode } from './tableRows'
+import { resolveChildNodes } from '../outlineDerive'
+import { genBoardId } from '../layoutSchema'
+import { focusNodeField } from '../composables/useNodeFieldFocus'
+import { syncParentChildRelation } from '../../parentChildSync'
 
 const props = defineProps<{
   nodeId: string
@@ -54,6 +79,57 @@ const built = computed(() =>
     includeSelf: cfg.value.includeSelf === true,
   }),
 )
+
+/** 行 = 直接子节点（与表格同一数据源，但这里要 id 才能操作） */
+const children = computed<TableSourceNode[]>(() => {
+  const exists = allNodes.value.some(n => n.id === props.nodeId)
+  return exists ? (resolveChildNodes(props.nodeId, allNodes.value) as unknown as TableSourceNode[]) : []
+})
+
+// ── 行管理（2026-10-19 Q1-B）：表格内不改数据，操作收在「管理行」浮层 ──
+const manageOpen = ref(false)
+const managePinned = ref(false)
+const triggerRect = ref<DOMRect | null>(null)
+
+function openManage(ev: MouseEvent): void {
+  const el = ev.currentTarget as HTMLElement | null
+  triggerRect.value = el ? el.getBoundingClientRect() : null
+  manageOpen.value = true
+}
+
+/** 改：打开该行节点的详情面板（状态 / 字数 / 线索在面板里写） */
+function openRow(nodeId: string): void {
+  manageOpen.value = false
+  focusNodeField(nodeId, 'status')
+}
+
+/** 删：不在此直接删——经事件桥接走唯一删除入口（四策略对话框 + 撤销记录） */
+function requestDelete(nodeId: string): void {
+  window.dispatchEvent(new CustomEvent('ws-outline-delete-node', { detail: { nodeId } }))
+}
+
+/** 增：新建子节点（未入板），并同步 parent_child 关系 */
+async function addRow(): Promise<void> {
+  const now = new Date().toISOString()
+  const id = genBoardId('out')
+  await es.add({
+    id,
+    type: 'outline_node',
+    name: '新节点',
+    description: '',
+    properties: {
+      status: '未写',
+      order: children.value.length + 1,
+      parentId: props.nodeId,
+      storylines: '',
+      manuscriptId: '',
+    },
+    tags: [],
+    createdAt: now,
+    updatedAt: now,
+  } as never)
+  await syncParentChildRelation(id, props.nodeId)
+}
 </script>
 
 <style scoped>
@@ -79,4 +155,39 @@ const built = computed(() =>
 .tb--compact :deep(.ws-dt) { font-size: var(--font-size-xs); }
 .tb--standard :deep(.ws-dt th) { padding: 6px 10px; }
 .tb--standard :deep(.ws-dt td) { padding: 5px 10px; }
+.tb-manage {
+  margin-top: 4px;
+  padding: 0 6px;
+  height: 20px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--font-size-2xs);
+  font-family: inherit;
+  cursor: pointer;
+}
+.tb-manage:hover { border-color: var(--primary); color: var(--primary); }
+.tb-rows { display: flex; flex-direction: column; gap: 2px; height: 100%; min-height: 0; }
+.tb-row { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.tb-row-name {
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: var(--font-size-xs); color: var(--text-color);
+}
+.tb-row-btn {
+  flex-shrink: 0; padding: 0 5px; height: 18px;
+  border: 1px solid var(--border-color); border-radius: var(--radius-xs);
+  background: transparent; color: var(--text-secondary);
+  font-size: var(--font-size-2xs); font-family: inherit; cursor: pointer;
+}
+.tb-row-btn:hover { border-color: var(--primary); color: var(--primary); }
+.tb-row-btn--danger:hover { border-color: var(--danger); color: var(--danger); }
+.tb-rows-empty { padding: 10px 0; text-align: center; font-size: var(--font-size-2xs); color: var(--text-tertiary); }
+.tb-add {
+  margin-top: auto; padding: 0 6px; height: 22px;
+  border: 1px dashed var(--border-color); border-radius: var(--radius-xs);
+  background: transparent; color: var(--text-secondary);
+  font-size: var(--font-size-2xs); font-family: inherit; cursor: pointer;
+}
+.tb-add:hover { border-color: var(--primary); color: var(--primary); }
 </style>
