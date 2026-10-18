@@ -91,9 +91,13 @@ const groups = computed(() =>
   groupOutlineRefs(rs.relations ?? [], props.nodeId, entityById.value, refRelationTypes.value),
 )
 
-const emptyText = computed(() =>
-  String(cfg.value.emptyText ?? '暂无关联实体（可由 Agent 建立关联）'),
-)
+/** 旧默认空态文案（2026-10-18 前）：已存板的容器配置里可能仍是这句，读侧自动升级，避免展示过期说明 */
+const LEGACY_EMPTY_TEXT = '暂无关联实体（可由 Agent 建立关联）'
+
+const emptyText = computed(() => {
+  const text = String(cfg.value.emptyText ?? '暂无关联实体')
+  return text === LEGACY_EMPTY_TEXT ? '暂无关联实体' : text
+})
 
 const iconOf = (type: string): string => entitySchemaRegistry.getIconName(type) || 'link'
 const labelOf = (type: string): string => entitySchemaRegistry.getLabel(type) || type

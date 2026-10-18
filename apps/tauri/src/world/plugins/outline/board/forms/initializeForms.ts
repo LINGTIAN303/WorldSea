@@ -242,8 +242,9 @@ export function initializeForms(): void {
   })
 
   // 关联实体徽章（派生型只读）—— 重建旧树视图的「关联实体徽章组」
-  // 数据源**不是节点字段而是关系表**（`outline_mentions` / `outline_located_in` / `outline_covers`），
-  // 故建立关联的入口在 Agent（`link_entity` 工具）；属性面板里没有、也不该有对应输入框（关系不是字段）。
+  // 数据源**不是节点字段而是关系表**（`outline_mentions` / `outline_located_in` / `outline_covers`）。
+  // **建立关联的入口有两个**：用户侧 = 节点详情「关联实体」区（`NodeRefsSection`，2026-10-08 起）；
+  // Agent 侧 = 关系写入工具。属性面板无对应输入框——关系不是字段。
   registerForm({
     form: 'refs',
     label: '关联实体',
@@ -253,11 +254,12 @@ export function initializeForms(): void {
     defaultHeight: 90,
     defaultConfig: {
       maxPerGroup: 4,
-      emptyText: '暂无关联实体（可由 Agent 建立关联）',
+      // 2026-10-18：原文案「（可由 Agent 建立关联）」已过期——用户侧早就能加，读侧另做旧值自动升级
+      emptyText: '暂无关联实体',
     },
     configSchema: [
       { key: 'maxPerGroup', label: '每组最多显示', type: 'number', default: 4 },
-      { key: 'emptyText', label: '空态文案', type: 'text', default: '暂无关联实体（可由 Agent 建立关联）' },
+      { key: 'emptyText', label: '空态文案', type: 'text', default: '暂无关联实体' },
     ],
     component: OutlineRefsForm,
   })
