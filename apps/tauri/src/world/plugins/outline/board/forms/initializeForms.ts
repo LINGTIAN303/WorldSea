@@ -9,6 +9,7 @@ import TitleForm from './TitleForm.vue'
 import CardForm from './CardForm.vue'
 import QuestionForm from './QuestionForm.vue'
 import ParagraphForm from './ParagraphForm.vue'
+import ScriptForm from './ScriptForm.vue'
 import TreeForm from './TreeForm.vue'
 import SentenceForm from './SentenceForm.vue'
 import TableForm from './TableForm.vue'
@@ -145,6 +146,24 @@ export function initializeForms(): void {
       },
     ],
     component: ParagraphForm,
+  })
+
+  registerForm({
+    form: 'script',
+    label: '脚本式',
+    icon: 'scroll',
+    kind: 'inline',
+    description: '一场戏：场景 + 台词 + 动作（三段各自就地编辑）',
+    defaultHeight: 120,
+    defaultConfig: {
+      showDialogue: true,
+      showAction: true,
+    },
+    configSchema: [
+      { key: 'showDialogue', label: '显示台词段', type: 'boolean', default: true },
+      { key: 'showAction', label: '显示动作段', type: 'boolean', default: true },
+    ],
+    component: ScriptForm,
   })
 
   registerForm({

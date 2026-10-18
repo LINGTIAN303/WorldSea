@@ -61,6 +61,11 @@ export function apply(_ctx: unknown, api: WorldPluginApi) {
       // 当年 `content` 被删，是因为「未声明 / 无入口 / 无读取」三条全不满足；
       // 现在作为**形式专属内容字段**回归：ownFields 声明 + ParagraphForm 唯一写入入口 + 2000 软上限。
       { key: 'content', label: '正文', fieldType: 'text' },
+      // 2026-10-19（Q1′ 后）：脚本式的三段结构化内容（用户拍板 B 方案：场景 / 台词 / 动作）。
+      // 三段**各自独立**编辑与导出，不合并成一个长文本——合并会失去「场景标题」的检索与跳转价值。
+      { key: 'scene', label: '场景', fieldType: 'text' },
+      { key: 'dialogue', label: '台词', fieldType: 'text' },
+      { key: 'action', label: '动作', fieldType: 'text' },
     ],
   })
 

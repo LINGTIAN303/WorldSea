@@ -18,13 +18,13 @@ beforeAll(() => {
 })
 
 describe('formsRegistration / 真实注册表', () => {
-  it('十种表现形式均已注册，且 form 标识唯一', () => {
+  it('十一种表现形式均已注册，且 form 标识唯一', () => {
     const forms = getAllForms().map(d => d.form)
-    for (const expected of ['title', 'card', 'question', 'paragraph', 'sentence', 'tree', 'table', 'storyline', 'progress', 'refs']) {
+    for (const expected of ['title', 'card', 'question', 'paragraph', 'script', 'sentence', 'tree', 'table', 'storyline', 'progress', 'refs']) {
       expect(forms).toContain(expected)
     }
     expect(new Set(forms).size).toBe(forms.length)
-    expect(forms).toHaveLength(10)
+    expect(forms).toHaveLength(11)
   })
 
   it('每个形式：label 非空、component 已挂载、defaultHeight 为正', () => {
