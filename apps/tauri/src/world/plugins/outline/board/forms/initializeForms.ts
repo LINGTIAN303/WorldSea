@@ -114,6 +114,7 @@ export function initializeForms(): void {
     configSchema: [
       { key: 'showStatus', label: '显示状态点', type: 'boolean', default: true },
       { key: 'showAnswer', label: '显示回答区', type: 'boolean', default: true },
+      { key: 'showAnswerMark', label: '显示「答」字标', type: 'boolean', default: false },
     ],
     component: QuestionForm,
   })

@@ -32,6 +32,8 @@
 
     <template v-if="showAnswer">
       <div class="qf-answer-wrap">
+        <span v-if="showAnswerMark" class="qf-mark qf-mark--answer" aria-hidden="true">答</span>
+        <div class="qf-answer-body">
         <textarea
           v-if="editingField === 'answer'"
           :ref="setAnswerRef"
@@ -52,6 +54,7 @@
         >{{ displayAnswer }}</p>
         <div v-if="editingField === 'answer'" class="qf-count" :class="{ 'qf-count--over': over }">
           {{ answerChars }} / {{ ANSWER_LIMIT }}
+        </div>
         </div>
       </div>
     </template>
@@ -89,6 +92,8 @@ const node = computed(() => (es.entities ?? []).find(e => e.id === props.nodeId)
 const cfg = computed(() => resolveFormConfig('question', props.config))
 const showStatus = computed(() => cfg.value.showStatus !== false)
 const showAnswer = computed(() => cfg.value.showAnswer !== false)
+/** 答字标默认不显示（2026-10-19 用户要求：可配置，默认关） */
+const showAnswerMark = computed(() => cfg.value.showAnswerMark === true)
 
 const question = computed(() => String(node.value?.properties?.question ?? '').trim())
 const fullAnswer = computed(() => String(node.value?.properties?.answer ?? '').trim())
@@ -242,9 +247,13 @@ defineExpose({ startEdit, commit, cancel })
   cursor: text;
 }
 .qf-text--empty { font-style: italic; font-weight: normal; color: var(--text-tertiary); }
-.qf-answer-wrap { display: flex; flex-direction: column; gap: 1px; margin-left: 22px; min-width: 0; }
+.qf-answer-wrap { display: flex; align-items: flex-start; gap: 6px; margin-left: 12px; min-width: 0; }
+.qf-answer-body { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
+.qf-mark--answer { background: var(--bg-tertiary); color: var(--text-secondary); }
 .qf-answer {
   margin: 0;
+  /* 中文排版：首行缩进两字（2026-10-19 用户要求） */
+  text-indent: 2em;
   font-size: var(--font-size-2xs);
   line-height: 1.55;
   color: var(--text-secondary);
@@ -272,6 +281,7 @@ defineExpose({ startEdit, commit, cancel })
 }
 .qf-input--multi {
   width: 100%;
+  text-indent: 2em;
   font-weight: normal;
   font-size: var(--font-size-2xs);
   line-height: 1.55;
