@@ -229,8 +229,8 @@ watch(
   border: 1px solid var(--border-color);
   border-radius: var(--radius-mid);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
-  /* 固定高度时内容不得溢出卡片（滚动交给 .bc-body） */
-  overflow: hidden;
+  /* ⚠ 不可加 overflow: hidden —— 会裁掉「添加表现形式」菜单（.bc-form-menu 在卡片内、
+     top:100% 溢出到卡片外）与组件删除按钮（right/top: -4px）；内容裁剪只交给 .bc-body */
 }
 .bc--selected { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
 .bc--dangling { border-style: dashed; opacity: 0.75; }
@@ -238,6 +238,8 @@ watch(
   display: flex;
   align-items: center;
   gap: 6px;
+  /* 固定高度时头部不参与压缩（只让 .bc-body 收缩滚动） */
+  flex-shrink: 0;
   padding: 5px 8px;
   border-bottom: 1px solid var(--border-light);
   border-radius: var(--radius-mid) var(--radius-mid) 0 0;
