@@ -52,8 +52,11 @@ export function apply(_ctx: unknown, api: WorldPluginApi) {
         ],
       },
       // 2026-10-19：问题式表现形式的承载字段——「这一节要回答什么问题？」
-      // 理论取值清单里的「问题式」此前未实现；该字段只有问题式写入，其它形式不读。
+      // 该字段只有问题式写入，其它形式不读。
       { key: 'question', label: '问题', fieldType: 'text' },
+      // 2026-10-19（Q1′ 后）：问题的回答正文。问题式缺它时只剩问句，形式是残缺的。
+      // 长度语义：软上限 500 字（组件内计数提示，不硬截断）。
+      { key: 'answer', label: '回答', fieldType: 'text' },
     ],
   })
 

@@ -1,9 +1,9 @@
 <template>
   <!--
-    问题式（QuestionForm）—— 就地型表现形式（2026-10-19 新增）
+    问题式（QuestionForm）—— 就地型表现形式（2026-10-19 新增，Q1′ 后补 answer）
     理论取值：问题式（文档 §一 表现形式 9 取值之一）。
-    · 一个节点 = 一个「要回答的问题」：问句（properties.question）+ 状态点
-    · 双击问句就地编辑；可选显示答案摘要（node.description）
+    · 一个节点 = 一个「问答」：问句（properties.question）+ 回答正文（properties.answer）+ 状态点
+    · 双击问句 / 双击回答，各自就地编辑；回答软上限 500 字（计数提示，不硬截断）
     · 写入纪律与标题式/卡片式一致：400ms 防抖 + {skipUndo} + 白板撤销栈一步
   -->
   <div class="qf">
@@ -11,8 +11,8 @@
       <span v-if="showStatus" class="qf-dot" :class="dotClass" :title="statusText" />
       <span class="qf-mark" aria-hidden="true">问</span>
       <input
-        v-if="editing"
-        ref="inputEl"
+        v-if="editingField === 'question'"
+        :ref="setQuestionRef"
         v-model="draft"
         class="qf-input"
         placeholder="这一节要回答什么问题？"
@@ -26,25 +26,56 @@
         class="qf-text"
         :class="{ 'qf-text--empty': !hasQuestion }"
         :title="displayQuestion"
-        @dblclick.stop="startEdit"
+        @dblclick.stop="startEdit('question')"
       >{{ displayQuestion }}</span>
     </div>
-    <p v-if="showAnswer && hasAnswer" class="qf-answer">{{ answer }}</p>
+
+    <template v-if="showAnswer">
+      <div class="qf-answer-wrap">
+        <textarea
+          v-if="editingField === 'answer'"
+          :ref="setAnswerRef"
+          v-model="draft"
+          class="qf-input qf-input--multi"
+          :rows="answerRows"
+          @keydown.enter="onAnswerEnter"
+          @keydown.esc.prevent="cancel"
+          @blur="commit"
+          @dblclick.stop
+        />
+        <p
+          v-else
+          class="qf-answer"
+          :class="{ 'qf-answer--empty': !hasAnswer }"
+          :title="hasAnswer ? fullAnswer : ''"
+          @dblclick.stop="startEdit('answer')"
+        >{{ displayAnswer }}</p>
+        <div v-if="editingField === 'answer'" class="qf-count" :class="{ 'qf-count--over': over }">
+          {{ answerChars }} / {{ ANSWER_LIMIT }}
+        </div>
+      </div>
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
 /**
- * 问题式：问句是主内容（写 `properties.question`），答案摘要只读（`description`）。
- * 与句子式的区别：句子式陈述事实，问题式以**未回答的问题**驱动结构。
+ * 问题式：问句（`properties.question`）+ 回答正文（`properties.answer`），两处都可就地编辑。
+ *
+ * 2026-10-19：Q1 边界澄清（A′）后补 `answer`——此前只有问句，形式是残缺的；
+ * 回答属于「形式专属内容字段」，满足 声明（ownFields）/ 唯一写入入口（本组件双击）/ 长度语义（500 软上限）。
  */
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch, type ComponentPublicInstance } from 'vue'
 import { useEntityStore } from '@worldsea/entity-core'
 import { resolveFormConfig } from './registry'
 import { statusOf } from './progressStats'
 import { injectBoardUndo } from '../composables/useBoardUndo'
 
 const WRITE_DEBOUNCE = 400
+/** 回答软上限（计数提示，不硬截断——硬截断会吞用户输入） */
+const ANSWER_LIMIT = 500
+
+type EditField = 'question' | 'answer'
 
 const props = defineProps<{
   nodeId: string
@@ -57,13 +88,17 @@ const boardUndo = injectBoardUndo()
 const node = computed(() => (es.entities ?? []).find(e => e.id === props.nodeId))
 const cfg = computed(() => resolveFormConfig('question', props.config))
 const showStatus = computed(() => cfg.value.showStatus !== false)
-const showAnswer = computed(() => cfg.value.showAnswer === true)
+const showAnswer = computed(() => cfg.value.showAnswer !== false)
 
 const question = computed(() => String(node.value?.properties?.question ?? '').trim())
+const fullAnswer = computed(() => String(node.value?.properties?.answer ?? '').trim())
 const hasQuestion = computed(() => !!question.value)
+const hasAnswer = computed(() => !!fullAnswer.value)
 const displayQuestion = computed(() => question.value || '双击写下这一节要回答的问题')
-const answer = computed(() => (node.value?.description ?? '').trim())
-const hasAnswer = computed(() => !!answer.value)
+const displayAnswer = computed(() => {
+  if (!fullAnswer.value) return '双击写下回答…'
+  return fullAnswer.value.length > 120 ? `${fullAnswer.value.slice(0, 120)}…` : fullAnswer.value
+})
 const statusText = computed(() => statusOf(node.value))
 const dotClass = computed(() => {
   if (statusText.value === '完成') return 'qf-dot--done'
@@ -71,59 +106,97 @@ const dotClass = computed(() => {
   return 'qf-dot--todo'
 })
 
-const editing = ref(false)
+// ── 就地编辑（两字段共用一个编辑态） ──
+const editingField = ref<EditField | null>(null)
 const draft = ref('')
-const inputEl = ref<HTMLInputElement | null>(null)
+const questionEl = ref<HTMLInputElement | null>(null)
+const answerEl = ref<HTMLTextAreaElement | null>(null)
 let timer: ReturnType<typeof setTimeout> | null = null
 let sessionPrev = ''
 
-/** 写 properties.question：实体更新对 properties 是整体替换，必须先合并 */
-function writeQuestion(value: string): void {
+function setQuestionRef(el: Element | ComponentPublicInstance | null): void {
+  questionEl.value = (el as HTMLInputElement | null) ?? null
+}
+function setAnswerRef(el: Element | ComponentPublicInstance | null): void {
+  answerEl.value = (el as HTMLTextAreaElement | null) ?? null
+}
+
+const answerChars = computed(() => (draft.value ?? '').length)
+const over = computed(() => answerChars.value > ANSWER_LIMIT)
+/** 编辑态行数：内容行数与 6 取小，避免编辑框无限长 */
+const answerRows = computed(() => {
+  const lines = String(draft.value ?? '').split(/\r?\n/).length
+  return Math.min(Math.max(lines, 3), 6)
+})
+
+function fieldValue(field: EditField): string {
+  return String(node.value?.properties?.[field] ?? '')
+}
+
+/** 写 properties.<field>：实体更新对 properties 是整体替换，必须先合并 */
+function writeField(field: EditField, value: string): void {
   const next = value.trim()
-  if (next === String(node.value?.properties?.question ?? '')) return
-  const nextProps = { ...(node.value?.properties ?? {}), question: next }
+  if (next === fieldValue(field).trim()) return
+  const nextProps = { ...(node.value?.properties ?? {}), [field]: next }
   void es.update(props.nodeId, { properties: nextProps }, 'user', { skipUndo: true })
 }
 
-async function startEdit(): Promise<void> {
-  if (!node.value || editing.value) return
-  sessionPrev = String(node.value.properties?.question ?? '')
+async function startEdit(field: EditField): Promise<void> {
+  if (!node.value || editingField.value) return
+  editingField.value = field
+  sessionPrev = fieldValue(field)
   draft.value = sessionPrev
-  editing.value = true
   await nextTick()
-  inputEl.value?.focus()
-  inputEl.value?.select()
+  const el = field === 'question' ? questionEl.value : answerEl.value
+  el?.focus()
+  if (field === 'question') questionEl.value?.select()
 }
 
 function commit(): void {
-  if (!editing.value) return
+  const field = editingField.value
+  if (!field) return
   if (timer) { clearTimeout(timer); timer = null }
-  writeQuestion(draft.value)
-  const prev = sessionPrev
+  writeField(field, draft.value)
   const next = (draft.value ?? '').trim()
-  if (prev !== next) {
-    const prevProps = { ...(node.value?.properties ?? {}), question: prev }
-    const nextProps = { ...(node.value?.properties ?? {}), question: next }
-    boardUndo?.recordContentEdit(props.nodeId, { properties: prevProps }, { properties: nextProps }, '改问题')
+  if (sessionPrev.trim() !== next) {
+    const prevProps = { ...(node.value?.properties ?? {}), [field]: sessionPrev }
+    const nextProps = { ...(node.value?.properties ?? {}), [field]: next }
+    boardUndo?.recordContentEdit(
+      props.nodeId,
+      { properties: prevProps },
+      { properties: nextProps },
+      field === 'question' ? '改问题' : '改回答',
+    )
   }
-  editing.value = false
+  editingField.value = null
+  sessionPrev = ''
 }
 
 function cancel(): void {
+  const field = editingField.value
   if (timer) { clearTimeout(timer); timer = null }
-  if (String(node.value?.properties?.question ?? '') !== sessionPrev) writeQuestion(sessionPrev)
-  editing.value = false
+  if (field && fieldValue(field) !== sessionPrev) writeField(field, sessionPrev)
+  editingField.value = null
+  sessionPrev = ''
+}
+
+/** Enter 提交、Shift+Enter 换行（回答是多行文本） */
+function onAnswerEnter(ev: KeyboardEvent): void {
+  if (ev.shiftKey) return
+  ev.preventDefault()
+  commit()
 }
 
 watch(draft, v => {
-  if (!editing.value) return
+  const field = editingField.value
+  if (!field) return
   if (timer) clearTimeout(timer)
-  timer = setTimeout(() => writeQuestion(v), WRITE_DEBOUNCE)
+  timer = setTimeout(() => { if (editingField.value === field) writeField(field, v) }, WRITE_DEBOUNCE)
 })
 
 watch(() => props.nodeId, () => {
   if (timer) { clearTimeout(timer); timer = null }
-  editing.value = false
+  editingField.value = null
 })
 
 defineExpose({ startEdit, commit, cancel })
@@ -169,16 +242,21 @@ defineExpose({ startEdit, commit, cancel })
   cursor: text;
 }
 .qf-text--empty { font-style: italic; font-weight: normal; color: var(--text-tertiary); }
+.qf-answer-wrap { display: flex; flex-direction: column; gap: 1px; margin-left: 22px; min-width: 0; }
 .qf-answer {
-  margin: 0 0 0 22px;
+  margin: 0;
   font-size: var(--font-size-2xs);
   line-height: 1.55;
   color: var(--text-secondary);
+  cursor: text;
+  white-space: pre-wrap;
+  word-break: break-word;
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 4;
   overflow: hidden;
 }
+.qf-answer--empty { font-style: italic; color: var(--text-tertiary); }
 .qf-input {
   flex: 1;
   min-width: 60px;
@@ -192,4 +270,13 @@ defineExpose({ startEdit, commit, cancel })
   padding: 1px 4px;
   outline: none;
 }
+.qf-input--multi {
+  width: 100%;
+  font-weight: normal;
+  font-size: var(--font-size-2xs);
+  line-height: 1.55;
+  resize: vertical;
+}
+.qf-count { align-self: flex-end; font-size: var(--font-size-2xs); color: var(--text-tertiary); }
+.qf-count--over { color: var(--warning, #d97706); }
 </style>

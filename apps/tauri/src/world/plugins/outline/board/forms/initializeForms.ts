@@ -109,11 +109,11 @@ export function initializeForms(): void {
     defaultHeight: 48,
     defaultConfig: {
       showStatus: true,
-      showAnswer: false,
+      showAnswer: true,
     },
     configSchema: [
       { key: 'showStatus', label: '显示状态点', type: 'boolean', default: true },
-      { key: 'showAnswer', label: '显示答案摘要（节点描述）', type: 'boolean', default: false },
+      { key: 'showAnswer', label: '显示回答区', type: 'boolean', default: true },
     ],
     component: QuestionForm,
   })
