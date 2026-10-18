@@ -8,7 +8,7 @@
     · 无子节点时显示空态（容器头部仍显示当前节点标题）
   -->
   <div class="tf" :class="{ 'tf--center': align === 'center' }">
-    <div v-if="!rows.length" class="tf-empty">暂无子节点（在右栏或空白处新建）</div>
+    <div v-if="!rows.length" class="tf-empty">暂无子节点</div>
     <div
       v-for="(row, i) in rows"
       :key="row.id"
@@ -38,6 +38,7 @@
       >{{ row.name || '未命名' }}</span>
       <span v-if="showBranch && childCountOf(row) > 0" class="tf-branch">{{ childCountOf(row) }}</span>
     </div>
+    <button class="tf-add" type="button" @click="addRow">＋ 添加标题</button>
   </div>
 </template>
 
@@ -54,6 +55,7 @@
 import { computed, nextTick, ref, watch, type ComponentPublicInstance } from 'vue'
 import { useEntityStore, type Entity } from '@worldsea/entity-core'
 import { resolveChildNodes } from '../outlineDerive'
+import { createChildNode } from './childNodeCreate'
 import { formatNumbering, type NumberingStyle } from './titleNumbering'
 import { resolveFormConfig } from './registry'
 import { statusOf as statusOfNode } from './progressStats'
@@ -171,6 +173,14 @@ watch(draft, v => {
   timer = setTimeout(() => { if (editingId.value) writeName(editingId.value, v) }, WRITE_DEBOUNCE)
 })
 
+/** 直接在此处新建一行（子节点），并立即进入编辑 */
+async function addRow(): Promise<void> {
+  const id = await createChildNode(es, props.nodeId, '新标题')
+  await nextTick()
+  const created = allNodes.value.find(n => n.id === id)
+  if (created) await startEdit(created)
+}
+
 // 换容器时退出编辑
 watch(() => props.nodeId, () => {
   if (timer) { clearTimeout(timer); timer = null }
@@ -232,4 +242,18 @@ defineExpose({ startEdit, commit, cancel })
   padding: 1px 3px;
   outline: none;
 }
+.tf-add {
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: 0 6px;
+  height: 20px;
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-2xs);
+  font-family: inherit;
+  cursor: pointer;
+}
+.tf-add:hover { border-color: var(--primary); color: var(--primary); }
 </style>

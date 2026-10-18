@@ -48,9 +48,8 @@ import { DataTable, FloatingPanel } from '@worldsea/ui-kit'
 import { resolveFormConfig } from './registry'
 import { buildTableRows, type TableSourceNode } from './tableRows'
 import { resolveChildNodes } from '../outlineDerive'
-import { genBoardId } from '../layoutSchema'
 import { focusNodeField } from '../composables/useNodeFieldFocus'
-import { syncParentChildRelation } from '../../parentChildSync'
+import { createChildNode } from './childNodeCreate'
 
 const props = defineProps<{
   nodeId: string
@@ -108,27 +107,9 @@ function requestDelete(nodeId: string): void {
   window.dispatchEvent(new CustomEvent('ws-outline-delete-node', { detail: { nodeId } }))
 }
 
-/** 增：新建子节点（未入板），并同步 parent_child 关系 */
+/** 增：新建子节点（未入板）——与标题式/句子式共用同一入口 */
 async function addRow(): Promise<void> {
-  const now = new Date().toISOString()
-  const id = genBoardId('out')
-  await es.add({
-    id,
-    type: 'outline_node',
-    name: '新节点',
-    description: '',
-    properties: {
-      status: '未写',
-      order: children.value.length + 1,
-      parentId: props.nodeId,
-      storylines: '',
-      manuscriptId: '',
-    },
-    tags: [],
-    createdAt: now,
-    updatedAt: now,
-  } as never)
-  await syncParentChildRelation(id, props.nodeId)
+  await createChildNode(es, props.nodeId, '新节点')
 }
 </script>
 

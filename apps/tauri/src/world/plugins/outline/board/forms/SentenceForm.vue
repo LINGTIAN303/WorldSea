@@ -11,7 +11,7 @@
     class="sf"
     :class="{ 'sf--center': align === 'center', 'sf--italic': emphasis === 'italic', 'sf--muted': emphasis === 'muted' }"
   >
-    <div v-if="!rows.length" class="sf-empty">暂无子节点（在右栏或空白处新建）</div>
+    <div v-if="!rows.length" class="sf-empty">暂无子节点</div>
     <div
       v-for="row in rows"
       :key="row.id"
@@ -44,6 +44,7 @@
         @dblclick.stop="startEdit(row)"
       >{{ displayOf(row).text || '（暂无摘要）' }}</span>
     </div>
+    <button class="sf-add" type="button" @click="addRow">＋ 添加一句</button>
   </div>
 </template>
 
@@ -58,6 +59,7 @@
 import { computed, nextTick, ref, watch, type ComponentPublicInstance } from 'vue'
 import { useEntityStore, type Entity } from '@worldsea/entity-core'
 import { resolveChildNodes } from '../outlineDerive'
+import { createChildNode } from './childNodeCreate'
 import { resolveFormConfig } from './registry'
 import { injectBoardUndo } from '../composables/useBoardUndo'
 import {
@@ -186,6 +188,14 @@ function cancel(): void {
   sessionPrev = ''
 }
 
+/** 直接在此处新建一句（子节点），并立即进入编辑 */
+async function addRow(): Promise<void> {
+  const id = await createChildNode(es, props.nodeId, '新一句')
+  await nextTick()
+  const created = allNodes.value.find(n => n.id === id)
+  if (created) await startEdit(created)
+}
+
 watch(draft, v => {
   if (editingId.value) scheduleWrite(v)
 })
@@ -238,4 +248,18 @@ defineExpose({ startEdit, commit, cancel })
   color: var(--text-tertiary);
 }
 .sf-count--over { color: var(--warning, #d97706); }
+.sf-add {
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: 0 6px;
+  height: 20px;
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-2xs);
+  font-family: inherit;
+  cursor: pointer;
+}
+.sf-add:hover { border-color: var(--primary); color: var(--primary); }
 </style>
