@@ -1,51 +1,63 @@
 <template>
   <!--
-    句子式（SentenceForm）—— 就地型表现形式
-    规格：docs/plans/2026-09-16-大纲白板-表现形式规格.md §二
-    · 映射 node.description（不新增 summary，也不从 content 派生）
-    · 1–3 行短文本，纯文本渲染（不解析 markdown），超行省略且悬停显示全文
-    · 双击进入编辑：Enter 提交 / Shift+Enter 换行 / Esc 回滚
+    句子式（SentenceForm）—— **列表型**表现形式（2026-10-19 修正为列表语义）
+    规格：docs/plans/2026-09-16-大纲白板-表现形式规格.md §二 + 2026-10-19 用户修正
+    · 一行 = 一个**子节点**的一句话（`description`）；一个句子式可列多句
+    · 双击某行 → 就地改**该子节点**的 description
+    · 文本规则（行钳制 / 字数 / 引号）仍走 sentenceText.ts 的纯函数
+    · 无子节点时显示空态
   -->
   <div
     class="sf"
     :class="{ 'sf--center': align === 'center', 'sf--italic': emphasis === 'italic', 'sf--muted': emphasis === 'muted' }"
-    @dblclick.stop="startEdit"
   >
-    <template v-if="editing">
-      <textarea
-        ref="inputEl"
-        v-model="draft"
-        class="sf-input"
-        :rows="inputRows"
-        :style="inputStyle"
-        @keydown.enter="onEnter"
-        @keydown.esc.prevent="cancel"
-        @blur="commit"
-        @pointerdown.stop
-        @dblclick.stop
-      />
-      <div v-if="charLimit > 0" class="sf-count" :class="{ 'sf-count--over': over }">
-        {{ draftChars }} / {{ charLimit }}
-      </div>
-    </template>
-    <span
-      v-else
-      class="sf-text"
-      :class="{ 'sf-text--empty': display.empty }"
-      :style="textStyle"
-      :title="display.clamped ? rawText : ''"
-    >{{ display.text || '（暂无摘要）' }}</span>
+    <div v-if="!rows.length" class="sf-empty">暂无子节点（在右栏或空白处新建）</div>
+    <div
+      v-for="row in rows"
+      :key="row.id"
+      class="sf-row"
+      :class="{ 'sf-row--center': align === 'center' }"
+    >
+      <template v-if="editingId === row.id">
+        <textarea
+          :ref="setInputRef"
+          v-model="draft"
+          class="sf-input"
+          :rows="inputRows"
+          :style="inputStyle"
+          @keydown.enter="onEnter"
+          @keydown.esc.prevent="cancel"
+          @blur="commit"
+          @pointerdown.stop
+          @dblclick.stop
+        />
+        <div v-if="charLimit > 0" class="sf-count" :class="{ 'sf-count--over': over }">
+          {{ draftChars }} / {{ charLimit }}
+        </div>
+      </template>
+      <span
+        v-else
+        class="sf-text"
+        :class="{ 'sf-text--empty': !row.description }"
+        :style="textStyle"
+        :title="displayOf(row).clamped ? (row.description ?? '') : ''"
+        @dblclick.stop="startEdit(row)"
+      >{{ displayOf(row).text || '（暂无摘要）' }}</span>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 /**
- * 句子式组件：内容映射 `node.description`，就地编辑。
- * 写入策略与标题式一致：400ms 防抖 + `{ skipUndo }` + 白板栈**会话级单步**（见 useBoardUndo）。
- * 文本规则（行钳制 / 字数 / 引号）全在 sentenceText.ts 的纯函数里，本组件不做文本判定。
+ * 句子式：列表型（行 = 直接子节点，每行取该子节点的 `description`）。
+ *
+ * 2026-10-19 修正：此前实现为「显示当前节点的一句描述」，写完一句就结束；
+ * 按负责人定义，句子式应是**多句列表**——一个句子式可列多句，每句一个子节点。
+ * 写入：双击某行改该行 `description`，400ms 防抖 + `{ skipUndo }` + 白板栈会话级单步。
  */
-import { computed, nextTick, ref, watch } from 'vue'
-import { useEntityStore } from '@worldsea/entity-core'
+import { computed, nextTick, ref, watch, type ComponentPublicInstance } from 'vue'
+import { useEntityStore, type Entity } from '@worldsea/entity-core'
+import { resolveChildNodes } from '../outlineDerive'
 import { resolveFormConfig } from './registry'
 import { injectBoardUndo } from '../composables/useBoardUndo'
 import {
@@ -56,7 +68,6 @@ import {
   toDisplayText,
 } from './sentenceText'
 
-/** 内容写入防抖（与标题式同策略） */
 const WRITE_DEBOUNCE = 400
 
 const props = defineProps<{
@@ -67,9 +78,7 @@ const props = defineProps<{
 const es = useEntityStore()
 const boardUndo = injectBoardUndo()
 
-const node = computed(() => (es.entities ?? []).find(e => e.id === props.nodeId))
-const rawText = computed(() => (node.value?.description ?? ''))
-
+const allNodes = computed(() => (es.entities ?? []).filter(e => e.type === 'outline_node'))
 const cfg = computed(() => resolveFormConfig('sentence', props.config))
 const maxLines = computed(() => normalizeMaxLines(cfg.value.maxLines))
 const charLimit = computed(() => normalizeCharLimit(cfg.value.charLimit))
@@ -84,55 +93,65 @@ const fontScale = computed(() => {
 })
 const quoteMark = computed(() => cfg.value.showQuoteMark === true)
 
-const display = computed(() =>
-  toDisplayText(rawText.value, { maxLines: maxLines.value, quoteMark: quoteMark.value }),
+/** 行 = 直接子节点（按 order） */
+const rows = computed<Entity[]>(() =>
+  resolveChildNodes(props.nodeId, allNodes.value) as Entity[],
 )
+
+function displayOf(row: Entity) {
+  return toDisplayText(row.description ?? '', {
+    maxLines: maxLines.value,
+    quoteMark: quoteMark.value,
+  })
+}
 
 const textStyle = computed(() => ({
   fontSize: `${(13 * fontScale.value).toFixed(1)}px`,
   WebkitLineClamp: String(maxLines.value),
 }))
 const inputStyle = computed(() => ({ fontSize: `${(13 * fontScale.value).toFixed(1)}px` }))
-/** 编辑态行数：内容行数与 maxLines+2 取小，避免编辑框无限长 */
 const inputRows = computed(() => {
   const lines = String(draft.value ?? '').split(/\r?\n/).length
   return Math.min(Math.max(lines, 2), maxLines.value + 2)
 })
 
-// ── 就地编辑 ──────────────────────────────
-const editing = ref(false)
+// ── 行内就地编辑 ──
+const editingId = ref<string | null>(null)
 const draft = ref('')
 const inputEl = ref<HTMLTextAreaElement | null>(null)
+/** v-for 内必须用函数 ref：字符串 ref 会被收集成数组 */
+function setInputRef(el: Element | ComponentPublicInstance | null): void {
+  inputEl.value = (el as HTMLTextAreaElement | null) ?? null
+}
 let writeTimer: ReturnType<typeof setTimeout> | null = null
-/** 编辑会话起点值：整段会话只登记**一步**撤销（与标题式同策略） */
-let sessionPrev: string | null = null
+let sessionPrev = ''
 
 const draftChars = computed(() => countChars(draft.value))
 const over = computed(() => exceedsLimit(draft.value, charLimit.value))
 
 function clearWriteTimer(): void {
-  if (writeTimer) {
-    clearTimeout(writeTimer)
-    writeTimer = null
-  }
+  if (writeTimer) { clearTimeout(writeTimer); writeTimer = null }
 }
 
-function writeDescription(value: string): void {
+function writeDescription(targetId: string, value: string): void {
   clearWriteTimer()
-  if (value === rawText.value) return
-  void es.update(props.nodeId, { description: value }, 'user', { skipUndo: true })
+  const target = allNodes.value.find(n => n.id === targetId)
+  if (!target || value === (target.description ?? '')) return
+  void es.update(targetId, { description: value }, 'user', { skipUndo: true })
 }
 
 function scheduleWrite(value: string): void {
   clearWriteTimer()
-  writeTimer = setTimeout(() => writeDescription(value), WRITE_DEBOUNCE)
+  writeTimer = setTimeout(() => {
+    if (editingId.value) writeDescription(editingId.value, value)
+  }, WRITE_DEBOUNCE)
 }
 
-async function startEdit(): Promise<void> {
-  if (!node.value || editing.value) return
-  sessionPrev = rawText.value
+async function startEdit(row: Entity): Promise<void> {
+  if (editingId.value === row.id) return
+  editingId.value = row.id
+  sessionPrev = row.description ?? ''
   draft.value = sessionPrev
-  editing.value = true
   await nextTick()
   inputEl.value?.focus()
 }
@@ -145,60 +164,56 @@ function onEnter(ev: KeyboardEvent): void {
 }
 
 function commit(): void {
-  if (!editing.value) return
-  writeDescription(draft.value)
-  const prev = sessionPrev ?? ''
+  const id = editingId.value
+  if (!id) return
+  writeDescription(id, draft.value)
   const next = draft.value ?? ''
-  if (prev !== next) {
-    boardUndo?.recordContentEdit(props.nodeId, { description: prev }, { description: next }, '改摘要')
+  if (sessionPrev !== next) {
+    boardUndo?.recordContentEdit(id, { description: sessionPrev }, { description: next }, '句子式改摘要')
   }
-  sessionPrev = null
-  editing.value = false
+  editingId.value = null
+  sessionPrev = ''
 }
 
 function cancel(): void {
+  const id = editingId.value
   clearWriteTimer()
-  // Esc 回滚：防抖可能已把中间值落库，这里显式写回会话起点值
-  const prev = sessionPrev
-  if (prev !== null && rawText.value !== prev) {
-    void es.update(props.nodeId, { description: prev }, 'user', { skipUndo: true })
+  const target = id ? allNodes.value.find(n => n.id === id) : null
+  if (id && target && (target.description ?? '') !== sessionPrev) {
+    void es.update(id, { description: sessionPrev }, 'user', { skipUndo: true })
   }
-  sessionPrev = null
-  editing.value = false
+  editingId.value = null
+  sessionPrev = ''
 }
 
-// 输入过程防抖落库（等价于「暂停即保存」）
 watch(draft, v => {
-  if (editing.value) scheduleWrite(v)
+  if (editingId.value) scheduleWrite(v)
 })
 
-// 切换节点时退出编辑态，避免把 A 的草稿写到 B
 watch(() => props.nodeId, () => {
   clearWriteTimer()
-  sessionPrev = null
-  editing.value = false
+  editingId.value = null
+  sessionPrev = ''
 })
 
 defineExpose({ startEdit, commit, cancel })
 </script>
 
 <style scoped>
-.sf {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-height: 20px;
-  color: var(--text-secondary);
-}
+.sf { display: flex; flex-direction: column; gap: 2px; min-width: 0; color: var(--text-secondary); }
 .sf--center { align-items: center; text-align: center; }
 .sf--italic .sf-text { font-style: italic; }
 .sf--muted .sf-text { color: var(--text-tertiary); }
+.sf-empty { font-size: var(--font-size-2xs); font-style: italic; color: var(--text-tertiary); }
+.sf-row { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.sf-row--center { align-items: center; }
 .sf-text {
   min-width: 0;
   overflow: hidden;
   white-space: pre-wrap;
   line-height: 1.55;
   word-break: break-word;
+  cursor: text;
   /* 行钳制依赖 -webkit-line-clamp，需 display:-webkit-box（WebView2 支持） */
   display: -webkit-box;
   -webkit-box-orient: vertical;

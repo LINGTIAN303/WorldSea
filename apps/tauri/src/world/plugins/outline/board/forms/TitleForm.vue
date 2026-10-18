@@ -1,43 +1,64 @@
 <template>
   <!--
-    标题式（TitleForm）—— 就地型表现形式
-    规格：docs/plans/2026-09-16-大纲白板-表现形式规格.md §一
-    · 一行标题 + 可选层级缩进 / 编号 / 状态色点
-    · 双击就地编辑，只写 node.name；层级与顺序不在组件内改（归实体侧）
+    标题式（TitleForm）—— **列表型**表现形式（2026-10-19 修正为列表语义）
+    规格：docs/plans/2026-09-15-大纲芽重构-理论基线与现状.md §8.10.4 + 2026-10-19 用户修正
+    · 一行 = 一个**子节点**（直接子节点，按 order）；一个标题式可列多行
+    · 双击某行 → 就地改**该子节点**的 name（不是当前容器的节点）
+    · 与树式的区别：树式递归展开整棵子树并带层级线；标题式只列直接子节点、平铺
+    · 无子节点时显示空态（容器头部仍显示当前节点标题）
   -->
-  <div class="tf" :class="{ 'tf--center': align === 'center' }" @dblclick.stop="startEdit">
-    <input
-      v-if="editing"
-      ref="inputEl"
-      v-model="draft"
-      class="tf-input"
-      :style="inputStyle"
-      @keydown.enter.prevent="commit"
-      @keydown.esc.prevent="cancel"
-      @blur="commit"
-      @dblclick.stop
-    />
-    <template v-else>
-      <span v-if="showStatus" class="tf-dot" :class="dotClass" :title="statusText" />
-      <span class="tf-text" :class="{ 'tf-text--empty': !hasName }" :style="textStyle">{{ displayText }}</span>
-      <span v-if="showBranch && childCount > 0" class="tf-branch">{{ childCount }}</span>
-    </template>
+  <div class="tf" :class="{ 'tf--center': align === 'center' }">
+    <div v-if="!rows.length" class="tf-empty">暂无子节点（在右栏或空白处新建）</div>
+    <div
+      v-for="(row, i) in rows"
+      :key="row.id"
+      class="tf-row"
+      :class="{ 'tf-row--center': align === 'center' }"
+    >
+      <span v-if="showStatus" class="tf-dot" :class="dotClassOf(row)" :title="statusOf(row)" />
+      <span v-if="numbered" class="tf-num">{{ numberingOf(i) }}</span>
+      <input
+        v-if="editingId === row.id"
+        :ref="setInputRef"
+        v-model="draft"
+        class="tf-input"
+        :style="rowTextStyle"
+        @keydown.enter.prevent="commit"
+        @keydown.esc.prevent="cancel"
+        @blur="commit"
+        @dblclick.stop
+      />
+      <span
+        v-else
+        class="tf-text"
+        :class="{ 'tf-text--empty': !row.name }"
+        :style="rowTextStyle"
+        :title="row.name || '未命名'"
+        @dblclick.stop="startEdit(row)"
+      >{{ row.name || '未命名' }}</span>
+      <span v-if="showBranch && childCountOf(row) > 0" class="tf-branch">{{ childCountOf(row) }}</span>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 /**
- * 标题式组件：内容映射 node.name + 深度/序号/状态，全部经纯函数派生（见 outlineDerive / titleNumbering）。
- * 写入策略：输入过程 400ms 防抖落库 + { skipUndo }（撤销由白板栈负责，避免污染实体全局撤销）。
+ * 标题式：列表型（行 = 直接子节点）。
+ *
+ * 2026-10-19 修正：此前实现为「显示当前节点的一行标题」，写完一行就结束；
+ * 按负责人定义，标题式应是**标题列表**——一个标题式可多行，每行一个子节点。
+ * 与树式的分工：树式 = 递归子树 + 层级线；标题式 = 直接子节点平铺（可带编号）。
+ *
+ * 写入：双击某行改该行 `name`，400ms 防抖 + `{ skipUndo }` + 白板撤销栈一步。
  */
-import { computed, nextTick, ref, watch } from 'vue'
-import { useEntityStore } from '@worldsea/entity-core'
-import { resolveChildNodes, resolveNodeDepth, resolveNodeNumbering } from '../outlineDerive'
-import { formatNumbering, indentForDepth, type NumberingStyle } from './titleNumbering'
+import { computed, nextTick, ref, watch, type ComponentPublicInstance } from 'vue'
+import { useEntityStore, type Entity } from '@worldsea/entity-core'
+import { resolveChildNodes } from '../outlineDerive'
+import { formatNumbering, type NumberingStyle } from './titleNumbering'
 import { resolveFormConfig } from './registry'
+import { statusOf as statusOfNode } from './progressStats'
 import { injectBoardUndo } from '../composables/useBoardUndo'
 
-/** 内容写入防抖（规格 §0.3） */
 const WRITE_DEBOUNCE = 400
 
 const props = defineProps<{
@@ -46,14 +67,10 @@ const props = defineProps<{
 }>()
 
 const es = useEntityStore()
-/** 白板撤销栈（若无装配层提供则为 null：组件仍可用，只是内容编辑不进撤销栈） */
 const boardUndo = injectBoardUndo()
 
-const node = computed(() => (es.entities ?? []).find(e => e.id === props.nodeId))
 const allNodes = computed(() => (es.entities ?? []).filter(e => e.type === 'outline_node'))
-
 const cfg = computed(() => resolveFormConfig('title', props.config))
-const showDepth = computed(() => cfg.value.showDepth !== false)
 const showStatus = computed(() => cfg.value.showStatus !== false)
 const showBranch = computed(() => cfg.value.showBranch === true)
 const align = computed(() => (cfg.value.align === 'center' ? 'center' : 'left'))
@@ -65,125 +82,131 @@ const numberingStyle = computed<NumberingStyle>(() => {
   const v = cfg.value.numbering
   return v === 'none' || v === 'chinese' || v === 'roman' ? v : 'numeric'
 })
+const numbered = computed(() => numberingStyle.value !== 'none')
 
-/** 悬空容器（节点已删）时组件不该崩：显示占位由容器层负责，这里做空值兜底 */
-const hasName = computed(() => !!((node.value?.name ?? '').trim()))
-const statusText = computed(() => ((node.value?.properties?.status as string) || '未写'))
-const dotClass = computed(() => {
-  if (statusText.value === '完成') return 'tf-dot--done'
-  if (statusText.value === '草稿') return 'tf-dot--draft'
+/** 行 = 直接子节点（按 order） */
+const rows = computed<Entity[]>(() =>
+  resolveChildNodes(props.nodeId, allNodes.value) as Entity[],
+)
+
+function numberingOf(index: number): string {
+  if (!numbered.value) return ''
+  // 列表型编号从 1 起（[i+1] 是 formatNumbering 的编号路径数组，一级即一个元素）
+  return formatNumbering([index + 1], numberingStyle.value)
+}
+
+function statusOf(row: Entity): string {
+  return statusOfNode(row)
+}
+
+function dotClassOf(row: Entity): string {
+  const s = statusOf(row)
+  if (s === '完成') return 'tf-dot--done'
+  if (s === '草稿') return 'tf-dot--draft'
   return 'tf-dot--todo'
-})
+}
 
-const depth = computed(() => resolveNodeDepth(props.nodeId, allNodes.value))
-const numbering = computed(() => resolveNodeNumbering(props.nodeId, allNodes.value))
-const childCount = computed(() => resolveChildNodes(props.nodeId, allNodes.value).length)
+function childCountOf(row: Entity): number {
+  return resolveChildNodes(row.id, allNodes.value).length
+}
 
-const displayText = computed(() => {
-  const name = (node.value?.name ?? '').trim() || '未命名节点'
-  const prefix = formatNumbering(numbering.value, numberingStyle.value)
-  return prefix ? `${prefix} ${name}` : name
-})
-
-const textStyle = computed(() => ({
+const rowTextStyle = computed(() => ({
   fontSize: `${(13 * fontScale.value).toFixed(1)}px`,
-  paddingLeft: `${showDepth.value ? indentForDepth(depth.value) : 0}px`,
-}))
-const inputStyle = computed(() => ({
-  fontSize: `${(13 * fontScale.value).toFixed(1)}px`,
-  paddingLeft: `${(showDepth.value ? indentForDepth(depth.value) : 0) + 2}px`,
 }))
 
-// ── 就地编辑 ──────────────────────────────
-const editing = ref(false)
+// ── 行内就地编辑 ──
+const editingId = ref<string | null>(null)
 const draft = ref('')
 const inputEl = ref<HTMLInputElement | null>(null)
-let writeTimer: ReturnType<typeof setTimeout> | null = null
-/** 编辑会话起点值：整段会话（双击进入 → 提交）只登记 **一步** 撤销（规格 §六） */
-let sessionPrev: string | null = null
-
-function clearWriteTimer(): void {
-  if (writeTimer) {
-    clearTimeout(writeTimer)
-    writeTimer = null
-  }
+/** v-for 内必须用函数 ref：字符串 ref 会被收集成数组 */
+function setInputRef(el: Element | ComponentPublicInstance | null): void {
+  inputEl.value = (el as HTMLInputElement | null) ?? null
 }
+let timer: ReturnType<typeof setTimeout> | null = null
+let sessionPrev = ''
 
-function writeName(value: string): void {
-  clearWriteTimer()
+function writeName(targetId: string, value: string): void {
+  const target = allNodes.value.find(n => n.id === targetId)
   const next = value.trim()
-  if (next === (node.value?.name ?? '')) return
-  void es.update(props.nodeId, { name: next }, 'user', { skipUndo: true })
+  if (!target || next === (target.name ?? '')) return
+  void es.update(targetId, { name: next }, 'user', { skipUndo: true })
 }
 
-function scheduleWrite(value: string): void {
-  clearWriteTimer()
-  writeTimer = setTimeout(() => writeName(value), WRITE_DEBOUNCE)
-}
-
-async function startEdit(): Promise<void> {
-  if (!node.value || editing.value) return
-  sessionPrev = node.value.name ?? ''
+async function startEdit(row: Entity): Promise<void> {
+  if (editingId.value === row.id) return
+  editingId.value = row.id
+  sessionPrev = row.name ?? ''
   draft.value = sessionPrev
-  editing.value = true
   await nextTick()
   inputEl.value?.focus()
   inputEl.value?.select()
 }
 
 function commit(): void {
-  if (!editing.value) return
-  writeName(draft.value)
-  // 一次编辑会话 = 撤销栈一步：中间防抖写入不单独占步，撤销回到会话起点
-  const prev = sessionPrev ?? ''
+  const id = editingId.value
+  if (!id) return
+  if (timer) { clearTimeout(timer); timer = null }
+  writeName(id, draft.value)
   const next = (draft.value ?? '').trim()
-  if (prev !== next) {
-    boardUndo?.recordContentEdit(props.nodeId, { name: prev }, { name: next }, '标题改名')
+  if (sessionPrev !== next) {
+    boardUndo?.recordContentEdit(id, { name: sessionPrev }, { name: next }, '标题式改名')
   }
-  sessionPrev = null
-  editing.value = false
+  editingId.value = null
+  sessionPrev = ''
 }
 
 function cancel(): void {
-  clearWriteTimer()
-  // Esc 回滚（规格 §一）：防抖可能已把中间值落库，这里显式写回会话起点值
-  const prev = sessionPrev
-  if (prev !== null && (node.value?.name ?? '') !== prev) {
-    void es.update(props.nodeId, { name: prev }, 'user', { skipUndo: true })
+  const id = editingId.value
+  if (timer) { clearTimeout(timer); timer = null }
+  if (id && sessionPrev && (allNodes.value.find(n => n.id === id)?.name ?? '') !== sessionPrev) {
+    writeName(id, sessionPrev)
   }
-  sessionPrev = null
-  editing.value = false
+  editingId.value = null
+  sessionPrev = ''
 }
 
-// 输入过程防抖落库（等价于「暂停即保存」）
 watch(draft, v => {
-  if (editing.value) scheduleWrite(v)
+  if (!editingId.value) return
+  if (timer) clearTimeout(timer)
+  timer = setTimeout(() => { if (editingId.value) writeName(editingId.value, v) }, WRITE_DEBOUNCE)
 })
 
-// 切换容器时退出编辑态，避免把 A 的草稿写到 B
+// 换容器时退出编辑
 watch(() => props.nodeId, () => {
-  clearWriteTimer()
-  editing.value = false
+  if (timer) { clearTimeout(timer); timer = null }
+  editingId.value = null
 })
 
 defineExpose({ startEdit, commit, cancel })
 </script>
 
 <style scoped>
-.tf {
+.tf { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.tf--center { align-items: center; }
+.tf-empty { font-size: var(--font-size-2xs); font-style: italic; color: var(--text-tertiary); }
+.tf-row {
   display: flex;
   align-items: center;
   gap: 6px;
   min-height: 22px;
-  color: var(--text-color);
+  min-width: 0;
 }
-.tf--center { justify-content: center; }
+.tf-row--center { justify-content: center; }
+.tf-num {
+  flex-shrink: 0;
+  min-width: 18px;
+  font-size: var(--font-size-2xs);
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
 .tf-text {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   line-height: 1.5;
+  color: var(--text-color);
+  cursor: text;
 }
 .tf-text--empty { font-style: italic; color: var(--text-tertiary); }
 .tf-branch {
@@ -194,25 +217,19 @@ defineExpose({ startEdit, commit, cancel })
   border-radius: var(--radius-xs);
   padding: 0 4px;
 }
-.tf-dot {
-  flex-shrink: 0;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-}
+.tf-dot { flex-shrink: 0; width: 6px; height: 6px; border-radius: 50%; }
 .tf-dot--todo { background: var(--text-tertiary); }
 .tf-dot--draft { background: var(--warning, #d97706); }
 .tf-dot--done { background: var(--success, #059669); }
 .tf-input {
-  width: 100%;
+  flex: 1;
   min-width: 60px;
   border: 1px solid var(--primary);
   border-radius: var(--radius-xs);
   background: var(--input-bg);
   color: var(--text-color);
   font-family: inherit;
-  padding-top: 1px;
-  padding-bottom: 1px;
+  padding: 1px 3px;
   outline: none;
 }
 </style>
