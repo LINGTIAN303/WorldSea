@@ -22,6 +22,8 @@ export type ContextTarget =
   | { kind: 'section'; id: string }
   | { kind: 'container'; id: string }
   | { kind: 'component'; containerId: string; componentId: string }
+  /** 右栏节点行（2026-10-19）：不落在画布上，只有「删除节点」一个动作 */
+  | { kind: 'node'; id: string }
 
 /** 构建菜单所需的上下文状态（由装配层从 store / 布局体读出） */
 export interface ContextState {
@@ -96,6 +98,9 @@ export function containerIdOfTarget(target: ContextTarget): string | null {
  * 其余项（打开正文 / 定位 / 加形式…）对一个没有节点的容器毫无意义。
  */
 export function buildMenuItems(target: ContextTarget, state: ContextState): MenuItem[] {
+  if (target.kind === 'node') {
+    return [{ id: 'delete-node', label: '删除节点…', danger: true }]
+  }
   if (target.kind === 'canvas') {
     return [
       { id: 'new-node', label: '新建节点并放置' },
@@ -144,7 +149,8 @@ export function buildMenuItems(target: ContextTarget, state: ContextState): Menu
     { id: 'add-form', label: '添加表现形式' },
     { id: 'toggle-collapse', label: state.collapsed ? '展开' : '折叠', sep: true },
     { id: 'reset-size', label: '恢复内容自适应', disabled: state.autoSized },
-    { id: 'remove-container', label: '移除容器', danger: true, sep: true },
+    { id: 'remove-container', label: '移除出画布', sep: true },
+    { id: 'delete-node', label: '删除节点…', danger: true },
   ]
 }
 

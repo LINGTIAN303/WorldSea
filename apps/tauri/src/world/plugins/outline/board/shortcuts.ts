@@ -38,7 +38,7 @@ export const BOARD_SHORTCUT_META: BoardShortcutMeta[] = [
   {
     id: 'outline-board.delete-container',
     keys: ['delete'],
-    description: '大纲白板：删除选中容器（不删节点）',
+    description: '大纲白板：删除选中节点（含容器与关系）',
     preventDefault: true,
   },
   {

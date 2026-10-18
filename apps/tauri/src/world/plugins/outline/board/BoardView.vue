@@ -49,8 +49,7 @@
   <div v-else class="bv-editor">
     <BoardCanvas
       ref="canvasRef"
-      :layout="layout"
-      :viewport="viewport"
+      :layout="layout" :viewport="viewport"
       :nodes-by-id="nodesById"
       :selected-id="selection.selectedId.value"
       :snap-mode="snapMode"
@@ -99,19 +98,19 @@
       v-if="inspectedContainer"
       :container="inspectedContainer"
       :node="inspectedNode" :viewport="viewport" :board-id="layoutApi.boardId.value"
-      @close="inspectorClosed = true"
-      @resize="onInspectorResize"
+      @close="inspectorClosed = true" @resize="onInspectorResize"
       @reset-size="onInspectorResetSize" @duplicate="onDuplicateContainer(inspectedContainer.id)"
       @update-config="onComponentConfig"
       @remove-component="onInspectorRemoveComponent"
       @reorder-components="onReorderComponents"
     />
+    <DeleteNodeDialog :show="deleteDialogOpen" :node-name="deleteTarget?.name ?? ''" :child-count="deleteTarget?.childCount ?? 0" :candidates="deleteTarget?.candidates ?? []" @cancel="cancelDelete()" @confirm="confirmDelete" />
     <!-- 节点详情（L1 载体，缺省抽屉；节点属性 / 关联章节 / 关联实体 / 打开正文） -->
     <NodeDetailDock :node="inspectedNode" :linked-chapter-name="inspectedChapterName"
       @unlink-chapter="onUnlinkChapter" @open-node="onOpenNodeFromInspector" @update-node-field="onUpdateNodeField" />
 
     <NodeSidebar
-      :nodes="outlineNodes"
+      :nodes="outlineNodes" @context-menu="(id, ev) => onContextMenu({ target: { kind: 'node', id }, x: ev.clientX, y: ev.clientY })"
       :placed-ids="placedIds"
       :collapsed="sidebarCollapsed"
       :reveal-signal="revealSignal"
@@ -128,8 +127,7 @@
     <!-- 右键菜单（四级上下文：画布空白 / 区 / 容器 / 组件行；见 board/contextMenu.ts） -->
     <BoardContextMenu
       :show="!!ctxMenu"
-      :x="ctxMenu?.x ?? 0"
-      :y="ctxMenu?.y ?? 0"
+      :x="ctxMenu?.x ?? 0" :y="ctxMenu?.y ?? 0"
       :items="ctxItems"
       :aria-label="ctxAriaLabel"
       @select="onCtxSelect"
@@ -191,7 +189,8 @@ import { useBoardSelection } from './composables/useBoardSelection'
 import { useBoardUndo, provideBoardUndo } from './composables/useBoardUndo'
 import { parseSnapMode, type SnapMode } from './composables/useBoardSnap'
 import { useInspectorTarget } from './composables/useInspectorTarget'
-import { useContainerDuplicate } from './composables/useContainerDuplicate'
+import { useBoardNodeActions } from './composables/useBoardNodeActions'
+import DeleteNodeDialog from './components/DeleteNodeDialog.vue'
 import { contentBounds, fitViewport, type Point, type Rect } from './boardGeometry'
 import { DEFAULT_CONTAINER_SIZE, danglingContainerIds, genBoardId, rectOfContainer, type BoardSection } from './layoutSchema'
 import { captureHierarchy, diffHierarchy, planReparent, type DropMode } from './outlineHierarchy'
@@ -292,7 +291,7 @@ const removingSection = ref<BoardSection | null>(null)
 // ── 派生数据 ────────────────────────────────
 const { boards, currentBoard, inEditor } = docs
 const layout = layoutApi.layout
-const { duplicateContainer: onDuplicateContainer } = useContainerDuplicate({ layout: () => layout.value, replaceLayout: layoutApi.replaceLayout, recordUndo: () => undoApi.record(), select: (id) => selection.select(id) })
+const { duplicateContainer: onDuplicateContainer, askDeleteNode, cancelDelete, confirmDelete, deleteTarget, deleteDialogOpen } = useBoardNodeActions({ layout: () => layout.value, replaceLayout: layoutApi.replaceLayout, recordUndo: () => undoApi.record(), select: (id) => selection.select(id), clearSelection: () => selection.clear(), toast: toastInfo })
 const viewport = layoutApi.viewport
 const saveState = layoutApi.saveState
 const canUndo = undoApi.canUndo
@@ -829,6 +828,7 @@ const CTX_ARIA: Record<ContextTarget['kind'], string> = {
   section: '区菜单',
   container: '容器菜单',
   component: '表现形式菜单',
+  node: '节点菜单',
 }
 const ctxAriaLabel = computed(() => (ctxMenu.value ? CTX_ARIA[ctxMenu.value.target.kind] : '菜单'))
 
@@ -972,6 +972,7 @@ function onCtxSelect(id: string): void {
     return
   }
   if (id === 'remove-container') { onRemoveContainer(containerId); return }
+  if (id === 'delete-node') { const nid = target.kind === 'node' ? target.id : ctxContainer(containerId)?.nodeId; if (nid) askDeleteNode(nid); return }
 
   if (target.kind === 'component') {
     const { componentId } = target
@@ -1039,8 +1040,8 @@ function registerShortcuts(): void {
     'outline-board.undo': onUndo,
     'outline-board.redo': onRedo,
     'outline-board.delete-container': () => {
-      const id = selection.selectedId.value
-      if (id) onRemoveContainer(id)
+      const c = ctxContainer(selection.selectedId.value ?? '')
+      if (c) askDeleteNode(c.nodeId)
     },
     'outline-board.reset-zoom': () => canvasRef.value?.zoomTo(1),
     'outline-board.fit-all': fitAll,

@@ -152,7 +152,7 @@ describe('contextMenu / 容器菜单', () => {
     const items = buildMenuItems({ kind: 'container', id: 'box1' }, state({ hasManuscript: true }))
     expect(items.map(i => i.id)).toEqual([
       'open-manuscript', 'reveal-in-sidebar', 'add-form',
-      'toggle-collapse', 'reset-size', 'remove-container',
+      'toggle-collapse', 'reset-size', 'remove-container', 'delete-node',
     ])
     expect(items[items.length - 1].danger).toBe(true)
   })

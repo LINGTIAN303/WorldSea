@@ -70,7 +70,7 @@ export const SHORTCUT_CATALOG: ShortcutItem[] = [
   //     键位显示为下方 fallback 且提示「所属视图未激活」，进入编辑器后即可改键）──
   { id: 'outline-board.undo', description: '大纲白板：撤销', keys: ['ctrl', 'z'], scope: 'view' },
   { id: 'outline-board.redo', description: '大纲白板：重做', keys: ['ctrl', 'shift', 'z'], scope: 'view' },
-  { id: 'outline-board.delete-container', description: '大纲白板：删除选中容器（不删节点）', keys: ['delete'], scope: 'view' },
+  { id: 'outline-board.delete-container', description: '大纲白板：删除选中节点（含容器与关系）', keys: ['delete'], scope: 'view' },
   { id: 'outline-board.reset-zoom', description: '大纲白板：缩放重置为 100%', keys: ['ctrl', '0'], scope: 'view' },
   // Shift+1 经 normalizeKeys 归一为单键 '!'（非字母可打印字符不叠加 shift 修饰）；
   // 'keys' 与注册处保持一致写 '!'，展示层负责拆成 Shift + 1

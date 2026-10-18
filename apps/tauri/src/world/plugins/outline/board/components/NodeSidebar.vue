@@ -65,8 +65,7 @@
               dropClass(row.id),
             ]"
             :data-node-id="row.id"
-            role="treeitem"
-            :aria-level="row.depth + 1"
+            role="treeitem" :aria-level="row.depth + 1"
             :draggable="true"
             :title="row.placed ? '已在板上（拖拽或双击将定位到已有容器）；也可拖到其它节点上调整层级' : row.name"
             @dragstart="onDragStart(row, $event)"
@@ -75,7 +74,7 @@
             @drop.prevent.stop="onItemDrop(row, $event)"
             @dragend="resetDropHint"
             @dblclick="onActivate(row)"
-            @click="onActivate(row)"
+            @click="onActivate(row)" @contextmenu.prevent.stop="emit('contextMenu', row.id, $event)"
           >
             <span class="ns-indent" :style="{ width: `${row.depth * 12}px` }" />
             <button
@@ -181,6 +180,7 @@ const emit = defineEmits<{
   (e: 'addChapter', chapterId: string): void
   /** 拖章节到节点项上 → 把该章节关联到该节点（不新建） */
   (e: 'linkChapter', chapterId: string, nodeId: string): void
+  (e: 'contextMenu', nodeId: string, ev: MouseEvent): void
 }>()
 
 // ── 两个来源的 tab（节点 / 章节）───────────────
