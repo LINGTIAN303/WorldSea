@@ -7,6 +7,7 @@
  */
 import TitleForm from './TitleForm.vue'
 import CardForm from './CardForm.vue'
+import QuestionForm from './QuestionForm.vue'
 import TreeForm from './TreeForm.vue'
 import SentenceForm from './SentenceForm.vue'
 import TableForm from './TableForm.vue'
@@ -97,6 +98,24 @@ export function initializeForms(): void {
       { key: 'summaryLines', label: '摘要最多行数', type: 'number', default: 2 },
     ],
     component: CardForm,
+  })
+
+  registerForm({
+    form: 'question',
+    label: '问题式',
+    icon: 'lightbulb',
+    kind: 'inline',
+    description: '一个节点 = 一个要回答的问题（双击就地编辑）',
+    defaultHeight: 48,
+    defaultConfig: {
+      showStatus: true,
+      showAnswer: false,
+    },
+    configSchema: [
+      { key: 'showStatus', label: '显示状态点', type: 'boolean', default: true },
+      { key: 'showAnswer', label: '显示答案摘要（节点描述）', type: 'boolean', default: false },
+    ],
+    component: QuestionForm,
   })
 
   registerForm({

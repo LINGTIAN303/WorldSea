@@ -51,6 +51,9 @@ export function apply(_ctx: unknown, api: WorldPluginApi) {
           { value: 'beat', label: '节拍' },
         ],
       },
+      // 2026-10-19：问题式表现形式的承载字段——「这一节要回答什么问题？」
+      // 理论取值清单里的「问题式」此前未实现；该字段只有问题式写入，其它形式不读。
+      { key: 'question', label: '问题', fieldType: 'text' },
     ],
   })
 
