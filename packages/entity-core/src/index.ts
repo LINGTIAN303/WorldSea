@@ -4,6 +4,8 @@
 // 接在包入口一处，app / 各包 / 测试 import 本包即一致；加载后同步 V2 → 旧版 registry
 // （relationSchemaRegistry 仍有消费者，如 canvas-engine 图数据标签）——老载入点同款两步。
 import './relations'
+// 节点 ↔ 节点横向关系（2026-10-18 Q3-A）：单独文件注册，避免继续膨胀已冻结的 relations/index.ts
+import './relations/outlineLateral'
 import { syncToLegacyRegistry } from './core/RelationshipRegistry'
 syncToLegacyRegistry()
 export * from './types'

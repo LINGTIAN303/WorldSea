@@ -112,3 +112,110 @@ export async function unlinkOutlineEntity(
   await store.remove(hit.id)
   return true
 }
+
+// ─────────────────────────────────────────────
+// 节点 ↔ 节点 横向关系（2026-10-18 Q3-A 裁定）
+// ─────────────────────────────────────────────
+
+/**
+ * 三条横向关系的全名。与上面三条「节点 → 其它芽实体」是**两组独立类型**：
+ * 这里的对端也是 `outline_node`，语义是结构关系（并列 / 递进 / 对比），
+ * 不是「提及 / 发生于 / 承载」。注册定义见 `packages/entity-core/src/relations/index.ts`。
+ */
+export const OUTLINE_LATERAL_RELATION = {
+  parallel: 'outline_parallel',
+  progressive: 'outline_progressive',
+  contrast: 'outline_contrast',
+} as const
+
+export type OutlineLateralKey = keyof typeof OUTLINE_LATERAL_RELATION
+
+/** 全名 → 简写（工具与回执里用简写更短） */
+export function lateralRelationKeyOf(type: string): OutlineLateralKey | null {
+  const hit = (Object.entries(OUTLINE_LATERAL_RELATION) as Array<[OutlineLateralKey, string]>)
+    .find(([, full]) => full === type)
+  return hit ? hit[0] : null
+}
+
+/** 对称关系（并列 / 对比）：方向不敏感，关系表只存一条 */
+function isSymmetricLateral(type: string): boolean {
+  return type === OUTLINE_LATERAL_RELATION.parallel || type === OUTLINE_LATERAL_RELATION.contrast
+}
+
+/** 取与某节点相关的横向关系（方向不敏感：对称关系可能反向存储） */
+export function lateralRelationsOf(
+  relations: readonly Relation[],
+  nodeId: string,
+  types: readonly string[] = Object.values(OUTLINE_LATERAL_RELATION),
+): Relation[] {
+  if (!nodeId) return []
+  const allowed = new Set(types)
+  return relations.filter(
+    r => allowed.has(r.type) && (r.sourceId === nodeId || r.targetId === nodeId),
+  )
+}
+
+/** 幂等判据：对称关系看双向，递进看单向 */
+export function hasOutlineLateral(
+  relations: readonly Relation[],
+  nodeId: string,
+  otherNodeId: string,
+  relationType: string,
+): boolean {
+  const fwd = (r: Relation) => r.type === relationType && r.sourceId === nodeId && r.targetId === otherNodeId
+  const rev = (r: Relation) => r.type === relationType && r.sourceId === otherNodeId && r.targetId === nodeId
+  return isSymmetricLateral(relationType)
+    ? relations.some(r => fwd(r) || rev(r))
+    : relations.some(fwd)
+}
+
+/**
+ * 建立横向关系（幂等）。**方向约定**：
+ * - 并列 / 对比（对称）：存 `nodeId → otherNodeId`，读取方双向匹配；
+ * - 递进（有向）：`nodeId → otherNodeId` 表示「nodeId 递进到 otherNodeId」，
+ *   反向语义由注册表的 inverse（承接）表达，**不落库**（与跨芽关联同口径）。
+ *
+ * 自连（nodeId === otherNodeId）与非横向类型一律拒绝，不静默回退。
+ */
+export async function linkOutlineLateral(
+  store: OutlineLinkStore,
+  nodeId: string,
+  otherNodeId: string,
+  relationType: string,
+): Promise<LinkOutcome> {
+  if (!nodeId || !otherNodeId || nodeId === otherNodeId) return 'missing-entity'
+  if (!(Object.values(OUTLINE_LATERAL_RELATION) as string[]).includes(relationType)) return 'unknown-relation'
+  const relations = await store.getAllRelations()
+  if (hasOutlineLateral(relations, nodeId, otherNodeId, relationType)) return 'exists'
+
+  const now = new Date().toISOString()
+  await store.add({
+    id: `rel-oln-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    type: relationType,
+    sourceId: nodeId,
+    targetId: otherNodeId,
+    properties: {},
+    createdAt: now,
+    updatedAt: now,
+  } as Relation)
+  return 'created'
+}
+
+/** 解除横向关系（幂等：不存在返回 false）。对称关系双向查找，递进只删正向 */
+export async function unlinkOutlineLateral(
+  store: OutlineLinkStore,
+  nodeId: string,
+  otherNodeId: string,
+  relationType: string,
+): Promise<boolean> {
+  const relations = await store.getAllRelations()
+  const hit = relations.find(r => {
+    if (r.type !== relationType) return false
+    const fwd = r.sourceId === nodeId && r.targetId === otherNodeId
+    const rev = r.sourceId === otherNodeId && r.targetId === nodeId
+    return isSymmetricLateral(relationType) ? fwd || rev : fwd
+  })
+  if (!hit) return false
+  await store.remove(hit.id)
+  return true
+}

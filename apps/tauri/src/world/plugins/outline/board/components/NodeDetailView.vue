@@ -72,6 +72,7 @@
         </div>
       </div>
       <NodeRefsSection :node="node" />
+      <NodeLateralSection :node="node" />
     </div>
 
     <div class="bi-foot">
@@ -94,6 +95,7 @@ import { computed } from 'vue'
 import type { Entity } from '@worldsea/entity-core'
 import { NODE_STATUSES, statusOf } from '../forms/progressStats'
 import NodeRefsSection from './NodeRefsSection.vue'
+import NodeLateralSection from './NodeLateralSection.vue'
 
 /** 状态三态（与节点注册的 deteriorable trait 选项一致，勿另造值） */
 const STATUS_OPTIONS = NODE_STATUSES
