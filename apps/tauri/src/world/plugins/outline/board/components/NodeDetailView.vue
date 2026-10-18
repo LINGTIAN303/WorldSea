@@ -4,11 +4,21 @@
       <div class="bi-sec-title">节点属性<span class="bi-sec-note">写入大纲节点</span></div>
 
       <label class="bi-field">
+        <span class="bi-field-label">标题</span>
+        <input
+          class="bi-text"
+          type="text"
+          placeholder="节点标题"
+          :value="node?.name ?? ''"
+          @change="$emit('updateNodeField', node?.id ?? '', 'name', ($event.target as HTMLInputElement).value, '改标题')"
+        />
+      </label>
+      <label class="bi-field">
         <span class="bi-field-label">状态</span>
         <select
           class="bi-select"
           :value="statusValue"
-          @change="$emit('updateNodeField', 'status', ($event.target as HTMLSelectElement).value, '改状态')"
+          @change="$emit('updateNodeField', node?.id ?? '', 'status', ($event.target as HTMLSelectElement).value, '改状态')"
         >
           <option v-for="s in STATUS_OPTIONS" :key="s" :value="s">{{ s }}</option>
         </select>
@@ -23,7 +33,7 @@
         <select
           class="bi-select"
           :value="nodeTypeValue"
-          @change="$emit('updateNodeField', 'nodeType', ($event.target as HTMLSelectElement).value, '改节点类型')"
+          @change="$emit('updateNodeField', node?.id ?? '', 'nodeType', ($event.target as HTMLSelectElement).value, '改节点类型')"
         >
           <option value="">（未设）</option>
           <option v-for="t in NODE_TYPE_OPTIONS" :key="t.value" :value="t.value">{{ t.label }}</option>
@@ -38,7 +48,7 @@
           type="text"
           placeholder="多个用逗号分隔"
           :value="storylinesValue"
-          @change="$emit('updateNodeField', 'storylines', ($event.target as HTMLInputElement).value, '改线索')"
+          @change="$emit('updateNodeField', node?.id ?? '', 'storylines', ($event.target as HTMLInputElement).value, '改线索')"
         />
       </label>
 
@@ -49,7 +59,7 @@
           type="number"
           min="0"
           :value="wordCountValue"
-          @change="$emit('updateNodeField', 'wordCount', Number(($event.target as HTMLInputElement).value), '改字数')"
+          @change="$emit('updateNodeField', node?.id ?? '', 'wordCount', Number(($event.target as HTMLInputElement).value), '改字数')"
         />
       </label>
 
@@ -126,7 +136,7 @@ const props = defineProps<{
 
 defineEmits<{
   /** 改节点字段（写 properties 的合并与撤销登记由装配层负责——本组件只上报意图） */
-  (e: 'updateNodeField', key: string, value: unknown, label: string): void
+  (e: 'updateNodeField', nodeId: string, key: string, value: unknown, label: string): void
   /** 解除章节关联（两侧字段都清；节点与章节都不删） */
   (e: 'unlinkChapter'): void
   /** 打开节点正文 */

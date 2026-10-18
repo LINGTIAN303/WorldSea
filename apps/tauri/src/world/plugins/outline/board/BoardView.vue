@@ -189,6 +189,7 @@ import { useBoardUndo, provideBoardUndo } from './composables/useBoardUndo'
 import { parseSnapMode, type SnapMode } from './composables/useBoardSnap'
 import { useInspectorTarget } from './composables/useInspectorTarget'
 import { useBoardNodeActions } from './composables/useBoardNodeActions'
+import { useNodeFieldWrite } from './composables/useNodeFieldWrite'
 import DeleteNodeDialog from './components/DeleteNodeDialog.vue'
 import { contentBounds, fitViewport, type Point, type Rect } from './boardGeometry'
 import { DEFAULT_CONTAINER_SIZE, danglingContainerIds, genBoardId, rectOfContainer, type BoardSection } from './layoutSchema'
@@ -268,15 +269,12 @@ async function applyNodeFields(nodeId: string, values: Record<string, unknown>):
  * 这一区同时是线索式 / 进度式的**数据写入入口**——它们只读 `status`/`storylines`/`wordCount`，
  * 而旧树视图的详情面板随旧视图下线后，这里曾是缺口。
  */
-function onUpdateNodeField(key: string, value: unknown, label: string): void {
-  const node = inspectedNode.value
-  if (!node) return
-  const prev = { ...(node.properties ?? {}) }
-  if (prev[key] === value) return
-  const next = { ...prev, [key]: value }
-  undoApi.recordContentEdit(node.id, { properties: prev }, { properties: next }, label)
-  void applyNodeFields(node.id, { properties: next })
-}
+/** 节点字段写入（含顶层 name）：逻辑见 composables/useNodeFieldWrite（BoardView 行数冻结，故外置） */
+const { updateNodeField: onUpdateNodeField } = useNodeFieldWrite({
+  findNode: id => es.entityMap.get(id),
+  recordContentEdit: undoApi.recordContentEdit,
+  applyFields: applyNodeFields,
+})
 
 // 形式组件（标题式 / 树式 / 句子式…）通过注入拿撤销能力，不必逐层透传 props
 provideBoardUndo({ recordContentEdit: undoApi.recordContentEdit })

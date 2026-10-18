@@ -80,10 +80,10 @@ describe('NodeDetailDock', () => {
     expect(view.exists()).toBe(true)
     expect(view.props('linkedChapterName')).toBe('第一章')
 
-    view.vm.$emit('updateNodeField', 'status', '完成', '改状态')
+    view.vm.$emit('updateNodeField', 'n1', 'status', '完成', '改状态')
     view.vm.$emit('unlinkChapter')
     view.vm.$emit('openNode')
-    expect(w.emitted('updateNodeField')![0]).toEqual(['status', '完成', '改状态'])
+    expect(w.emitted('updateNodeField')![0]).toEqual(['n1', 'status', '完成', '改状态'])
     expect(w.emitted('unlinkChapter')).toHaveLength(1)
     expect(w.emitted('openNode')).toHaveLength(1)
   })

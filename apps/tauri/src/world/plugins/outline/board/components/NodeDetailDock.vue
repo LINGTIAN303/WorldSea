@@ -16,7 +16,7 @@
         :node="node ?? undefined"
         :linked-chapter-name="linkedChapterName"
         :focus-field="focusField"
-        @update-node-field="(k, v, l) => emit('updateNodeField', k, v, l)"
+        @update-node-field="(id, k, v, l) => emit('updateNodeField', id, k, v, l)"
         @unlink-chapter="emit('unlinkChapter')"
         @open-node="emit('openNode')"
       />
@@ -56,7 +56,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   /** 改节点字段（透传给装配层；写入纪律见 NodeDetailView） */
-  (e: 'updateNodeField', key: string, value: unknown, label: string): void
+  (e: 'updateNodeField', nodeId: string, key: string, value: unknown, label: string): void
   (e: 'unlinkChapter'): void
   (e: 'openNode'): void
 }>()
