@@ -6,6 +6,7 @@
  * 注册表是唯一的扩展点：新增表现形式 = 注册一个 FormDefinition，编辑器无需改动。
  */
 import TitleForm from './TitleForm.vue'
+import CardForm from './CardForm.vue'
 import TreeForm from './TreeForm.vue'
 import SentenceForm from './SentenceForm.vue'
 import TableForm from './TableForm.vue'
@@ -75,6 +76,29 @@ export function initializeForms(): void {
 
   // 树式：承载原「大纲树视图」的浏览形态
   // （负责人 09-16 裁定：旧视图不删能力、改成为白板里的一个容器内容 —— 方案 C）
+  registerForm({
+    form: 'card',
+    label: '卡片式',
+    // 图标名必须是 ui-kit lucideMap 里存在的 id
+    icon: 'notepad',
+    kind: 'inline',
+    description: '一张卡：标题 + 摘要 + 状态 + 标签（双击就地编辑）',
+    defaultHeight: 92,
+    defaultConfig: {
+      showStatus: true,
+      showTags: true,
+      showWordCount: false,
+      summaryLines: 2,
+    },
+    configSchema: [
+      { key: 'showStatus', label: '显示状态点', type: 'boolean', default: true },
+      { key: 'showTags', label: '显示标签', type: 'boolean', default: true },
+      { key: 'showWordCount', label: '显示字数', type: 'boolean', default: false },
+      { key: 'summaryLines', label: '摘要最多行数', type: 'number', default: 2 },
+    ],
+    component: CardForm,
+  })
+
   registerForm({
     form: 'tree',
     label: '树式',
