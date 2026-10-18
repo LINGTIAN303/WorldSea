@@ -8,6 +8,7 @@
 import TitleForm from './TitleForm.vue'
 import CardForm from './CardForm.vue'
 import QuestionForm from './QuestionForm.vue'
+import ParagraphForm from './ParagraphForm.vue'
 import TreeForm from './TreeForm.vue'
 import SentenceForm from './SentenceForm.vue'
 import TableForm from './TableForm.vue'
@@ -110,6 +111,7 @@ export function initializeForms(): void {
     defaultConfig: {
       showStatus: true,
       showAnswer: true,
+      showAnswerMark: false,
     },
     configSchema: [
       { key: 'showStatus', label: '显示状态点', type: 'boolean', default: true },
@@ -117,6 +119,32 @@ export function initializeForms(): void {
       { key: 'showAnswerMark', label: '显示「答」字标', type: 'boolean', default: false },
     ],
     component: QuestionForm,
+  })
+
+  registerForm({
+    form: 'paragraph',
+    label: '段落式',
+    icon: 'align-left',
+    kind: 'inline',
+    description: '一段正文（多行，双击就地编辑；Q1′ 后复活）',
+    defaultHeight: 96,
+    defaultConfig: {
+      maxLines: 6,
+      fontScale: 1,
+      align: 'left',
+    },
+    configSchema: [
+      { key: 'maxLines', label: '最多显示行数', type: 'number', default: 6 },
+      { key: 'fontScale', label: '字号倍数', type: 'number', default: 1 },
+      {
+        key: 'align',
+        label: '对齐',
+        type: 'select',
+        default: 'left',
+        options: [{ value: 'left', label: '左对齐' }, { value: 'center', label: '居中' }],
+      },
+    ],
+    component: ParagraphForm,
   })
 
   registerForm({

@@ -57,6 +57,10 @@ export function apply(_ctx: unknown, api: WorldPluginApi) {
       // 2026-10-19（Q1′ 后）：问题的回答正文。问题式缺它时只剩问句，形式是残缺的。
       // 长度语义：软上限 500 字（组件内计数提示，不硬截断）。
       { key: 'answer', label: '回答', fieldType: 'text' },
+      // 2026-10-19（Q1′ 后**复活**）：段落式表现形式的正文。
+      // 当年 `content` 被删，是因为「未声明 / 无入口 / 无读取」三条全不满足；
+      // 现在作为**形式专属内容字段**回归：ownFields 声明 + ParagraphForm 唯一写入入口 + 2000 软上限。
+      { key: 'content', label: '正文', fieldType: 'text' },
     ],
   })
 
