@@ -33,6 +33,7 @@
       <label class="bi-field">
         <span class="bi-field-label">所属线索</span>
         <input
+          ref="storylinesInput"
           class="bi-text"
           type="text"
           placeholder="多个用逗号分隔"
@@ -91,7 +92,7 @@
  * 「容器尺寸 / 表现形式配置」是白板**编辑工具**，留守画布内悬浮面板（BoardInspector）。
  * 本件被 NodeDetailDock 装进载体注册表；写入纪律不变——只上报意图，合并与撤销由装配层负责。
  */
-import { computed } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import type { Entity } from '@worldsea/entity-core'
 import { NODE_STATUSES, statusOf } from '../forms/progressStats'
 import NodeRefsSection from './NodeRefsSection.vue'
@@ -119,6 +120,8 @@ const props = defineProps<{
    * 面板只呈现名字而不呈现 ID——ID 对用户无意义，而名字能让人确认「关联对了没有」。
    */
   linkedChapterName?: string
+  /** 聚焦请求（2026-10-19）：'storylines' = 打开后直接聚焦「所属线索」输入框 */
+  focusField?: string
 }>()
 
 defineEmits<{
@@ -129,6 +132,20 @@ defineEmits<{
   /** 打开节点正文 */
   (e: 'openNode'): void
 }>()
+
+const storylinesInput = ref<HTMLInputElement | null>(null)
+
+/** 聚焦请求：派生型形式（线索式 / 空态引导）借此把用户直接送进写入位置 */
+watch(
+  () => props.focusField,
+  async (field) => {
+    if (field !== 'storylines') return
+    await nextTick()
+    storylinesInput.value?.focus()
+    storylinesInput.value?.select()
+  },
+  { immediate: true },
+)
 
 // ── 节点字段现值（派生自 node，不本地缓存：外部改动应立刻反映到面板）──
 const statusValue = computed(() => statusOf(props.node))

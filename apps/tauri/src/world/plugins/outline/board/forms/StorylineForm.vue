@@ -6,9 +6,14 @@
     · 纯派生只读：数据源是节点的 `properties.storylines` 字段，本组件不写任何数据
   -->
   <div class="slf" :style="{ maxHeight: `${maxHeight}px` }">
-    <div v-if="!rows.length" class="slf-empty">
-      暂无线索（在属性面板的「节点属性」里填「所属线索」）
-    </div>
+    <button
+      v-if="!rows.length"
+      class="slf-empty slf-empty--action"
+      type="button"
+      title="打开节点详情，填写「所属线索」"
+      @click="openManage"
+    >暂无线索 · 点此填写 →</button>
+    <button v-if="rows.length" class="slf-manage" type="button" @click="openManage">管理线索</button>
 
     <div v-for="row in rows" :key="row.line" class="slf-row">
       <div class="slf-head">
@@ -40,6 +45,7 @@ import { resolveFormConfig } from './registry'
 import { normalizeScope, resolveScopeNodes } from './scopeNodes'
 import { buildStorylineRows, type StorylineSourceNode } from './storylineRows'
 import { formatCount } from './progressStats'
+import { focusNodeField } from '../composables/useNodeFieldFocus'
 
 const props = defineProps<{
   nodeId: string
@@ -53,6 +59,11 @@ const scope = computed(() => normalizeScope(cfg.value.scope))
 const showCount = computed(() => cfg.value.showCount !== false)
 const showWordCount = computed(() => cfg.value.showWordCount !== false)
 const showNodes = computed(() => cfg.value.showNodes !== false)
+/** 派生型无写入入口：把用户送到节点详情的「所属线索」输入框（2026-10-19 Q2-B / Q3-A） */
+function openManage(): void {
+  focusNodeField(props.nodeId, 'storylines')
+}
+
 const maxHeight = computed(() => {
   const n = Number(cfg.value.maxHeight)
   return Number.isFinite(n) && n > 0 ? Math.min(600, n) : 200
@@ -75,6 +86,30 @@ const rows = computed(() =>
   overflow-y: auto;
   min-height: 20px;
 }
+.slf-empty--action {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--primary);
+  font-size: var(--font-size-2xs);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.slf-empty--action:hover { text-decoration: underline; }
+.slf-manage {
+  margin-top: 4px;
+  padding: 0 6px;
+  height: 20px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--font-size-2xs);
+  font-family: inherit;
+  cursor: pointer;
+}
+.slf-manage:hover { border-color: var(--primary); color: var(--primary); }
 .slf-empty {
   font-size: var(--font-size-2xs);
   color: var(--text-tertiary);
