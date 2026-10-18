@@ -1,20 +1,24 @@
 <template>
   <CardDeck :count="1" :flat="!!searchQuery" @change="(i) => emit('card-change', i)" ref="deckRef">
     <template #card="{ idx, cls }">
-      <div class="set-card deck-card" :class="cls" :data-index="idx" v-show="match('编辑面板 悬浮 定位 跟随 卡片 白板 大纲 面板 inspector follow fixed board outline')">
+      <div class="set-card deck-card" :class="cls" :data-index="idx" v-show="match('编辑面板 悬浮 拖拽 定位 跟随 卡片 白板 大纲 面板 inspector follow fixed free drag board outline')">
         <div class="sc-head">白板编辑面板</div>
         <div class="set-row">
           <span>定位方式</span>
           <select v-model="inspectorMode" class="obp-select">
             <option value="follow">跟随卡片（默认）</option>
-            <option value="fixed">固定右上角</option>
+            <option value="fixed">固定左上角</option>
+            <option value="free">悬浮（可拖拽）</option>
           </select>
         </div>
         <p class="set-hint">
           跟随卡片：选中容器时编辑面板贴在卡片左侧、与卡片顶部平行；左侧空间不足时自动贴到卡片右侧。
         </p>
         <p class="set-hint">
-          固定右上角：始终停在画布右上角（旧行为）。
+          固定左上角：始终停在画布左上角（右侧有节点侧边栏，放右上会被覆盖）。
+        </p>
+        <p class="set-hint">
+          悬浮：拖动标题栏可把面板放到视口内任意位置；点击画布空白处不会关闭面板。
         </p>
       </div>
     </template>

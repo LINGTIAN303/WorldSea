@@ -6,13 +6,14 @@ import { ref, watch } from 'vue'
  * 2026-10-18：容器编辑面板（BoardInspector）从「固定右上」改为**默认跟随选中卡片**
  * （贴卡片左侧、顶部平行），并作为可配置项暴露到设置 → 大纲。
  */
-export type InspectorMode = 'follow' | 'fixed'
+export type InspectorMode = 'follow' | 'fixed' | 'free'
 
 const STORAGE_KEY = 'ws-outline-inspector-mode'
 
 function readMode(): InspectorMode {
   try {
-    return localStorage.getItem(STORAGE_KEY) === 'fixed' ? 'fixed' : 'follow'
+    const raw = localStorage.getItem(STORAGE_KEY)
+    return raw === 'fixed' || raw === 'free' ? raw : 'follow'
   } catch {
     return 'follow'
   }

@@ -181,6 +181,8 @@ const boxStyle = computed(() => {
     left: `${props.container.pos.x}px`,
     top: `${props.container.pos.y}px`,
     width: size ? `${size.w}px` : '',
+    // 2026-10-18 修复：此前只应用了 width，height 完全没生效（面板里改「高」无反应）
+    height: size ? `${size.h}px` : '',
     minWidth: size ? '' : '180px',
     maxWidth: size ? '' : '320px',
   }
@@ -227,6 +229,8 @@ watch(
   border: 1px solid var(--border-color);
   border-radius: var(--radius-mid);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+  /* 固定高度时内容不得溢出卡片（滚动交给 .bc-body） */
+  overflow: hidden;
 }
 .bc--selected { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
 .bc--dangling { border-style: dashed; opacity: 0.75; }
@@ -278,6 +282,9 @@ watch(
   flex-direction: column;
   gap: 4px;
   padding: 6px 8px 8px;
+  /* 固定高度时内容区滚动（min-height:0 是 flex 子项可收缩的前提） */
+  min-height: 0;
+  overflow-y: auto;
 }
 .bc-comp { position: relative; min-width: 0; }
 .bc-comp-x {

@@ -7,7 +7,7 @@
     已拆至 `NodeDetailView`（走 L1 详情载体）；本件降为**容器编辑工具**，留守悬浮。
   -->
   <div v-if="container" class="bi" :style="panelStyle">
-    <div class="bi-head">
+    <div class="bi-head" :class="{ 'bi-head--draggable': inspectorMode === 'free' }" @pointerdown="onHeaderPointerDown">
       <span class="bi-title" :title="headText">{{ headText }}</span>
       <button class="bi-icon" type="button" title="关闭" aria-label="关闭属性面板" @click="$emit('close')">✕</button>
     </div>
@@ -136,7 +136,7 @@ const props = defineProps<{
   viewport?: { panX: number; panY: number; zoom: number }
 }>()
 
-const { panelStyle } = useInspectorAnchor(() => props.container, () => props.viewport)
+const { panelStyle, onHeaderPointerDown, inspectorMode } = useInspectorAnchor(() => props.container, () => props.viewport)
 
 const emit = defineEmits<{
   (e: 'close'): void
@@ -256,7 +256,7 @@ function onDragEnd(): void {
 <style scoped>
 .bi {
   position: absolute;
-  right: 12px;
+  left: 12px;
   top: 12px;
   z-index: 6;
   width: 248px;
@@ -275,6 +275,9 @@ function onDragEnd(): void {
   padding-bottom: 8px;
   border-bottom: 1px solid var(--border-light);
 }
+/* 悬浮模式：头部可拖动（拖动期间用 grabbing） */
+.bi-head--draggable { cursor: grab; }
+.bi-head--draggable:active { cursor: grabbing; }
 .bi-title {
   flex: 1;
   min-width: 0;

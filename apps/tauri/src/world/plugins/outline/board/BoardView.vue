@@ -190,6 +190,7 @@ import { useBoardLayout } from './composables/useBoardLayout'
 import { useBoardSelection } from './composables/useBoardSelection'
 import { useBoardUndo, provideBoardUndo } from './composables/useBoardUndo'
 import { parseSnapMode, type SnapMode } from './composables/useBoardSnap'
+import { useInspectorTarget } from './composables/useInspectorTarget'
 import { contentBounds, fitViewport, type Point, type Rect } from './boardGeometry'
 import { DEFAULT_CONTAINER_SIZE, danglingContainerIds, genBoardId, rectOfContainer, type BoardSection } from './layoutSchema'
 import { captureHierarchy, diffHierarchy, planReparent, type DropMode } from './outlineHierarchy'
@@ -350,9 +351,8 @@ const selectedContainer = computed(() =>
     ? layout.value.containers.find(c => c.id === selection.selectedId.value) ?? null
     : null,
 )
-/** 面板可手动关闭；切换选中时自动重新展开（否则换了容器面板仍不出现，像坏了） */
-const inspectorClosed = ref(false)
-const inspectedContainer = computed(() => (inspectorClosed.value ? null : selectedContainer.value))
+/** 面板开关与目标（悬浮模式下点空白不消失）：规则见 composables/useInspectorTarget */
+const { closed: inspectorClosed, target: inspectedContainer } = useInspectorTarget(selectedContainer, () => layout.value.containers)
 const inspectedNode = computed(() =>
   inspectedContainer.value ? nodesById.value.get(inspectedContainer.value.nodeId) : undefined,
 )

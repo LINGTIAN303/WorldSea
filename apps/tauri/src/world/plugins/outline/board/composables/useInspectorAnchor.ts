@@ -1,4 +1,4 @@
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { DEFAULT_CONTAINER_SIZE, type BoardContainer } from '../layoutSchema'
 import { useOutlineBoardPrefs } from './useOutlineBoardPrefs'
 
@@ -13,14 +13,36 @@ export interface BoardViewportLike {
 const PANEL_W = 248
 /** 面板与卡片之间的间距 */
 const PANEL_GAP = 10
+const POS_KEY = 'ws-outline-inspector-pos'
+
+interface PanelPos {
+  x: number
+  y: number
+}
+
+function readPos(): PanelPos {
+  try {
+    const raw = localStorage.getItem(POS_KEY)
+    if (raw) {
+      const p = JSON.parse(raw) as Partial<PanelPos>
+      if (typeof p.x === 'number' && typeof p.y === 'number') return { x: p.x, y: p.y }
+    }
+  } catch {
+    /* 损坏值忽略，回落默认 */
+  }
+  // 未拖拽过：左上偏下，避开视图工具条
+  return { x: 24, y: 72 }
+}
 
 /**
- * 容器编辑面板的定位（2026-10-18）。
+ * 容器编辑面板的定位与拖拽（2026-10-18）。
  *
- * 默认**跟随选中卡片**：贴在卡片左侧、顶部与卡片平行；左侧空间不足时贴右侧。
- * 设置里改为「固定右上角」时返回空对象，由 CSS 默认的 right/top 接管。
+ * - `follow`（默认）：贴选中卡片**左侧**、顶部平行；左侧空间不足时贴卡片右侧。
+ * - `fixed`：固定**左上角**（右侧有节点侧边栏，放右会被覆盖）。
+ * - `free`（悬浮）：可拖拽到视口内任意位置，位置持久化；此模式下点击画布空白**不关闭面板**
+ *   （由 BoardView 的「最后编辑容器」记忆配合）。
  *
- * 坐标换算依据 BoardCanvas 的世界层变换：`translate(panX, panY) scale(zoom)`、`transform-origin: 0 0`
+ * 坐标换算依据 BoardCanvas 世界层变换：`translate(panX, panY) scale(zoom)`、`transform-origin: 0 0`
  * ⇒ 屏幕坐标 = 世界坐标 × zoom + pan。
  */
 export function useInspectorAnchor(
@@ -28,11 +50,29 @@ export function useInspectorAnchor(
   viewport: () => BoardViewportLike | undefined,
 ) {
   const { inspectorMode } = useOutlineBoardPrefs()
+  const freePos = ref<PanelPos>(readPos())
+
+  watch(freePos, (p) => {
+    try {
+      localStorage.setItem(POS_KEY, JSON.stringify(p))
+    } catch {
+      /* 存储不可用：仅本会话生效 */
+    }
+  })
 
   const panelStyle = computed(() => {
+    const mode = inspectorMode.value
+    if (mode === 'fixed') return {} // CSS 默认 left/top（左上角）
+    if (mode === 'free') {
+      return {
+        left: `${Math.round(freePos.value.x)}px`,
+        top: `${Math.round(freePos.value.y)}px`,
+        right: 'auto',
+      }
+    }
     const c = container()
     const vp = viewport()
-    if (!c || inspectorMode.value === 'fixed' || !vp) return {}
+    if (!c || !vp) return {}
     const cardLeft = c.pos.x * vp.zoom + vp.panX
     const cardTop = c.pos.y * vp.zoom + vp.panY
     const cardW = (c.size?.w ?? DEFAULT_CONTAINER_SIZE.w) * vp.zoom
@@ -48,5 +88,38 @@ export function useInspectorAnchor(
     }
   })
 
-  return { panelStyle }
+  /**
+   * 头部按下：仅 `free` 模式进入拖拽，位移钳制在画布视口内。
+   * 非 free 模式直接返回（不阻断头部按钮的点击）。
+   */
+  function onHeaderPointerDown(e: PointerEvent): void {
+    if (inspectorMode.value !== 'free') return
+    const head = e.currentTarget as HTMLElement | null
+    const el = head?.parentElement // .bi
+    const host = el?.parentElement // 画布视口（.bv-editor）
+    if (!el || !host) return
+    e.preventDefault()
+
+    const startX = e.clientX
+    const startY = e.clientY
+    const start = { ...freePos.value }
+    // 预留头部高度，避免拖到视口底部后无法再拖回
+    const maxX = Math.max(0, host.clientWidth - el.offsetWidth)
+    const maxY = Math.max(0, host.clientHeight - 48)
+
+    const move = (ev: PointerEvent) => {
+      freePos.value = {
+        x: Math.min(maxX, Math.max(0, start.x + (ev.clientX - startX))),
+        y: Math.min(maxY, Math.max(0, start.y + (ev.clientY - startY))),
+      }
+    }
+    const up = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+  }
+
+  return { panelStyle, onHeaderPointerDown, inspectorMode }
 }
