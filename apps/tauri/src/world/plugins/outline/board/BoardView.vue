@@ -98,7 +98,7 @@
     <BoardInspector
       v-if="inspectedContainer"
       :container="inspectedContainer"
-      :node="inspectedNode" :viewport="viewport"
+      :node="inspectedNode" :viewport="viewport" :board-id="currentBoardId"
       @close="inspectorClosed = true"
       @resize="onInspectorResize"
       @reset-size="onInspectorResetSize"
@@ -214,7 +214,7 @@ import {
 } from './export/exportRunner'
 import { initializeForms } from './forms/initializeForms'
 // 复用既有的 parent_child 关系同步（单一实现，避免第二份漂移）
-import { useOutlineTree } from '../composables/useOutlineTree'
+import { syncParentChildRelation } from '../parentChildSync'
 // 「章节 ↔ 大纲节点」关联的唯一写入入口（收敛此前的双字段双轨，见该模块头注释）
 import {
   buildChapterLinkIndex,
@@ -231,8 +231,9 @@ initializeForms()
 const es = useEntityStore()
 const docs = useBoardDocs()
 const layoutApi = useBoardLayout()
+/** 当前白板 id（layoutApi.boardId 是对象属性上的 ref，模板不会自动解包，需解一层） */
+const currentBoardId = computed(() => layoutApi.boardId.value)
 const selection = useBoardSelection()
-const { syncParentChildRelation } = useOutlineTree()
 
 const undoApi = useBoardUndo({
   // 快照含布局 + 层级：Ctrl+Z 既能撤画布布局操作，也能撤右栏的层级重排（原树视图的能力已并入白板）
@@ -567,7 +568,6 @@ async function onCreateNodeAt(pos: Point): Promise<void> {
       order: siblings.length + 1,
       parentId: '',
       storylines: '',
-      summary: '',
       manuscriptId: '',
     },
     tags: [],
@@ -660,7 +660,6 @@ async function onDropChapter(
       order: siblings.length + 1,
       parentId: '',
       storylines: '',
-      summary: '',
       manuscriptId: '',
     },
     tags: [],

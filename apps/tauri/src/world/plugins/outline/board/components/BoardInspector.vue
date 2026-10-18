@@ -134,9 +134,15 @@ const props = defineProps<{
   node?: Entity
   /** 画布视口：跟随卡片定位需要世界坐标 → 屏幕坐标的换算（屏 = 世界 × zoom + pan） */
   viewport?: { panX: number; panY: number; zoom: number }
+  /** 当前白板 id：悬浮模式的位置按白板分别记忆（useBoardLayout 的 boardId 可为 null） */
+  boardId?: string | null
 }>()
 
-const { panelStyle, onHeaderPointerDown, inspectorMode } = useInspectorAnchor(() => props.container, () => props.viewport)
+const { panelStyle, onHeaderPointerDown, inspectorMode } = useInspectorAnchor(
+  () => props.container,
+  () => props.viewport,
+  () => props.boardId ?? '',
+)
 
 const emit = defineEmits<{
   (e: 'close'): void

@@ -13,16 +13,21 @@ export interface BoardViewportLike {
 const PANEL_W = 248
 /** 面板与卡片之间的间距 */
 const PANEL_GAP = 10
-const POS_KEY = 'ws-outline-inspector-pos'
+/** 悬浮位置按**白板**分别记忆（2026-10-18 用户拍板：各白板互不干扰） */
+const POS_KEY_PREFIX = 'ws-outline-inspector-pos'
 
 interface PanelPos {
   x: number
   y: number
 }
 
-function readPos(): PanelPos {
+function posKey(boardId: string): string {
+  return `${POS_KEY_PREFIX}:${boardId || 'default'}`
+}
+
+function readPos(boardId: string): PanelPos {
   try {
-    const raw = localStorage.getItem(POS_KEY)
+    const raw = localStorage.getItem(posKey(boardId))
     if (raw) {
       const p = JSON.parse(raw) as Partial<PanelPos>
       if (typeof p.x === 'number' && typeof p.y === 'number') return { x: p.x, y: p.y }
@@ -39,8 +44,8 @@ function readPos(): PanelPos {
  *
  * - `follow`（默认）：贴选中卡片**左侧**、顶部平行；左侧空间不足时贴卡片右侧。
  * - `fixed`：固定**左上角**（右侧有节点侧边栏，放右会被覆盖）。
- * - `free`（悬浮）：可拖拽到视口内任意位置，位置持久化；此模式下点击画布空白**不关闭面板**
- *   （由 BoardView 的「最后编辑容器」记忆配合）。
+ * - `free`（悬浮）：可拖拽到视口内任意位置，**位置按白板分别记忆**；此模式下点击画布空白
+ *   **不关闭面板**（由 `useInspectorTarget` 的「最后编辑容器」记忆配合）。
  *
  * 坐标换算依据 BoardCanvas 世界层变换：`translate(panX, panY) scale(zoom)`、`transform-origin: 0 0`
  * ⇒ 屏幕坐标 = 世界坐标 × zoom + pan。
@@ -48,13 +53,19 @@ function readPos(): PanelPos {
 export function useInspectorAnchor(
   container: () => BoardContainer | null,
   viewport: () => BoardViewportLike | undefined,
+  boardId: () => string,
 ) {
   const { inspectorMode } = useOutlineBoardPrefs()
-  const freePos = ref<PanelPos>(readPos())
+  const freePos = ref<PanelPos>(readPos(boardId()))
+
+  // 切换白板 → 换成该白板自己的位置（各白板互不干扰）
+  watch(boardId, (id) => {
+    freePos.value = readPos(id)
+  })
 
   watch(freePos, (p) => {
     try {
-      localStorage.setItem(POS_KEY, JSON.stringify(p))
+      localStorage.setItem(posKey(boardId()), JSON.stringify(p))
     } catch {
       /* 存储不可用：仅本会话生效 */
     }
