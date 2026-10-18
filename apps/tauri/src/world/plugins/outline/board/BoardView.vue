@@ -47,8 +47,7 @@
 
   <!-- 层 2：编辑器（画布 + 画布悬浮条 + 右栏节点侧栏） -->
   <div v-else class="bv-editor">
-    <BoardCanvas
-      ref="canvasRef"
+    <BoardCanvas ref="canvasRef"
       :layout="layout" :viewport="viewport"
       :nodes-by-id="nodesById"
       :selected-id="selection.selectedId.value"
@@ -245,6 +244,7 @@ const undoApi = useBoardUndo({
   },
   // 字段条目回放：就地编辑（改名 / 改描述）的撤销也归白板栈（规格 §六「内容写入统一单步」）
   applyField: (nodeId, values) => { void applyNodeFields(nodeId, values) },
+  restoreEntities: p => restoreEntities(p), removeEntities: p => removeEntities(p),
 })
 
 /**
@@ -291,7 +291,7 @@ const removingSection = ref<BoardSection | null>(null)
 // ── 派生数据 ────────────────────────────────
 const { boards, currentBoard, inEditor } = docs
 const layout = layoutApi.layout
-const { duplicateContainer: onDuplicateContainer, askDeleteNode, cancelDelete, confirmDelete, deleteTarget, deleteDialogOpen } = useBoardNodeActions({ layout: () => layout.value, replaceLayout: layoutApi.replaceLayout, recordUndo: () => undoApi.record(), select: (id) => selection.select(id), clearSelection: () => selection.clear(), toast: toastInfo })
+const { duplicateContainer: onDuplicateContainer, askDeleteNode, cancelDelete, confirmDelete, restoreEntities, removeEntities, deleteTarget, deleteDialogOpen } = useBoardNodeActions({ layout: () => layout.value, replaceLayout: layoutApi.replaceLayout, recordUndo: () => undoApi.record(), recordEntityDelete: undoApi.recordEntityDelete, select: (id) => selection.select(id), clearSelection: () => selection.clear(), toast: toastInfo })
 const viewport = layoutApi.viewport
 const saveState = layoutApi.saveState
 const canUndo = undoApi.canUndo
@@ -988,14 +988,14 @@ function onCtxSelect(id: string): void {
 }
 
 // ── 撤销 / 重做 ─────────────────────────────
-function onUndo(): void {
-  if (undoApi.undo()) {
+async function onUndo(): Promise<void> {
+  if (await undoApi.undo()) {
     selection.dropIfMissing(new Set(layout.value.containers.map(c => c.id)))
   }
 }
 
-function onRedo(): void {
-  if (undoApi.redo()) {
+async function onRedo(): Promise<void> {
+  if (await undoApi.redo()) {
     selection.dropIfMissing(new Set(layout.value.containers.map(c => c.id)))
   }
 }

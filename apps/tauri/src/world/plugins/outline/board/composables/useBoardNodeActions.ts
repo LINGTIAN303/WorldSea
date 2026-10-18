@@ -7,15 +7,19 @@ import {
   childrenOf,
   collectSubtreeIds,
   deleteOutlineNodeWithStrategy,
+  deleteOutlineNodes,
   type ChildStrategy,
   type OutlineNodeDeleteApi,
 } from '@/entity/outlineNodeDelete'
-import { unlinkNode } from '@/entity/chapterLink'
+import { linkChapterToNode, nodeIdOfChapter, unlinkNode } from '@/entity/chapterLink'
+import type { EntityDeletePayload } from './useBoardUndo'
 
 interface Options {
   layout: () => OutlineBoardLayout
   replaceLayout: (next: OutlineBoardLayout) => void
   recordUndo: () => void
+  /** 删除前的完整记录（实体 + 关系 + 章节 + 前后布局），使一次 Ctrl+Z 能整批恢复 */
+  recordEntityDelete: (payload: EntityDeletePayload) => void
   select: (containerId: string) => void
   clearSelection: () => void
   toast?: (message: string) => void
@@ -138,26 +142,69 @@ export function useBoardNodeActions(opts: Options) {
     const target = deleteTarget.value
     if (!target) return
     const nodes = outlineNodes.value
-    // 先算出将被删的节点集合（用于同步清理画布上的容器）
-    const doomed = new Set(
-      strategy === 'cascade' ? collectSubtreeIds(nodes, target.id) : [target.id],
+    const doomed = new Set(strategy === 'cascade' ? collectSubtreeIds(nodes, target.id) : [target.id])
+    const doomedNodes = nodes.filter(n => doomed.has(n.id))
+    const doomedRelations = (rs.relations ?? []).filter(
+      r => doomed.has(r.sourceId) || doomed.has(r.targetId),
     )
+    const chapterLinks = (es.entities ?? [])
+      .filter(e => e.type === 'manuscript')
+      .map(c => ({ chapterId: c.id, nodeId: nodeIdOfChapter(c) }))
+      .filter(l => l.nodeId && doomed.has(l.nodeId))
+    // promote / reparent 会改子节点的 parentId/order —— 撤销时须写回原值
+    const restoreNodes = (strategy === 'cascade' ? [] : childrenOf(nodes, target.id)).map(k => ({
+      id: k.id,
+      properties: {
+        parentId: String((k.properties?.parentId as string) || ''),
+        order: Number(k.properties?.order ?? 0),
+      },
+    }))
+    const before = opts.layout()
+    const after = { ...before, containers: before.containers.filter(c => !doomed.has(c.nodeId)) }
+
+    // 删除前登记：一次 Ctrl+Z 能把节点、关系、章节绑定与容器整批恢复
+    opts.recordEntityDelete({
+      nodes: doomedNodes,
+      relations: doomedRelations,
+      chapterLinks,
+      restoreNodes,
+      before: { layout: before },
+      after: { layout: after },
+    })
+
     const removed = await deleteOutlineNodeWithStrategy(
       deleteApi,
       target.id,
       strategy,
       reparentTargetId,
     )
-    // 布局侧同步移除这些节点的容器（否则画布上留下「节点已删除」的悬空容器）
-    const layout = opts.layout()
-    const containers = layout.containers.filter(c => !doomed.has(c.nodeId))
-    if (containers.length !== layout.containers.length) {
-      opts.replaceLayout({ ...layout, containers })
-    }
+    if (after.containers.length !== before.containers.length) opts.replaceLayout(after)
     opts.clearSelection()
     deleteTarget.value = null
-    opts.toast?.(`已删除 ${removed} 个节点`)
+    opts.toast?.(`已删除 ${removed} 个节点（Ctrl+Z 可撤销）`)
   }
 
-  return { duplicateContainer, askDeleteNode, cancelDelete, confirmDelete, deleteTarget, deleteDialogOpen }
+  /** 撤销删除：先写回被改动的子节点，再按原 id 重建节点/关系/章节绑定 */
+  async function restoreEntities(payload: EntityDeletePayload): Promise<void> {
+    for (const r of payload.restoreNodes ?? []) await deleteApi.updateNode(r.id, r.properties)
+    for (const n of payload.nodes) await es.add(n)
+    for (const r of payload.relations) await rs.add(r)
+    for (const l of payload.chapterLinks) await linkChapterToNode(es, l.chapterId, l.nodeId)
+  }
+
+  /** 重做删除：再删一次（关系与章节绑定由 deleteOutlineNodes 一并清理） */
+  async function removeEntities(payload: EntityDeletePayload): Promise<void> {
+    await deleteOutlineNodes(deleteApi, payload.nodes.map(n => n.id))
+  }
+
+  return {
+    duplicateContainer,
+    askDeleteNode,
+    cancelDelete,
+    confirmDelete,
+    restoreEntities,
+    removeEntities,
+    deleteTarget,
+    deleteDialogOpen,
+  }
 }
