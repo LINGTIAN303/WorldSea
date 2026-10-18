@@ -42,6 +42,7 @@
             <PluginsPanel v-if="cat.id === 'plugins'" :search-query="searchQuery" @dirty="onDirty" />
             <EditorPanel v-if="cat.id === 'editor'" :search-query="searchQuery" @dirty="onDirty" />
             <LayoutPanel v-if="cat.id === 'layout'" :search-query="searchQuery" @dirty="onDirty" />
+            <OutlineBoardPanel v-if="cat.id === 'outline'" :search-query="searchQuery" />
             <DetailSettingsPanel v-if="cat.id === 'detail'" :search-query="searchQuery" />
             <RelationsPanel v-if="cat.id === 'relations'" :search-query="searchQuery" @dirty="onDirty" />
             <ShortcutsPanel v-if="cat.id === 'shortcuts'" :search-query="searchQuery" @dirty="onDirty" />
@@ -58,6 +59,7 @@
           <PluginsPanel v-else-if="activeSection === 'plugins'" ref="pluginsRef" :search-query="searchQuery" @dirty="onDirty" @card-change="onPanelCardChange" />
           <EditorPanel v-else-if="activeSection === 'editor'" ref="editorRef" @dirty="onDirty" @card-change="onPanelCardChange" />
           <LayoutPanel v-else-if="activeSection === 'layout'" ref="layoutRef" @dirty="onDirty" @card-change="onPanelCardChange" />
+          <OutlineBoardPanel v-else-if="activeSection === 'outline'" ref="outlineRef" @card-change="onPanelCardChange" />
           <DetailSettingsPanel v-else-if="activeSection === 'detail'" ref="detailRef" @card-change="onPanelCardChange" />
           <RelationsPanel v-else-if="activeSection === 'relations'" ref="relationsRef" @dirty="onDirty" @card-change="onPanelCardChange" />
           <ShortcutsPanel v-else-if="activeSection === 'shortcuts'" ref="shortcutsRef" @dirty="onDirty" @card-change="onPanelCardChange" />
@@ -87,6 +89,7 @@ import AppearancePanel from './panels/AppearancePanel.vue'
 import PluginsPanel from './panels/PluginsPanel.vue'
 import EditorPanel from './panels/EditorPanel.vue'
 import LayoutPanel from './panels/LayoutPanel.vue'
+import OutlineBoardPanel from './panels/OutlineBoardPanel.vue'
 import DetailSettingsPanel from './panels/DetailSettingsPanel.vue'
 import RelationsPanel from './panels/RelationsPanel.vue'
 import ShortcutsPanel from './panels/ShortcutsPanel.vue'
@@ -132,6 +135,7 @@ const categories = [
   { id: 'plugins', icon: 'cat-plugins', label: '插件' },
   { id: 'editor', icon: 'cat-editor', label: '编辑' },
   { id: 'layout', icon: 'cat-layout', label: '布局' },
+  { id: 'outline', icon: 'outline', label: '大纲' },
   { id: 'detail', icon: 'data-entity', label: '实体详情' },
   { id: 'relations', icon: 'cat-relations', label: '关系' },
   { id: 'shortcuts', icon: 'cat-shortcuts', label: '快捷键' },
@@ -221,6 +225,7 @@ const appearanceRef = ref<InstanceType<typeof AppearancePanel> | null>(null)
 const pluginsRef = ref<InstanceType<typeof PluginsPanel> | null>(null)
 const editorRef = ref<InstanceType<typeof EditorPanel> | null>(null)
 const layoutRef = ref<InstanceType<typeof LayoutPanel> | null>(null)
+const outlineRef = ref<InstanceType<typeof OutlineBoardPanel> | null>(null)
 const detailRef = ref<InstanceType<typeof DetailSettingsPanel> | null>(null)
 const relationsRef = ref<InstanceType<typeof RelationsPanel> | null>(null)
 const shortcutsRef = ref<InstanceType<typeof ShortcutsPanel> | null>(null)
@@ -232,6 +237,7 @@ const panelRefs: Record<string, { value: any }> = {
   plugins: pluginsRef,
   editor: editorRef,
   layout: layoutRef,
+  outline: outlineRef,
   detail: detailRef,
   relations: relationsRef,
   shortcuts: shortcutsRef,
@@ -335,6 +341,7 @@ const CATEGORY_KEYWORDS: Record<string, string> = {
   plugins: '插件 外部插件 内置插件 功能插件 常驻 非芽 芽 扩展 模块 启用 禁用 内置 本地 远程 外部 sprout 分组 全选 源码 重载 装载 plugin external puzzle utility',
   editor: '编辑 撤销 重做 历史 大纲 内嵌 光标 平滑 undo redo outline caret smooth',
   layout: '布局 面板 思维导图 中心节点 字段 预设 宽度 panel mindmap field 时间线 timeline 拖拽 泳道 甘特图 紧凑 分组 手机预览 phone preview',
+  outline: '大纲 白板 编辑面板 悬浮 定位 跟随 卡片 outline board inspector follow fixed',
   relations: '关系 自动 创建 实体 引用 图谱 选择器 relation auto create',
   shortcuts: '快捷键 键盘 快捷 绑定 shortcut keyboard',
   storage: '存储 清理 孤立 文件 诊断 缓存 空间 配额 storage cleanup orphan diagnostic',

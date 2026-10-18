@@ -98,7 +98,7 @@
     <BoardInspector
       v-if="inspectedContainer"
       :container="inspectedContainer"
-      :node="inspectedNode"
+      :node="inspectedNode" :viewport="viewport"
       @close="inspectorClosed = true"
       @resize="onInspectorResize"
       @reset-size="onInspectorResetSize"

@@ -6,7 +6,7 @@
     2026-10-08（「outline 接入详情载体」裁定）：节点属性 / 关联章节 / 关联实体 / 打开正文
     已拆至 `NodeDetailView`（走 L1 详情载体）；本件降为**容器编辑工具**，留守悬浮。
   -->
-  <div v-if="container" class="bi">
+  <div v-if="container" class="bi" :style="panelStyle">
     <div class="bi-head">
       <span class="bi-title" :title="headText">{{ headText }}</span>
       <button class="bi-icon" type="button" title="关闭" aria-label="关闭属性面板" @click="$emit('close')">✕</button>
@@ -126,12 +126,17 @@ import { computed, ref, watch } from 'vue'
 import type { Entity } from '@worldsea/entity-core'
 import { DEFAULT_CONTAINER_SIZE, type BoardComponent, type BoardContainer } from '../layoutSchema'
 import { getForm, resolveFormConfig, type FormConfigField } from '../forms/registry'
+import { useInspectorAnchor } from '../composables/useInspectorAnchor'
 
 const props = defineProps<{
   container: BoardContainer | null
   /** 仅用于标题显示（容器与节点 1:1） */
   node?: Entity
+  /** 画布视口：跟随卡片定位需要世界坐标 → 屏幕坐标的换算（屏 = 世界 × zoom + pan） */
+  viewport?: { panX: number; panY: number; zoom: number }
 }>()
+
+const { panelStyle } = useInspectorAnchor(() => props.container, () => props.viewport)
 
 const emit = defineEmits<{
   (e: 'close'): void
