@@ -98,10 +98,10 @@
     <BoardInspector
       v-if="inspectedContainer"
       :container="inspectedContainer"
-      :node="inspectedNode" :viewport="viewport" :board-id="currentBoardId"
+      :node="inspectedNode" :viewport="viewport" :board-id="layoutApi.boardId.value"
       @close="inspectorClosed = true"
       @resize="onInspectorResize"
-      @reset-size="onInspectorResetSize"
+      @reset-size="onInspectorResetSize" @duplicate="onDuplicateContainer(inspectedContainer.id)"
       @update-config="onComponentConfig"
       @remove-component="onInspectorRemoveComponent"
       @reorder-components="onReorderComponents"
@@ -191,6 +191,7 @@ import { useBoardSelection } from './composables/useBoardSelection'
 import { useBoardUndo, provideBoardUndo } from './composables/useBoardUndo'
 import { parseSnapMode, type SnapMode } from './composables/useBoardSnap'
 import { useInspectorTarget } from './composables/useInspectorTarget'
+import { useContainerDuplicate } from './composables/useContainerDuplicate'
 import { contentBounds, fitViewport, type Point, type Rect } from './boardGeometry'
 import { DEFAULT_CONTAINER_SIZE, danglingContainerIds, genBoardId, rectOfContainer, type BoardSection } from './layoutSchema'
 import { captureHierarchy, diffHierarchy, planReparent, type DropMode } from './outlineHierarchy'
@@ -231,8 +232,6 @@ initializeForms()
 const es = useEntityStore()
 const docs = useBoardDocs()
 const layoutApi = useBoardLayout()
-/** 当前白板 id（layoutApi.boardId 是对象属性上的 ref，模板不会自动解包，需解一层） */
-const currentBoardId = computed(() => layoutApi.boardId.value)
 const selection = useBoardSelection()
 
 const undoApi = useBoardUndo({
@@ -293,6 +292,7 @@ const removingSection = ref<BoardSection | null>(null)
 // ── 派生数据 ────────────────────────────────
 const { boards, currentBoard, inEditor } = docs
 const layout = layoutApi.layout
+const { duplicateContainer: onDuplicateContainer } = useContainerDuplicate({ layout: () => layout.value, replaceLayout: layoutApi.replaceLayout, recordUndo: () => undoApi.record(), select: (id) => selection.select(id) })
 const viewport = layoutApi.viewport
 const saveState = layoutApi.saveState
 const canUndo = undoApi.canUndo

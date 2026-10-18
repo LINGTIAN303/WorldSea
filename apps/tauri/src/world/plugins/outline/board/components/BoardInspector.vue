@@ -41,6 +41,14 @@
       <button class="bi-btn" type="button" :disabled="autoSized" @click="$emit('resetSize')">
         恢复内容自适应
       </button>
+      <button
+        class="bi-btn"
+        type="button"
+        title="复制为一份新节点 + 容器（组件配置一并复制；不复制关联章节与关系）"
+        @click="$emit('duplicate')"
+      >
+        复制容器
+      </button>
     </div>
 
     <!-- 组件列表（可拖拽排序） -->
@@ -148,6 +156,8 @@ const emit = defineEmits<{
   (e: 'close'): void
   (e: 'resize', size: { w: number; h: number }): void
   (e: 'resetSize'): void
+  /** 复制容器（2026-10-18）：节点 + 容器 + 组件配置，由父组件完成（含撤销与选中） */
+  (e: 'duplicate'): void
   (e: 'updateConfig', componentId: string, patch: Record<string, unknown>): void
   (e: 'removeComponent', componentId: string): void
   (e: 'reorderComponents', orderedIds: string[]): void
