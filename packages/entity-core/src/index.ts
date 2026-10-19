@@ -183,6 +183,8 @@ export type {
   UserFieldMapping,
 } from './core/AutoLinkEngine'
 export type { AutoLinkDecision, AutoLinkDecisionValue } from './core/AutoLinkDecisions'
+export { autoLinkRuntime, recordAutoLinkEvent, clearAutoLinkEvents } from './core/AutoLinkRuntime'
+export type { AutoLinkRuntimeEvent, AutoLinkRuntimeEventKind } from './core/AutoLinkRuntime'
 export type { EntitySchemaOverlay, SchemaOverlayBase, SchemaOverlayResult } from './core/schemaOverlay'
 export {
   registerIngestNormalizer,

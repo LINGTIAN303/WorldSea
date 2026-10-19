@@ -177,6 +177,9 @@ export type { UserFieldMapping } from './AutoLinkEngine'
 export { autoLinkDecisionStore } from './AutoLinkDecisions'
 export type { AutoLinkDecision, AutoLinkDecisionValue } from './AutoLinkDecisions'
 
+export { autoLinkRuntime, recordAutoLinkEvent, clearAutoLinkEvents } from './AutoLinkRuntime'
+export type { AutoLinkRuntimeEvent, AutoLinkRuntimeEventKind } from './AutoLinkRuntime'
+
 // 公式引擎（从 src/modules/runtime/ 下沉）
 export { evaluateFormula, extractFieldRefs } from './formula'
 export {

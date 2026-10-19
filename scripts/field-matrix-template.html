@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>WorldSea · 芽字段矩阵</title>
+<script>
+  (() => {
+    const mq = matchMedia('(prefers-color-scheme: dark)');
+    const apply = () => { document.documentElement.dataset.theme = mq.matches ? 'dark' : 'light'; };
+    apply();
+    mq.addEventListener('change', apply);
+  })();
+</script>
+<style>{{MATRIX_CSS}}</style>
+<style>{{STANDALONE_CSS}}</style>
+</head>
+<body>
+<div class="fm-root">
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">WS</div>
+      <div>
+        <h1>芽字段矩阵</h1>
+        <p>WorldSea 实体 Schema 字段字典 · 快照 {{DATE}}</p>
+      </div>
+    </div>
+    <div class="top-stats" aria-label="统计">{{TOP_STATS}}</div>
+    <label class="search-box">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="q" type="search" placeholder="搜索字段 / 中文名 / 芽 / 选项…" aria-label="搜索字段、中文名、芽或选项" autocomplete="off">
+      <kbd>/</kbd>
+    </label>
+    <div class="filters">
+      <select id="jump" class="select mobile-only" aria-label="快速跳转">
+        <option value="">快速跳转…</option>
+      </select>
+      <label class="check"><input id="only-required" type="checkbox"> 只看必填</label>
+      <label class="check"><input id="only-own" type="checkbox"> 只看芽自有</label>
+      <select id="type-filter" class="select" aria-label="按字段类型筛选">
+        <option value="">全部类型</option>
+        {{TYPE_OPTIONS}}
+      </select>
+      <button id="clear" type="button" class="ghost">清空</button>
+      <button id="expand-all" type="button" class="ghost">展开</button>
+      <button id="collapse-all" type="button" class="ghost">收起</button>
+    </div>
+  </div>
+</header>
+
+<div class="shell">
+  <aside class="sidebar" aria-label="芽导航">
+    <nav>
+      {{SIDEBAR}}
+    </nav>
+  </aside>
+  <main class="main">
+    <div id="filter-bar" class="filter-bar is-hidden">
+      <span id="result-count" aria-live="polite"></span>
+      <span class="hint">搜索覆盖字段键、中文名、类型、来源、选项与说明</span>
+    </div>
+    <section id="overview" class="doc-section">
+      {{OVERVIEW}}
+    </section>
+    <section id="traits" class="doc-section">
+      {{TRAIT_MATRIX}}
+    </section>
+    <div id="entities">
+      {{ENTITY_GROUPS}}
+    </div>
+    <section id="facets" class="doc-section" data-field-section>
+      {{FACETS}}
+    </section>
+    <section id="system" class="doc-section" data-field-section>
+      {{SYSTEM}}
+    </section>
+    <section id="view-only" class="doc-section">
+      {{VIEW_ONLY}}
+    </section>
+    <section id="scope" class="doc-section">
+      {{SCOPE}}
+    </section>
+    <div id="empty-state" class="empty-state is-hidden">
+      <b>没有匹配的字段</b>
+      <span>试试清空搜索，或换一个字段键 / 中文名 / 芽名</span>
+    </div>
+  </main>
+</div>
+
+<button id="to-top" class="to-top" type="button" aria-label="回到顶部" title="回到顶部">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
+</button>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<footer class="page-footer">
+  <span>WorldSea 实体 Schema 字段字典 · 快照 {{DATE}}</span>
+  <span>Markdown 版：<a href="./芽字段矩阵.md">芽字段矩阵.md</a> · 生成命令：<code>node scripts/generate-field-matrix.mjs</code></span>
+</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const pageRoot = document.querySelector('.fm-root');
+  const $ = (sel, root) => (root || document).querySelector(sel);
+  const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
+  const rows = $$('tr.field-row');
+  const fieldSections = $$('[data-field-section]');
+  const entityDetails = $$('details.entity-details');
+  const navLinks = $$('.sidebar a[href^="#"]');
+  const jump = $('#jump');
+  for (const link of navLinks) {
+    const option = document.createElement('option');
+    const code = link.querySelector('code');
+    option.value = link.getAttribute('href');
+    option.textContent = (link.querySelector('span')?.textContent?.trim() || link.textContent.trim()) + (code ? ' · ' + code.textContent : '');
+    jump.appendChild(option);
+  }
+  jump.addEventListener('change', () => {
+    const target = document.querySelector(jump.value);
+    if (target) {
+      const details = target.querySelector('details.entity-details');
+      if (details) details.open = true;
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    jump.value = '';
+  });
+  const q = $('#q');
+  const onlyRequired = $('#only-required');
+  const onlyOwn = $('#only-own');
+  const typeFilter = $('#type-filter');
+  const resultCount = $('#result-count');
+  const filterBar = $('#filter-bar');
+  const emptyState = $('#empty-state');
+  const toTop = $('#to-top');
+  const toast = $('#toast');
+  let toastTimer = 0;
+
+  const isFiltering = () => Boolean(q.value.trim() || onlyRequired.checked || onlyOwn.checked || typeFilter.value);
+
+  const copyText = async text => {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (_) {
+      const area = document.createElement('textarea');
+      area.value = text;
+      area.setAttribute('readonly', 'readonly');
+      area.style.position = 'fixed';
+      area.style.opacity = '0';
+      document.body.appendChild(area);
+      area.select();
+      let ok = false;
+      try { ok = document.execCommand('copy'); } catch (_) { ok = false; }
+      area.remove();
+      return ok;
+    }
+  };
+
+  const showToast = text => {
+    toast.textContent = text;
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove('show'), 1700);
+  };
+
+  const applyFilters = () => {
+    const query = q.value.trim().toLowerCase();
+    let visible = 0;
+    for (const row of rows) {
+      let ok = !query || row.dataset.search.includes(query);
+      if (ok && onlyRequired.checked) ok = row.dataset.required === '1';
+      if (ok && onlyOwn.checked) ok = row.dataset.source === 'own' || row.dataset.source === 'replace';
+      if (ok && typeFilter.value) ok = row.dataset.type === typeFilter.value;
+      row.classList.toggle('is-hidden', !ok);
+      if (ok) visible++;
+    }
+    for (const section of fieldSections) {
+      const count = section.querySelectorAll('tr.field-row:not(.is-hidden)').length;
+      section.classList.toggle('is-hidden', count === 0);
+      const badge = section.querySelector('.visible-count');
+      if (badge) badge.textContent = String(count);
+      if (count > 0 && isFiltering()) {
+        const details = section.querySelector('details.entity-details');
+        if (details) details.open = true;
+      }
+    }
+    for (const group of $$('[data-entity-group]')) {
+      const count = group.querySelectorAll('.entity:not(.is-hidden)').length;
+      group.classList.toggle('is-hidden', count === 0);
+    }
+    const filtering = isFiltering();
+    pageRoot.classList.toggle('filtering', filtering);
+    filterBar.classList.toggle('is-hidden', !filtering);
+    resultCount.textContent = '显示 ' + visible + ' / ' + rows.length + ' 行（含 Facet / 系统字段）';
+    emptyState.classList.toggle('is-hidden', visible > 0 || !filtering);
+  };
+
+  q.addEventListener('input', applyFilters);
+  onlyRequired.addEventListener('change', applyFilters);
+  onlyOwn.addEventListener('change', applyFilters);
+  typeFilter.addEventListener('change', applyFilters);
+  $('#clear').addEventListener('click', () => {
+    q.value = '';
+    onlyRequired.checked = false;
+    onlyOwn.checked = false;
+    typeFilter.value = '';
+    applyFilters();
+    q.focus();
+  });
+  $('#expand-all').addEventListener('click', () => entityDetails.forEach(details => { details.open = true; }));
+  $('#collapse-all').addEventListener('click', () => entityDetails.forEach(details => { details.open = false; }));
+
+  document.addEventListener('click', async event => {
+    const copyKey = event.target.closest('[data-copy]');
+    if (copyKey) {
+      const ok = await copyText(copyKey.dataset.copy);
+      showToast(ok ? '已复制 ' + copyKey.dataset.copy : '复制失败');
+      return;
+    }
+    const copyTable = event.target.closest('[data-copy-table]');
+    if (copyTable) {
+      const table = document.getElementById(copyTable.dataset.copyTable);
+      if (!table) return;
+      const lines = ['字段\t中文名\t类型\t必填\t来源\t选项 / 说明'];
+      for (const tr of Array.from(table.querySelectorAll('tr.field-row'))) {
+        lines.push([
+          tr.dataset.key,
+          tr.dataset.label,
+          tr.dataset.type,
+          tr.dataset.requiredLabel,
+          tr.dataset.sourceLabel,
+          tr.dataset.notes,
+        ].join('\t'));
+      }
+      const ok = await copyText(lines.join('\n'));
+      showToast(ok ? '已复制整表' : '复制失败');
+    }
+  });
+
+  document.addEventListener('keydown', event => {
+    const tag = document.activeElement && document.activeElement.tagName;
+    if (event.key === '/' && !/^(INPUT|TEXTAREA|SELECT)$/.test(tag)) {
+      event.preventDefault();
+      q.focus();
+      q.select();
+    }
+    if (event.key === 'Escape' && document.activeElement === q) {
+      q.value = '';
+      onlyRequired.checked = false;
+      onlyOwn.checked = false;
+      typeFilter.value = '';
+      applyFilters();
+      q.blur();
+    }
+  });
+
+  toTop.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+
+  const onScroll = () => {
+    toTop.classList.toggle('show', window.scrollY > 700);
+    const y = window.scrollY + 140;
+    let current = null;
+    for (const link of navLinks) {
+      const target = document.querySelector(link.getAttribute('href'));
+      if (!target) continue;
+      if (target.getBoundingClientRect().top + window.scrollY <= y) current = link;
+    }
+    navLinks.forEach(link => link.classList.toggle('active', link === current));
+  };
+  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('beforeprint', () => entityDetails.forEach(details => { details.open = true; }));
+
+  applyFilters();
+  onScroll();
+})();
+</script>
+</body>
+</html>

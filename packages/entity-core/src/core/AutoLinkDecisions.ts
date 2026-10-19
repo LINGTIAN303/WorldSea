@@ -5,6 +5,7 @@
  */
 
 import type { PotentialLink } from './PotentialLinkIndex'
+import { recordAutoLinkEvent } from './AutoLinkRuntime'
 
 const DECISIONS_KEY = 'worldsea_potential_link_decisions'
 
@@ -81,6 +82,18 @@ export class AutoLinkDecisionStoreClass {
     }
     this.map.set(linkDecisionKey(entry.sourceEntityId, entry.sourceFieldKey, entry.targetEntityId, entry.relationType), entry)
     this.save()
+    recordAutoLinkEvent('decision:record', `${link.sourceFieldKey} → ${link.targetEntityId} · ${decision}`, {
+      sourceEntityId: link.sourceEntityId,
+      sourceFieldKey: link.sourceFieldKey,
+      targetEntityId: link.targetEntityId,
+      relationType: link.relationType,
+      decision,
+    })
+  }
+
+  /** 只读快照（运行时观测面板使用） */
+  getAll(): AutoLinkDecision[] {
+    return Array.from(this.map.values())
   }
 
   /** 命中且指纹一致 → 返回决策；指纹不一致 → 失效自清并返回 undefined */

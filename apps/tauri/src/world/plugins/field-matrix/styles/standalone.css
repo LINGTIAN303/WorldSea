@@ -1,0 +1,4 @@
+/* 仅静态 HTML：页面级样式。 */
+html, body { margin: 0; }
+html { scroll-behavior: smooth; }
+.fm-root { min-height: 100vh; }

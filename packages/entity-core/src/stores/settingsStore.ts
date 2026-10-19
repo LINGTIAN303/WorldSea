@@ -138,6 +138,7 @@ const DEFAULT_SPROUTS: SproutToggle[] = [
   { id: 'official.tactical-board', label: '战术棋盘', icon: 'tactical-board', active: false, category: 'visual' },
   { id: 'official.notebook', label: '笔记本', icon: 'notebook', active: true, category: 'visual' },
   { id: 'official.orchestration', label: '创作编排', icon: 'lightning', active: true, category: 'system' },
+  { id: 'official.field-matrix', label: '字段矩阵', icon: 'grid', active: true, category: 'system' },
 ]
 
 /** 芽清单内的 id 集合（持久化面归一用；见 `./sproutPersistence`）。 */

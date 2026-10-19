@@ -4,6 +4,7 @@
  */
 
 import type { SemanticHintName } from '../types/trait'
+import { recordAutoLinkEvent } from './AutoLinkRuntime'
 
 /** 潜在链接条目 */
 export interface PotentialLink {
@@ -49,6 +50,14 @@ export class PotentialLinkIndexClass {
     const list = this.bySource.get(link.sourceEntityId) || []
     list.push(link)
     this.bySource.set(link.sourceEntityId, list)
+    recordAutoLinkEvent('link:add', `${link.sourceFieldKey} → ${link.targetEntityType}`, {
+      linkId: link.id,
+      sourceEntityId: link.sourceEntityId,
+      targetEntityId: link.targetEntityId,
+      hint: link.hint,
+      relationType: link.relationType,
+      score: link.score,
+    })
   }
 
   getBySource(entityId: string): PotentialLink[] {
@@ -66,10 +75,13 @@ export class PotentialLinkIndexClass {
 
   resolve(id: string, decision: 'confirmed' | 'dismissed'): void {
     const link = this.links.get(id)
-    if (link) {
-      link.resolved = true
-      link.decision = decision
-    }
+    if (!link) return
+    link.resolved = true
+    link.decision = decision
+    recordAutoLinkEvent('link:resolve', `${link.sourceFieldKey} → ${link.targetEntityType} · ${decision}`, {
+      linkId: id,
+      decision,
+    })
   }
 
   getAll(): PotentialLink[] {

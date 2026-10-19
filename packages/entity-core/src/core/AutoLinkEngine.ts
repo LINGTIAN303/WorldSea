@@ -9,6 +9,7 @@ import { entitySchemaRegistryV2, traitRegistry } from './TraitRuntime'
 import { storage } from './StorageBackend'
 import { potentialLinkIndex, type PotentialLink } from './PotentialLinkIndex'
 import { autoLinkDecisionStore } from './AutoLinkDecisions'
+import { recordAutoLinkEvent } from './AutoLinkRuntime'
 
 export { potentialLinkIndex } from './PotentialLinkIndex'
 export type { PotentialLink } from './PotentialLinkIndex'
@@ -331,6 +332,9 @@ export async function indexPotentialLinks(
   const schema = entitySchemaRegistryV2?.get(entityType)
   if (!schema) return
 
+  const startedAt = Date.now()
+  recordAutoLinkEvent('index:start', `索引 ${entityType}`, { entityId, entityType })
+
   // 清除该实体的旧索引
   potentialLinkIndex.clearBySource(entityId)
 
@@ -400,6 +404,11 @@ export async function indexPotentialLinks(
 
   // 持久决策应用：已处理且内容未变的条目保持隐藏（跨会话 / 重建索引均有效）
   applyPersistedDecisions(entityId)
+  recordAutoLinkEvent('index:end', `索引完成 ${entityType}`, {
+    entityId,
+    entityType,
+    durationMs: Date.now() - startedAt,
+  })
 }
 
 /** 应用持久化决策：命中且内容指纹未变的条目保持隐藏 */
@@ -478,6 +487,11 @@ export async function refreshLinksForTarget(
     .filter((l: PotentialLink) => !l.resolved && l.targetEntityId === targetEntityId)
 
   if (staleLinks.length === 0) return
+
+  recordAutoLinkEvent('refresh:target', `刷新目标 ${targetEntityId}`, {
+    targetEntityId,
+    staleCount: staleLinks.length,
+  })
 
   // 移除过期链接
   for (const link of staleLinks) {
