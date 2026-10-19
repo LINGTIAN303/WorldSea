@@ -91,4 +91,4 @@ scope: 芽（侧栏插件）生态
 - 8 域注册表 `SPROUT_DOMAINS` 成为域层单一真源；旧 6 类 `category` 保留筛选、加 `@deprecated`，待 R4 退役。
 - 外部插件缺 `domain` 记 `unclassified`；运行时通过 `availablePlugins()` 与 `ExternalPluginState` 暴露域数据，不改 UI。
 - 批计划：[2026-10-20-R1R2-芽语义域声明批计划](../../../plans/已完成/2026-10-20-R1R2-芽语义域声明批计划.md)。
-- 门禁：专项 16/16；全量 168 文件 / 1393 通过 / 1 跳过；`vue-tsc` 0；`arch:check` 0；`workspace-dist` 构建成功；文档断链 0。
+- 门禁：专项 26/26；全量 168 文件 / 1394 通过 / 1 跳过；`vue-tsc` 0；`arch:check` 0；`workspace-dist` 构建成功；文档断链 0。

@@ -19,7 +19,7 @@ import type { CordisContext, CordisFiberLike } from '@deepseek-ai/cordis'
 import { getFileStorageBackend, pluginAPI } from '@worldsea/entity-core'
 
 import { createPluginApi } from './api'
-import { collectExternalPlugins } from './external'
+import { collectExternalPlugins, externalDomain } from './external'
 import { collectWorldPlugins, type LoadReport } from './loader'
 import type { WorldPlugin } from './manifest'
 import { runPluginCleanups } from './registry'
@@ -327,7 +327,7 @@ export function externalPluginStates(): ExternalPluginState[] {
       status: fibers.has(id) ? 'loaded' : 'skipped',
       file: `${EXTERNAL_DIR_DISPLAY}/${id}.js`,
       kind: plugin.manifest.kind,
-      domain: plugin.manifest.domain,
+      domain: externalDomain(plugin.manifest),
       secondaryDomains: plugin.manifest.secondaryDomains,
     })
   }

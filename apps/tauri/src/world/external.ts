@@ -8,6 +8,11 @@
  * 求值用 `new Function`——两窗 CSP 均不放 `script-src`（`csp: null` + `CSP_INDEX` 三条指令），已核可执行。
  */
 import { validateManifest, type WorldPlugin, type WorldPluginManifest } from './manifest'
+
+/** 外部插件域缺省：manifest 未声明时记 unclassified（不默认归 tool）。 */
+export function externalDomain(manifest: WorldPluginManifest): string {
+  return manifest.domain?.trim() || 'unclassified'
+}
 import { createRequire } from './modules'
 
 /** 外部插件 id 强制前缀（内置 `official.*` 不可冒名；`official.` 覆盖意图在此拦下）。 */

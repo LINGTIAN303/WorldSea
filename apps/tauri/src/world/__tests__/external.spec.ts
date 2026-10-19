@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest'
 
-import { collectExternalPlugins, evaluateExternalPlugin, type ExternalIo } from '../external'
+import { collectExternalPlugins, evaluateExternalPlugin, externalDomain, type ExternalIo } from '../external'
 import { createRequire } from '../modules'
 
 const require = createRequire()
@@ -104,5 +104,15 @@ describe('collectExternalPlugins（收集器）', () => {
     expect(report.plugins).toEqual([])
     expect(report.rejected.some(entry => entry.reason.includes('ws.'))).toBe(true)
     expect(report.rejected.some(entry => entry.reason.includes('文件名'))).toBe(true)
+  })
+})
+
+describe('externalDomain（域缺省）', () => {
+  const manifest = { id: 'ws.demo', name: '示例', version: '0.1.0', description: 'x' }
+
+  it('缺 domain → unclassified；声明则原样；空白视为缺省', () => {
+    expect(externalDomain(manifest)).toBe('unclassified')
+    expect(externalDomain({ ...manifest, domain: 'tool' })).toBe('tool')
+    expect(externalDomain({ ...manifest, domain: '  ' })).toBe('unclassified')
   })
 })
