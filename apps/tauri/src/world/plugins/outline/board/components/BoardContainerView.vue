@@ -24,6 +24,7 @@
     <div class="bc-head" @pointerdown.stop="$emit('dragStart', $event)">
       <span class="bc-dot" :class="dotClass" :title="statusText" />
       <span class="bc-title" :class="{ 'bc-title--dangling': !node }">{{ headText }}</span>
+      <ContainerLateralBadges v-if="node" :node="node" />
       <span class="bc-actions">
         <button
           v-if="node"
@@ -126,6 +127,7 @@
  */
 import { computed, ref, watch } from 'vue'
 import type { Entity } from '@worldsea/entity-core'
+import ContainerLateralBadges from './ContainerLateralBadges.vue'
 // 芽视图里的 UI 组件不是全局组件，必须显式导入（否则渲染期静默为空、vue-tsc 不报错）
 import { WsIcon } from '@worldsea/ui-kit'
 import type { BoardContainer } from '../layoutSchema'
@@ -140,6 +142,7 @@ const props = defineProps<{
   /** 外部请求展开「形式选择菜单」（右键菜单「添加表现形式」）；{id, token} 保证可重复触发 */
   openFormSignal?: { id: string; token: number } | null
 }>()
+
 
 const emit = defineEmits<{
   (e: 'select'): void
