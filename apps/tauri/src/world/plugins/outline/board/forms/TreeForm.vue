@@ -71,7 +71,7 @@ import { resolveFormConfig } from './registry'
 import { focusNodeField } from '../composables/useNodeFieldFocus'
 import { injectBoardUndo } from '../composables/useBoardUndo'
 import { formatNumbering, indentForDepth, type NumberingStyle } from './titleNumbering'
-import { buildTreeRows, defaultExpandedIds, type TreeRow, type TreeScope, type TreeSourceNode } from './treeRows'
+import { buildTreeRows, defaultExpandedIds, normalizeExpandDepth, type TreeRow, type TreeScope, type TreeSourceNode } from './treeRows'
 
 /** 与标题式同策略的内容写入防抖 */
 const WRITE_DEBOUNCE = 400
@@ -101,14 +101,23 @@ const maxHeight = computed(() => {
   const n = Number(cfg.value.maxHeight)
   return Number.isFinite(n) && n > 0 ? Math.min(600, n) : 240
 })
+/** 初始展开层数（2026-10-19 信息密度）：'all' → Infinity；非法值回退 2（原硬编码值） */
+const expandDepth = computed(() => normalizeExpandDepth(cfg.value.expandDepth))
 
 const allNodes = computed<TreeSourceNode[]>(
   () => (es.entities ?? []).filter(e => e.type === 'outline_node') as unknown as TreeSourceNode[],
 )
 
-/** 展开态（会话态，不入库）——默认展开前两层，首屏就能看到结构 */
+/** 展开态（会话态，不入库）——初始层数由 config.expandDepth 决定（默认 2，与原行为一致） */
 const expanded = ref<Set<string>>(new Set())
 let expandedInitialized = false
+
+/** 按当前配置重置展开态（首次加载 / 用户改展开层数或范围时） */
+function resetExpanded(): void {
+  const nodes = allNodes.value
+  if (!nodes.length) return
+  expanded.value = defaultExpandedIds(nodes, scope.value, props.nodeId, expandDepth.value)
+}
 
 /** 钻取（2026-10-19 五视图钻取批 · 2/5）：行尾按钮 → 打开该节点详情。
  *  用独立按钮而非单击行：树式的单击/双击手势保持不变（双击仍是就地改名）。 */
@@ -119,8 +128,13 @@ function openDetail(row: TreeRow): void {
 watch(allNodes, nodes => {
   if (expandedInitialized || !nodes.length) return
   expandedInitialized = true
-  expanded.value = defaultExpandedIds(nodes, scope.value, props.nodeId, 2)
+  resetExpanded()
 }, { immediate: true })
+
+// 配置变更：展开层数 / 范围 → 重置（节点内容变化不重置，保留用户手动展开的会话态）
+watch([expandDepth, scope], () => {
+  if (allNodes.value.length) resetExpanded()
+})
 
 const rows = computed<TreeRow[]>(() =>
   buildTreeRows({ nodes: allNodes.value, scope: scope.value, rootId: props.nodeId, expanded: expanded.value }),

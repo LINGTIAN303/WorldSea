@@ -34,6 +34,9 @@ export function treeNodeStatus(n: TreeSourceNode): string {
 /**
  * 默认展开集合：前 `depth` 层（depth=1 表示展开根节点的下一层）。
  * 空树或 depth<=0 时返回空集合。
+ *
+ * 2026-10-19（信息密度增强）：新增 `'all'`（Infinity）用法，故加 `seen` 防环——
+ * 此前 depth 有限，成环数据最多多走几层；Infinity 下若无守卫会无限递归。
  */
 export function defaultExpandedIds(
   nodes: TreeSourceNode[],
@@ -43,9 +46,12 @@ export function defaultExpandedIds(
 ): Set<string> {
   const out = new Set<string>()
   if (depth <= 0) return out
+  const seen = new Set<string>()
   const walk = (parentId: string, level: number): void => {
     if (level > depth) return
     for (const n of resolveChildNodes(parentId, nodes)) {
+      if (seen.has(n.id)) continue
+      seen.add(n.id)
       const children = resolveChildNodes(n.id, nodes)
       if (!children.length) continue
       out.add(n.id)
@@ -55,6 +61,19 @@ export function defaultExpandedIds(
   if (scope === 'this' && rootId) walk(rootId, 1)
   else walk('', 1)
   return out
+}
+
+/**
+ * 展开层数归一化（2026-10-19 信息密度增强）：
+ * - `'all'` → Infinity（全部展开）
+ * - 数字 / 数字字符串 → 0–6 的整数
+ * - 非法值 → 2（改动前的硬编码值，保证旧配置观感不变）
+ */
+export function normalizeExpandDepth(raw: unknown): number {
+  if (raw === 'all') return Number.POSITIVE_INFINITY
+  const n = Number(raw)
+  if (!Number.isFinite(n) || n < 0) return 2
+  return Math.min(6, Math.floor(n))
 }
 
 /**
@@ -70,9 +89,13 @@ export function buildTreeRows(opts: {
 }): TreeRow[] {
   const { nodes, scope, rootId, expanded } = opts
   const rows: TreeRow[] = []
+  /** 防环：`parentId` 成环时（脏数据）不能让渲染无限递归 */
+  const seen = new Set<string>()
 
   const visit = (parentId: string, depth: number): void => {
     for (const n of resolveChildNodes(parentId, nodes)) {
+      if (seen.has(n.id)) continue
+      seen.add(n.id)
       const children = resolveChildNodes(n.id, nodes)
       const isOpen = expanded.has(n.id)
       rows.push({

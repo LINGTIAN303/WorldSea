@@ -62,6 +62,42 @@ describe('formsRegistration / 真实注册表', () => {
     }
   })
 
+  it('multi-select 字段：默认是非空数组、每项在 options 内、满足 minSelected', () => {
+    for (const def of getAllForms()) {
+      for (const field of def.configSchema.filter(f => f.type === 'multi-select')) {
+        const values = (field.options ?? []).map(o => String(o.value))
+        expect(values.length, `${def.form}.${field.key} 没有选项`).toBeGreaterThan(0)
+        expect(Array.isArray(field.default), `${def.form}.${field.key} 默认值不是数组`).toBe(true)
+        const selected = field.default as string[]
+        expect(
+          selected.length,
+          `${def.form}.${field.key} 默认值少于 minSelected`,
+        ).toBeGreaterThanOrEqual(field.minSelected ?? 1)
+        for (const v of selected) {
+          expect(values, `${def.form}.${field.key} 的默认项「${v}」不在选项内`).toContain(v)
+        }
+      }
+    }
+  })
+
+  it('表格式提供列选择（含新增的节点类型 / 所属线索）', () => {
+    const field = (getForm('table')?.configSchema ?? []).find(f => f.key === 'columns')
+    expect(field?.type).toBe('multi-select')
+    expect(field?.minSelected).toBe(1)
+    expect((field?.options ?? []).map(o => o.value)).toEqual([
+      'title', 'order', 'status', 'wordCount', 'nodeType', 'storylines',
+    ])
+  })
+
+  it('五视图的信息密度配置键均已声明', () => {
+    const keysOf = (form: string): string[] =>
+      (getForm(form)?.configSchema ?? []).map(f => f.key)
+    expect(keysOf('tree')).toContain('expandDepth')
+    expect(keysOf('storyline')).toEqual(expect.arrayContaining(['maxLines', 'maxTags', 'sortBy']))
+    expect(keysOf('progress')).toContain('maxStorylines')
+    expect(keysOf('refs')).toContain('maxGroups')
+  })
+
   it('resolveFormConfig 对每个形式都能取到全部 schema key（缺配置也不留空）', () => {
     for (const def of getAllForms()) {
       const resolved = resolveFormConfig(def.form)

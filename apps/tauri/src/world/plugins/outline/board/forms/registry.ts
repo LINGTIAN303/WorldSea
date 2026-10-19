@@ -15,8 +15,14 @@ export type FormKind = 'derived' | 'inline'
 export interface FormConfigField {
   key: string
   label: string
-  type: 'text' | 'number' | 'select' | 'boolean'
+  /**
+   * multi-select（2026-10-19）：值为 `string[]`，面板渲染为 checkbox 组。
+   * `options` 的顺序即输出顺序（固定列序，不由勾选先后决定）。
+   */
+  type: 'text' | 'number' | 'select' | 'boolean' | 'multi-select'
   options?: Array<{ value: string; label: string }>
+  /** multi-select 专用：至少保留几项（如表格列至少 1 列），未设则不限制 */
+  minSelected?: number
   default: unknown
 }
 
@@ -66,6 +72,15 @@ export function clearForms(): void {
 }
 
 /**
+ * 配置值克隆：数组必须复制一份。
+ * 默认配置里的 `columns` 等数组若被原样返回，多个容器会共享同一引用；
+ * 配置面板一旦原地修改就会污染注册表的默认值。
+ */
+function cloneConfigValue(value: unknown): unknown {
+  return Array.isArray(value) ? [...value] : value
+}
+
+/**
  * 取某组件在给定配置下的**有效配置**：以 defaultConfig 打底，用组件自身 config 覆盖，
  * 并对 configSchema 声明的键做存在性兜底（用户手改 DB 缺键时不至于渲染异常）。
  */
@@ -74,14 +89,17 @@ export function resolveFormConfig(
   config?: Record<string, unknown>,
 ): Record<string, unknown> {
   const def = getForm(form)
-  const base: Record<string, unknown> = { ...(def?.defaultConfig ?? {}) }
+  const base: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(def?.defaultConfig ?? {})) {
+    base[k] = cloneConfigValue(v)
+  }
   if (config) {
     for (const [k, v] of Object.entries(config)) {
-      if (v !== undefined) base[k] = v
+      if (v !== undefined) base[k] = cloneConfigValue(v)
     }
   }
   for (const field of def?.configSchema ?? []) {
-    if (base[field.key] === undefined) base[field.key] = field.default
+    if (base[field.key] === undefined) base[field.key] = cloneConfigValue(field.default)
   }
   return base
 }

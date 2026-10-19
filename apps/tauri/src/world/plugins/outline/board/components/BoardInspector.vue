@@ -80,40 +80,58 @@
         </div>
 
         <div v-if="fieldsOf(c.form).length" class="bi-fields">
-          <label v-for="f in fieldsOf(c.form)" :key="f.key" class="bi-field">
-            <span class="bi-field-label">{{ f.label }}</span>
-            <input
-              v-if="f.type === 'boolean'"
-              class="bi-check"
-              type="checkbox"
-              :checked="valueOf(c, f.key) === true"
-              @change="onFieldChange(c.id, f.key, ($event.target as HTMLInputElement).checked)"
-            />
-            <input
-              v-else-if="f.type === 'number'"
-              class="bi-num"
-              type="number"
-              :value="numValue(c, f.key)"
-              @change="onFieldChange(c.id, f.key, Number(($event.target as HTMLInputElement).value))"
-            />
-            <select
-              v-else-if="f.type === 'select'"
-              class="bi-select"
-              :value="String(valueOf(c, f.key) ?? '')"
-              @change="onFieldChange(c.id, f.key, ($event.target as HTMLSelectElement).value)"
-            >
-              <option v-for="o in f.options ?? []" :key="String(o.value)" :value="String(o.value)">
-                {{ o.label }}
-              </option>
-            </select>
-            <input
-              v-else
-              class="bi-text"
-              type="text"
-              :value="String(valueOf(c, f.key) ?? '')"
-              @change="onFieldChange(c.id, f.key, ($event.target as HTMLInputElement).value)"
-            />
-          </label>
+          <template v-for="f in fieldsOf(c.form)" :key="f.key">
+            <!-- 多选：checkbox 组（外层不能再套 label，避免嵌套 label 的点击串扰） -->
+            <div v-if="f.type === 'multi-select'" class="bi-field bi-field--multi">
+              <span class="bi-field-label">{{ f.label }}</span>
+              <div class="bi-multi">
+                <label v-for="o in f.options ?? []" :key="String(o.value)" class="bi-multi-item">
+                  <input
+                    class="bi-check"
+                    type="checkbox"
+                    :checked="arrayValueOf(c, f.key).includes(String(o.value))"
+                    :disabled="isLastSelected(c, f, String(o.value))"
+                    @change="onMultiChange(c, f, String(o.value), ($event.target as HTMLInputElement).checked)"
+                  />
+                  <span>{{ o.label }}</span>
+                </label>
+              </div>
+            </div>
+            <label v-else class="bi-field">
+              <span class="bi-field-label">{{ f.label }}</span>
+              <input
+                v-if="f.type === 'boolean'"
+                class="bi-check"
+                type="checkbox"
+                :checked="valueOf(c, f.key) === true"
+                @change="onFieldChange(c.id, f.key, ($event.target as HTMLInputElement).checked)"
+              />
+              <input
+                v-else-if="f.type === 'number'"
+                class="bi-num"
+                type="number"
+                :value="numValue(c, f.key)"
+                @change="onFieldChange(c.id, f.key, Number(($event.target as HTMLInputElement).value))"
+              />
+              <select
+                v-else-if="f.type === 'select'"
+                class="bi-select"
+                :value="String(valueOf(c, f.key) ?? '')"
+                @change="onFieldChange(c.id, f.key, ($event.target as HTMLSelectElement).value)"
+              >
+                <option v-for="o in f.options ?? []" :key="String(o.value)" :value="String(o.value)">
+                  {{ o.label }}
+                </option>
+              </select>
+              <input
+                v-else
+                class="bi-text"
+                type="text"
+                :value="String(valueOf(c, f.key) ?? '')"
+                @change="onFieldChange(c.id, f.key, ($event.target as HTMLInputElement).value)"
+              />
+            </label>
+          </template>
         </div>
         <div v-else class="bi-nofield">该形式无可配项</div>
       </div>
@@ -226,6 +244,35 @@ function numValue(component: BoardComponent, key: string): number {
 
 function onFieldChange(componentId: string, key: string, value: unknown): void {
   emit('updateConfig', componentId, { [key]: value })
+}
+
+// ── 多选配置（2026-10-19 信息密度增强）──
+/** 多选值统一读成 string[]（老配置缺失 / 脏值都不抛错） */
+function arrayValueOf(component: BoardComponent, key: string): string[] {
+  const v = valueOf(component, key)
+  return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []
+}
+
+/** 已选到下限时，禁止取消最后一项（如表格至少保留 1 列） */
+function isLastSelected(component: BoardComponent, field: FormConfigField, value: string): boolean {
+  const min = field.minSelected ?? 0
+  if (min <= 0) return false
+  const cur = arrayValueOf(component, field.key)
+  return cur.length <= min && cur.includes(value)
+}
+
+/** 多选变更：按 options 声明顺序输出，避免勾选先后影响列序 */
+function onMultiChange(
+  component: BoardComponent,
+  field: FormConfigField,
+  value: string,
+  checked: boolean,
+): void {
+  const cur = arrayValueOf(component, field.key)
+  const next = checked ? [...cur, value] : cur.filter(v => v !== value)
+  const order = (field.options ?? []).map(o => String(o.value))
+  next.sort((a, b) => order.indexOf(a) - order.indexOf(b))
+  onFieldChange(component.id, field.key, next)
 }
 
 // ── 组件排序（HTML5 DnD；拖到某行即插到该行之前）──
@@ -387,6 +434,14 @@ function onDragEnd(): void {
 }
 .bi-field { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
 .bi-field-label { font-size: var(--font-size-2xs); color: var(--text-tertiary); }
+/* 多选：标签在上、选项换行在下（宽度受限，避免撑破面板） */
+.bi-field--multi { align-items: flex-start; flex-direction: column; gap: 3px; }
+.bi-multi { display: flex; flex-wrap: wrap; gap: 2px 8px; }
+.bi-multi-item {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: var(--font-size-2xs); color: var(--text-secondary); cursor: pointer;
+}
+.bi-multi-item .bi-check { margin: 0; cursor: pointer; }
 .bi-select,
 .bi-text {
   max-width: 120px;

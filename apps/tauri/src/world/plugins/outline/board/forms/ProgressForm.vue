@@ -42,7 +42,7 @@
 
     <div v-if="showStoryline && rows.length" class="pgf-lines">
       <button
-        v-for="row in rows"
+        v-for="row in visibleStorylineRows"
         :key="row.line"
         class="pgf-line pgf-line--clickable"
         type="button"
@@ -52,6 +52,7 @@
         <span class="pgf-line-name">{{ row.line }}</span>
         <span class="pgf-line-meta">{{ row.count }} 节点 / {{ formatCount(row.wordCount) }} 字</span>
       </button>
+      <div v-if="hiddenStorylines > 0" class="pgf-more">另有 {{ hiddenStorylines }} 条线索未显示</div>
     </div>
 
     <FloatingPanel
@@ -88,6 +89,7 @@ import { resolveFormConfig } from './registry'
 import { normalizeScope, resolveScopeNodes } from './scopeNodes'
 import { computeProgressStats, formatCount, NODE_STATUSES, type NodeStatus } from './progressStats'
 import { buildStorylineRows, type StorylineSourceNode } from './storylineRows'
+import { normalizeLimit } from './limits'
 import { FloatingPanel } from '@worldsea/ui-kit'
 import { focusNodeField } from '../composables/useNodeFieldFocus'
 import { statusOf } from './progressStats'
@@ -116,6 +118,13 @@ const allNodes = computed<StorylineSourceNode[]>(
 const scoped = computed(() => resolveScopeNodes(allNodes.value, scope.value, props.nodeId))
 const stats = computed(() => computeProgressStats(scoped.value))
 const rows = computed(() => buildStorylineRows(scoped.value))
+
+// 信息密度（2026-10-19）：线索分布最多显示几行
+const maxStorylines = computed(() => normalizeLimit(cfg.value.maxStorylines))
+const visibleStorylineRows = computed(() => rows.value.slice(0, maxStorylines.value))
+const hiddenStorylines = computed(() =>
+  Math.max(0, rows.value.length - visibleStorylineRows.value.length),
+)
 
 const statusItems = computed(() =>
   NODE_STATUSES.map(status => ({ status, count: stats.value.statusCounts[status] })),
@@ -302,4 +311,6 @@ function dotClassOf(status: NodeStatus): string {
   color: var(--text-tertiary);
   font-variant-numeric: tabular-nums;
 }
+/* 信息密度（2026-10-19）：被截断的线索行数提示 */
+.pgf-more { padding-top: 2px; font-size: var(--font-size-2xs); color: var(--text-tertiary); }
 </style>

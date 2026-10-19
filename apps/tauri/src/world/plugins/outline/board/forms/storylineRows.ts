@@ -12,6 +12,7 @@
  */
 import type { NodeLike } from '../outlineDerive'
 import { nodeWordCount } from './scopeNodes'
+import { normalizeLimit } from './limits'
 
 /** 线索聚合只依赖 id / name / properties，故放宽入参类型便于测试 */
 export interface StorylineSourceNode extends NodeLike {
@@ -54,8 +55,11 @@ export function collectStorylines(nodes: StorylineSourceNode[]): string[] {
 }
 
 /** 线索行：每条线索的命中节点（保持传入顺序，即语义顺序）、节点数与字数 */
-export function buildStorylineRows(nodes: StorylineSourceNode[]): StorylineRow[] {
-  return collectStorylines(nodes).map(line => {
+export function buildStorylineRows(
+  nodes: StorylineSourceNode[],
+  opts: { sortBy?: unknown; maxLines?: unknown } = {},
+): StorylineRow[] {
+  const rows = collectStorylines(nodes).map(line => {
     const hit = nodes.filter(n => parseStorylines(n.properties?.storylines).includes(line))
     return {
       line,
@@ -65,6 +69,25 @@ export function buildStorylineRows(nodes: StorylineSourceNode[]): StorylineRow[]
       names: hit.map(n => (n.name ?? '').trim() || '未命名节点'),
     }
   })
+
+  // 名称序已由 collectStorylines 排好（拼音序）；另两种是 2026-10-19 信息密度新增
+  const sortBy = normalizeStorylineSort(opts.sortBy)
+  if (sortBy !== 'name') {
+    rows.sort((a, b) => {
+      const diff = sortBy === 'count' ? b.count - a.count : b.wordCount - a.wordCount
+      return diff || a.line.localeCompare(b.line, 'zh-Hans-CN')
+    })
+  }
+
+  const limit = normalizeLimit(opts.maxLines)
+  return Number.isFinite(limit) ? rows.slice(0, limit) : rows
+}
+
+export type StorylineSortKey = 'name' | 'count' | 'wordCount'
+
+/** 排序键归一化：未知值回退 name（改动前的唯一顺序，保证旧配置观感不变） */
+export function normalizeStorylineSort(raw: unknown): StorylineSortKey {
+  return raw === 'count' || raw === 'wordCount' ? raw : 'name'
 }
 
 /** 行高估算（容器内容自适应高度的粗略参考） */

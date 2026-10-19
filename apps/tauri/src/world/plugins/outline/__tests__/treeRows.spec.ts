@@ -10,6 +10,7 @@ import {
   buildTreeRows,
   defaultExpandedIds,
   estimateTreeHeight,
+  normalizeExpandDepth,
   treeNodeName,
   treeNodeStatus,
   type TreeSourceNode,
@@ -108,6 +109,36 @@ describe('treeRows / defaultExpandedIds', () => {
   it("scope='this' 从 rootId 起算", () => {
     const ids = defaultExpandedIds(tree, 'this', 'root', 1)
     expect([...ids].sort()).toEqual(['a'])
+  })
+
+  it('Infinity（全部展开）展开所有有子节点的节点', () => {
+    const ids = defaultExpandedIds(tree, 'all', undefined, Number.POSITIVE_INFINITY)
+    expect([...ids].sort()).toEqual(['a', 'root'])
+  })
+
+  it('成环数据在 Infinity 下不死循环（2026-10-19 防环守卫）', () => {
+    const cyclic = [mk('x', 'y', 1), mk('y', 'x', 1)]
+    const ids = defaultExpandedIds(cyclic, 'this', 'x', Number.POSITIVE_INFINITY)
+    expect(ids.size).toBeLessThanOrEqual(2)
+  })
+})
+
+describe('treeRows / normalizeExpandDepth（2026-10-19 信息密度）', () => {
+  it("'all' → Infinity（全部展开）", () => {
+    expect(normalizeExpandDepth('all')).toBe(Number.POSITIVE_INFINITY)
+  })
+
+  it('数字与数字字符串归一到 0–6', () => {
+    expect(normalizeExpandDepth('0')).toBe(0)
+    expect(normalizeExpandDepth('2')).toBe(2)
+    expect(normalizeExpandDepth(3)).toBe(3)
+    expect(normalizeExpandDepth('99')).toBe(6)
+  })
+
+  it('非法值回退 2（改动前的硬编码值）', () => {
+    expect(normalizeExpandDepth(undefined)).toBe(2)
+    expect(normalizeExpandDepth('abc')).toBe(2)
+    expect(normalizeExpandDepth(-1)).toBe(2)
   })
 })
 

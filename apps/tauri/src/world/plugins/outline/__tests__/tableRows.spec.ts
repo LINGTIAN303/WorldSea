@@ -15,7 +15,7 @@ function node(
   id: string,
   parentId: string,
   order: number,
-  extra: { name?: string; status?: string; wordCount?: number } = {},
+  extra: { name?: string; status?: string; wordCount?: number; nodeType?: string; storylines?: string } = {},
 ): TableSourceNode {
   return {
     id,
@@ -25,6 +25,8 @@ function node(
       order,
       status: extra.status ?? '未写',
       ...(extra.wordCount !== undefined ? { wordCount: extra.wordCount } : {}),
+      ...(extra.nodeType !== undefined ? { nodeType: extra.nodeType } : {}),
+      ...(extra.storylines !== undefined ? { storylines: extra.storylines } : {}),
     },
   }
 }
@@ -51,6 +53,12 @@ describe('tableRows / 列归一化', () => {
     expect(normalizeColumns(['title', 'title', 'status'])).toEqual(['title', 'status'])
   })
 
+  it('接受新增的「节点类型 / 所属线索」列（2026-10-19 信息密度）', () => {
+    expect(normalizeColumns(['nodeType', 'storylines'])).toEqual(['nodeType', 'storylines'])
+    expect(TABLE_COLUMN_LABELS.nodeType).toBe('节点类型')
+    expect(TABLE_COLUMN_LABELS.storylines).toBe('所属线索')
+  })
+
   it('columnSpecs 给出中文表头', () => {
     expect(columnSpecs(['title', 'order'])).toEqual([
       { key: 'title', label: TABLE_COLUMN_LABELS.title },
@@ -72,6 +80,21 @@ describe('tableRows / 单元格取值', () => {
     expect(cellValueOf('wordCount', node('a', '', 1, { wordCount: 88 }))).toBe('88')
     expect(cellValueOf('order', node('a', '', 3))).toBe('3')
     expect(cellValueOf('order', { id: 'q', properties: {} })).toBe(EMPTY_CELL)
+  })
+
+  it('节点类型：英文四值转中文，未知值原样显示，缺值占位', () => {
+    expect(cellValueOf('nodeType', node('a', '', 1, { nodeType: 'act' }))).toBe('幕')
+    expect(cellValueOf('nodeType', node('a', '', 1, { nodeType: 'sequence' }))).toBe('序列')
+    expect(cellValueOf('nodeType', node('a', '', 1, { nodeType: 'scene' }))).toBe('场景')
+    expect(cellValueOf('nodeType', node('a', '', 1, { nodeType: 'beat' }))).toBe('节拍')
+    expect(cellValueOf('nodeType', node('a', '', 1, { nodeType: 'custom' }))).toBe('custom')
+    expect(cellValueOf('nodeType', node('a', '', 1))).toBe(EMPTY_CELL)
+  })
+
+  it('所属线索：原样显示，空值占位（不改写分隔符）', () => {
+    expect(cellValueOf('storylines', node('a', '', 1, { storylines: '主线、支线' }))).toBe('主线、支线')
+    expect(cellValueOf('storylines', node('a', '', 1, { storylines: '  ' }))).toBe(EMPTY_CELL)
+    expect(cellValueOf('storylines', node('a', '', 1))).toBe(EMPTY_CELL)
   })
 })
 

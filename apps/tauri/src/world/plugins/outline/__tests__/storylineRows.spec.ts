@@ -8,6 +8,7 @@ import {
   buildStorylineRows,
   collectStorylines,
   estimateStorylineHeight,
+  normalizeStorylineSort,
   parseStorylines,
 } from '../board/forms/storylineRows'
 
@@ -85,5 +86,40 @@ describe('storylineRows / buildStorylineRows', () => {
   it('高度估算：行数钳制在 [1, maxRows] 内', () => {
     expect(estimateStorylineHeight(0)).toBe(estimateStorylineHeight(1))
     expect(estimateStorylineHeight(100, 8)).toBe(estimateStorylineHeight(8, 8))
+  })
+})
+
+describe('storylineRows / 信息密度（2026-10-19）', () => {
+  const nodes = [
+    node('a', '主线', { wordCount: 10 }),
+    node('b', '主线', { wordCount: 20 }),
+    node('c', '支线', { wordCount: 100 }),
+    node('d', '伏线', { wordCount: 5 }),
+  ]
+
+  it('sortBy=count：按节点数降序，同数按名称拼音序', () => {
+    const rows = buildStorylineRows(nodes, { sortBy: 'count' })
+    expect(rows.map(r => r.line)).toEqual(['主线', '伏线', '支线'])
+  })
+
+  it('sortBy=wordCount：按字数降序', () => {
+    const rows = buildStorylineRows(nodes, { sortBy: 'wordCount' })
+    expect(rows.map(r => r.line)).toEqual(['支线', '主线', '伏线'])
+  })
+
+  it('maxLines：只返回前 N 行', () => {
+    const rows = buildStorylineRows(nodes, { maxLines: '2' })
+    expect(rows.map(r => r.line)).toEqual(['伏线', '支线'])
+  })
+
+  it('maxLines=all / 非法值：不截断', () => {
+    expect(buildStorylineRows(nodes, { maxLines: 'all' })).toHaveLength(3)
+    expect(buildStorylineRows(nodes, { maxLines: 'abc' })).toHaveLength(3)
+  })
+
+  it('normalizeStorylineSort：未知值回退 name（旧行为）', () => {
+    expect(normalizeStorylineSort(undefined)).toBe('name')
+    expect(normalizeStorylineSort('nope')).toBe('name')
+    expect(normalizeStorylineSort('count')).toBe('count')
   })
 })

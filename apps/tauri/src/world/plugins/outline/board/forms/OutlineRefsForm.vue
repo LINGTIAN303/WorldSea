@@ -12,7 +12,7 @@
       {{ emptyText }}
     </div>
 
-    <div v-for="g in groups" :key="g.entityType" class="orf-group">
+    <div v-for="g in visibleGroups" :key="g.entityType" class="orf-group">
       <div class="orf-head">
         <WsIcon :name="iconOf(g.entityType)" size="xs" class="orf-icon" />
         <span class="orf-type">{{ labelOf(g.entityType) }}</span>
@@ -32,6 +32,7 @@
         </span>
       </div>
     </div>
+    <div v-if="hiddenGroups > 0" class="orf-more-groups">另有 {{ hiddenGroups }} 组关联实体未显示</div>
   </div>
 </template>
 
@@ -51,6 +52,7 @@ import { useEntityStore, useRelationStore, entitySchemaRegistry, relationshipReg
 // 芽视图里的 UI 组件必须显式导入（不是全局组件）
 import { WsIcon } from '@worldsea/ui-kit'
 import { resolveFormConfig } from './registry'
+import { normalizeLimit } from './limits'
 import {
   groupOutlineRefs,
   pickRefRelationTypes,
@@ -90,6 +92,11 @@ const entityById = computed(() => {
 const groups = computed(() =>
   groupOutlineRefs(rs.relations ?? [], props.nodeId, entityById.value, refRelationTypes.value),
 )
+
+// 信息密度（2026-10-19）：最多显示几组（组内成员上限沿用 maxPerGroup）
+const maxGroups = computed(() => normalizeLimit(cfg.value.maxGroups))
+const visibleGroups = computed(() => groups.value.slice(0, maxGroups.value))
+const hiddenGroups = computed(() => Math.max(0, groups.value.length - visibleGroups.value.length))
 
 /** 旧默认空态文案（2026-10-18 前）：已存板的容器配置里可能仍是这句，读侧自动升级，避免展示过期说明 */
 const LEGACY_EMPTY_TEXT = '暂无关联实体（可由 Agent 建立关联）'
@@ -163,4 +170,5 @@ function openEntity(entityId: string, entityType: string): void {
 }
 .orf-chip:hover { border-color: var(--primary); color: var(--primary); }
 .orf-more { font-size: var(--font-size-2xs); color: var(--text-tertiary); align-self: center; }
+.orf-more-groups { font-size: var(--font-size-2xs); color: var(--text-tertiary); }
 </style>

@@ -23,14 +23,20 @@
       </div>
       <div v-if="showNodes" class="slf-nodes">
         <span
-          v-for="(name, i) in row.names"
+          v-for="(name, i) in visibleNames(row)"
           :key="row.nodeIds[i]"
           class="slf-tag"
           :title="`${name}（点击打开详情）`"
           @click.stop="openNode(row.nodeIds[i])"
         >{{ name }}</span>
+        <span
+          v-if="restTagCount(row) > 0"
+          class="slf-tag-more"
+          :title="restTagNames(row)"
+        >+{{ restTagCount(row) }}</span>
       </div>
     </div>
+    <div v-if="hiddenLines > 0" class="slf-more">另有 {{ hiddenLines }} 条线索未显示</div>
   </div>
 </template>
 
@@ -44,7 +50,8 @@ import { computed } from 'vue'
 import { useEntityStore } from '@worldsea/entity-core'
 import { resolveFormConfig } from './registry'
 import { normalizeScope, resolveScopeNodes } from './scopeNodes'
-import { buildStorylineRows, type StorylineSourceNode } from './storylineRows'
+import { buildStorylineRows, normalizeStorylineSort, type StorylineRow, type StorylineSourceNode } from './storylineRows'
+import { normalizeLimit } from './limits'
 import { formatCount } from './progressStats'
 import { focusNodeField } from '../composables/useNodeFieldFocus'
 
@@ -80,9 +87,29 @@ const allNodes = computed<StorylineSourceNode[]>(
   () => (es.entities ?? []).filter(e => e.type === 'outline_node') as unknown as StorylineSourceNode[],
 )
 
-const rows = computed(() =>
-  buildStorylineRows(resolveScopeNodes(allNodes.value, scope.value, props.nodeId)),
+// ── 信息密度（2026-10-19）：行数 / 每条线索的标签数 / 排序 ──
+const maxLines = computed(() => normalizeLimit(cfg.value.maxLines))
+const maxTags = computed(() => normalizeLimit(cfg.value.maxTags))
+const sortBy = computed(() => normalizeStorylineSort(cfg.value.sortBy))
+
+const allRows = computed(() =>
+  buildStorylineRows(resolveScopeNodes(allNodes.value, scope.value, props.nodeId), {
+    sortBy: sortBy.value,
+  }),
 )
+const rows = computed(() => allRows.value.slice(0, maxLines.value))
+const hiddenLines = computed(() => Math.max(0, allRows.value.length - rows.value.length))
+
+/** 每条线索最多显示几个节点标签（Infinity = 全部） */
+function visibleNames(row: StorylineRow): string[] {
+  return Number.isFinite(maxTags.value) ? row.names.slice(0, maxTags.value) : row.names
+}
+function restTagCount(row: StorylineRow): number {
+  return Number.isFinite(maxTags.value) ? Math.max(0, row.names.length - maxTags.value) : 0
+}
+function restTagNames(row: StorylineRow): string {
+  return Number.isFinite(maxTags.value) ? row.names.slice(maxTags.value).join('、') : ''
+}
 </script>
 
 <style scoped>
@@ -169,4 +196,7 @@ const rows = computed(() =>
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* 信息密度（2026-10-19）：被截断的标签数与线索行数提示 */
+.slf-tag-more { align-self: center; font-size: var(--font-size-2xs); color: var(--text-tertiary); }
+.slf-more { padding-top: 2px; font-size: var(--font-size-2xs); color: var(--text-tertiary); }
 </style>

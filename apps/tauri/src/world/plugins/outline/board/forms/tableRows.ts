@@ -14,7 +14,14 @@ export interface TableSourceNode extends NodeLike {
   name?: string
 }
 
-export type TableColumnKey = 'title' | 'status' | 'wordCount' | 'order'
+export type TableColumnKey =
+  | 'title'
+  | 'status'
+  | 'wordCount'
+  | 'order'
+  // 2026-10-19（信息密度增强）：两个可选列，默认不显示
+  | 'nodeType'
+  | 'storylines'
 
 export interface TableColumnSpec {
   key: TableColumnKey
@@ -26,6 +33,16 @@ export const TABLE_COLUMN_LABELS: Record<TableColumnKey, string> = {
   status: '状态',
   wordCount: '字数',
   order: '序号',
+  nodeType: '节点类型',
+  storylines: '所属线索',
+}
+
+/** 节点类型的英文四值 → 中文显示标签（与 `outline/index.ts` 的 ownFields 选项一致） */
+const NODE_TYPE_LABELS: Record<string, string> = {
+  act: '幕',
+  sequence: '序列',
+  scene: '场景',
+  beat: '节拍',
 }
 
 /** 首版默认三列（规格 §3.5-2：固定 3 列起步，列选择作为配置项后置） */
@@ -61,6 +78,16 @@ export function cellValueOf(key: TableColumnKey, node: TableSourceNode): string 
   if (key === 'wordCount') {
     const n = Number(node.properties?.wordCount)
     return Number.isFinite(n) && n > 0 ? String(n) : EMPTY_CELL
+  }
+  if (key === 'nodeType') {
+    const raw = String(node.properties?.nodeType ?? '').trim()
+    if (!raw) return EMPTY_CELL
+    // 英文四值转中文；未知值原样显示（不吞数据）
+    return NODE_TYPE_LABELS[raw] ?? raw
+  }
+  if (key === 'storylines') {
+    const raw = String(node.properties?.storylines ?? '').trim()
+    return raw || EMPTY_CELL
   }
   const order = orderOf(node)
   return order > 0 ? String(order) : EMPTY_CELL

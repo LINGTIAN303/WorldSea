@@ -95,6 +95,26 @@ describe('formRegistry / resolveFormConfig', () => {
     resolveFormConfig('title', input)
     expect(input).toEqual({ a: 5 })
   })
+
+  it('数组配置返回副本：改结果不污染默认值（2026-10-19 多选配置）', () => {
+    registerForm(fakeDef('table', {
+      defaultConfig: { cols: ['a'] },
+      configSchema: [
+        {
+          key: 'cols',
+          label: '列',
+          type: 'multi-select',
+          options: [{ value: 'a', label: 'A' }, { value: 'b', label: 'B' }],
+          default: ['a'],
+        },
+      ],
+    }))
+    const first = resolveFormConfig('table')
+    const second = resolveFormConfig('table')
+    ;(first.cols as string[]).push('b')
+    expect(second.cols).toEqual(['a'])
+    expect(getForm('table')?.defaultConfig.cols).toEqual(['a'])
+  })
 })
 
 describe('titleNumbering / 数字格式', () => {
