@@ -1,7 +1,7 @@
 <template>
   <div
     class="view-container"
-    :class="{ 'sidebar-collapsed': uiStore.sidebarCollapsed, 'sidebar-right': settingsStore.sidebarPosition === 'right' }"
+    :class="{ 'sidebar-collapsed': uiStore.sidebarCollapsed, 'sidebar-right': settingsStore.sidebarPosition === 'right', 'split-nav': uiStore.sproutNavMode === 'split' }"
     @contextmenu.prevent="onViewContext"
   >
     <!-- 视图工具条（随流首子元素，2026-08-10）：占位 44px 不悬浮；两壳 v-show 常驻
@@ -120,6 +120,23 @@ onBeforeUnmount(() => {
   margin-right: calc(var(--layout-sidebar-width) + var(--region-gap, 8px));
 }
 .view-container.sidebar-right.sidebar-collapsed {
+  margin-right: calc(var(--layout-sidebar-collapsed-width) + var(--region-gap, 8px));
+}
+/* R3-b2 双栏分离式：芽侧栏与域侧栏分居两侧，主区同时左右让位 */
+.view-container.split-nav {
+  margin-left: calc(var(--layout-sidebar-width) + var(--region-gap, 8px));
+  margin-right: calc(var(--layout-sidebar-width) + var(--region-gap, 8px));
+}
+.view-container.split-nav.sidebar-collapsed {
+  margin-left: calc(var(--layout-sidebar-collapsed-width) + var(--region-gap, 8px));
+  margin-right: calc(var(--layout-sidebar-collapsed-width) + var(--region-gap, 8px));
+}
+.view-container.split-nav.sidebar-right {
+  margin-left: calc(var(--layout-sidebar-width) + var(--region-gap, 8px));
+  margin-right: calc(var(--layout-sidebar-width) + var(--region-gap, 8px));
+}
+.view-container.split-nav.sidebar-right.sidebar-collapsed {
+  margin-left: calc(var(--layout-sidebar-collapsed-width) + var(--region-gap, 8px));
   margin-right: calc(var(--layout-sidebar-collapsed-width) + var(--region-gap, 8px));
 }
 /* ── 视图画布（独立圆角块，随流位于工具条下方，间隙由 view-container gap 提供） ── */

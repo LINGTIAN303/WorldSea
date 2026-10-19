@@ -36,6 +36,14 @@ export function makeDomainOfPlugin(map: ReadonlyMap<string, string>): DomainOfPl
  * - 「全部」永远第一项；8 域只保留有可见芽的域（研究 5.4 规则 1）；
  * - unclassified 不进入 8 域列表，只在「全部」出现。
  */
+export function filterViewsByDomain(
+  views: PluginView[],
+  filter: SproutDomainFilter,
+  domainOf: DomainOfPlugin,
+): PluginView[] {
+  return filter === 'all' ? views : views.filter(view => domainOf(view.pluginId) === filter)
+}
+
 export function buildSproutNavigation(
   views: PluginView[],
   domainOf: DomainOfPlugin,
@@ -56,7 +64,7 @@ export function buildSproutNavigation(
 
   return {
     domains,
-    views: filter === 'all' ? views : views.filter(view => domainOf(view.pluginId) === filter),
+    views: filterViewsByDomain(views, filter, domainOf),
     filter,
   }
 }

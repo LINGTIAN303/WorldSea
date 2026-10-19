@@ -9,10 +9,10 @@ const LAST_VIEW_KEY = 'worldsea_last_view'
 const SPROUT_NAV_MODE_KEY = 'worldsea_sprout_nav_mode'
 const SPROUT_DOMAIN_FILTER_KEY = 'worldsea_sprout_domain_filter'
 
-export type SproutNavMode = 'flat' | 'popover' | 'rail' | 'tabs' | 'dual'
+export type SproutNavMode = 'flat' | 'popover' | 'rail' | 'tabs' | 'dual' | 'split'
 export type SproutDomainFilter = 'all' | SproutDomainId
 
-export const SPROUT_NAV_MODES: readonly SproutNavMode[] = ['flat', 'popover', 'rail', 'tabs', 'dual']
+export const SPROUT_NAV_MODES: readonly SproutNavMode[] = ['flat', 'popover', 'rail', 'tabs', 'dual', 'split']
 
 export function normalizeSproutNavMode(value: unknown): SproutNavMode {
   return typeof value === 'string' && (SPROUT_NAV_MODES as readonly string[]).includes(value)

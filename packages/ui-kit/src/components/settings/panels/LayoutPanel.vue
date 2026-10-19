@@ -29,6 +29,7 @@
               <option value="rail">域图标栏</option>
               <option value="tabs">域-芽 Tab</option>
               <option value="dual">双栏导航</option>
+              <option value="split">双栏分离式</option>
             </select>
           </div>
           <div class="set-hint">仅影响芽侧边栏；域过滤会记住上次选择；双栏形态后续加入。</div>

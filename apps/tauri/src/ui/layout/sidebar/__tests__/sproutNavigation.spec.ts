@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { PluginView } from '@worldsea/entity-core/types'
-import { buildDomainMap, buildSproutNavigation, filterForView, makeDomainOfPlugin } from '../sproutNavigation'
+import { buildDomainMap, buildSproutNavigation, filterForView, filterViewsByDomain, makeDomainOfPlugin } from '../sproutNavigation'
 import { normalizeSproutDomainFilter, normalizeSproutNavMode } from '@/stores/uiStore'
 
 function view(id: string, pluginId: string): PluginView {
@@ -46,6 +46,15 @@ describe('buildSproutNavigation', () => {
     const nav = buildSproutNavigation(onlyLife, domainOf, 'time')
     expect(nav.domains.map(domain => domain.id)).toEqual(['all', 'life'])
     expect(nav.views).toEqual([])
+  })
+})
+
+describe('filterViewsByDomain', () => {
+  it('all 返回全量；域过滤只留该域；unclassified 不进入域列表', () => {
+    expect(filterViewsByDomain(views, 'all', domainOf)).toHaveLength(6)
+    expect(filterViewsByDomain(views, 'life', domainOf).map(view => view.id)).toEqual(['characters', 'species'])
+    expect(filterViewsByDomain(views, 'time', domainOf).map(view => view.id)).toEqual(['timeline'])
+    expect(filterViewsByDomain(views, 'life', domainOf).some(view => view.id === 'ws.external')).toBe(false)
   })
 })
 

@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { createPinia } from 'pinia'
 import type { PluginView } from '@worldsea/entity-core/types'
 import DomainDual from '../DomainDual.vue'
 import DomainList from '../DomainList.vue'
+import DomainSidebar from '../DomainSidebar.vue'
 import SproutList from '../SproutList.vue'
 
 const domains = [
@@ -35,6 +37,18 @@ describe('DomainDual', () => {
     expect(wrapper.emitted('select-domain')?.[0]?.[0]).toBe('all')
     await buttons[2].trigger('click')
     expect(wrapper.emitted('select-view')?.[0]?.[0]).toMatchObject({ id: 'characters' })
+  })
+})
+
+describe('DomainSidebar', () => {
+  it('渲染域轮盘并标记当前域', () => {
+    const wrapper = mount(DomainSidebar, {
+      props: { side: 'right', domains, filter: 'life' },
+      global: { plugins: [createPinia()] },
+    })
+    expect(wrapper.text()).toContain('全部')
+    expect(wrapper.text()).toContain('生命与族群')
+    expect(wrapper.find('.ws-split-domain.active')?.text()).toContain('生命与族群')
   })
 })
 

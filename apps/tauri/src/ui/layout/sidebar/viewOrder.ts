@@ -12,9 +12,11 @@ import { isViewVisible, usePluginStore } from '@worldsea/entity-core'
 import type { PluginView } from '@worldsea/entity-core/types'
 
 import { useUIStore } from '@/stores/uiStore'
+import { availablePlugins } from '@/world'
+import { buildDomainMap, filterViewsByDomain, makeDomainOfPlugin } from './sproutNavigation'
 
-/** 可见视图（已按用户拖拽顺序 `sidebarOrder` 排序；未登记的排最后并保持注册相对序）。 */
-export function visibleViewsInSidebarOrder(): PluginView[] {
+/** 可见视图（全量；已按用户拖拽顺序 `sidebarOrder` 排序；未登记的排最后并保持注册相对序）。 */
+export function allVisibleViewsInSidebarOrder(): PluginView[] {
   const order = useUIStore().sidebarOrder
   const orderMap = new Map<string, number>()
   for (let i = 0; i < order.length; i++) orderMap.set(order[i], i)
@@ -22,6 +24,15 @@ export function visibleViewsInSidebarOrder(): PluginView[] {
     .filter(view => isViewVisible(view.pluginId))
     .slice()
     .sort((a, b) => (orderMap.get(a.id) ?? 999) - (orderMap.get(b.id) ?? 999))
+}
+
+/** 侧栏/快捷键共用顺序；split 模式下按当前语义域过滤，其余模式返回全量。 */
+export function visibleViewsInSidebarOrder(): PluginView[] {
+  const views = allVisibleViewsInSidebarOrder()
+  const uiStore = useUIStore()
+  if (uiStore.sproutNavMode !== 'split' || uiStore.sproutDomainFilter === 'all') return views
+  const domainOf = makeDomainOfPlugin(buildDomainMap(availablePlugins()))
+  return filterViewsByDomain(views, uiStore.sproutDomainFilter, domainOf)
 }
 
 /**
