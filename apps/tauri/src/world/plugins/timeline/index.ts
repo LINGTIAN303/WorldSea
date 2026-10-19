@@ -27,7 +27,8 @@ export function apply(_ctx: unknown, api: WorldPluginApi) {
       { key: 'era', label: '纪元', fieldType: 'text' },
       { key: 'importance', label: '重要程度', fieldType: 'select', options: ['关键', '重要', '普通', '细微'].map(s => ({ value: s, label: s })) },
       { key: 'status', label: '状态', fieldType: 'select', options: ['正史', '废案', '备选'].map(s => ({ value: s, label: s })) },
-      { key: 'parentId', label: '父级事件', fieldType: 'entityRef' },
+      // 事件树以 properties.parentId 为准；刻意不声明 relationType（不建关系边，区别于大纲的 parent_child）
+      { key: 'parentId', label: '父级事件', fieldType: 'entityRef', refType: 'event' },
       { key: 'location', label: '发生地点', fieldType: 'text' },
     ],
   })

@@ -10,17 +10,18 @@ export const manifest = {
 }
 
 export function apply(_ctx: unknown, api: WorldPluginApi) {
-  api.registerEntityType({
-    typeKey: 'pipeline',
+  api.registerEntityV2({
+    type: 'pipeline',
     label: '创作计划',
     icon: 'lightning',
-    fields: [
-      { key: 'name', fieldType: 'text', label: '名称', required: true },
-      { key: 'description', fieldType: 'text', label: '描述' },
+    traits: [
+      { traitId: 'identifiable' },
+      { traitId: 'taggable' },
+    ],
+    ownFields: [
       { key: 'steps', fieldType: 'text', label: '步骤 (JSON)', required: true },
       { key: 'connections', fieldType: 'text', label: '连接 (JSON)' },
       { key: 'status', fieldType: 'select', label: '状态', options: ['draft', 'ready', 'running', 'paused', 'completed', 'failed'].map(s => ({ value: s, label: s })), defaultValue: 'draft' },
-      { key: 'tags', fieldType: 'textarea', label: '标签' },
       { key: 'currentStepId', fieldType: 'text', label: '当前步骤' },
     ],
   })

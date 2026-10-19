@@ -10,17 +10,21 @@ export const manifest = {
 }
 
 export function apply(_ctx: unknown, api: WorldPluginApi) {
-  api.registerEntityType({
-    typeKey: 'tactical-board',
+  api.registerEntityV2({
+    type: 'tactical-board',
     label: '战术棋盘',
     icon: 'tactical-board',
-    fields: [
+    traits: [
+      { traitId: 'identifiable' },
+      { traitId: 'taggable' },
+      { traitId: 'visual' },
+    ],
+    ownFields: [
       { key: 'gridType', label: '网格类型', fieldType: 'select', options: ['square', 'hex'].map(s => ({ value: s, label: s })) },
       { key: 'gridSize', label: '网格规格', fieldType: 'text' },
       { key: 'terrain', label: '地形数据', fieldType: 'textarea' },
       { key: 'units', label: '单位数据', fieldType: 'textarea' },
       { key: 'combatStats', label: '战斗统计', fieldType: 'textarea' },
-      { key: 'coverImage', label: '封面图', fieldType: 'image' },
       { key: 'battleState', label: '战斗状态', fieldType: 'textarea' },
     ],
   })
