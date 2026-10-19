@@ -26,7 +26,8 @@
           v-for="(name, i) in row.names"
           :key="row.nodeIds[i]"
           class="slf-tag"
-          :title="name"
+          :title="`${name}（点击打开详情）`"
+          @click.stop="openNode(row.nodeIds[i])"
         >{{ name }}</span>
       </div>
     </div>
@@ -62,6 +63,12 @@ const showNodes = computed(() => cfg.value.showNodes !== false)
 /** 派生型无写入入口：把用户送到节点详情的「所属线索」输入框（2026-10-19 Q2-B / Q3-A） */
 function openManage(): void {
   focusNodeField(props.nodeId, 'storylines')
+}
+
+/** 钻取（2026-10-19 五视图钻取批 · 3/5）：点节点标签 → 打开该节点详情 */
+function openNode(nodeId: string): void {
+  if (!nodeId) return
+  focusNodeField(nodeId, 'status')
 }
 
 const maxHeight = computed(() => {
@@ -151,6 +158,7 @@ const rows = computed(() =>
   gap: 3px;
 }
 .slf-tag {
+  cursor: pointer;
   max-width: 100%;
   padding: 0 4px;
   border-radius: var(--radius-xs);

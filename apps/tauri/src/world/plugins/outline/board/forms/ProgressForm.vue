@@ -27,18 +27,52 @@
     </div>
 
     <div v-if="showStatus" class="pgf-status">
-      <span v-for="s in statusItems" :key="s.status" class="pgf-status-item">
+      <button
+        v-for="s in statusItems"
+        :key="s.status"
+        class="pgf-status-item pgf-status-item--clickable"
+        type="button"
+        :title="`查看「${s.status}」的节点`"
+        @click.stop="openStatus(s.status, $event)"
+      >
         <span class="pgf-dot" :class="dotClassOf(s.status)" />{{ s.status }}
         <span class="pgf-status-num">{{ s.count }}</span>
-      </span>
+      </button>
     </div>
 
     <div v-if="showStoryline && rows.length" class="pgf-lines">
-      <div v-for="row in rows" :key="row.line" class="pgf-line">
-        <span class="pgf-line-name" :title="row.line">{{ row.line }}</span>
+      <button
+        v-for="row in rows"
+        :key="row.line"
+        class="pgf-line pgf-line--clickable"
+        type="button"
+        :title="`查看线索「${row.line}」的节点`"
+        @click.stop="openLine(row.line, $event)"
+      >
+        <span class="pgf-line-name">{{ row.line }}</span>
         <span class="pgf-line-meta">{{ row.count }} 节点 / {{ formatCount(row.wordCount) }} 字</span>
-      </div>
+      </button>
     </div>
+
+    <FloatingPanel
+      v-model:visible="drillOpen"
+      v-model:pinned="drillPinned"
+      :title="drillTitle"
+      :width="260"
+      :height="300"
+      :trigger-rect="drillRect"
+    >
+      <div class="pgf-drill">
+        <button
+          v-for="n in drillNodes"
+          :key="n.id"
+          class="pgf-drill-item"
+          type="button"
+          @click.stop="openNode(n.id)"
+        >{{ n.name || '未命名' }}</button>
+        <div v-if="!drillNodes.length" class="pgf-drill-empty">该分组暂无节点</div>
+      </div>
+    </FloatingPanel>
   </div>
 </template>
 
@@ -48,12 +82,15 @@
  * 口径与原「进度总览」一致（完成度 = 完成节点数 / 总节点数）；线索分布**复用** `buildStorylineRows`，
  * 不重复实现一份聚合逻辑。
  */
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useEntityStore } from '@worldsea/entity-core'
 import { resolveFormConfig } from './registry'
 import { normalizeScope, resolveScopeNodes } from './scopeNodes'
 import { computeProgressStats, formatCount, NODE_STATUSES, type NodeStatus } from './progressStats'
 import { buildStorylineRows, type StorylineSourceNode } from './storylineRows'
+import { FloatingPanel } from '@worldsea/ui-kit'
+import { focusNodeField } from '../composables/useNodeFieldFocus'
+import { statusOf } from './progressStats'
 
 const props = defineProps<{
   nodeId: string
@@ -83,6 +120,50 @@ const rows = computed(() => buildStorylineRows(scoped.value))
 const statusItems = computed(() =>
   NODE_STATUSES.map(status => ({ status, count: stats.value.statusCounts[status] })),
 )
+
+// ── 钻取（2026-10-19 五视图钻取批 · 4/5）：点状态 / 线索 → 列出该分组节点 → 点节点开详情 ──
+interface DrillNode { id: string; name: string }
+const drillOpen = ref(false)
+const drillPinned = ref(false)
+const drillRect = ref<DOMRect | null>(null)
+const drillTitle = ref('')
+const drillNodes = ref<DrillNode[]>([])
+
+function toDrillNodes(list: Array<{ id: string; name?: string }>): DrillNode[] {
+  return list.map(n => ({ id: n.id, name: String(n.name ?? '').trim() }))
+}
+
+function anchorOf(ev: MouseEvent): DOMRect | null {
+  const el = ev.currentTarget as HTMLElement | null
+  return el ? el.getBoundingClientRect() : null
+}
+
+function openStatus(status: NodeStatus, ev: MouseEvent): void {
+  drillTitle.value = `状态：${status}`
+  drillNodes.value = toDrillNodes(scoped.value.filter(n => statusOf(n) === status))
+  drillRect.value = anchorOf(ev)
+  drillOpen.value = true
+}
+
+function openLine(line: string, ev: MouseEvent): void {
+  drillTitle.value = `线索：${line}`
+  drillNodes.value = toDrillNodes(
+    scoped.value.filter(n => {
+      const raw = (n as unknown as { properties?: { storylines?: unknown } }).properties?.storylines
+      return String(raw ?? '')
+        .split(/[,，、]/)
+        .map(x => x.trim())
+        .includes(line)
+    }),
+  )
+  drillRect.value = anchorOf(ev)
+  drillOpen.value = true
+}
+
+function openNode(nodeId: string): void {
+  drillOpen.value = false
+  focusNodeField(nodeId, 'status')
+}
 
 function dotClassOf(status: NodeStatus): string {
   if (status === '完成') return 'pgf-dot--done'
@@ -168,6 +249,38 @@ function dotClassOf(status: NodeStatus): string {
   padding-top: 2px;
   border-top: 1px dashed var(--border-color);
 }
+.pgf-status-item--clickable {
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  cursor: pointer;
+}
+.pgf-status-item--clickable:hover .pgf-status-num { color: var(--primary); }
+.pgf-line--clickable {
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.pgf-line--clickable:hover .pgf-line-name { color: var(--primary); }
+.pgf-drill { display: flex; flex-direction: column; gap: 1px; height: 100%; min-height: 0; overflow-y: auto; }
+.pgf-drill-item {
+  padding: 2px 4px;
+  border: none;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-color);
+  font-family: inherit;
+  font-size: var(--font-size-xs);
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.pgf-drill-item:hover { background: var(--bg-tertiary); color: var(--primary); }
+.pgf-drill-empty { padding: 10px 0; text-align: center; font-size: var(--font-size-2xs); color: var(--text-tertiary); }
 .pgf-line {
   display: flex;
   align-items: baseline;

@@ -48,6 +48,12 @@
           @dblclick.stop="startEdit(row)"
         >{{ showNumbering ? numberedName(row) : row.name }}</span>
       </template>
+      <button
+        class="trf-goto"
+        type="button"
+        title="打开该节点详情"
+        @click.stop="openDetail(row)"
+      >↗</button>
     </div>
   </div>
 </template>
@@ -62,6 +68,7 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { useEntityStore } from '@worldsea/entity-core'
 import { resolveNodeNumbering } from '../outlineDerive'
 import { resolveFormConfig } from './registry'
+import { focusNodeField } from '../composables/useNodeFieldFocus'
 import { injectBoardUndo } from '../composables/useBoardUndo'
 import { formatNumbering, indentForDepth, type NumberingStyle } from './titleNumbering'
 import { buildTreeRows, defaultExpandedIds, type TreeRow, type TreeScope, type TreeSourceNode } from './treeRows'
@@ -102,6 +109,12 @@ const allNodes = computed<TreeSourceNode[]>(
 /** 展开态（会话态，不入库）——默认展开前两层，首屏就能看到结构 */
 const expanded = ref<Set<string>>(new Set())
 let expandedInitialized = false
+
+/** 钻取（2026-10-19 五视图钻取批 · 2/5）：行尾按钮 → 打开该节点详情。
+ *  用独立按钮而非单击行：树式的单击/双击手势保持不变（双击仍是就地改名）。 */
+function openDetail(row: TreeRow): void {
+  focusNodeField(row.id, 'status')
+}
 
 watch(allNodes, nodes => {
   if (expandedInitialized || !nodes.length) return
@@ -244,6 +257,22 @@ defineExpose({ toggle, startEdit })
 .trf-dot--todo { background: var(--text-tertiary); }
 .trf-dot--draft { background: var(--warning, #d97706); }
 .trf-dot--done { background: var(--success, #059669); }
+.trf-goto {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-2xs);
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.35;
+}
+.trf-row:hover .trf-goto { opacity: 1; }
+.trf-goto:hover { background: var(--bg-tertiary); color: var(--primary); }
 .trf-name {
   flex: 1;
   min-width: 0;
