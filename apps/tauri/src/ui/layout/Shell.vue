@@ -2,7 +2,7 @@
   <div class="shell">
     <TitleBar />
     <WelcomeOverlay />
-    <div id="main-content" tabindex="-1" class="shell-body" :class="{ 'sidebar-right': settingsStore.sidebarPosition === 'right' }">
+    <div id="main-content" tabindex="-1" class="shell-body" :class="{ 'sidebar-right': settingsStore.sidebarPosition === 'right', 'sprout-nav-dual': uiStore.sproutNavMode === 'dual' }">
       <Sidebar />
       <ViewContainer />
     </div>
@@ -170,4 +170,8 @@ async function onRedoFromHistory(indices: number[]) {
 }
 /* sidebar-right 模式:Sidebar 用 right:0 定位,ViewContainer 用 margin-right 占位 */
 /* order 规则已移除:Sidebar 脱离 flex 文档流后,ViewContainer 是唯一 flex 子元素,order 无意义 */
+/* R3-b 双栏导航组：覆盖侧栏宽度变量，Sidebar 与 ViewContainer 共用同一让位口径 */
+.shell-body.sprout-nav-dual {
+  --layout-sidebar-width: var(--layout-sidebar-dual-width, 330px);
+}
 </style>

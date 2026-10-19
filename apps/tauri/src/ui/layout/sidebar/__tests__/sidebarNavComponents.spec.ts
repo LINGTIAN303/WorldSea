@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import type { PluginView } from '@worldsea/entity-core/types'
+import DomainDual from '../DomainDual.vue'
 import DomainList from '../DomainList.vue'
 import SproutList from '../SproutList.vue'
 
@@ -22,6 +23,18 @@ describe('DomainList', () => {
     expect(emitted).toHaveLength(1)
     expect(emitted[0][0]).toBe('life')
     expect(emitted[0][1]).toBeInstanceOf(MouseEvent)
+  })
+})
+
+describe('DomainDual', () => {
+  it('域列与芽列分别发出选择事件，芽列标题跟随当前域', async () => {
+    const wrapper = mount(DomainDual, { props: { domains, filter: 'life', views, activeId: null } })
+    expect(wrapper.text()).toContain('生命与族群')
+    const buttons = wrapper.findAll('button')
+    await buttons[0].trigger('click')
+    expect(wrapper.emitted('select-domain')?.[0]?.[0]).toBe('all')
+    await buttons[2].trigger('click')
+    expect(wrapper.emitted('select-view')?.[0]?.[0]).toMatchObject({ id: 'characters' })
   })
 })
 

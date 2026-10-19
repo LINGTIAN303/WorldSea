@@ -10,7 +10,7 @@ import SidebarV2 from './SidebarV2.vue'
 import SproutNav from './SproutNav.vue'
 
 const uiStore = useUIStore()
-const domainMode = computed<'popover' | 'rail' | 'tabs'>(() => (
+const domainMode = computed<'popover' | 'rail' | 'tabs' | 'dual'>(() => (
   uiStore.sproutNavMode === 'flat' ? 'popover' : uiStore.sproutNavMode
 ))
 </script>

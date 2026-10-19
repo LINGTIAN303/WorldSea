@@ -44,6 +44,15 @@
           @select-domain="selectDomain"
           @select-view="selectView"
         />
+        <DomainDual
+          v-else-if="mode === 'dual'"
+          :domains="nav.domains"
+          :filter="uiStore.sproutDomainFilter"
+          :views="nav.views"
+          :active-id="activeId"
+          @select-domain="selectDomain"
+          @select-view="selectView"
+        />
         <DomainPopover
           v-else
           :domains="nav.domains"
@@ -73,12 +82,13 @@ import { availablePlugins } from '@/world'
 import AppMenu from '@/ui/layout/AppMenu.vue'
 import { visibleViewsInSidebarOrder } from './viewOrder'
 import { buildDomainMap, buildSproutNavigation, filterForView, makeDomainOfPlugin } from './sproutNavigation'
+import DomainDual from './DomainDual.vue'
 import DomainPopover from './DomainPopover.vue'
 import DomainRail from './DomainRail.vue'
 import DomainTabs from './DomainTabs.vue'
 import './sidebar-nav.css'
 
-defineProps<{ mode: 'popover' | 'rail' | 'tabs' }>()
+defineProps<{ mode: 'popover' | 'rail' | 'tabs' | 'dual' }>()
 
 const uiStore = useUIStore()
 const settingsStore = useSettingsStore()

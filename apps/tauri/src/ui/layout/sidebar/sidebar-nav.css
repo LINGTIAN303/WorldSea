@@ -271,6 +271,50 @@
   min-height: 0;
 }
 
+/* 双栏导航组（R3-b） */
+.ws-sn-dual-layout {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+}
+.ws-sn-dual-domains {
+  width: 140px;
+  flex-shrink: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--region-border, var(--border));
+}
+.ws-sn-dual-sprouts {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.ws-sn-dual-head {
+  flex-shrink: 0;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--region-border, var(--border));
+  font-size: 11px;
+  color: var(--text-tertiary, var(--text-secondary));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ws-sn-dual-domains .ws-sn-domain-list {
+  flex: 1;
+  min-height: 0;
+}
+.ws-sn-dual-sprouts .ws-sn-view-list {
+  flex: 1;
+  min-height: 0;
+}
+
 /* 域弹出层（形态 2） */
 .ws-sn-popover {
   position: fixed;
