@@ -21,7 +21,7 @@
 <script setup lang="ts">
 import { ref, defineAsyncComponent, onMounted, onUnmounted } from 'vue'
 import TitleBar from './TitleBar.vue'
-import Sidebar from './sidebar/SidebarV2.vue'
+import Sidebar from './sidebar/SidebarHost.vue'
 import { visibleViewsInSidebarOrder } from './sidebar/viewOrder'
 import { Toast, DialogContainer, ViewContainer } from '@worldsea/ui-kit'
 import WsConfirmDialog from '../WsConfirmDialog.vue'

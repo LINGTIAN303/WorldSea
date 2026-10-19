@@ -1,0 +1,321 @@
+/* R3-a 域导航侧栏（形态 2–4）。全局前缀 .ws-sn-，与 SidebarV2 的 scoped 样式隔离。 */
+.ws-sn-sidebar {
+  display: flex;
+  flex-direction: column;
+  background: var(--region-bg, var(--bg-surface));
+  overflow: hidden;
+  position: absolute;
+  left: var(--region-pad, 8px);
+  top: var(--region-pad, 8px);
+  bottom: var(--region-pad, 8px);
+  border: 1px solid var(--region-border, var(--border));
+  border-radius: var(--region-radius, var(--radius-md));
+  z-index: 10;
+  contain: strict;
+  flex-shrink: 0;
+}
+.ws-sn-sidebar:not(.collapsed) {
+  width: var(--layout-sidebar-width);
+}
+.ws-sn-sidebar.collapsed {
+  width: var(--layout-sidebar-collapsed-width);
+}
+.ws-sn-sidebar.sidebar-right {
+  left: auto;
+  right: var(--region-pad, 8px);
+}
+.ws-sn-toggle {
+  flex: 1;
+  width: 100%;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+.ws-sn-toggle:hover {
+  background: var(--hover-bg);
+  color: var(--text-color);
+}
+.ws-sn-inner {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.ws-sn-header {
+  flex-shrink: 0;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--region-border, var(--border));
+}
+.ws-sn-collapse {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+.ws-sn-collapse:hover {
+  background: var(--hover-bg);
+  color: var(--text-color);
+}
+.ws-sn-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.ws-sn-footer {
+  flex-shrink: 0;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-top: 1px solid var(--region-border, var(--border));
+}
+.ws-sn-sidebar.collapsed .ws-sn-footer {
+  border-top: none;
+}
+
+/* 域列表 */
+.ws-sn-domain-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+.ws-sn-domain {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-color);
+  font-size: var(--font-size-sm, 12px);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+.ws-sn-domain:hover {
+  background: var(--hover-bg);
+}
+.ws-sn-domain.active {
+  background: var(--primary-light, color-mix(in srgb, var(--primary) 10%, transparent));
+  color: var(--primary);
+}
+.ws-sn-domain-icon {
+  flex-shrink: 0;
+}
+.ws-sn-domain-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ws-sn-domain-count {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--text-tertiary, var(--text-secondary));
+  font-variant-numeric: tabular-nums;
+}
+.ws-sn-domain.active .ws-sn-domain-count {
+  color: inherit;
+  opacity: 0.75;
+}
+
+/* 图标窄条（形态 3） */
+.ws-sn-domain-list.is-rail {
+  width: 34px;
+  padding: 4px;
+  align-items: center;
+  flex-shrink: 0;
+}
+.ws-sn-domain-list.is-rail .ws-sn-domain {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  justify-content: center;
+  gap: 0;
+}
+
+/* 芽列表 */
+.ws-sn-view-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+.ws-sn-view {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-color);
+  font-size: var(--font-size-sm, 12px);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+.ws-sn-view:hover {
+  background: var(--hover-bg);
+}
+.ws-sn-view.active {
+  background: var(--primary-light, color-mix(in srgb, var(--primary) 10%, transparent));
+  color: var(--primary);
+}
+.ws-sn-view-icon {
+  flex-shrink: 0;
+}
+.ws-sn-view-icon-text {
+  width: 16px;
+  text-align: center;
+  font-size: 12px;
+}
+.ws-sn-view-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ws-sn-empty {
+  padding: 18px 8px;
+  text-align: center;
+  color: var(--text-tertiary, var(--text-secondary));
+  font-size: 12px;
+  line-height: 1.6;
+}
+.ws-sn-empty span {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+/* 窄条 + 芽列表（形态 3） */
+.ws-sn-rail-layout {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
+}
+.ws-sn-rail-layout > .ws-sn-view-list {
+  min-width: 0;
+}
+
+/* 双 Tab（形态 4） */
+.ws-sn-tabs-layout {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.ws-sn-tabbar {
+  flex-shrink: 0;
+  display: flex;
+  gap: 4px;
+  padding: 6px 6px 0;
+  border-bottom: 1px solid var(--region-border, var(--border));
+}
+.ws-sn-tab {
+  flex: 1;
+  padding: 6px 4px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm, 12px);
+  cursor: pointer;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+}
+.ws-sn-tab:hover {
+  color: var(--text-color);
+}
+.ws-sn-tab.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+.ws-sn-tabs-layout > .ws-sn-domain-list,
+.ws-sn-tabs-layout > .ws-sn-view-list {
+  flex: 1;
+  min-height: 0;
+}
+
+/* 域弹出层（形态 2） */
+.ws-sn-popover {
+  position: fixed;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--region-bg, var(--bg-surface));
+  border: 1px solid var(--region-border, var(--border));
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg, 0 12px 32px rgb(0 0 0 / 18%));
+}
+.ws-sn-popover-head {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--region-border, var(--border));
+  font-size: 12px;
+}
+.ws-sn-popover-head strong {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.ws-sn-popover-head > span {
+  color: var(--text-tertiary, var(--text-secondary));
+  font-variant-numeric: tabular-nums;
+}
+.ws-sn-popover-close {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  padding: 2px 4px;
+}
+.ws-sn-popover-close:hover {
+  background: var(--hover-bg);
+  color: var(--text-color);
+}
+.ws-sn-popover .ws-sn-view-list {
+  min-height: 0;
+}

@@ -1,0 +1,39 @@
+import { describe, expect, it } from 'vitest'
+import { mount } from '@vue/test-utils'
+import type { PluginView } from '@worldsea/entity-core/types'
+import DomainList from '../DomainList.vue'
+import SproutList from '../SproutList.vue'
+
+const domains = [
+  { id: 'all' as const, label: '全部', icon: 'menu', count: 2 },
+  { id: 'life' as const, label: '生命与族群', icon: 'species', count: 2 },
+]
+
+const views: PluginView[] = [
+  { id: 'characters', label: '角色', icon: 'character', component: {} as never, pluginId: 'official.characters' },
+  { id: 'species', label: '物种', icon: 'species', component: {} as never, pluginId: 'official.species' },
+]
+
+describe('DomainList', () => {
+  it('点击域按钮发出 id 与事件', async () => {
+    const wrapper = mount(DomainList, { props: { domains, active: 'all' } })
+    await wrapper.findAll('button')[1].trigger('click')
+    const emitted = wrapper.emitted('select')!
+    expect(emitted).toHaveLength(1)
+    expect(emitted[0][0]).toBe('life')
+    expect(emitted[0][1]).toBeInstanceOf(MouseEvent)
+  })
+})
+
+describe('SproutList', () => {
+  it('点击芽按钮发出视图', async () => {
+    const wrapper = mount(SproutList, { props: { views, activeId: 'characters' } })
+    await wrapper.findAll('button')[1].trigger('click')
+    expect(wrapper.emitted('select')?.[0]?.[0]).toMatchObject({ id: 'species' })
+  })
+
+  it('空列表显示空态', () => {
+    const wrapper = mount(SproutList, { props: { views: [], activeId: null } })
+    expect(wrapper.text()).toContain('当前域暂无可见芽')
+  })
+})

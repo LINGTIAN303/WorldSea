@@ -2,7 +2,7 @@
   <CardDeck :count="4" :flat="!!searchQuery" @change="(i) => emit('card-change', i)" ref="deckRef">
     <template #card="{ idx, cls }">
       <div class="set-card deck-card" :class="cls" :data-index="idx"
-        v-show="idx === 0 ? match('思维导图 mindmap 中心 节点') : idx === 1 ? match('面板 panel 布局 宽度 侧边栏 位置 左右 sidebar 实体 详情 panel detail position 手机预览 phone preview') : idx === 2 ? match('字段 field 预设 布局 重置') : match('时间线 timeline 拖拽 泳道 甘特图 紧凑 分组')">
+        v-show="idx === 0 ? match('思维导图 mindmap 中心 节点') : idx === 1 ? match('面板 panel 布局 宽度 侧边栏 位置 左右 sidebar 芽 导航 语义域 弹出 图标 tab 域 实体 详情 panel detail position 手机预览 phone preview') : idx === 2 ? match('字段 field 预设 布局 重置') : match('时间线 timeline 拖拽 泳道 甘特图 紧凑 分组')">
         <!-- 思维导图 -->
         <template v-if="idx === 0">
           <div class="sc-head">思维导图</div>
@@ -22,6 +22,15 @@
               </label>
             </div>
           </div>
+          <div class="set-row"><span>芽导航形态</span>
+            <select class="set-select" v-model="uiStore.sproutNavMode">
+              <option value="flat">平铺（当前）</option>
+              <option value="popover">域弹出层</option>
+              <option value="rail">域图标栏</option>
+              <option value="tabs">域-芽 Tab</option>
+            </select>
+          </div>
+          <div class="set-hint">仅影响芽侧边栏；域过滤会记住上次选择；双栏形态后续加入。</div>
           <div class="set-row"><span>实体详情面板位置</span>
             <div class="set-chip-group">
               <label class="set-chip" :class="{ on: store.detailPanelPosition === 'left' }">
@@ -76,7 +85,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useSettingsStore, useFieldOrderStore, useDetailLayoutStore, fieldRegistry } from '@worldsea/entity-core'
+import { useSettingsStore, useFieldOrderStore, useDetailLayoutStore, useUIStore, fieldRegistry } from '@worldsea/entity-core'
 import { useConfirm, getAllPanelWidths, resetPanelWidth, resetAllPanelWidths, PANEL_LABELS, toastSuccess, CardDeck } from '@worldsea/ui-kit'
 import { matchKeywords } from '../utils'
 
@@ -88,6 +97,7 @@ const deckRef = ref<InstanceType<typeof CardDeck> | null>(null)
 defineExpose({ goToCard: (i: number) => deckRef.value?.goToCard(i) })
 
 const store = useSettingsStore()
+const uiStore = useUIStore()
 const detailStore = useDetailLayoutStore()
 const { confirm } = useConfirm()
 const fieldOrderStore = useFieldOrderStore()

@@ -1,10 +1,29 @@
 import { defineStore } from 'pinia'
-import { ref, shallowRef } from 'vue'
+import { ref, shallowRef, watch } from 'vue'
 import type { Component } from 'vue'
 import { watchDebounced } from '@worldsea/perf-kit/render'
+import { isSproutDomain, type SproutDomainId } from '../core/sproutDomains'
 
 const STORAGE_KEY = 'worldsea_sidebar_order'
 const LAST_VIEW_KEY = 'worldsea_last_view'
+const SPROUT_NAV_MODE_KEY = 'worldsea_sprout_nav_mode'
+const SPROUT_DOMAIN_FILTER_KEY = 'worldsea_sprout_domain_filter'
+
+export type SproutNavMode = 'flat' | 'popover' | 'rail' | 'tabs'
+export type SproutDomainFilter = 'all' | SproutDomainId
+
+export const SPROUT_NAV_MODES: readonly SproutNavMode[] = ['flat', 'popover', 'rail', 'tabs']
+
+export function normalizeSproutNavMode(value: unknown): SproutNavMode {
+  return typeof value === 'string' && (SPROUT_NAV_MODES as readonly string[]).includes(value)
+    ? value as SproutNavMode
+    : 'flat'
+}
+
+export function normalizeSproutDomainFilter(value: unknown): SproutDomainFilter {
+  if (value === 'all') return 'all'
+  return typeof value === 'string' && isSproutDomain(value) ? value as SproutDomainId : 'all'
+}
 
 /** 上次查看的视图 id（冷启动恢复用；经 `setView` 落盘，见下）。
  *  空视图是「视图列表未就绪」瞬态（SidebarV2 空列表分支），`setView('')` 不清记忆。 */
@@ -31,6 +50,34 @@ function saveOrder(order: string[]) {
   } catch { /* quota exceeded, 静默 */ }
 }
 
+function loadSproutNavMode(): SproutNavMode {
+  try {
+    return normalizeSproutNavMode(localStorage.getItem(SPROUT_NAV_MODE_KEY))
+  } catch {
+    return 'flat'
+  }
+}
+
+function saveSproutNavMode(mode: SproutNavMode) {
+  try {
+    localStorage.setItem(SPROUT_NAV_MODE_KEY, mode)
+  } catch { /* quota exceeded, 静默 */ }
+}
+
+function loadSproutDomainFilter(): SproutDomainFilter {
+  try {
+    return normalizeSproutDomainFilter(localStorage.getItem(SPROUT_DOMAIN_FILTER_KEY))
+  } catch {
+    return 'all'
+  }
+}
+
+function saveSproutDomainFilter(filter: SproutDomainFilter) {
+  try {
+    localStorage.setItem(SPROUT_DOMAIN_FILTER_KEY, filter)
+  } catch { /* quota exceeded, 静默 */ }
+}
+
 export const useUIStore = defineStore('ui', () => {
   const currentView = ref<string | null>(null)
   /**
@@ -48,6 +95,12 @@ export const useUIStore = defineStore('ui', () => {
 
   // 自动持久化（防抖替代 deep watch）
   watchDebounced(() => sidebarOrder.value, () => saveOrder(sidebarOrder.value), { debounce: 100, deep: true })
+
+  /* ── 芽导航形态（R3-a）：单侧栏 1–4 形态 + 域过滤 ── */
+  const sproutNavMode = ref<SproutNavMode>(loadSproutNavMode())
+  const sproutDomainFilter = ref<SproutDomainFilter>(loadSproutDomainFilter())
+  watch(sproutNavMode, mode => saveSproutNavMode(mode))
+  watch(sproutDomainFilter, filter => saveSproutDomainFilter(normalizeSproutDomainFilter(filter)))
 
   function setView(viewId: string) {
     currentView.value = viewId
@@ -132,6 +185,8 @@ export const useUIStore = defineStore('ui', () => {
     viewRefreshKey,
     _jumpBackViewId,
     sidebarOrder,
+    sproutNavMode,
+    sproutDomainFilter,
     setView,
     selectEntity,
     toggleSidebar,

@@ -102,6 +102,7 @@ describe('R1/R2 芽语义域', () => {
     expect(new Set(SPROUT_DOMAINS.map(domain => domain.id)).size).toBe(8)
     for (const domain of SPROUT_DOMAINS) {
       expect(domain.label.trim()).not.toBe('')
+      expect(domain.icon.trim()).not.toBe('')
       expect(domain.question.trim()).not.toBe('')
     }
   })
