@@ -14,7 +14,12 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="(row, ri) in dataRows" :key="ri">
+          <tr
+            v-for="(row, ri) in dataRows"
+            :key="ri"
+            :class="{ 'ws-dt-row--clickable': !!rowKey }"
+            @click="onRowClick(row, ri)"
+          >
             <td v-for="col in cols" :key="col.key">
               <input
                 v-if="col.editable"
@@ -57,9 +62,18 @@ const props = defineProps<{
    * A2UI 传入 `(v) => resolveBinding(v, dataModel)` 以支持绑定表达式。
    */
   resolveCell?: (value: unknown, row: Record<string, unknown>, rowIndex: number) => unknown
+  /**
+   * 行主键字段名（2026-10-19）。给了才启用行点击——
+   * 未给时行为与以前完全一致（无 cursor、不发事件），不干扰既有消费者。
+   */
+  rowKey?: string
 }>()
 
-const emit = defineEmits<{ edit: [payload: DataTableEditPayload] }>()
+const emit = defineEmits<{
+  edit: [payload: DataTableEditPayload]
+  /** 行点击（仅当传了 `rowKey` 时发出；`rowKey` 取不到值时为 null） */
+  'row-click': [payload: { rowKey: string | null; rowIndex: number }]
+}>()
 
 // 与 A2UI 原实现同样做防御性检查：非数组一律视为空
 const cols = computed<DataTableColumn[]>(() => (Array.isArray(props.columns) ? props.columns : []))
@@ -79,6 +93,13 @@ function cellValue(
 
 function onEdit(rowIndex: number, key: string, value: string): void {
   emit('edit', { rowIndex, key, value })
+}
+
+/** 行点击：只在传了 rowKey 时上报（保持既有消费者零影响） */
+function onRowClick(row: Record<string, unknown>, rowIndex: number): void {
+  if (!props.rowKey) return
+  const key = String(row?.[props.rowKey] ?? '').trim()
+  emit('row-click', { rowKey: key || null, rowIndex })
 }
 </script>
 
@@ -116,6 +137,8 @@ function onEdit(rowIndex: number, key: string, value: string): void {
   border-bottom: 1px solid var(--agent-border, var(--color-border));
   color: var(--agent-text, var(--color-text-primary));
 }
+.ws-dt-row--clickable { cursor: pointer; }
+.ws-dt-row--clickable:hover td { background: var(--agent-bg-secondary, var(--color-bg-hover)); }
 .ws-dt-input {
   background: transparent;
   border: 1px solid transparent;

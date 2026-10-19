@@ -265,6 +265,7 @@ export function initializeForms(): void {
       includeSelf: false,
       density: 'compact',
       maxHeight: 240,
+      sortBy: 'order',
     },
     configSchema: [
       { key: 'includeSelf', label: '包含本节点作首行', type: 'boolean', default: false },
@@ -276,6 +277,17 @@ export function initializeForms(): void {
         default: 'compact',
       },
       { key: 'maxHeight', label: '最大高度', type: 'number', default: 240 },
+      {
+        key: 'sortBy',
+        label: '排序',
+        type: 'select',
+        default: 'order',
+        options: [
+          { value: 'order', label: '按序号' },
+          { value: 'status', label: '按状态（未写→完成）' },
+          { value: 'wordCount', label: '按字数（多→少）' },
+        ],
+      },
     ],
     component: TableForm,
   })

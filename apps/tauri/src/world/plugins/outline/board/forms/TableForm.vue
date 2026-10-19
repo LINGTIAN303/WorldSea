@@ -12,7 +12,13 @@
     :style="{ maxHeight: `${maxHeight}px` }"
   >
     <div v-if="built.empty" class="tb-empty">暂无子节点</div>
-    <DataTable v-else :columns="built.columns" :rows="built.rows" />
+    <DataTable
+      v-else
+      :columns="built.columns"
+      :rows="built.rows"
+      row-key="__id"
+      @row-click="onRowClick"
+    />
 
     <button class="tb-manage" type="button" @click="openManage">管理行（{{ children.length }}）</button>
 
@@ -46,7 +52,7 @@ import { computed, ref } from 'vue'
 import { useEntityStore } from '@worldsea/entity-core'
 import { DataTable, FloatingPanel } from '@worldsea/ui-kit'
 import { resolveFormConfig } from './registry'
-import { buildTableRows, type TableSourceNode } from './tableRows'
+import { buildTableRows, normalizeSort, type TableSourceNode } from './tableRows'
 import { resolveChildNodes } from '../outlineDerive'
 import { focusNodeField } from '../composables/useNodeFieldFocus'
 import { createChildNode } from './childNodeCreate'
@@ -76,6 +82,7 @@ const built = computed(() =>
     nodeId: props.nodeId,
     columns: cfg.value.columns,
     includeSelf: cfg.value.includeSelf === true,
+    sortBy: normalizeSort(cfg.value.sortBy),
   }),
 )
 
@@ -89,6 +96,12 @@ const children = computed<TableSourceNode[]>(() => {
 const manageOpen = ref(false)
 const managePinned = ref(false)
 const triggerRect = ref<DOMRect | null>(null)
+
+/** 钻取（2026-10-19）：点行 → 打开该节点详情（与「管理行 → 改」同一落点，不依赖容器是否在板上） */
+function onRowClick(payload: { rowKey: string | null }): void {
+  if (!payload.rowKey) return
+  focusNodeField(payload.rowKey, 'status')
+}
 
 function openManage(ev: MouseEvent): void {
   const el = ev.currentTarget as HTMLElement | null

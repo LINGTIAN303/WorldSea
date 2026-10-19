@@ -90,7 +90,7 @@ describe('tableRows / 行构建', () => {
   it('列顺序决定键顺序（供 DataTable 直接消费）', () => {
     const r = buildTableRows({ nodes: TREE, nodeId: 'root', columns: ['status', 'wordCount'] })
     expect(r.columns.map(c => c.key)).toEqual(['status', 'wordCount'])
-    expect(Object.keys(r.rows[0])).toEqual(['status', 'wordCount'])
+    expect(Object.keys(r.rows[0])).toEqual(['__id', 'status', 'wordCount'])
     expect(r.rows[1].wordCount).toBe('1200')
   })
 

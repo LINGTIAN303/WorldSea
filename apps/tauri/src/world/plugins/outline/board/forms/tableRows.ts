@@ -7,6 +7,7 @@
  * 【只读】表内不提供编辑（跨层级写入与「容器 : 节点 = 1:1」冲突），columns/rows 仅用于渲染。
  */
 import { orderOf, resolveChildNodes, type NodeLike } from '../outlineDerive'
+import { statusOf as statusOfNode } from './progressStats'
 
 /** 表格式节点需要 name 与 wordCount，故放宽 NodeLike */
 export interface TableSourceNode extends NodeLike {
@@ -78,11 +79,21 @@ export interface TableBuildResult {
  * · `includeSelf` 为真时把本节点作为**首行**（规格 §3.2-④）
  * · 节点不存在（悬空容器）时返回空表，不抛错
  */
+export type TableSortKey = 'order' | 'status' | 'wordCount'
+
+export function normalizeSort(raw: unknown): TableSortKey {
+  return raw === 'status' || raw === 'wordCount' ? raw : 'order'
+}
+
+const STATUS_RANK: Record<string, number> = { 未写: 0, 草稿: 1, 完成: 2 }
+
 export function buildTableRows(opts: {
   nodes: TableSourceNode[]
   nodeId: string
   columns?: unknown
   includeSelf?: boolean
+  /** 排序轴（2026-10-19 钻取批）：order 默认；status 按 未写→草稿→完成；wordCount 降序 */
+  sortBy?: unknown
 }): TableBuildResult {
   const columns = normalizeColumns(opts.columns)
   const specs = columnSpecs(columns)
@@ -93,8 +104,20 @@ export function buildTableRows(opts: {
   if (self && opts.includeSelf) source.push(self)
   source.push(...children)
 
-  const rows = source.map(node => {
-    const row: Record<string, unknown> = {}
+  const sortBy = normalizeSort(opts.sortBy)
+  const ordered = [...source].sort((a, b) => {
+    if (sortBy === 'status') {
+      return (STATUS_RANK[statusOfNode(a)] ?? 0) - (STATUS_RANK[statusOfNode(b)] ?? 0)
+    }
+    if (sortBy === 'wordCount') {
+      return (Number(b.properties?.wordCount ?? 0) || 0) - (Number(a.properties?.wordCount ?? 0) || 0)
+    }
+    return orderOf(a) - orderOf(b)
+  })
+
+  const rows = ordered.map(node => {
+    // `__id` 是行主键（DataTable 的 rowKey），不参与列渲染
+    const row: Record<string, unknown> = { __id: node.id }
     for (const key of columns) row[key] = cellValueOf(key, node)
     return row
   })
