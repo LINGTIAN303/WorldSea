@@ -5,6 +5,7 @@ import BoardView from './board/BoardView.vue'
 
 export const manifest = {
   id: 'official.outline',
+  domain: 'narrative',
   name: '大纲',
   version: '2.0.0',
   description: '大纲管理与章节规划',

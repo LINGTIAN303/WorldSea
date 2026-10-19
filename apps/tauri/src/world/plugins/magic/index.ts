@@ -3,6 +3,8 @@ import MagicView from './MagicView.vue'
 
 export const manifest = {
   id: 'official.magic',
+  domain: 'knowledge',
+  secondaryDomains: ['society'],
   name: '魔法/技能体系',
   version: '2.0.0',
   description: '管理世界观中的魔法体系、技能、法术',

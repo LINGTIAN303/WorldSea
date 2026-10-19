@@ -3,6 +3,8 @@ import LanguageView from './LanguageView.vue'
 
 export const manifest = {
   id: 'official.languages',
+  domain: 'society',
+  secondaryDomains: ['knowledge'],
   name: '语言/文字',
   version: '2.0.0',
   description: '管理世界观中的语言、文字系统',

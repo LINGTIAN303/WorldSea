@@ -20,11 +20,11 @@ export interface SproutToggle {
   active: boolean
   dependencies?: { moduleId: string; version?: string; optional?: boolean }[]
   source?: 'builtin' | 'local' | 'remote' | 'external'
-  /** 芽分类，用于芽管理页标签筛选 */
+  /** @deprecated 2026-10-20（R2）：旧 6 类仅作过渡筛选标签，待 R4 退役；新芽只写 manifest.domain。 */
   category?: SproutCategory
 }
 
-/** 芽分类定义（芽管理页标签筛选用） */
+/** @deprecated 2026-10-20（R2）：旧 6 类过渡标签；域真源 = manifest.domain。 */
 export const SPROUT_CATEGORIES = [
   { id: 'world', label: '世界观' },
   { id: 'characters', label: '角色' },
@@ -34,6 +34,7 @@ export const SPROUT_CATEGORIES = [
   { id: 'system', label: '系统' },
 ] as const
 
+/** @deprecated 2026-10-20（R2）：旧 6 类过渡标签，待 R4 退役。 */
 export type SproutCategory = typeof SPROUT_CATEGORIES[number]['id']
 
 export interface CustomProviderEntry {
@@ -112,6 +113,7 @@ function loadAnimations(): Record<string, boolean> {
 
 const DEFAULT_SPROUTS: SproutToggle[] = [
   // label/icon 以侧边栏视图注册名（apps/tauri/src/world/plugins/<id>/index.ts registerView）为权威，2026-09-13 对齐；2026-10-14 修正过期路径（原指 sprouts/official/ 已退役）
+  // category 为旧 6 类过渡标签，待 R4 退役；域真源 = 各芽 manifest.domain（R1/R2，2026-10-20）
   { id: 'official.characters', label: '角色', icon: 'character', active: true, category: 'characters' },
   { id: 'official.regions', label: '区域图谱', icon: 'region', active: false, category: 'world' },
   { id: 'official.timeline', label: '时间线', icon: 'timeline', active: true, category: 'narrative' },

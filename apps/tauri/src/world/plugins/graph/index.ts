@@ -3,6 +3,7 @@ import GlobalGraph from './GlobalGraph.vue'
 
 export const manifest = {
   id: 'official.graph',
+  domain: 'tool',
   name: '全局图谱',
   version: '1.0.0',
   description: '以关系图谱形式展示所有世界观实体',

@@ -1,7 +1,14 @@
 import type { WorldPluginApi } from '../../api'
 import CombatStatView from './CombatStatView.vue'
 
-export const manifest = { id: 'official.combat_stats', name: '战力', version: '2.0.0', description: '管理角色战斗力数据', author: 'WorldSea',
+export const manifest = {
+  id: 'official.combat_stats',
+  domain: 'knowledge',
+  secondaryDomains: ['life'],
+  name: '战力',
+  version: '2.0.0',
+  description: '管理角色战斗力数据',
+  author: 'WorldSea',
 }
 
 export function apply(_ctx: unknown, api: WorldPluginApi) {

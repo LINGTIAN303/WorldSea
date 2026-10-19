@@ -4,6 +4,8 @@ import { WeaponFacet, ApparelFacet } from '@worldsea/entity-core/facets'
 
 export const manifest = {
   id: 'official.items',
+  domain: 'goods',
+  secondaryDomains: ['knowledge'],
   name: '道具',
   version: '2.0.0',
   description: '管理世界观中的道具、武器、装备等物品',

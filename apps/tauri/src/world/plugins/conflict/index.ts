@@ -3,6 +3,8 @@ import ConflictView from './ConflictView.vue'
 
 export const manifest = {
   id: 'official.conflict',
+  domain: 'society',
+  secondaryDomains: ['time'],
   name: '冲突/战争',
   version: '2.0.0',
   description: '管理世界观中的战争、战役、冲突事件',

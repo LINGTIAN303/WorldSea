@@ -3,6 +3,7 @@ import ConceptView from './ConceptView.vue'
 
 export const manifest = {
   id: 'official.concepts',
+  domain: 'knowledge',
   name: '概念/设定库',
   version: '2.0.0',
   description: '世界观中的概念、规则、百科条目',

@@ -3,6 +3,7 @@ import FieldMatrixView from './FieldMatrixView.vue'
 
 export const manifest = {
   id: 'official.field-matrix',
+  domain: 'tool',
   name: '字段矩阵',
   version: '1.0.0',
   description: '以字段字典形式查看全部芽的实体 Schema、关系、视图与 AutoLink 运转',

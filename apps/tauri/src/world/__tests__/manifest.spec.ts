@@ -39,6 +39,15 @@ describe('validateManifest', () => {
     expect(validateManifest({ ...valid, requires: [''] }).ok).toBe(false)
   })
 
+  it('domain / secondaryDomains 若给则须为非空字符串 / 字符串数组', () => {
+    expect(validateManifest({ ...valid, domain: 'life' }).ok).toBe(true)
+    expect(validateManifest({ ...valid, domain: '' }).ok).toBe(false)
+    expect(validateManifest({ ...valid, domain: 42 }).ok).toBe(false)
+    expect(validateManifest({ ...valid, secondaryDomains: ['society'] }).ok).toBe(true)
+    expect(validateManifest({ ...valid, secondaryDomains: 'society' }).ok).toBe(false)
+    expect(validateManifest({ ...valid, secondaryDomains: [''] }).ok).toBe(false)
+  })
+
   it('非对象一律拒', () => {
     for (const value of [null, undefined, 'x', 1, []]) {
       expect(validateManifest(value).ok).toBe(false)

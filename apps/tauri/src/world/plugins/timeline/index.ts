@@ -3,6 +3,8 @@ import TimelineView from './TimelineView.vue'
 
 export const manifest = {
   id: 'official.timeline',
+  domain: 'time',
+  secondaryDomains: ['society'],
   name: '时间线',
   version: '2.0.0',
   description: '管理世界观中的历史事件与时间线',

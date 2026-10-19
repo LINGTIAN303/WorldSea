@@ -3,6 +3,7 @@ import DrawingView from './DrawingView.vue'
 
 export const manifest = {
   id: 'official.drawing',
+  domain: 'tool',
   name: '画板',
   version: '2.0.0',
   description: '自由绘画、植入世界观图示。支持多图层、形状工具、画板持久化。',

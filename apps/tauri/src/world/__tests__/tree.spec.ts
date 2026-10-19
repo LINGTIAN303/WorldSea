@@ -8,7 +8,7 @@
  */
 import { afterEach, describe, expect, it } from 'vitest'
 import { pluginAPI } from '@worldsea/entity-core'
-import { disposeWorldTree, setPluginEnabled, startWorldTree, unloadPlugin, worldTreeState } from '../tree'
+import { availablePlugins, disposeWorldTree, setPluginEnabled, startWorldTree, unloadPlugin, worldTreeState } from '../tree'
 import { registerPluginCleanup, registerViewFor, unregisterViewFor } from '../registry'
 import type { WorldPlugin } from '../manifest'
 
@@ -82,5 +82,23 @@ describe('startWorldTree / disposeWorldTree', () => {
     await new Promise(resolve => setTimeout(resolve, 0))
     expect(worldTreeState().plugins).toContain(PLUGIN_ID)
     expect(pluginAPI.getViews().map(v => v.id), '重装后视图应重新注册').toContain(VIEW_ID)
+  })
+
+  it('availablePlugins 保留 manifest 的 domain / secondaryDomains（R1/R2 数据 API）', async () => {
+    const domainPlugin: WorldPlugin = {
+      manifest: {
+        id: 'ws.fake.domain',
+        name: '域测试',
+        version: '1.0.0',
+        description: 'R1/R2 数据 API 测试',
+        domain: 'life',
+        secondaryDomains: ['society'],
+      },
+      apply() {},
+    }
+    await startWorldTree({ plugins: [domainPlugin] })
+    const manifest = availablePlugins().find(plugin => plugin.manifest.id === 'ws.fake.domain')?.manifest
+    expect(manifest?.domain).toBe('life')
+    expect(manifest?.secondaryDomains).toEqual(['society'])
   })
 })

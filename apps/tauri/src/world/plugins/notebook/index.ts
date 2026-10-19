@@ -3,6 +3,8 @@ import NotebookView from './NotebookView.vue'
 
 export const manifest = {
   id: 'official.notebook',
+  domain: 'narrative',
+  secondaryDomains: ['tool'],
   name: '笔记本',
   version: '2.0.0',
   description: '自由笔记与知识管理',

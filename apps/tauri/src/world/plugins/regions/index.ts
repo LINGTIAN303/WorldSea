@@ -3,6 +3,8 @@ import RegionList from './RegionList.vue'
 
 export const manifest = {
   id: 'official.regions',
+  domain: 'geo',
+  secondaryDomains: ['society'],
   name: '区域图谱',
   version: '2.0.0',
   description: '管理世界观中的大陆、国家、城市、地标等地理区域',

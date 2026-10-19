@@ -23,6 +23,11 @@ export interface WorldPluginManifest {
    *  utility = 非芽类（纯 overlay/能力贡献，无侧栏入口）——「芽是插件，但插件不等于芽」。
    *  ★ 声明式而非运行时判定：卸载态下视图/overlay 证据全撤，运行时猜不可靠。 */
   kind?: 'sprout' | 'utility'
+  /** 主语义域（R1，2026-10-20）：内置芽必填（测试守卫），外部插件可缺省。
+   *  取值应登记在 `SPROUT_DOMAINS`；外部插件允许使用未登记域名，避免锁死扩展面。 */
+  domain?: string
+  /** 副语义域（R1）：与主域并列的关联域，不得与主域重复；内置芽取值由测试守卫。 */
+  secondaryDomains?: string[]
 }
 
 /** 一个树插件：清单 + 装载函数（`ctx` 是 cordis 上下文，`api` 是**作用域化插件 API**）。 */
@@ -58,6 +63,16 @@ export function validateManifest(value: unknown): ManifestCheck {
   if (manifest.requires !== undefined) {
     if (!Array.isArray(manifest.requires) || manifest.requires.some(item => typeof item !== 'string' || !item.trim())) {
       return { ok: false, reason: 'requires 须为字符串数组' }
+    }
+  }
+  if (manifest.domain !== undefined) {
+    if (typeof manifest.domain !== 'string' || !manifest.domain.trim()) {
+      return { ok: false, reason: 'domain 须为非空字符串' }
+    }
+  }
+  if (manifest.secondaryDomains !== undefined) {
+    if (!Array.isArray(manifest.secondaryDomains) || manifest.secondaryDomains.some(item => typeof item !== 'string' || !item.trim())) {
+      return { ok: false, reason: 'secondaryDomains 须为字符串数组' }
     }
   }
   return { ok: true, manifest: manifest as WorldPluginManifest }

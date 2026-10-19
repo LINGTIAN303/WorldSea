@@ -17,6 +17,8 @@ export const characterOwnFields: FieldSchema[] = [
 
 export const manifest = {
   id: 'official.characters',
+  domain: 'life',
+  secondaryDomains: ['society'],
   name: '角色',
   version: '2.0.0',
   description: '管理世界观中的角色、NPC、主角等人物',

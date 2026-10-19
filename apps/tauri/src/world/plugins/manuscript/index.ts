@@ -3,6 +3,7 @@ import ManuscriptView from './ManuscriptView.vue'
 
 export const manifest = {
   id: 'official.manuscript',
+  domain: 'narrative',
   name: '正文写作',
   version: '2.0.0',
   description: '正文写作与章节管理',

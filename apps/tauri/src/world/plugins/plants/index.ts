@@ -3,6 +3,8 @@ import PlantView from './PlantView.vue'
 
 export const manifest = {
   id: 'official.plants',
+  domain: 'life',
+  secondaryDomains: ['goods'],
   name: '植物/生态',
   version: '2.0.0',
   description: '管理世界观中的植物、药草、菌类、魔法植物',

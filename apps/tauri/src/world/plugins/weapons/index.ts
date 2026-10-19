@@ -3,6 +3,8 @@ import WeaponView from './WeaponView.vue'
 
 export const manifest = {
   id: 'official.weapons',
+  domain: 'goods',
+  secondaryDomains: ['knowledge'],
   name: '武器',
   version: '2.0.0',
   description: '武器视图——展示和管理 Item 中拥有 WeaponFacet 的实体',

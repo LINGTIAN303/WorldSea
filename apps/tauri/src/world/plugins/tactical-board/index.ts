@@ -3,6 +3,8 @@ import TacticalBoardView from './TacticalBoardView.vue'
 
 export const manifest = {
   id: 'official.tactical-board',
+  domain: 'tool',
+  secondaryDomains: ['society'],
   name: '战术棋盘',
   version: '1.0.0',
   description: '棋盘式战术推演，在网格上布置实体作为棋子',

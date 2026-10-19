@@ -432,14 +432,17 @@ flowchart LR
             <tr><th>批次</th><th>内容</th><th>状态</th></tr>
           </thead>
           <tbody>
-            <tr><td><strong>R1 声明层</strong></td><td>manifest 增加 <code>domain</code> / <code>subdomains</code>；27 芽各声明一次</td><td><span class="tag wait">待启动</span> 新芽已完工，阻断解除</td></tr>
-            <tr><td><strong>R2 语义域落地</strong></td><td>8 域成为单一真源；旧 <code>category</code> 标记 <code>待退役</code></td><td><span class="tag wait">待启动</span> 8 域已拍板</td></tr>
+            <tr><td><strong>R1 声明层</strong></td><td>manifest 增加 <code>domain</code> / <code>secondaryDomains</code>；27 芽各声明一次</td><td><span class="tag done">已完成</span> 2026-10-20</td></tr>
+            <tr><td><strong>R2 语义域落地</strong></td><td>8 域成为单一真源；旧 <code>category</code> 标记 <code>待退役</code></td><td><span class="tag done">已完成</span> 2026-10-20</td></tr>
             <tr><td><strong>R3 侧栏两级</strong></td><td>域分组 + 折叠 + 收藏 / 最近；域内保留用户顺序</td><td><span class="tag wait">暂缓</span> 等前端形态</td></tr>
             <tr><td><strong>R4 设置同源</strong></td><td>芽管理按域分组；“激活分组”独立小节；状态词统一</td><td><span class="tag wait">待启动</span></td></tr>
             <tr><td><strong>R5 依赖与状态可见</strong></td><td>芽详情显示入 / 出依赖、装载态、被拒原因</td><td><span class="tag wait">待启动</span></td></tr>
             <tr><td><strong>R6 孤岛治理</strong></td><td>大纲 ↔ 正文关系化；笔记文件夹实体化；编排步骤关系化</td><td><span class="tag off">待议</span> 涉及数据模型</td></tr>
           </tbody>
         </table>
+      </div>
+      <div class="doc-note">
+        <p><strong>2026-10-20 落地：</strong>27 芽已声明 <code>domain</code> / <code>secondaryDomains</code>；<code>SPROUT_DOMAINS</code> 为域层单一真源；旧 <code>category</code> 已加 <code>@deprecated</code>，待 R4 退役；外部插件缺域记 <code>unclassified</code>；本轮不改 UI。</p>
       </div>
     </section>
 
@@ -452,16 +455,16 @@ flowchart LR
           </thead>
           <tbody>
             <tr><td>两级侧栏</td><td>要做，但暂缓；等用户构思前端形态</td><td><span class="tag wait">待启动</span></td></tr>
-            <tr><td>8 域方案</td><td>通过；后续新增芽可注册新域名或选现有域</td><td><span class="tag done">已拍板</span> 未落地</td></tr>
+            <tr><td>8 域方案</td><td>通过；后续新增芽可注册新域名或选现有域</td><td><span class="tag done">已拍板</span> 已落地（R1/R2）</td></tr>
             <tr><td>时间与事件单成员域</td><td>保留独立，不并入叙事</td><td><span class="tag done">已拍板</span></td></tr>
-            <tr><td>旧 6 类 <code>category</code></td><td>保留为过渡标签，标记 <code>待退役</code></td><td><span class="tag done">已拍板</span></td></tr>
+            <tr><td>旧 6 类 <code>category</code></td><td>保留为过渡标签，标记 <code>待退役</code></td><td><span class="tag done">已拍板</span> 待 R4 退役</td></tr>
             <tr><td>关闭芽的语义</td><td>隐藏入口、保留实体数据，实体继续供给其余芽</td><td><span class="tag done">已确认</span> 待运行时验证</td></tr>
           </tbody>
         </table>
       </div>
 
       <div class="doc-callout">
-        <p><strong>下一步：本轮不动工。</strong>R1 / R2 会触及 27 个 <code>plugins/*/index.ts</code> 与 <code>DEFAULT_SPROUTS</code>；字段矩阵芽已完工（<code>f18e45b</code>），阻断解除，待你决定是否启动；R3 等你的前端形态；R6 涉及数据模型，最后再议。</p>
+        <p><strong>下一步：</strong>R1 / R2 已完成（2026-10-20）；R3 等你的前端形态；R4 / R5 依赖 R3 的 UI 形态；R6 涉及数据模型，最后再议。</p>
       </div>
     </section>
 

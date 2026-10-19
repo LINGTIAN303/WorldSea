@@ -3,6 +3,8 @@ import OrchestrationView from './OrchestrationView.vue'
 
 export const manifest = {
   id: 'official.orchestration',
+  domain: 'tool',
+  secondaryDomains: ['narrative'],
   name: '创作编排',
   version: '2.0.0',
   description: '创作编排面板。将复杂创作目标拆解为有序创作计划（Pipeline），支持步骤库、步骤连接、模板复用。',

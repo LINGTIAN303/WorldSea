@@ -3,6 +3,7 @@ import SpeciesView from './SpeciesView.vue'
 
 export const manifest = {
   id: 'official.species',
+  domain: 'life',
   name: '种族/物种',
   version: '2.0.0',
   description: '管理世界观中的种族、物种及其群体属性',

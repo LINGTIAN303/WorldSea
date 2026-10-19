@@ -309,6 +309,10 @@ export interface ExternalPluginState {
   reason?: string
   /** 插件身份（批5：utility = 常驻，不进 sprouts 启停） */
   kind?: 'sprout' | 'utility'
+  /** 主语义域（manifest 声明；缺省 = unclassified，不默认归 tool） */
+  domain?: string
+  /** 副语义域 */
+  secondaryDomains?: string[]
 }
 
 export function externalPluginStates(): ExternalPluginState[] {
@@ -323,6 +327,8 @@ export function externalPluginStates(): ExternalPluginState[] {
       status: fibers.has(id) ? 'loaded' : 'skipped',
       file: `${EXTERNAL_DIR_DISPLAY}/${id}.js`,
       kind: plugin.manifest.kind,
+      domain: plugin.manifest.domain,
+      secondaryDomains: plugin.manifest.secondaryDomains,
     })
   }
   for (const entry of externalRejected) {

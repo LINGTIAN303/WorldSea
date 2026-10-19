@@ -3,6 +3,8 @@ import CultureView from './CultureView.vue'
 
 export const manifest = {
   id: 'official.culture',
+  domain: 'society',
+  secondaryDomains: ['time'],
   name: '文化/习俗',
   version: '2.0.0',
   description: '管理世界观中的节日、仪式、禁忌、婚丧习俗等文化细节',

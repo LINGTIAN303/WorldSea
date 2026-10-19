@@ -194,4 +194,6 @@ export {
   type EntityIngestNormalizer,
 } from './core/IngestNormalizers'
 export * from './stores'
+export { SPROUT_DOMAINS, isSproutDomain, getSproutDomain } from './core/sproutDomains'
+export type { SproutDomain, SproutDomainId } from './core/sproutDomains'
 export * from './composables'
