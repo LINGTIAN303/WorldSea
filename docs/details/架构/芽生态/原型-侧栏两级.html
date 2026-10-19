@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>WorldSea · 侧栏两级形态原型</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #07080a;
+    --panel: #101216;
+    --panel-2: #15181d;
+    --sidebar: #0c0e12;
+    --line: #23272f;
+    --line-soft: #1b1f26;
+    --text: #e7e9ee;
+    --muted: #8b919c;
+    --dim: #5a606b;
+    --hover: #1b1f26;
+    --accent: #ff7a45;
+    --accent-soft: rgba(255, 122, 69, 0.13);
+    --accent-line: rgba(255, 122, 69, 0.45);
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  html, body { min-height: 100%; }
+  body {
+    margin: 0;
+    background:
+      radial-gradient(900px 500px at 18% -10%, rgba(255, 122, 69, 0.08), transparent 60%),
+      radial-gradient(700px 420px at 92% 8%, rgba(90, 140, 255, 0.05), transparent 60%),
+      var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font: inherit; color: inherit; }
+  svg { display: block; }
+
+  .wrap { max-width: 1380px; margin: 0 auto; padding: 22px 22px 34px; }
+  .proto-head {
+    display: flex; align-items: flex-end; justify-content: space-between; gap: 18px;
+    margin-bottom: 14px; flex-wrap: wrap;
+  }
+  .proto-title { font-size: 16px; font-weight: 650; letter-spacing: .01em; }
+  .proto-sub { margin-top: 4px; font-size: 11.5px; color: var(--muted); }
+  .controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .ctl { display: flex; align-items: center; gap: 7px; }
+  .ctl > label { font-size: 11px; color: var(--dim); }
+  .seg {
+    display: flex; padding: 2px; gap: 2px;
+    background: #111419; border: 1px solid var(--line); border-radius: 8px;
+  }
+  .seg button {
+    border: 0; background: transparent; color: var(--muted);
+    font-size: 11.5px; padding: 5px 9px; border-radius: 6px; cursor: pointer;
+    white-space: nowrap;
+  }
+  .seg button:hover { color: var(--text); }
+  .seg button.on { background: var(--accent-soft); color: var(--accent); }
+  .seg button:disabled { opacity: .35; cursor: not-allowed; }
+  .reset {
+    border: 1px solid var(--line); background: #111419; color: var(--muted);
+    font-size: 11.5px; padding: 6px 10px; border-radius: 8px; cursor: pointer;
+  }
+  .reset:hover { color: var(--text); border-color: #343a45; }
+
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 16px; align-items: start; }
+  @media (max-width: 1120px) { .layout { grid-template-columns: 1fr; } .notes { height: auto !important; } }
+
+  .app {
+    height: 736px; display: flex; flex-direction: column; overflow: hidden;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    box-shadow: 0 30px 90px rgba(0, 0, 0, .52), 0 0 0 1px rgba(255,255,255,.015) inset;
+  }
+  .titlebar {
+    height: 43px; flex: none; display: flex; align-items: center; gap: 10px;
+    padding: 0 14px; background: #0d0f13; border-bottom: 1px solid var(--line);
+  }
+  .brand { font-size: 12.5px; font-weight: 600; letter-spacing: .02em; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    height: 24px; padding: 0 9px; border-radius: 7px;
+    background: #141820; border: 1px solid var(--line);
+    font-size: 11px; color: var(--muted);
+  }
+  .chip .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+  .titlebar .spacer { flex: 1; }
+  .win-dots { display: flex; gap: 6px; }
+  .win-dots i { width: 9px; height: 9px; border-radius: 50%; background: #2a2f38; display: block; }
+  .win-dots i:first-child { background: #3a2a24; }
+
+  .body { flex: 1; min-height: 0; display: flex; }
+  .sidebar {
+    width: 300px; flex: none; min-height: 0; display: flex; flex-direction: column;
+    background: var(--sidebar); border-right: 1px solid var(--line);
+  }
+  .sb-scroll { flex: 1; min-height: 0; overflow: auto; padding: 10px 9px 8px; }
+  .sb-scroll::-webkit-scrollbar, .notes::-webkit-scrollbar, .grid::-webkit-scrollbar { width: 8px; }
+  .sb-scroll::-webkit-scrollbar-thumb, .notes::-webkit-scrollbar-thumb, .grid::-webkit-scrollbar-thumb {
+    background: #262b34; border-radius: 8px;
+  }
+  .section-label {
+    display: flex; align-items: center; gap: 6px;
+    padding: 8px 8px 5px; font-size: 10px; letter-spacing: .12em;
+    color: var(--dim); text-transform: uppercase;
+  }
+  .section-label .ln { flex: 1; height: 1px; background: var(--line-soft); }
+
+  .domain { margin-bottom: 2px; }
+  .domain-head {
+    position: relative; height: 33px; display: flex; align-items: center; gap: 8px;
+    padding: 0 8px; border-radius: 7px; cursor: pointer; user-select: none;
+  }
+  .domain-head:hover { background: var(--hover); }
+  .domain-head .chev { width: 12px; height: 12px; color: var(--dim); transition: transform .15s ease; transform: rotate(0deg); }
+  .domain-head.open .chev { transform: rotate(90deg); }
+  .domain-head .ic { width: 15px; height: 15px; color: var(--muted); }
+  .domain-head .nm { flex: 1; font-size: 11.5px; font-weight: 600; color: #c7ccd5; letter-spacing: .01em; }
+  .domain-head .cnt { font-size: 10px; color: var(--dim); font-variant-numeric: tabular-nums; }
+  .domain-head .cnt b { color: var(--accent); font-weight: 600; }
+  .domain-head .cnt .slash { margin: 0 2px; color: #3a404a; }
+  .domain.closed .rows { display: none; }
+
+  .rows { padding: 1px 0 5px; }
+  .row {
+    position: relative; height: 32px; display: flex; align-items: center; gap: 9px;
+    padding: 0 8px 0 26px; border-radius: 7px; cursor: pointer; user-select: none;
+    color: #cdd2da;
+  }
+  .row:hover { background: var(--hover); }
+  .row .ic { width: 15px; height: 15px; flex: none; color: var(--muted); }
+  .row .nm { flex: 1; min-width: 0; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .cnt {
+    min-width: 16px; text-align: right; font-size: 10px; color: var(--dim);
+    font-variant-numeric: tabular-nums;
+  }
+  .row.inactive { opacity: .4; }
+  .row.inactive:hover { opacity: .72; }
+  .row.active { background: var(--accent-soft); color: #fff; }
+  .row.active::before {
+    content: ""; position: absolute; left: 3px; top: 8px; bottom: 8px; width: 2px;
+    border-radius: 2px; background: var(--accent);
+  }
+  .row.active .ic { color: var(--accent); }
+  .row.active .cnt { color: rgba(255, 122, 69, .8); }
+  .row.pin { padding-left: 8px; }
+
+  .sb-tools { flex: none; padding: 6px 9px 0; border-top: 1px solid var(--line-soft); }
+  .sb-foot {
+    flex: none; height: 43px; display: flex; align-items: center; gap: 8px;
+    padding: 0 9px; border-top: 1px solid var(--line-soft);
+  }
+  .manage {
+    flex: 1; height: 30px; display: flex; align-items: center; justify-content: center; gap: 7px;
+    border: 1px solid var(--line); background: #111419; border-radius: 7px;
+    font-size: 11.5px; color: var(--muted); cursor: pointer;
+  }
+  .manage:hover { color: var(--text); border-color: #343a45; }
+  .manage .plus { width: 13px; height: 13px; }
+  .more-btn {
+    width: 30px; height: 30px; display: grid; place-items: center;
+    border: 1px solid var(--line); background: #111419; border-radius: 7px; cursor: pointer; color: var(--muted);
+  }
+  .more-btn:hover { color: var(--text); border-color: #343a45; }
+
+  .main { flex: 1; min-width: 0; display: flex; flex-direction: column; background: #0f1115; }
+  .main-head { padding: 20px 24px 0; flex: none; }
+  .main-title { display: flex; align-items: center; gap: 10px; font-size: 21px; font-weight: 650; letter-spacing: .01em; }
+  .main-title .badge {
+    font-size: 10px; font-weight: 500; color: var(--muted); border: 1px solid var(--line);
+    padding: 2px 7px; border-radius: 999px; background: #12151a;
+  }
+  .main-sub { margin-top: 5px; font-size: 11.5px; color: var(--muted); }
+  .main-sub b { color: #b9bfc9; font-weight: 500; }
+  .tabs { display: flex; gap: 20px; margin-top: 16px; border-bottom: 1px solid var(--line); }
+  .tab { padding: 8px 0 9px; font-size: 12px; color: var(--muted); border-bottom: 2px solid transparent; cursor: default; }
+  .tab.on { color: var(--text); border-color: var(--accent); }
+  .grid {
+    flex: 1; min-height: 0; overflow: auto; padding: 18px 24px 24px;
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-content: start;
+  }
+  @media (max-width: 900px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .card {
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px;
+    padding: 14px; min-height: 108px;
+  }
+  .card-top { display: flex; align-items: center; gap: 10px; }
+  .avatar {
+    width: 34px; height: 34px; border-radius: 50%; flex: none; display: grid; place-items: center;
+    font-size: 11px; color: #fff; font-weight: 600;
+    background: linear-gradient(145deg, #3a3f4a, #22262e);
+    border: 1px solid rgba(255,255,255,.08);
+  }
+  .card:nth-child(3n+1) .avatar { background: linear-gradient(145deg, #5a3a2c, #2c2320); }
+  .card:nth-child(3n+2) .avatar { background: linear-gradient(145deg, #2f4152, #1d262f); }
+  .card:nth-child(3n) .avatar { background: linear-gradient(145deg, #3c4a38, #20281f); }
+  .card-name { font-size: 12.5px; font-weight: 600; }
+  .card-role { font-size: 10.5px; color: var(--dim); margin-top: 2px; }
+  .card-desc { margin-top: 10px; font-size: 10.5px; line-height: 1.55; color: var(--muted); }
+  .card-tags { display: flex; gap: 5px; margin-top: 9px; flex-wrap: wrap; }
+  .tag {
+    font-size: 9.5px; color: #aab0ba; background: #1b1f26; border: 1px solid #262b34;
+    padding: 1px 6px; border-radius: 4px;
+  }
+
+  .notes {
+    height: 736px; overflow: auto; background: #0d0f13; border: 1px solid var(--line);
+    border-radius: 14px; padding: 16px 14px 18px;
+  }
+  .notes h3 { margin: 0 0 4px; font-size: 12px; font-weight: 650; letter-spacing: .02em; }
+  .notes .hint { margin: 0 0 12px; font-size: 10.5px; color: var(--dim); line-height: 1.6; }
+  .note {
+    display: flex; gap: 9px; padding: 8px 7px; border-radius: 8px; cursor: default;
+    border: 1px solid transparent;
+  }
+  .note:hover { background: #141820; border-color: #20252d; }
+  .note .n {
+    width: 18px; height: 18px; flex: none; display: grid; place-items: center;
+    border-radius: 50%; background: var(--accent-soft); color: var(--accent);
+    font-size: 9.5px; font-weight: 700;
+  }
+  .note b { display: block; font-size: 11.5px; font-weight: 600; margin-bottom: 2px; }
+  .note p { margin: 0; font-size: 10.5px; line-height: 1.55; color: var(--muted); }
+  .notes .divider { height: 1px; background: var(--line-soft); margin: 12px 0; }
+  .notes h4 { margin: 0 0 6px; font-size: 11px; color: #c7ccd5; font-weight: 600; }
+  .q { margin: 0; padding: 0; list-style: none; }
+  .q li {
+    position: relative; padding: 5px 0 5px 14px; font-size: 10.5px; line-height: 1.55; color: var(--muted);
+  }
+  .q li::before {
+    content: ""; position: absolute; left: 2px; top: 10px; width: 4px; height: 4px;
+    border-radius: 50%; background: #3d434d;
+  }
+  .anno-hl { outline: 1px dashed var(--accent-line); outline-offset: 1px; background: rgba(255,122,69,.055) !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="proto-head">
+    <div>
+      <div class="proto-title">侧栏两级形态 · 交互原型</div>
+      <div class="proto-sub">按 8 语义域分组；可切换与当前平铺对比。仅用于形态讨论，不代表最终视觉与交互。</div>
+    </div>
+    <div class="controls">
+      <div class="ctl">
+        <label>形态</label>
+        <div class="seg" id="modeSeg">
+          <button data-mode="grouped" class="on">按域分组</button>
+          <button data-mode="flat">当前平铺</button>
+        </div>
+      </div>
+      <div class="ctl">
+        <label>未启用芽</label>
+        <div class="seg" id="inactiveSeg">
+          <button data-inactive="dim" class="on">置灰</button>
+          <button data-inactive="hide">隐藏</button>
+        </div>
+      </div>
+      <div class="ctl">
+        <label>域折叠</label>
+        <div class="seg" id="collapseSeg">
+          <button data-collapse="open" class="on">全部展开</button>
+          <button data-collapse="focus">仅当前域</button>
+          <button data-collapse="closed">全部折叠</button>
+        </div>
+      </div>
+      <button class="reset" id="resetBtn">重置</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <div class="app">
+      <div class="titlebar">
+        <span class="brand">工作台</span>
+        <span class="chip"><span class="dot"></span>WorldSea <span style="color:#5a606b">dev</span></span>
+        <span class="spacer"></span>
+        <div class="win-dots"><i></i><i></i><i></i></div>
+      </div>
+      <div class="body">
+        <aside class="sidebar">
+          <div class="sb-scroll" id="sbScroll"></div>
+          <div class="sb-tools" id="sbTools"></div>
+          <div class="sb-foot" data-anno="6">
+            <button class="manage">
+              <svg class="plus" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 3v10M3 8h10"/></svg>
+              管理芽
+            </button>
+            <button class="more-btn" title="更多">
+              <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><circle cx="3" cy="8" r="1"/><circle cx="8" cy="8" r="1"/><circle cx="13" cy="8" r="1"/></svg>
+            </button>
+          </div>
+        </aside>
+        <main class="main">
+          <div class="main-head">
+            <div class="main-title"><span id="mainTitle">角色</span><span class="badge" id="mainBadge">生命与族群</span></div>
+            <div class="main-sub" id="mainSub">当前视图 · <b>域内排序</b> · 实体 2</div>
+            <div class="tabs">
+              <span class="tab on">全部</span><span class="tab">主角</span><span class="tab">配角</span><span class="tab">未归档</span>
+            </div>
+          </div>
+          <div class="grid" id="cardGrid"></div>
+        </main>
+      </div>
+    </div>
+
+    <aside class="notes">
+      <h3>设计说明</h3>
+      <p class="hint">悬停任一说明，右侧原型中对应元素会高亮。</p>
+      <div id="noteList"></div>
+      <div class="divider"></div>
+      <h4>待你拍板</h4>
+      <ul class="q">
+        <li>未启用芽：置灰保留可发现性，还是直接隐藏？</li>
+        <li>域标题点击：只做折叠，还是同时切到“域概览”？</li>
+        <li>“收藏 / 最近”是否需要？需要的话上限几条？</li>
+        <li>工具域是否始终折叠，还是记住上次展开状态？</li>
+        <li>现有滚轮轮盘与拖拽排序是否保留？</li>
+        <li>未来新增但未启用的空域，是否在侧栏显示？</li>
+      </ul>
+    </aside>
+  </div>
+</div>
+
+<script>
+  const ICONS = {
+    character: '<circle cx="8" cy="5" r="2.6"/><path d="M2.8 14c0-3 2.3-4.6 5.2-4.6s5.2 1.6 5.2 4.6"/>',
+    region: '<path d="M8 14s4.5-4.2 4.5-7.2A4.5 4.5 0 0 0 3.5 6.8C3.5 9.8 8 14 8 14Z"/><circle cx="8" cy="6.8" r="1.5"/>',
+    timeline: '<circle cx="8" cy="8" r="5.5"/><path d="M8 4.8V8l2.2 1.4"/>',
+    organization: '<circle cx="5" cy="5.5" r="2"/><circle cx="11.3" cy="6" r="1.6"/><path d="M1.8 13c0-2.4 1.5-3.8 3.7-3.8s3.7 1.4 3.7 3.8"/><path d="M9.4 13c0-2 1-3.2 2.6-3.2 1.4 0 2.3 1 2.3 2.6"/>',
+    concept: '<path d="M3 3.5h6.5A2.5 2.5 0 0 1 12 6v7H5.5A2.5 2.5 0 0 1 3 10.5v-7Z"/><path d="M5 6h5M5 8.5h5"/>',
+    item: '<path d="M8 2.5 13 5v6L8 13.5 3 11V5l5-2.5Z"/><path d="M3 5l5 2.6L13 5M8 7.6v5.9"/>',
+    apparel: '<path d="M5.5 3 3 5l1.5 2.5L6 6.8V13h4V6.8l1.5.7L13 5l-2.5-2-1.4 1.2H6.9L5.5 3Z"/>',
+    weapon: '<path d="M3 13 11 5M9.5 3.5 12.5 3l-.5 3M4 9l3 3"/>',
+    building: '<path d="M3 13V5l5-2 5 2v8M2 13h12M5.5 13V9h2v4M9 6.5h1.5M9 9h1.5"/>',
+    species: '<path d="M4.5 11.5c-1.5-1-2-2.5-1.2-4 .8-1.5 2.4-2 4-1.4 1.1.4 1.7 1.2 3 1 1.4-.2 2.4.5 2.6 1.8.2 1.2-.6 2.2-1.8 2.5-1.2.3-1.8-.4-3-.2-1.3.3-2.4 1.3-3.6.3Z"/><circle cx="5.8" cy="8.2" r=".6"/>',
+    magic: '<path d="m8 2 1.2 3.2L12.5 6l-2.6 2.1.8 3.3L8 9.6l-2.7 1.8.8-3.3L3.5 6l3.3-.8L8 2Z"/>',
+    language: '<path d="M2.5 4h7M6 4v1.5c0 3-1.5 5-4 6.5M4.5 8c1 1.6 2.4 2.8 4 3.5M8.5 13l2.5-6 2.5 6M9.6 11h3.3"/>',
+    culture: '<path d="M4 2.5v11M4 3.5h7l-1.5 2 1.5 2H4"/>',
+    conflict: '<path d="m3 13 4-4M9 9l4-4M2.5 10.5 5.5 13.5M10.5 2.5l3 3M4 2.5 13 11.5M2.5 5.5l3-3"/>',
+    plant: '<path d="M8 13V8M8 8C6 8 4.5 6.5 4.5 4.5 6.5 4.5 8 6 8 8ZM8 9.5c2 0 3.5-1.5 3.5-3.5-2 0-3.5 1.5-3.5 3.5Z"/>',
+    combat: '<circle cx="8" cy="8" r="5.5"/><circle cx="8" cy="8" r="2.5"/><path d="M8 2.5v2M8 11.5v2M2.5 8h2M11.5 8h2"/>',
+    inspiration: '<path d="M6 11.5h4M6.5 13h3M5 8.5a3 3 0 1 1 6 0c0 1.2-.6 1.8-1 2.5H6c-.4-.7-1-1.3-1-2.5Z"/>',
+    outline: '<path d="M3 4h10M6 8h7M6 12h7"/><circle cx="3.2" cy="8" r=".8"/><circle cx="3.2" cy="12" r=".8"/>',
+    manuscript: '<path d="M4 2.5h6l2 2v9H4v-11Z"/><path d="M6 6h4M6 8.5h4M6 11h2.5"/>',
+    notebook: '<path d="M4 3h8v10H4z"/><path d="M6 3v10M8 6h2M8 8.5h2"/>',
+    orchestration: '<path d="M3 4h4v4H3zM9 8h4v4H9z"/><path d="M7 6h1a1 1 0 0 1 1 1v1"/>',
+    drawing: '<path d="m3 13 1-3 7-7 2 2-7 7-3 1Z"/><path d="m9.5 4.5 2 2"/>',
+    tactical: '<path d="M3 3h10v10H3zM3 6.3h10M3 9.6h10M6.3 3v10M9.6 3v10"/>',
+    graph: '<circle cx="4" cy="4.5" r="1.8"/><circle cx="12" cy="5.5" r="1.8"/><circle cx="8" cy="12" r="1.8"/><path d="m5.6 5.2 4.7.3M11 7.1 8.7 10.3M6.2 11.8 4.6 6.3"/>',
+    mindmap: '<circle cx="4" cy="8" r="1.6"/><circle cx="12" cy="4" r="1.4"/><circle cx="12" cy="12" r="1.4"/><path d="M5.6 7.5 10.6 4.6M5.6 8.5l5 2.9"/>',
+    custom: '<path d="M3 3h10v10H3zM3 6h10M6 6v7"/>',
+    grid: '<path d="M3 3h4v4H3zM9 3h4v4H9zM3 9h4v4H3zM9 9h4v4H9z"/>',
+    star: '<path d="m8 2.5 1.6 3.4 3.7.5-2.7 2.6.7 3.7L8 11l-3.3 1.7.7-3.7-2.7-2.6 3.7-.5L8 2.5Z"/>',
+    chevron: '<path d="m6 3 5 5-5 5"/>'
+  };
+
+  const SPROUTS = {
+    characters: { name: '角色', icon: 'character', count: 2, active: true },
+    regions: { name: '区域图谱', icon: 'region', active: false },
+    buildings: { name: '建筑/地点细节', icon: 'building', active: false },
+    species: { name: '种族/物种', icon: 'species', active: false },
+    plants: { name: '植物/生态', icon: 'plant', active: false },
+    organizations: { name: '势力/组织', icon: 'organization', active: false },
+    culture: { name: '文化/习俗', icon: 'culture', active: false },
+    languages: { name: '语言/文字', icon: 'language', active: false },
+    conflict: { name: '冲突/战争', icon: 'conflict', active: false },
+    concepts: { name: '概念/设定库', icon: 'concept', count: 6, active: true },
+    magic: { name: '魔法/技能体系', icon: 'magic', active: false },
+    combat: { name: '战力', icon: 'combat', active: false },
+    items: { name: '道具', icon: 'item', active: false },
+    apparel: { name: '服饰/装备', icon: 'apparel', active: false },
+    weapons: { name: '武器', icon: 'weapon', active: false },
+    timeline: { name: '时间线', icon: 'timeline', count: 4, active: true },
+    outline: { name: '大纲', icon: 'outline', count: 1, active: true },
+    manuscript: { name: '正文写作', icon: 'manuscript', active: false },
+    notebook: { name: '笔记本', icon: 'notebook', count: 3, active: true },
+    inspiration: { name: '灵感/素材库', icon: 'inspiration', count: 8, active: true },
+    graph: { name: '全局图谱', icon: 'graph', active: false },
+    mindmap: { name: '思维导图', icon: 'mindmap', active: false },
+    drawing: { name: '画板', icon: 'drawing', active: false },
+    tactical: { name: '战术棋盘', icon: 'tactical', active: false },
+    custom: { name: '自定义视窗', icon: 'custom', active: false },
+    orchestration: { name: '创作编排', icon: 'orchestration', count: 2, active: true },
+    'field-matrix': { name: '字段矩阵', icon: 'grid', active: true }
+  };
+
+  const DOMAINS = [
+    { id: 'life', name: '生命与族群', icon: 'character', sprouts: ['characters', 'species', 'plants'] },
+    { id: 'geo', name: '地理与场所', icon: 'region', sprouts: ['regions', 'buildings'] },
+    { id: 'society', name: '社会与文明', icon: 'organization', sprouts: ['organizations', 'culture', 'languages', 'conflict'] },
+    { id: 'knowledge', name: '知识与规则', icon: 'concept', sprouts: ['concepts', 'magic', 'combat'] },
+    { id: 'goods', name: '物产与造物', icon: 'item', sprouts: ['items', 'apparel', 'weapons'] },
+    { id: 'time', name: '时间与事件', icon: 'timeline', sprouts: ['timeline'] },
+    { id: 'narrative', name: '叙事与文本', icon: 'outline', sprouts: ['outline', 'manuscript', 'notebook', 'inspiration'] },
+    { id: 'tool', name: '推演与工具', icon: 'tactical', sprouts: ['graph', 'mindmap', 'drawing', 'tactical', 'custom', 'orchestration', 'field-matrix'] }
+  ];
+
+  const FLAT_ORDER = ['characters','concepts','inspiration','notebook','outline','timeline','regions','organizations','items','apparel','weapons','buildings','species','magic','languages','culture','conflict','plants','combat','manuscript','graph','mindmap','drawing','tactical','custom','orchestration','field-matrix'];
+  const PINNED = ['characters', 'outline', 'notebook', 'inspiration'];
+  const NOTES = [
+    { n: 1, title: '收藏 / 最近', text: '高频芽置顶，不参与域折叠；解决 27 项里找不到入口的问题。' },
+    { n: 2, title: '域标题', text: '点击只做折叠/展开；右侧显示“已启用 / 总数”。域不承载启停。' },
+    { n: 3, title: '域内芽', text: '缩进一级；沿用域内顺序；右侧计数为实体数，不是芽数。' },
+    { n: 4, title: '未启用芽', text: '默认置灰保留可发现性；可切换为隐藏，观察两种观感。' },
+    { n: 5, title: '工具域', text: '固定在底部、默认折叠；不与内容域混排，避免把工具当世界实体。' },
+    { n: 6, title: '管理入口', text: '底部保留“管理芽”，完整域树与启停仍归设置页。' }
+  ];
+
+  const state = {
+    mode: 'grouped',
+    inactive: 'dim',
+    collapse: 'open',
+    active: 'characters',
+    collapsed: new Set(['tool'])
+  };
+
+  const $ = (sel, root = document) => root.querySelector(sel);
+  const icon = (name) => `<svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round">${ICONS[name] || ICONS.concept}</svg>`;
+  const domOf = (id) => DOMAINS.find(d => d.sprouts.includes(id));
+
+  function applyCollapseMode() {
+    state.collapsed = new Set();
+    if (state.collapse === 'closed') {
+      DOMAINS.forEach(d => state.collapsed.add(d.id));
+    } else if (state.collapse === 'focus') {
+      const current = domOf(state.active);
+      DOMAINS.forEach(d => { if (!current || d.id !== current.id) state.collapsed.add(d.id); });
+    } else {
+      state.collapsed.add('tool');
+    }
+  }
+
+  function rowHtml(id, isPinned = false) {
+    const s = SPROUTS[id];
+    const cls = ['row', isPinned ? 'pin' : '', s.active ? 'active' : 'inactive'].join(' ').trim();
+    return `<div class="${cls}" data-sprout="${id}" data-anno="${s.active ? 3 : 4}">
+      ${icon(s.icon)}
+      <span class="nm">${s.name}</span>
+      ${s.count ? `<span class="cnt">${s.count}</span>` : ''}
+    </div>`;
+  }
+
+  function domainHtml(d) {
+    const visible = d.sprouts.filter(id => state.inactive === 'dim' || SPROUTS[id].active);
+    if (visible.length === 0) return '';
+    const active = d.sprouts.filter(id => SPROUTS[id].active).length;
+    const closed = state.collapsed.has(d.id);
+    return `<section class="domain ${closed ? 'closed' : ''}" data-domain="${d.id}">
+      <div class="domain-head ${closed ? '' : 'open'}" data-toggle="${d.id}" data-anno="2">
+        <svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${ICONS.chevron}</svg>
+        ${icon(d.icon)}
+        <span class="nm">${d.name}</span>
+        <span class="cnt"><b>${active}</b><span class="slash">/</span>${d.sprouts.length}</span>
+      </div>
+      <div class="rows">${visible.map(id => rowHtml(id)).join('')}</div>
+    </section>`;
+  }
+
+  function renderSidebar() {
+    const scroll = $('#sbScroll');
+    const tools = $('#sbTools');
+    if (state.mode === 'flat') {
+      const ids = FLAT_ORDER.filter(id => state.inactive === 'dim' || SPROUTS[id].active);
+      scroll.innerHTML = `
+        <div class="section-label" data-anno="1">当前平铺<span class="ln"></span><span>${ids.length} / 27</span></div>
+        ${ids.map(id => rowHtml(id)).join('')}`;
+      tools.innerHTML = '';
+      return;
+    }
+
+    const contentDomains = DOMAINS.filter(d => d.id !== 'tool');
+    const toolDomain = DOMAINS.find(d => d.id === 'tool');
+    scroll.innerHTML = `
+      <div class="section-label" data-anno="1">收藏 / 最近<span class="ln"></span></div>
+      ${PINNED.map(id => rowHtml(id, true)).join('')}
+      <div class="section-label">语义域<span class="ln"></span><span>8 域</span></div>
+      ${contentDomains.map(domainHtml).join('')}`;
+    tools.innerHTML = toolDomain ? domainHtml(toolDomain) : '';
+  }
+
+  const CARD_SETS = {
+    characters: [
+      ['艾琳·霜语', '主角 · 北境游侠', '银发，左肩有旧伤。正在追查坠星事件的源头。', ['主角','北境']],
+      ['卡洛斯', '反派 · 灰塔执政官', '以秩序之名控制港口，掌握旧神契约的残页。', ['反派','灰塔']],
+      ['米娅', '配角 · 见习术士', '能听见灵潮的低语，但无法控制它。', ['配角','灵潮']],
+      ['灰鸦', '配角 · 情报贩子', '只在雨夜出现，出售的消息从不重复。', ['配角','地下']],
+      ['塞拉菲娜', '导师 · 星象师', '教会艾琳读星，也教会她怀疑预言。', ['导师','星象']],
+      ['老塔克', '配角 · 铁匠', '知道每一把旧剑的来历，却不肯说自己的。', ['配角','铁匠']]
+    ],
+    outline: [
+      ['第一幕 · 坠星', '幕 · 未写', '北境夜空出现第二颗月亮，主角被迫离开家乡。', ['幕','未写']],
+      ['第二幕 · 长夜', '幕 · 草稿', '灰塔封锁港口，灵潮开始侵蚀低地。', ['幕','草稿']],
+      ['第三幕 · 回声', '幕 · 未写', '旧神契约被打开，代价由所有见证者承担。', ['幕','未写']],
+      ['序列 · 港口追逐', '序列 · 完成', '灰鸦引导主角穿过封锁线。', ['序列','完成']],
+      ['场景 · 星象台', '场景 · 草稿', '塞拉菲娜揭示预言的双重含义。', ['场景','草稿']],
+      ['节拍 · 第一次灵潮', '节拍 · 未写', '主角第一次听见灵潮的声音。', ['节拍','未写']]
+    ],
+    notebook: [
+      ['世界观草稿', '笔记 · markdown', '灵潮、旧神契约与北境地理的初步设定。', ['世界观','草稿']],
+      ['角色小传 · 艾琳', '笔记 · markdown', '从游侠到见证者的转变节点。', ['角色','小传']],
+      ['参考 · 冷兵器', '笔记 · reference', '北境常见武器的形制与重量。', ['参考','道具']]
+    ]
+  };
+
+  const DEFAULT_CARDS = [
+    ['条目 01', '待归档', '这是该芽下的示例条目，用于观察侧栏切换时的内容区变化。', ['示例']],
+    ['条目 02', '待归档', '侧栏形态只影响导航，不改变芽内部的数据结构。', ['示例']],
+    ['条目 03', '待归档', '域标题与芽行的层级关系是本次讨论的重点。', ['示例']],
+    ['条目 04', '待归档', '未启用芽默认置灰时，仍然可以被搜索与管理。', ['示例']],
+    ['条目 05', '待归档', '工具域固定在底部，避免与内容域争夺注意力。', ['示例']],
+    ['条目 06', '待归档', '所有芽仍保留原有启停与项目级持久化。', ['示例']]
+  ];
+
+  function renderMain() {
+    const s = SPROUTS[state.active];
+    const d = domOf(state.active);
+    $('#mainTitle').textContent = s.name;
+    $('#mainBadge').textContent = d ? d.name : '未分类';
+    $('#mainSub').innerHTML = state.mode === 'grouped'
+      ? `当前视图 · <b>域内排序</b> · ${s.count ? '实体 ' + s.count : '暂无实体计数'}`
+      : `当前视图 · <b>平铺顺序</b> · ${s.count ? '实体 ' + s.count : '暂无实体计数'}`;
+    const cards = CARD_SETS[state.active] || DEFAULT_CARDS;
+    $('#cardGrid').innerHTML = cards.map(([name, role, desc, tags]) => `
+      <article class="card">
+        <div class="card-top">
+          <div class="avatar">${name.slice(0, 1)}</div>
+          <div><div class="card-name">${name}</div><div class="card-role">${role}</div></div>
+        </div>
+        <div class="card-desc">${desc}</div>
+        <div class="card-tags">${tags.map(t => `<span class="tag">${t}</span>`).join('')}</div>
+      </article>`).join('');
+  }
+
+  function renderNotes() {
+    $('#noteList').innerHTML = NOTES.map(n => `
+      <div class="note" data-note="${n.n}">
+        <span class="n">${n.n}</span>
+        <div><b>${n.title}</b><p>${n.text}</p></div>
+      </div>`).join('');
+  }
+
+  function render() {
+    renderSidebar();
+    renderMain();
+    document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.mode === state.mode));
+    document.querySelectorAll('#inactiveSeg button').forEach(b => b.classList.toggle('on', b.dataset.inactive === state.inactive));
+    document.querySelectorAll('#collapseSeg button').forEach(b => {
+      b.classList.toggle('on', b.dataset.collapse === state.collapse);
+      b.disabled = state.mode === 'flat';
+    });
+  }
+
+  $('#sbScroll').addEventListener('click', (e) => {
+    const toggle = e.target.closest('[data-toggle]');
+    if (toggle) {
+      const id = toggle.dataset.toggle;
+      if (state.collapsed.has(id)) state.collapsed.delete(id); else state.collapsed.add(id);
+      renderSidebar();
+      return;
+    }
+    const row = e.target.closest('[data-sprout]');
+    if (row) {
+      state.active = row.dataset.sprout;
+      const d = domOf(state.active);
+      if (d && state.collapse === 'focus') applyCollapseMode();
+      render();
+    }
+  });
+
+  $('#sbTools').addEventListener('click', (e) => {
+    const toggle = e.target.closest('[data-toggle]');
+    if (toggle) {
+      const id = toggle.dataset.toggle;
+      if (state.collapsed.has(id)) state.collapsed.delete(id); else state.collapsed.add(id);
+      renderSidebar();
+      return;
+    }
+    const row = e.target.closest('[data-sprout]');
+    if (row) { state.active = row.dataset.sprout; render(); }
+  });
+
+  $('#modeSeg').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-mode]');
+    if (!b) return;
+    state.mode = b.dataset.mode;
+    render();
+  });
+  $('#inactiveSeg').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-inactive]');
+    if (!b) return;
+    state.inactive = b.dataset.inactive;
+    render();
+  });
+  $('#collapseSeg').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-collapse]');
+    if (!b || state.mode === 'flat') return;
+    state.collapse = b.dataset.collapse;
+    applyCollapseMode();
+    render();
+  });
+  $('#resetBtn').addEventListener('click', () => {
+    state.mode = 'grouped';
+    state.inactive = 'dim';
+    state.collapse = 'open';
+    state.active = 'characters';
+    applyCollapseMode();
+    render();
+  });
+
+  document.addEventListener('mouseover', (e) => {
+    const note = e.target.closest('[data-note]');
+    document.querySelectorAll('.anno-hl').forEach(el => el.classList.remove('anno-hl'));
+    if (!note) return;
+    const n = note.dataset.note;
+    document.querySelectorAll(`[data-anno="${n}"]`).forEach(el => el.classList.add('anno-hl'));
+  });
+  document.addEventListener('mouseout', (e) => {
+    if (e.target.closest('[data-note]')) document.querySelectorAll('.anno-hl').forEach(el => el.classList.remove('anno-hl'));
+  });
+
+  renderNotes();
+  applyCollapseMode();
+  render();
+</script>
+</body>
+</html>

@@ -451,6 +451,162 @@ html[data-theme="dark"] .fm-root .toast { background: #e5edf4; color: #111827;
 .fm-root .al-list code { color: var(--text); font-size: 10.5px; }
 @container fm (max-width: 900px) { .fm-root .al-columns { grid-template-columns: 1fr; } }
 html[data-theme="dark"] .fm-root .al-state.on { color: #6ee7b7; background: #052e2b; border-color: #065f46; }
+
+/* ── 壳内视图（2026-10-20）：令牌桥接与面板化修正 ───────────────
+   静态 HTML 无 .fm-shell，继续使用上方完整视觉；壳内视图跟随 App 主题令牌。 */
+html .fm-root.fm-shell {
+  --fm-accent: var(--color-primary);
+  --fm-accent-soft: color-mix(in srgb, var(--color-primary) 13%, transparent);
+  --bg: var(--bg-app);
+  --panel: var(--bg-surface);
+  --soft: var(--bg-muted);
+  --row-alt: var(--bg-muted);
+  --hover: var(--bg-muted);
+  --text: var(--text-primary);
+  --muted: var(--text-secondary);
+  --line: var(--border);
+  --line-soft: var(--border);
+  --accent: var(--fm-accent);
+  --accent-strong: var(--fm-accent);
+  --accent-soft: var(--fm-accent-soft);
+  --warn: var(--warning);
+  --shadow: var(--shadow-sm);
+  --mono: var(--font-mono);
+  --sans: var(--font-sans);
+}
+
+/* 面板内容区在 1600px 窗宽下约 896px，900px 断点会误伤：
+   table-wrap 的 overflow-x:auto 会计算成 overflow-y:auto，表头吸顶失效；
+   总览 Traits / 特例两列也会被隐藏。静态 HTML 不受影响。 */
+@container fm (min-width: 860px) {
+  .fm-root.fm-shell .table-wrap { overflow: visible; }
+}
+@container fm (min-width: 760px) {
+  .fm-root.fm-shell .overview-table th:nth-child(3),
+  .fm-root.fm-shell .overview-table td:nth-child(3),
+  .fm-root.fm-shell .overview-table th:nth-child(5),
+  .fm-root.fm-shell .overview-table td:nth-child(5) { display: table-cell; }
+}
+
+/* 字段表密度：类型/必填/来源按内容收窄，说明列吃剩余宽度 */
+html .fm-root.fm-shell .field-table { font-size: var(--fs-sm); table-layout: fixed; min-width: 800px; }
+html .fm-root.fm-shell .field-table th:nth-child(3),
+html .fm-root.fm-shell .field-table td:nth-child(3),
+html .fm-root.fm-shell .field-table th:nth-child(4),
+html .fm-root.fm-shell .field-table td:nth-child(4),
+html .fm-root.fm-shell .field-table th:nth-child(5),
+html .fm-root.fm-shell .field-table td:nth-child(5) { white-space: nowrap; }
+/* 固定列宽：说明列吃余量；展开选项不再重排其它列 */
+html .fm-root.fm-shell .field-table th:nth-child(1) { width: 160px; }
+html .fm-root.fm-shell .field-table th:nth-child(2) { width: 112px; }
+html .fm-root.fm-shell .field-table th:nth-child(3) { width: 142px; }
+html .fm-root.fm-shell .field-table th:nth-child(4) { width: 54px; }
+html .fm-root.fm-shell .field-table th:nth-child(5) { width: 148px; }
+html .fm-root.fm-shell .type-zh { display: inline; margin-left: 4px; }
+html .fm-root.fm-shell #relation-types-table th:nth-child(2),
+html .fm-root.fm-shell #relation-types-table td:nth-child(2) { white-space: nowrap; }
+
+/* 表内排版：正文 12 / 元信息 11 / 表头 11/600；行高 1.5 */
+html .fm-root.fm-shell table { font-size: var(--fs-sm); line-height: 1.5; }
+html .fm-root.fm-shell thead th {
+  background: var(--bg-muted);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border-bottom-color: var(--border-strong);
+}
+html .fm-root.fm-shell .table-wrap thead th { padding: 8px 10px; }
+html .fm-root.fm-shell .table-wrap tbody td { padding: 7px 10px; }
+html .fm-root.fm-shell .field-key { font-size: var(--fs-sm); }
+html .fm-root.fm-shell .type-badge,
+html .fm-root.fm-shell .type-zh,
+html .fm-root.fm-shell .req,
+html .fm-root.fm-shell .opt,
+html .fm-root.fm-shell .note { font-size: var(--fs-xs); }
+/* 标签是独立的紧凑档，保持总览 Traits 一行 */
+html .fm-root.fm-shell .traits-inline code { font-size: var(--fs-2xs); }
+
+/* 数字列右对齐 + 等宽数字；布尔列居中 */
+html .fm-root.fm-shell .overview-table th:nth-child(4),
+html .fm-root.fm-shell .overview-table td:nth-child(4),
+html .fm-root.fm-shell #relation-types-table th:nth-child(7),
+html .fm-root.fm-shell #relation-types-table td:nth-child(7),
+html .fm-root.fm-shell #auto-link-table th:nth-child(5),
+html .fm-root.fm-shell #auto-link-table td:nth-child(5),
+html .fm-root.fm-shell .trait-table th:nth-child(3),
+html .fm-root.fm-shell .trait-table td:nth-child(3) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+html .fm-root.fm-shell .field-table th:nth-child(4),
+html .fm-root.fm-shell .field-table td:nth-child(4),
+html .fm-root.fm-shell #relation-types-table th:nth-child(5),
+html .fm-root.fm-shell #relation-types-table td:nth-child(5) {
+  text-align: center;
+}
+
+/* 表头与行底：去斑马纹，表头用弱底；吸顶时首列保持不透明 */
+html .fm-root.fm-shell th:first-child { background: var(--bg-muted); }
+html .fm-root.fm-shell tbody tr:nth-child(even) td { background: transparent; }
+html .fm-root.fm-shell tbody tr td:first-child { background: var(--bg-surface); }
+html .fm-root.fm-shell tbody tr:hover td,
+html .fm-root.fm-shell tbody tr:hover td:first-child { background: var(--bg-muted); }
+
+/* 实体头：静态头、透明底、一条分隔线 */
+html .fm-root.fm-shell .entity-head {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 0 0 12px; border-bottom: 1px solid var(--line);
+}
+html .fm-root.fm-shell .entity-head .entity-traits { padding-left: 0; margin-top: 2px; }
+html .fm-root.fm-shell .entity-body { padding-top: 12px; }
+html .fm-root.fm-shell .entity-copy { margin-left: 8px; }
+
+/* 统计与语义色：数字收敛，来源/类型/开关对齐壳语义令牌 */
+html .fm-root.fm-shell .stat-grid { gap: 8px; margin: 14px 0 18px; }
+html .fm-root.fm-shell .stat { padding: 10px 12px; border-radius: var(--radius-md); }
+html .fm-root.fm-shell .stat b { font-size: 20px; }
+html .fm-root.fm-shell .stat.zero b { color: var(--text-muted); }
+html .fm-root.fm-shell .req { color: var(--danger); background: var(--danger-soft); }
+/* 来源：透明底 + 语义彩点 + 弱文字，语义只留在点上 */
+html .fm-root.fm-shell .src {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 0; border: 0; background: transparent; border-radius: 0;
+  color: var(--text-secondary); font-size: var(--fs-xs);
+}
+html .fm-root.fm-shell .src::before {
+  content: ""; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--src-color, var(--text-muted)); flex-shrink: 0;
+}
+html .fm-root.fm-shell .src-trait { --src-color: var(--info); }
+html .fm-root.fm-shell .src-own { --src-color: var(--success); }
+html .fm-root.fm-shell .src-user { --src-color: var(--accent); }
+html .fm-root.fm-shell .src-replace { --src-color: var(--warning); }
+html .fm-root.fm-shell .src-legacy { --src-color: var(--text-muted); }
+html .fm-root.fm-shell .src-facet { --src-color: var(--accent); }
+html .fm-root.fm-shell .src-system { --src-color: var(--text-muted); }
+html .fm-root.fm-shell .al-state.on { color: var(--success); background: var(--success-soft); border-color: color-mix(in srgb, var(--success) 30%, transparent); }
+/* 标题与导语：分区标题与实体名同档，导语限宽 */
+html .fm-root.fm-shell .doc-section > h2 { font-size: 16px; font-weight: 600; }
+html .fm-root.fm-shell .doc-section > h3 { font-size: 13.5px; font-weight: 600; }
+html .fm-root.fm-shell .entity-name { font-size: 16px; font-weight: 600; }
+html .fm-root.fm-shell .lead { max-width: 720px; margin-bottom: 12px; font-size: var(--fs-sm); }
+/* 表格微对齐：实体名与 type code 分隔；非首列 code 降到次级色 */
+html .fm-root.fm-shell .overview-table td:nth-child(2) code { margin-left: 6px; }
+html .fm-root.fm-shell .table-wrap code { color: var(--text-secondary); }
+html .fm-root.fm-shell .table-wrap td:first-child > code { color: var(--text-primary); }
+html .fm-root.fm-shell #relation-types-table td.is-zero { color: var(--text-muted); }
+html .fm-root.fm-shell .t-text { --type-color: var(--text-muted); }
+html .fm-root.fm-shell .t-textarea { --type-color: var(--info); }
+html .fm-root.fm-shell .t-number { --type-color: var(--info); }
+html .fm-root.fm-shell .t-select { --type-color: var(--accent); }
+html .fm-root.fm-shell .t-multi { --type-color: var(--success); }
+html .fm-root.fm-shell .t-tags { --type-color: var(--success); }
+html .fm-root.fm-shell .t-image { --type-color: var(--warning); }
+html .fm-root.fm-shell .t-color { --type-color: var(--danger); }
+html .fm-root.fm-shell .t-boolean { --type-color: var(--warning); }
+html .fm-root.fm-shell .t-ref { --type-color: var(--accent); }
+html .fm-root.fm-shell .t-date { --type-color: var(--info); }
+html .fm-root.fm-shell .t-unknown { --type-color: var(--text-muted); }
 </style>
 <style>/* 仅静态 HTML：页面级样式。 */
 html, body { margin: 0; }
@@ -466,10 +622,10 @@ html { scroll-behavior: smooth; }
       <div class="brand-mark" aria-hidden="true">WS</div>
       <div>
         <h1>芽字段矩阵</h1>
-        <p>WorldSea 实体 Schema 字段字典 · 快照 2026-10-18</p>
+        <p>WorldSea 实体 Schema 字段字典 · 快照 2026-10-20</p>
       </div>
     </div>
-    <div class="top-stats" aria-label="统计"><span><b>21</b> 芽</span><span><b>23</b> 实体</span><span><b>270</b> 字段</span></div>
+    <div class="top-stats" aria-label="统计"><span><b>21</b> 芽</span><span><b>23</b> 实体</span><span><b>276</b> 字段</span></div>
     <label class="search-box">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
       <input id="q" type="search" placeholder="搜索字段 / 中文名 / 芽 / 选项…" aria-label="搜索字段、中文名、芽或选项" autocomplete="off">
@@ -495,7 +651,7 @@ html { scroll-behavior: smooth; }
 <div class="shell">
   <aside class="sidebar" aria-label="芽导航">
     <nav>
-      <div class="nav-group"><div class="nav-title">总览</div><a href="#overview"><span>速览</span></a><a href="#traits"><span>Trait 矩阵</span></a></div><div class="nav-group"><div class="nav-title">世界观实体芽</div><a href="#entity-character"><span>角色</span><code>character</code><b>18</b></a><a href="#entity-species"><span>物种</span><code>species</code><b>17</b></a><a href="#entity-organization"><span>组织</span><code>organization</code><b>13</b></a><a href="#entity-region"><span>区域</span><code>region</code><b>14</b></a><a href="#entity-building"><span>建筑</span><code>building</code><b>17</b></a><a href="#entity-item"><span>道具</span><code>item</code><b>15</b></a><a href="#entity-plant"><span>植物</span><code>plant</code><b>14</b></a><a href="#entity-concept"><span>概念</span><code>concept</code><b>7</b></a><a href="#entity-language"><span>语言</span><code>language</code><b>13</b></a><a href="#entity-magic"><span>技能</span><code>magic</code><b>14</b></a><a href="#entity-combat_stat"><span>战力</span><code>combat_stat</code><b>11</b></a><a href="#entity-conflict"><span>冲突</span><code>conflict</code><b>12</b></a><a href="#entity-culture"><span>文化</span><code>culture</code><b>12</b></a><a href="#entity-event"><span>事件</span><code>event</code><b>11</b></a><a href="#entity-inspiration"><span>素材</span><code>inspiration</code><b>10</b></a></div><div class="nav-group"><div class="nav-title">创作与工具芽</div><a href="#entity-book"><span>书籍</span><code>book</code><b>3</b></a><a href="#entity-manuscript"><span>正文</span><code>manuscript</code><b>12</b></a><a href="#entity-notebook"><span>笔记</span><code>notebook</code><b>10</b></a><a href="#entity-outline_node"><span>大纲节点</span><code>outline_node</code><b>9</b></a><a href="#entity-outline_board"><span>大纲白板</span><code>outline_board</code><b>8</b></a><a href="#entity-drawing"><span>画板</span><code>drawing</code><b>13</b></a><a href="#entity-pipeline"><span>创作计划</span><code>pipeline</code><b>7</b></a><a href="#entity-tactical-board"><span>战术棋盘</span><code>tactical-board</code><b>10</b></a></div><div class="nav-group"><div class="nav-title">其他</div><a href="#facets"><span>Facet 字段</span><code>2</code></a><a href="#system"><span>系统字段</span><code>13</code></a><a href="#view-only"><span>无实体字段芽</span><code>16</code></a><a href="#scope"><span>口径与维护</span></a></div>
+      <div class="nav-group"><div class="nav-title">总览</div><a href="#overview"><span>速览</span></a><a href="#traits"><span>Trait 矩阵</span></a></div><div class="nav-group"><div class="nav-title">世界观实体芽</div><a href="#entity-character"><span>角色</span><code>character</code><b>18</b></a><a href="#entity-species"><span>物种</span><code>species</code><b>17</b></a><a href="#entity-organization"><span>组织</span><code>organization</code><b>13</b></a><a href="#entity-region"><span>区域</span><code>region</code><b>14</b></a><a href="#entity-building"><span>建筑</span><code>building</code><b>17</b></a><a href="#entity-item"><span>道具</span><code>item</code><b>15</b></a><a href="#entity-plant"><span>植物</span><code>plant</code><b>14</b></a><a href="#entity-concept"><span>概念</span><code>concept</code><b>7</b></a><a href="#entity-language"><span>语言</span><code>language</code><b>13</b></a><a href="#entity-magic"><span>技能</span><code>magic</code><b>14</b></a><a href="#entity-combat_stat"><span>战力</span><code>combat_stat</code><b>11</b></a><a href="#entity-conflict"><span>冲突</span><code>conflict</code><b>12</b></a><a href="#entity-culture"><span>文化</span><code>culture</code><b>12</b></a><a href="#entity-event"><span>事件</span><code>event</code><b>11</b></a><a href="#entity-inspiration"><span>素材</span><code>inspiration</code><b>10</b></a></div><div class="nav-group"><div class="nav-title">创作与工具芽</div><a href="#entity-book"><span>书籍</span><code>book</code><b>3</b></a><a href="#entity-manuscript"><span>正文</span><code>manuscript</code><b>12</b></a><a href="#entity-notebook"><span>笔记</span><code>notebook</code><b>10</b></a><a href="#entity-outline_node"><span>大纲节点</span><code>outline_node</code><b>15</b></a><a href="#entity-outline_board"><span>大纲白板</span><code>outline_board</code><b>8</b></a><a href="#entity-drawing"><span>画板</span><code>drawing</code><b>13</b></a><a href="#entity-pipeline"><span>创作计划</span><code>pipeline</code><b>7</b></a><a href="#entity-tactical-board"><span>战术棋盘</span><code>tactical-board</code><b>10</b></a></div><div class="nav-group"><div class="nav-title">其他</div><a href="#facets"><span>Facet 字段</span><code>2</code></a><a href="#system"><span>系统字段</span><code>13</code></a><a href="#view-only"><span>无实体字段芽</span><code>16</code></a><a href="#scope"><span>口径与维护</span></a></div>
     </nav>
   </aside>
   <main class="main">
@@ -505,8 +661,8 @@ html { scroll-behavior: smooth; }
     </div>
     <section id="overview" class="doc-section">
       <h2>总览</h2><p class="lead">按芽 / 实体类型查阅字段。字段 = <b>Trait 字段 + 芽自有字段</b>；中文名是展示标签，英文 key 是数据键。</p>
-<div class="stat-grid"><div class="stat"><b>21</b><span>注册芽</span></div><div class="stat"><b>23</b><span>实体类型</span></div><div class="stat"><b>270</b><span>字段实例</span></div><div class="stat"><b>151</b><span>唯一字段键</span></div><div class="stat"><b>13</b><span>原子 Trait</span></div><div class="stat"><b>2</b><span>Facet</span></div></div>
-<div class="table-wrap"><table class="overview-table"><caption class="sr-only">芽与实体类型总览</caption><thead><tr><th scope="col">芽（插件 id）</th><th scope="col">实体类型</th><th scope="col">Traits</th><th scope="col">字段数</th><th scope="col">特例</th></tr></thead><tbody><tr><td><code>official.buildings</code></td><td><a class="entity-link" href="#entity-building">建筑</a> <code>building</code></td><td><span class="traits-inline"><code>identifiable</code><code>taggable</code><code>visual</code><code>locatable</code><code>deteriorable</code></span></td><td><b>17</b></td><td></td></tr><tr><td><code>official.characters</code></td><td><a class="entity-link" href="#entity-character">角色</a> <code>character</code></td><td><span class="traits-inline"><code>identifiable</code><code>taggable</code><code>visual</code><code>physical</code><code>ageable</code><code>ownable</code></span></td><td><b>18</b></td><td></td></tr><tr><td><code>official.combat_stats</code></td><td><a class="entity-link" href="#entity-combat_stat">战力</a> <code>combat_stat</code></td><td><span class="traits-inline"><code>identifiable</code><code>taggable</code><code>visual</code></span></td><td><b>11</b></td><td></td></tr><tr><td><code>official.concepts</code></td><td><a class="entity-link" href="#entity-concept">概念</a> <code>concept</code></td><td><span class="traits-inline"><code>identifiable</code><code>taggable</code><code>visual</code></span></td><td><b>7</b></td><td></td></tr><tr><td><code>official.conflict</code></td><td><a class="entity-link" href="#entity-conflict">冲突</a> <code>conflict</code></td><td><span class="traits-inline"><code>identifiable</code><code>taggable</code><code>visual</code><code>datable</code></span></td><td><b>12</b></td><td></td></tr><tr><td><code>official.culture</code></td><td><a class="entity-link" href="#entity-culture">文化</a> <code>culture</code></td><td><span class="traits-inline"><code>identifiable</code><code>taggable</code><code>visual</code><code>datable</code></span></td><td><b>12</b></td><td></td></tr><tr><td><code>official.drawing</code></td><td><a class="entity-link" href="#entity-drawing">画板</a> <code>drawing</code></td><td><span class="traits-inline"><code>identifiable</code><code>visual</code></span></td><td><b>13</b></td><td></td></tr><tr><td><code>official.inspiration</code></td><td><a class="entity-link" href="#entity-inspiration">素材</a> <code>inspiration</code></td><td><span class="traits-inline"><code>identifiable</code><code>taggable</code><code>visual</code></span></td><td><b>10</b></td><td></td></tr><tr><td><code>official.items</code></td><td><a class="entity-link" href="#entity-item">道具</a> <code>item</code></td><td><span class="traits-inline"><code>identifiable</code><code>taggable</code><code>visual</code><code>material</code><code>rateable</code><code>deteriorable</code><code>originated</code><code>ownable</code></span></td><td><b>15</b></td><td>Facet：weapon / apparel</td></tr><tr><td><code>official.languages</code></td><td><a class="entity-link" href="#entity-language">语言</a> <code>language</code></td><td><span class="traits-inline"><code>identifiable</code><code>taggable</code><code>visual</code></span></td><td><b>13</b></td><td></td></tr><tr><td><code>official.magic</code></td><td><a class="entity-link" href="#entity-magic">技能</a> <code>magic</code></td><td><span class="traits-inline"><code>identifiable</code><code>taggable</code><code>visual</code></span></td><td><b>14</b></td><td></td></tr><tr><td><code>official.manuscript</code></td><td><a class="entity-link" href="#entity-book">书籍</a> <code>book</code></td><td><span class="traits-inline"><code>identifiable</code><code>visual</code></span></td><td><b>3</b></td><td></td></tr><tr><td><code>official.manuscript</code></td><td><a class="entity-link" href="#entity-manuscript">正文</a> <code>manuscript</code></td><td><span class="traits-inline"><code>identifiable</code><code>visual</code><code>narrative</code><code>deteriorable</code></span></td><td><b>12</b></td><td></td></tr><tr><td><code>official.notebook</code></td><td><a class="entity-link" href="#entity-notebook">笔记</a> <code>notebook</code></td><td><span class="traits-inline"><code>identifiable</code><code>visual</code><code>narrative</code></span></td><td><b>10</b></td><td></td></tr><tr><td><code>official.orchestration</code></td><td><a class="entity-link" href="#entity-pipeline">创作计划</a> <code>pipeline</code></td><td><span class="traits-inline"><code>identifiable</code><code>taggable</code></span></td><td><b>7</b></td><td></td></tr><tr><td><code>official.organizations</code></td><td><a class="entity-link" href="#entity-organization">组织</a> <code>organization</code></td><td><span class="traits-inline"><code>identifiable</code><code>taggable</code><code>visual</code></span></td><td><b>13</b></td><td></td></tr><tr><td><code>official.outline</code></td><td><a class="entity-link" href="#entity-outline_node">大纲节点</a> <code>outline_node</code></td><td><span class="traits-inline"><code>identifiable</code><code>visual</code><code>deteriorable</code></span></td><td><b>9</b></td><td></td></tr><tr><td><code>official.outline</code></td><td><a class="entity-link" href="#entity-outline_board">大纲白板</a> <code>outline_board</code></td><td><span class="traits-inline"><code>identifiable</code><code>visual</code></span></td><td><b>8</b></td><td></td></tr><tr><td><code>official.plants</code></td><td><a class="entity-link" href="#entity-plant">植物</a> <code>plant</code></td><td><span class="traits-inline"><code>identifiable</code><code>taggable</code><code>visual</code><code>rateable</code><code>physical</code></span></td><td><b>14</b></td><td></td></tr><tr><td><code>official.regions</code></td><td><a class="entity-link" href="#entity-region">区域</a> <code>region</code></td><td><span class="traits-inline"><code>identifiable</code><code>taggable</code><code>visual</code><code>locatable</code></span></td><td><b>14</b></td><td></td></tr><tr><td><code>official.species</code></td><td><a class="entity-link" href="#entity-species">物种</a> <code>species</code></td><td><span class="traits-inline"><code>identifiable</code><code>taggable</code><code>visual</code><code>physical</code><code>ageable</code></span></td><td><b>17</b></td><td></td></tr><tr><td><code>official.tactical-board</code></td><td><a class="entity-link" href="#entity-tactical-board">战术棋盘</a> <code>tactical-board</code></td><td><span class="traits-inline"><code>identifiable</code><code>taggable</code><code>visual</code></span></td><td><b>10</b></td><td></td></tr><tr><td><code>official.timeline</code></td><td><a class="entity-link" href="#entity-event">事件</a> <code>event</code></td><td><span class="traits-inline"><code>identifiable</code><code>taggable</code><code>visual</code><code>datable</code></span></td><td><b>11</b></td><td></td></tr></tbody></table></div>
+<div class="stat-grid"><div class="stat"><b>21</b><span>注册芽</span></div><div class="stat"><b>23</b><span>实体类型</span></div><div class="stat"><b>276</b><span>字段实例</span></div><div class="stat"><b>156</b><span>唯一字段键</span></div><div class="stat"><b>13</b><span>原子 Trait</span></div><div class="stat"><b>2</b><span>Facet</span></div></div>
+<div class="table-wrap"><table class="overview-table"><caption class="sr-only">芽与实体类型总览</caption><thead><tr><th scope="col">芽（插件 id）</th><th scope="col">实体类型</th><th scope="col">Traits</th><th scope="col">字段数</th><th scope="col">特例</th></tr></thead><tbody><tr><td><code>official.buildings</code></td><td><a class="entity-link" href="#entity-building">建筑</a> <code>building</code></td><td><span class="traits-inline"><code>identifiable</code><code>taggable</code><code>visual</code><code>locatable</code><code>deteriorable</code></span></td><td><b>17</b></td><td></td></tr><tr><td><code>official.characters</code></td><td><a class="entity-link" href="#entity-character">角色</a> <code>character</code></td><td><span class="traits-inline"><code>identifiable</code><code>taggable</code><code>visual</code><code>physical</code><code>ageable</code><code>ownable</code></span></td><td><b>18</b></td><td></td></tr><tr><td><code>official.combat_stats</code></td><td><a class="entity-link" href="#entity-combat_stat">战力</a> <code>combat_stat</code></td><td><span class="traits-inline"><code>identifiable</code><code>taggable</code><code>visual</code></span></td><td><b>11</b></td><td></td></tr><tr><td><code>official.concepts</code></td><td><a class="entity-link" href="#entity-concept">概念</a> <code>concept</code></td><td><span class="traits-inline"><code>identifiable</code><code>taggable</code><code>visual</code></span></td><td><b>7</b></td><td></td></tr><tr><td><code>official.conflict</code></td><td><a class="entity-link" href="#entity-conflict">冲突</a> <code>conflict</code></td><td><span class="traits-inline"><code>identifiable</code><code>taggable</code><code>visual</code><code>datable</code></span></td><td><b>12</b></td><td></td></tr><tr><td><code>official.culture</code></td><td><a class="entity-link" href="#entity-culture">文化</a> <code>culture</code></td><td><span class="traits-inline"><code>identifiable</code><code>taggable</code><code>visual</code><code>datable</code></span></td><td><b>12</b></td><td></td></tr><tr><td><code>official.drawing</code></td><td><a class="entity-link" href="#entity-drawing">画板</a> <code>drawing</code></td><td><span class="traits-inline"><code>identifiable</code><code>visual</code></span></td><td><b>13</b></td><td></td></tr><tr><td><code>official.inspiration</code></td><td><a class="entity-link" href="#entity-inspiration">素材</a> <code>inspiration</code></td><td><span class="traits-inline"><code>identifiable</code><code>taggable</code><code>visual</code></span></td><td><b>10</b></td><td></td></tr><tr><td><code>official.items</code></td><td><a class="entity-link" href="#entity-item">道具</a> <code>item</code></td><td><span class="traits-inline"><code>identifiable</code><code>taggable</code><code>visual</code><code>material</code><code>rateable</code><code>deteriorable</code><code>originated</code><code>ownable</code></span></td><td><b>15</b></td><td>Facet：weapon / apparel</td></tr><tr><td><code>official.languages</code></td><td><a class="entity-link" href="#entity-language">语言</a> <code>language</code></td><td><span class="traits-inline"><code>identifiable</code><code>taggable</code><code>visual</code></span></td><td><b>13</b></td><td></td></tr><tr><td><code>official.magic</code></td><td><a class="entity-link" href="#entity-magic">技能</a> <code>magic</code></td><td><span class="traits-inline"><code>identifiable</code><code>taggable</code><code>visual</code></span></td><td><b>14</b></td><td></td></tr><tr><td><code>official.manuscript</code></td><td><a class="entity-link" href="#entity-book">书籍</a> <code>book</code></td><td><span class="traits-inline"><code>identifiable</code><code>visual</code></span></td><td><b>3</b></td><td></td></tr><tr><td><code>official.manuscript</code></td><td><a class="entity-link" href="#entity-manuscript">正文</a> <code>manuscript</code></td><td><span class="traits-inline"><code>identifiable</code><code>visual</code><code>narrative</code><code>deteriorable</code></span></td><td><b>12</b></td><td></td></tr><tr><td><code>official.notebook</code></td><td><a class="entity-link" href="#entity-notebook">笔记</a> <code>notebook</code></td><td><span class="traits-inline"><code>identifiable</code><code>visual</code><code>narrative</code></span></td><td><b>10</b></td><td></td></tr><tr><td><code>official.orchestration</code></td><td><a class="entity-link" href="#entity-pipeline">创作计划</a> <code>pipeline</code></td><td><span class="traits-inline"><code>identifiable</code><code>taggable</code></span></td><td><b>7</b></td><td></td></tr><tr><td><code>official.organizations</code></td><td><a class="entity-link" href="#entity-organization">组织</a> <code>organization</code></td><td><span class="traits-inline"><code>identifiable</code><code>taggable</code><code>visual</code></span></td><td><b>13</b></td><td></td></tr><tr><td><code>official.outline</code></td><td><a class="entity-link" href="#entity-outline_node">大纲节点</a> <code>outline_node</code></td><td><span class="traits-inline"><code>identifiable</code><code>visual</code><code>deteriorable</code></span></td><td><b>15</b></td><td></td></tr><tr><td><code>official.outline</code></td><td><a class="entity-link" href="#entity-outline_board">大纲白板</a> <code>outline_board</code></td><td><span class="traits-inline"><code>identifiable</code><code>visual</code></span></td><td><b>8</b></td><td></td></tr><tr><td><code>official.plants</code></td><td><a class="entity-link" href="#entity-plant">植物</a> <code>plant</code></td><td><span class="traits-inline"><code>identifiable</code><code>taggable</code><code>visual</code><code>rateable</code><code>physical</code></span></td><td><b>14</b></td><td></td></tr><tr><td><code>official.regions</code></td><td><a class="entity-link" href="#entity-region">区域</a> <code>region</code></td><td><span class="traits-inline"><code>identifiable</code><code>taggable</code><code>visual</code><code>locatable</code></span></td><td><b>14</b></td><td></td></tr><tr><td><code>official.species</code></td><td><a class="entity-link" href="#entity-species">物种</a> <code>species</code></td><td><span class="traits-inline"><code>identifiable</code><code>taggable</code><code>visual</code><code>physical</code><code>ageable</code></span></td><td><b>17</b></td><td></td></tr><tr><td><code>official.tactical-board</code></td><td><a class="entity-link" href="#entity-tactical-board">战术棋盘</a> <code>tactical-board</code></td><td><span class="traits-inline"><code>identifiable</code><code>taggable</code><code>visual</code></span></td><td><b>10</b></td><td></td></tr><tr><td><code>official.timeline</code></td><td><a class="entity-link" href="#entity-event">事件</a> <code>event</code></td><td><span class="traits-inline"><code>identifiable</code><code>taggable</code><code>visual</code><code>datable</code></span></td><td><b>11</b></td><td></td></tr></tbody></table></div>
 <p class="section-note">点击实体名跳到字段表。运行时可再叠加项目级 schema 覆盖与用户自定义字段，这部分不在静态快照内。</p>
     </section>
     <section id="traits" class="doc-section">
@@ -2372,7 +2528,7 @@ html { scroll-behavior: smooth; }
       <span class="entity-name">大纲节点</span>
       <code class="entity-type">outline_node</code>
       <span class="entity-plugin">official.outline</span>
-      <span class="entity-count"><b class="visible-count">9</b> 字段</span>
+      <span class="entity-count"><b class="visible-count">15</b> 字段</span>
       <span class="entity-traits"><code>identifiable</code><code>visual</code><code>deteriorable</code></span>
     </summary>
     <div class="entity-body">
@@ -2440,6 +2596,48 @@ html { scroll-behavior: smooth; }
   <td><span class="muted">—</span></td>
   <td><span class="src src-own">芽自有</span></td>
   <td><div class="opt-list"><span class="opt"><code>act</code> 幕</span><span class="opt"><code>sequence</code> 序列</span><span class="opt"><code>scene</code> 场景</span><span class="opt"><code>beat</code> 节拍</span></div></td>
+</tr><tr class="field-row" id="f-outline_node-question" data-key="question" data-label="问题" data-type="text" data-required="0" data-required-label="" data-source="own" data-source-label="芽自有" data-notes="" data-search="大纲节点 outline_node outline question 问题 text 单行文本 芽自有  ">
+  <td><div class="field-key"><span>question</span><button type="button" class="icon-btn copy-key" data-copy="question" aria-label="复制字段键 question" title="复制字段键"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></div></td>
+  <td>问题</td>
+  <td><span class="type-badge t-text">text</span><span class="type-zh">单行文本</span></td>
+  <td><span class="muted">—</span></td>
+  <td><span class="src src-own">芽自有</span></td>
+  <td></td>
+</tr><tr class="field-row" id="f-outline_node-answer" data-key="answer" data-label="回答" data-type="text" data-required="0" data-required-label="" data-source="own" data-source-label="芽自有" data-notes="" data-search="大纲节点 outline_node outline answer 回答 text 单行文本 芽自有  ">
+  <td><div class="field-key"><span>answer</span><button type="button" class="icon-btn copy-key" data-copy="answer" aria-label="复制字段键 answer" title="复制字段键"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></div></td>
+  <td>回答</td>
+  <td><span class="type-badge t-text">text</span><span class="type-zh">单行文本</span></td>
+  <td><span class="muted">—</span></td>
+  <td><span class="src src-own">芽自有</span></td>
+  <td></td>
+</tr><tr class="field-row" id="f-outline_node-content" data-key="content" data-label="正文" data-type="text" data-required="0" data-required-label="" data-source="own" data-source-label="芽自有" data-notes="" data-search="大纲节点 outline_node outline content 正文 text 单行文本 芽自有  ">
+  <td><div class="field-key"><span>content</span><button type="button" class="icon-btn copy-key" data-copy="content" aria-label="复制字段键 content" title="复制字段键"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></div></td>
+  <td>正文</td>
+  <td><span class="type-badge t-text">text</span><span class="type-zh">单行文本</span></td>
+  <td><span class="muted">—</span></td>
+  <td><span class="src src-own">芽自有</span></td>
+  <td></td>
+</tr><tr class="field-row" id="f-outline_node-scene" data-key="scene" data-label="场景" data-type="text" data-required="0" data-required-label="" data-source="own" data-source-label="芽自有" data-notes="" data-search="大纲节点 outline_node outline scene 场景 text 单行文本 芽自有  ">
+  <td><div class="field-key"><span>scene</span><button type="button" class="icon-btn copy-key" data-copy="scene" aria-label="复制字段键 scene" title="复制字段键"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></div></td>
+  <td>场景</td>
+  <td><span class="type-badge t-text">text</span><span class="type-zh">单行文本</span></td>
+  <td><span class="muted">—</span></td>
+  <td><span class="src src-own">芽自有</span></td>
+  <td></td>
+</tr><tr class="field-row" id="f-outline_node-dialogue" data-key="dialogue" data-label="台词" data-type="text" data-required="0" data-required-label="" data-source="own" data-source-label="芽自有" data-notes="" data-search="大纲节点 outline_node outline dialogue 台词 text 单行文本 芽自有  ">
+  <td><div class="field-key"><span>dialogue</span><button type="button" class="icon-btn copy-key" data-copy="dialogue" aria-label="复制字段键 dialogue" title="复制字段键"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></div></td>
+  <td>台词</td>
+  <td><span class="type-badge t-text">text</span><span class="type-zh">单行文本</span></td>
+  <td><span class="muted">—</span></td>
+  <td><span class="src src-own">芽自有</span></td>
+  <td></td>
+</tr><tr class="field-row" id="f-outline_node-action" data-key="action" data-label="动作" data-type="text" data-required="0" data-required-label="" data-source="own" data-source-label="芽自有" data-notes="" data-search="大纲节点 outline_node outline action 动作 text 单行文本 芽自有  ">
+  <td><div class="field-key"><span>action</span><button type="button" class="icon-btn copy-key" data-copy="action" aria-label="复制字段键 action" title="复制字段键"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></div></td>
+  <td>动作</td>
+  <td><span class="type-badge t-text">text</span><span class="type-zh">单行文本</span></td>
+  <td><span class="muted">—</span></td>
+  <td><span class="src src-own">芽自有</span></td>
+  <td></td>
 </tr></tbody></table></div>
       
     </div>
@@ -2880,7 +3078,7 @@ html { scroll-behavior: smooth; }
       <h2>口径与维护</h2><div class="scope-grid">
 <div class="scope-card"><h3>快照边界</h3><ul><li>数据真源：芽 <code>index.ts</code>、Trait、Facet 源码。</li><li>项目级 schema 覆盖（<code>worlddata/.worldsea/schemas/&lt;type&gt;.json</code>）与用户 <code>customFields</code> 不在静态快照内。</li><li>关系类型是实体之间的边，不是实体字段，未纳入本表。</li></ul></div>
 <div class="scope-card"><h3>字段合并</h3><ul><li>先按 Trait 声明顺序展开字段，再应用 <code>fieldOverrides</code>，最后追加 <code>ownFields</code>。</li><li>同 key 时 <code>ownFields</code> 覆盖 Trait 字段。</li><li><code>title</code> 落地为顶层 <code>name</code>；<code>description</code> / <code>tags</code> / <code>coverImage</code> 也落顶层。</li></ul></div>
-<div class="scope-card"><h3>重新生成</h3><p>在仓库根执行：</p><p><code>node scripts/generate-field-matrix.mjs</code></p><p>同源更新 <a href="./芽字段矩阵.md">Markdown 版</a> 与本页。快照日期 2026-10-18。</p></div>
+<div class="scope-card"><h3>重新生成</h3><p>在仓库根执行：</p><p><code>node scripts/generate-field-matrix.mjs</code></p><p>同源更新 <a href="./芽字段矩阵.md">Markdown 版</a> 与本页。快照日期 2026-10-20。</p></div>
 <div class="scope-card"><h3>字段声明真源</h3><ul><li><code>apps/tauri/src/world/plugins/&lt;芽&gt;/index.ts</code></li><li><code>packages/entity-core/src/traits/index.ts</code></li><li><code>packages/entity-core/src/facets/index.ts</code></li><li><code>packages/entity-core/src/core/TraitRuntime.ts</code></li></ul></div>
 </div><p class="section-note">大纲芽正在另一条施工线推进；其字段以 <code>apps/tauri/src/world/plugins/outline/index.ts</code> 当前代码为准。</p>
     </section>
@@ -2896,7 +3094,7 @@ html { scroll-behavior: smooth; }
 </button>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 <footer class="page-footer">
-  <span>WorldSea 实体 Schema 字段字典 · 快照 2026-10-18</span>
+  <span>WorldSea 实体 Schema 字段字典 · 快照 2026-10-20</span>
   <span>Markdown 版：<a href="./芽字段矩阵.md">芽字段矩阵.md</a> · 生成命令：<code>node scripts/generate-field-matrix.mjs</code></span>
 </footer>
 </div>

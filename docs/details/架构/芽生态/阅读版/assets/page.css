@@ -1,0 +1,132 @@
+/* 页面私有样式：只补充共享文档系统未覆盖的少量结构，不改动 doc.css 的视觉契约 */
+
+.fold {
+  margin: 24px 0;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.fold > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  color: var(--ink);
+  font-weight: 620;
+  cursor: pointer;
+  list-style: none;
+}
+
+.fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+.fold > summary::after {
+  content: "展开";
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.fold[open] > summary::after {
+  content: "收起";
+}
+
+.fold .table-scroll {
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+}
+
+.group-row td {
+  background: #fbfcfd;
+  color: #3f4650;
+  font-weight: 620;
+  white-space: nowrap;
+}
+
+.tag {
+  display: inline-block;
+  padding: 1px 7px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.tag.on {
+  border-color: #b9cdfd;
+  background: #eef4ff;
+  color: #1d4ed8;
+}
+
+.tag.off {
+  color: #9aa1ad;
+}
+
+.tag.wait {
+  border-color: #f0d7a8;
+  background: #fdf8ee;
+  color: #8a5a12;
+}
+
+.tag.done {
+  border-color: #c7e3d6;
+  background: #f2faf6;
+  color: #0f766e;
+}
+
+.img-figure {
+  margin: 28px 0;
+}
+
+.img-figure img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fff;
+}
+
+.img-figure.is-portrait img {
+  max-width: 320px;
+  margin: 0 auto;
+}
+
+.two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+@media (max-width: 820px) {
+  .two-col {
+    grid-template-columns: 1fr;
+  }
+}
+
+#degree-chart {
+  height: 560px;
+}
+
+@media (max-width: 820px) {
+  #degree-chart {
+    height: 520px;
+  }
+}
+
+.lead {
+  color: #3f4650;
+  font-size: 18px;
+  line-height: 1.72;
+}
+
+.tight li {
+  margin: 5px 0;
+}

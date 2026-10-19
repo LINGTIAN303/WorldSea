@@ -12,7 +12,9 @@ const MATRIX_CSS_FILE = path.join(ROOT, 'apps/tauri/src/world/plugins/field-matr
 const STANDALONE_CSS_FILE = path.join(ROOT, 'apps/tauri/src/world/plugins/field-matrix/styles/standalone.css')
 const MD_OUT = path.join(ROOT, 'docs/details/架构/芽字段矩阵.md')
 const HTML_OUT = path.join(ROOT, 'docs/details/架构/芽字段矩阵.html')
-const TODAY = new Date().toISOString().slice(0, 10)
+const CREATED = '2026-10-18'
+const now = new Date()
+const TODAY = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 
 const TYPE_ZH = {
   text: '单行文本',
@@ -450,7 +452,7 @@ function renderMarkdown() {
   const lines = []
   lines.push('# 芽字段矩阵')
   lines.push('')
-  lines.push(`> 状态：现行（${TODAY} 建立）｜生成：\`node scripts/generate-field-matrix.mjs\`（数据真源为代码，勿手改）`)
+  lines.push(`> 状态：现行（${CREATED} 建立）｜生成：\`node scripts/generate-field-matrix.mjs\`（数据真源为代码，勿手改）`)
   lines.push(`> HTML 阅读版：[芽字段矩阵.html](./芽字段矩阵.html)｜快照：${TODAY}`)
   lines.push('')
   lines.push('## 〇、阅读口径')
