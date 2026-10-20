@@ -16,6 +16,10 @@ const SPLIT_SYNC_COLLAPSE_KEY = 'worldsea_split_sync_collapse'
 export type SproutNavMode = 'flat' | 'popover' | 'rail' | 'tabs' | 'dual' | 'split'
 export type SproutDomainFilter = 'all' | SproutDomainId
 export type SplitSidebarOrder = 'domain-left' | 'sprout-left'
+export interface SettingsTarget {
+  section: string
+  card?: number
+}
 
 export const SPROUT_NAV_MODES: readonly SproutNavMode[] = ['flat', 'popover', 'rail', 'tabs', 'dual', 'split']
 
@@ -128,6 +132,8 @@ export const useUIStore = defineStore('ui', () => {
   const viewComponent = shallowRef<Component | null>(null)
   const viewRefreshKey = ref(0)
   const _jumpBackViewId = ref<string | null>(null)
+  /** 打开设置后的落点（由快捷区等入口写入；SettingsDialog 消费后清空）。 */
+  const settingsTarget = ref<SettingsTarget | null>(null)
 
   const sidebarOrder = ref<string[]>(loadOrder())
 
@@ -248,6 +254,7 @@ export const useUIStore = defineStore('ui', () => {
     viewComponent,
     viewRefreshKey,
     _jumpBackViewId,
+    settingsTarget,
     sidebarOrder,
     sproutNavMode,
     sproutDomainFilter,

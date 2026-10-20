@@ -70,7 +70,10 @@
         <div v-if="recentViews.length === 0" class="ws-qa-empty">浏览芽后自动记录</div>
       </div>
 
-      <div class="ws-qa-foot">排序：设置 → 芽管理</div>
+      <div class="ws-qa-foot">
+        <span>排序：设置 → 芽管理</span>
+        <button type="button" class="ws-qa-manage" title="打开设置 → 插件 → 芽管理" @click="openSproutManager">管理芽</button>
+      </div>
     </div>
   </Teleport>
 </template>
@@ -187,6 +190,13 @@ function select(view: PluginView) {
 
 function toggleCurrent() {
   toggleFavorite(uiStore.currentView)
+}
+
+/** 管理入口：设置 → 插件分区 → 芽管理卡（与快捷区同源）。 */
+function openSproutManager() {
+  uiStore.settingsTarget = { section: 'plugins', card: 2 }
+  window.dispatchEvent(new CustomEvent('ws-open-settings'))
+  close()
 }
 
 function onPointerDown(event: PointerEvent) {

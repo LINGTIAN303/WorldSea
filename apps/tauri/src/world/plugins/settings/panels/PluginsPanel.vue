@@ -3,7 +3,7 @@
        卡0 外部插件（worlddata 运行时装载，Agent 写入，可启停）+ 卡1 内置插件（非芽 utility，常驻装载无启停）
        + 卡2 芽管理（SproutsCardContent）——「芽是插件，但插件不等于芽」。
        一个分区一个 CardDeck = rail 三项 + 滚轮翻卡。 -->
-  <CardDeck :count="3" :flat="!!searchQuery" @change="(i) => emit('card-change', i)" ref="deckRef">
+  <CardDeck :count="4" :flat="!!searchQuery" @change="(i) => emit('card-change', i)" ref="deckRef">
     <template #card="{ idx, cls }">
       <!-- 卡 0 · 外部插件 -->
       <div v-if="idx === 0" class="set-card deck-card" :class="cls"
@@ -76,7 +76,7 @@
               <div class="exp-item-title">
                 <span class="exp-name">{{ item.name }}</span>
                 <span class="exp-ver">{{ item.version }}</span>
-                <span class="exp-status is-loaded">常驻</span>
+                <span class="exp-status is-loaded">常驻装载</span>
               </div>
               <div class="exp-item-meta">
                 <span class="exp-id">{{ item.id }}</span>
@@ -88,7 +88,10 @@
       </div>
 
       <!-- 卡 2 · 芽管理 -->
-      <SproutsCardContent v-else-if="idx === 2" :class="cls" :search-query="searchQuery" @dirty="emit('dirty')" ref="sproutsContentRef" />
+      <SproutsCardContent v-else-if="idx === 2" :class="cls" :search-query="searchQuery" :domain-of="domainOf" @dirty="emit('dirty')" ref="sproutsContentRef" />
+
+      <!-- 卡 3 · 激活分组（启用范围预设；与域导航正交） -->
+      <SproutGroupsCardContent v-else-if="idx === 3" :class="cls" :search-query="searchQuery" @dirty="emit('dirty')" />
     </template>
   </CardDeck>
 </template>
@@ -98,6 +101,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { getFileStorageBackend, useSettingsStore } from '@worldsea/entity-core'
 import { toastSuccess, toastWarn, WsIcon, CardDeck, matchKeywords } from '@worldsea/ui-kit'
 import SproutsCardContent from '@worldsea/ui-kit/components/settings/panels/SproutsCardContent.vue'
+import SproutGroupsCardContent from '@worldsea/ui-kit/components/settings/panels/SproutGroupsCardContent.vue'
 import TuiModal from '@/components/ui/TuiModal.vue'
 import { availablePlugins, externalPluginStates, reloadExternalPlugins } from '@/world'
 import type { ExternalPluginState } from '@/world'
@@ -112,6 +116,18 @@ const sproutsContentRef = ref<InstanceType<typeof SproutsCardContent> | null>(nu
 const states = ref<ExternalPluginState[]>([])
 /** 世界树插件全集快照（内置 + 外部，含未启用——availablePlugins 非响应式，随 refresh 刷新） */
 const treePlugins = ref(availablePlugins())
+
+/** manifest.domain 查询口：ui-kit 芽管理不反向依赖世界树，由本面板注入。 */
+const domainMap = computed(() => {
+  const map = new Map<string, string>()
+  for (const plugin of treePlugins.value) {
+    if (plugin.manifest.domain) map.set(plugin.manifest.id, plugin.manifest.domain)
+  }
+  return map
+})
+function domainOf(pluginId: string): string {
+  return domainMap.value.get(pluginId) ?? 'unclassified'
+}
 
 /** 非芽类（utility）内置插件：manifest 自声明 kind，常驻装载（无启停——批5 对齐 dsh 内置语义）。
  *  外部 utility 插件在「外部插件」卡管理，不重复。 */
@@ -138,7 +154,7 @@ function match(keywords: string): boolean {
 }
 
 function statusLabel(status: ExternalPluginState['status']): string {
-  return status === 'loaded' ? '已装载' : status === 'skipped' ? '已停用' : '被拒'
+  return status === 'loaded' ? '已启用' : status === 'skipped' ? '未启用' : '被拒'
 }
 
 function refresh() {

@@ -54,8 +54,21 @@ defineExpose({ goToCard })
   height: calc(100% - 2 * var(--deck-peek));
   z-index: 1;
   overflow-y: auto;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border, var(--color-border)) transparent;
   opacity: 1;
   box-shadow: inset 0 1px 5px rgba(0, 0, 0, 0.05), 0 0 0 1px var(--border, var(--color-border));
+}
+.deck-card--mid::-webkit-scrollbar {
+  width: 8px;
+}
+.deck-card--mid::-webkit-scrollbar-track {
+  background: transparent;
+}
+.deck-card--mid::-webkit-scrollbar-thumb {
+  background: var(--border, var(--color-border));
+  border-radius: 4px;
 }
 /* 上条（上一张）：窄居中、矮，顶部露边，略暗略远；底部两角直角与主卡顶边贴合。
    padding 用 !important 覆盖面板卡片（.set-card/.agent-set-card）的 14px 垂直内边距，保证条高 = peek */

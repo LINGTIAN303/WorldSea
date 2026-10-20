@@ -169,8 +169,28 @@
   color: var(--text-tertiary, var(--text-secondary));
 }
 .ws-qa-foot {
-  padding: 7px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 6px 8px 6px 10px;
   border-top: 1px solid var(--region-border, var(--border));
   font-size: 10.5px;
   color: var(--text-tertiary, var(--text-secondary));
+}
+.ws-qa-manage {
+  flex-shrink: 0;
+  padding: 3px 9px;
+  border: 1px solid var(--region-border, var(--border));
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 10.5px;
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+.ws-qa-manage:hover {
+  background: var(--hover-bg);
+  border-color: var(--primary);
+  color: var(--primary);
 }

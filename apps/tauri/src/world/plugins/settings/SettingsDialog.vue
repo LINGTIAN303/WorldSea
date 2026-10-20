@@ -123,8 +123,19 @@ function onDirty() {
 watch(() => props.show, (val) => {
   if (val) {
     dirty.value = false
-    activeSection.value = null
-    nextTick(() => activate())
+    const target = uiStore.settingsTarget
+    uiStore.settingsTarget = null
+    if (target) searchQuery.value = ''
+    activeSection.value = target?.section ?? null
+    nextTick(() => {
+      activate()
+      if (target?.section === 'plugins') {
+        const card = target.card ?? 0
+        pluginsRef.value?.goToCard(card)
+        // rail 在 activeSection 变化后的下一个 tick 重建（默认置 0），目标高亮需在其后落位
+        nextTick(() => { activeRail.value = card })
+      }
+    })
   } else {
     deactivate()
   }

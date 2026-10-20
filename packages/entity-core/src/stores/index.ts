@@ -16,7 +16,7 @@ export type {
   FontPreferences,
 } from './fontStore'
 export { useUIStore, SPROUT_NAV_MODES, normalizeSproutNavMode, normalizeSproutDomainFilter, normalizeSplitSidebarOrder } from './uiStore'
-export type { SproutNavMode, SproutDomainFilter, SplitSidebarOrder } from './uiStore'
+export type { SproutNavMode, SproutDomainFilter, SplitSidebarOrder, SettingsTarget } from './uiStore'
 export { useSettingsStore, SPROUT_CATEGORIES, ANIMATION_GROUPS } from './settingsStore'
 export type {
   SproutToggle,
