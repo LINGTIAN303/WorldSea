@@ -8,11 +8,20 @@ const STORAGE_KEY = 'worldsea_sidebar_order'
 const LAST_VIEW_KEY = 'worldsea_last_view'
 const SPROUT_NAV_MODE_KEY = 'worldsea_sprout_nav_mode'
 const SPROUT_DOMAIN_FILTER_KEY = 'worldsea_sprout_domain_filter'
+const SPROUT_WHEEL_KEY = 'worldsea_sprout_wheel_enabled'
+const SPROUT_COUNT_KEY = 'worldsea_sprout_count_enabled'
+const SPLIT_ORDER_KEY = 'worldsea_split_sidebar_order'
+const SPLIT_SYNC_COLLAPSE_KEY = 'worldsea_split_sync_collapse'
 
 export type SproutNavMode = 'flat' | 'popover' | 'rail' | 'tabs' | 'dual' | 'split'
 export type SproutDomainFilter = 'all' | SproutDomainId
+export type SplitSidebarOrder = 'domain-left' | 'sprout-left'
 
 export const SPROUT_NAV_MODES: readonly SproutNavMode[] = ['flat', 'popover', 'rail', 'tabs', 'dual', 'split']
+
+export function normalizeSplitSidebarOrder(value: unknown): SplitSidebarOrder {
+  return value === 'sprout-left' ? 'sprout-left' : 'domain-left'
+}
 
 export function normalizeSproutNavMode(value: unknown): SproutNavMode {
   return typeof value === 'string' && (SPROUT_NAV_MODES as readonly string[]).includes(value)
@@ -78,6 +87,35 @@ function saveSproutDomainFilter(filter: SproutDomainFilter) {
   } catch { /* quota exceeded, 静默 */ }
 }
 
+function loadBool(key: string, fallback: boolean): boolean {
+  try {
+    const raw = localStorage.getItem(key)
+    return raw === null ? fallback : raw !== 'false'
+  } catch {
+    return fallback
+  }
+}
+
+function saveBool(key: string, value: boolean) {
+  try {
+    localStorage.setItem(key, String(value))
+  } catch { /* quota exceeded, 静默 */ }
+}
+
+function loadSplitSidebarOrder(): SplitSidebarOrder {
+  try {
+    return normalizeSplitSidebarOrder(localStorage.getItem(SPLIT_ORDER_KEY))
+  } catch {
+    return 'domain-left'
+  }
+}
+
+function saveSplitSidebarOrder(order: SplitSidebarOrder) {
+  try {
+    localStorage.setItem(SPLIT_ORDER_KEY, order)
+  } catch { /* quota exceeded, 静默 */ }
+}
+
 export const useUIStore = defineStore('ui', () => {
   const currentView = ref<string | null>(null)
   /**
@@ -102,6 +140,21 @@ export const useUIStore = defineStore('ui', () => {
   watch(sproutNavMode, mode => saveSproutNavMode(mode))
   watch(sproutDomainFilter, filter => saveSproutDomainFilter(normalizeSproutDomainFilter(filter)))
 
+  /* ── 芽导航偏好（R3-c）：轮盘、实体徽章、左右侧栏顺序与收起 ── */
+  const sproutWheelEnabled = ref(loadBool(SPROUT_WHEEL_KEY, true))
+  const sproutCountEnabled = ref(loadBool(SPROUT_COUNT_KEY, true))
+  const splitSidebarOrder = ref<SplitSidebarOrder>(loadSplitSidebarOrder())
+  const splitSyncCollapse = ref(loadBool(SPLIT_SYNC_COLLAPSE_KEY, false))
+  /** 左右侧栏的域栏收起态；与芽栏的 sidebarCollapsed 独立，同步开关开启时联动 */
+  const domainSidebarCollapsed = ref(false)
+  watch(sproutWheelEnabled, value => saveBool(SPROUT_WHEEL_KEY, value))
+  watch(sproutCountEnabled, value => saveBool(SPROUT_COUNT_KEY, value))
+  watch(splitSidebarOrder, order => saveSplitSidebarOrder(order))
+  watch(splitSyncCollapse, value => saveBool(SPLIT_SYNC_COLLAPSE_KEY, value))
+  watch([splitSyncCollapse, sproutNavMode], ([sync, mode]) => {
+    if (sync && mode === 'split') domainSidebarCollapsed.value = sidebarCollapsed.value
+  })
+
   function setView(viewId: string) {
     currentView.value = viewId
     selectedEntityId.value = null
@@ -118,6 +171,17 @@ export const useUIStore = defineStore('ui', () => {
 
   function toggleSidebar() {
     sidebarCollapsed.value = !sidebarCollapsed.value
+    if (sproutNavMode.value === 'split' && splitSyncCollapse.value) {
+      domainSidebarCollapsed.value = sidebarCollapsed.value
+    }
+  }
+
+  /** 左右侧栏的域栏收起/展开；同步开关开启时带动芽栏。 */
+  function toggleDomainSidebar() {
+    domainSidebarCollapsed.value = !domainSidebarCollapsed.value
+    if (sproutNavMode.value === 'split' && splitSyncCollapse.value) {
+      sidebarCollapsed.value = domainSidebarCollapsed.value
+    }
   }
 
   function toggleMenu() {
@@ -187,9 +251,15 @@ export const useUIStore = defineStore('ui', () => {
     sidebarOrder,
     sproutNavMode,
     sproutDomainFilter,
+    sproutWheelEnabled,
+    sproutCountEnabled,
+    splitSidebarOrder,
+    splitSyncCollapse,
+    domainSidebarCollapsed,
     setView,
     selectEntity,
     toggleSidebar,
+    toggleDomainSidebar,
     toggleMenu,
     ensureViewInOrder,
     moveSidebarItemById,

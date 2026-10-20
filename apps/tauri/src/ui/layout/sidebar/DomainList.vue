@@ -8,6 +8,7 @@
       :title="domain.label"
       :aria-label="domain.label"
       :aria-pressed="domain.id === active"
+      :aria-current="domain.id === active ? 'page' : undefined"
       @click="emit('select', domain.id, $event)"
     >
       <WsIcon :name="domain.icon" size="sm" class="ws-sn-domain-icon" />

@@ -9,7 +9,8 @@
       v-if="uiStore.sidebarCollapsed"
       class="ws-sn-toggle"
       aria-label="展开侧边栏"
-      title="展开侧边栏（Ctrl+B）"
+      title="展开侧边栏"
+      data-ws-tip-keys="Ctrl+B"
       @click="uiStore.toggleSidebar()"
     >
       <WsIcon name="menu" size="md" />
@@ -19,15 +20,23 @@
         <button
           class="ws-sn-collapse"
           aria-label="收起侧边栏"
-          title="收起侧边栏（Ctrl+B）"
+          title="收起侧边栏"
+          data-ws-tip-keys="Ctrl+B"
+          @pointerdown.stop
           @click="uiStore.toggleSidebar()"
         >
           <WsIcon :name="sidebarRight ? 'chevron-right' : 'chevron-left'" size="sm" />
         </button>
       </div>
       <div class="ws-sn-body">
+        <SproutList
+          v-if="mode === 'flat'"
+          :views="views"
+          :active-id="activeId"
+          @select="selectView"
+        />
         <DomainRail
-          v-if="mode === 'rail'"
+          v-else-if="mode === 'rail'"
           :domains="nav.domains"
           :filter="uiStore.sproutDomainFilter"
           :views="nav.views"
@@ -80,20 +89,26 @@ import { useUIStore, type SproutDomainFilter } from '@/stores/uiStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { availablePlugins } from '@/world'
 import AppMenu from '@/ui/layout/AppMenu.vue'
-import { visibleViewsInSidebarOrder } from './viewOrder'
+import { allVisibleViewsInSidebarOrder, visibleViewsInSidebarOrder } from './viewOrder'
 import { buildDomainMap, buildSproutNavigation, filterForView, makeDomainOfPlugin } from './sproutNavigation'
 import DomainDual from './DomainDual.vue'
 import DomainPopover from './DomainPopover.vue'
 import DomainRail from './DomainRail.vue'
 import DomainTabs from './DomainTabs.vue'
+import SproutList from './SproutList.vue'
 import './sidebar-nav.css'
 
-defineProps<{ mode: 'popover' | 'rail' | 'tabs' | 'dual' }>()
+const props = defineProps<{ mode: 'flat' | 'popover' | 'rail' | 'tabs' | 'dual'; forceSide?: 'left' | 'right' }>()
 
 const uiStore = useUIStore()
 const settingsStore = useSettingsStore()
 
-const views = computed(() => visibleViewsInSidebarOrder())
+/** flat 静态回退：平铺看全量；左右侧栏仍按独立域栏的过滤结果。 */
+const views = computed(() => (
+  props.mode === 'flat' && uiStore.sproutNavMode === 'flat'
+    ? allVisibleViewsInSidebarOrder()
+    : visibleViewsInSidebarOrder()
+))
 // availablePlugins() 非响应式；views 随树装载/卸载变化，借它触发域映射重读
 const domainMap = computed(() => {
   void views.value
@@ -102,7 +117,7 @@ const domainMap = computed(() => {
 const domainOf = computed(() => makeDomainOfPlugin(domainMap.value))
 const nav = computed(() => buildSproutNavigation(views.value, domainOf.value, uiStore.sproutDomainFilter))
 const activeId = computed(() => uiStore.currentView)
-const sidebarRight = computed(() => settingsStore.sidebarPosition === 'right')
+const sidebarRight = computed(() => (props.forceSide ?? settingsStore.sidebarPosition) === 'right')
 
 function selectDomain(id: SproutDomainFilter) {
   uiStore.sproutDomainFilter = id
@@ -112,6 +127,19 @@ function selectView(view: PluginView) {
   uiStore.setView(view.id)
   uiStore.viewComponent = view.component
 }
+
+/** 静态回退没有 SidebarV2 的落点 watcher：冷启动或 split 换域后补一次首芽兜底。 */
+watch(
+  () => [views.value.map(view => view.id).join('|'), uiStore.currentView, uiStore.sproutNavMode] as const,
+  () => {
+    if (views.value.length === 0) return
+    if (uiStore.currentView && views.value.some(view => view.id === uiStore.currentView)) return
+    const first = views.value[0]
+    uiStore.setView(first.id)
+    uiStore.viewComponent = first.component
+  },
+  { immediate: true, flush: 'post' },
+)
 
 // 快捷键/跳转把主视图切到别的域时，域过滤跟随；「全部」保持不变。
 watch(() => uiStore.currentView, id => {

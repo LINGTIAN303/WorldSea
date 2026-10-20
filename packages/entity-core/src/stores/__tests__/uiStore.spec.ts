@@ -4,8 +4,9 @@
  * `setView('')` 是「视图列表未就绪」瞬态（SidebarV2 空列表分支），不得清记忆——否则启动竞态会把记忆洗成空。
  */
 import { beforeEach, describe, expect, it } from 'vitest'
+import { nextTick } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
-import { readLastViewId, useUIStore } from '../uiStore'
+import { normalizeSplitSidebarOrder, readLastViewId, useUIStore } from '../uiStore'
 
 beforeEach(() => {
   setActivePinia(createPinia())
@@ -28,5 +29,48 @@ describe('uiStore / 上次视图记忆', () => {
 
   it('无记录时 readLastViewId 为 null', () => {
     expect(readLastViewId()).toBeNull()
+  })
+})
+
+describe('uiStore / R3-c 侧栏偏好', () => {
+  it('默认：域左芽右、独立收起、轮盘与徽章开启', () => {
+    const ui = useUIStore()
+    expect(ui.splitSidebarOrder).toBe('domain-left')
+    expect(ui.splitSyncCollapse).toBe(false)
+    expect(ui.sproutWheelEnabled).toBe(true)
+    expect(ui.sproutCountEnabled).toBe(true)
+    expect(normalizeSplitSidebarOrder('unknown')).toBe('domain-left')
+    expect(normalizeSplitSidebarOrder('sprout-left')).toBe('sprout-left')
+  })
+
+  it('split + 同步收起开启时，任一侧切换都带动另一侧', () => {
+    const ui = useUIStore()
+    ui.sproutNavMode = 'split'
+    ui.splitSyncCollapse = true
+    ui.toggleSidebar()
+    expect(ui.sidebarCollapsed).toBe(true)
+    expect(ui.domainSidebarCollapsed).toBe(true)
+    ui.toggleDomainSidebar()
+    expect(ui.domainSidebarCollapsed).toBe(false)
+    expect(ui.sidebarCollapsed).toBe(false)
+  })
+
+  it('同步关闭时两侧独立', () => {
+    const ui = useUIStore()
+    ui.sproutNavMode = 'split'
+    ui.toggleDomainSidebar()
+    expect(ui.domainSidebarCollapsed).toBe(true)
+    expect(ui.sidebarCollapsed).toBe(false)
+  })
+
+  it('轮盘/徽章开关落盘并读回', async () => {
+    const ui = useUIStore()
+    ui.sproutWheelEnabled = false
+    ui.sproutCountEnabled = false
+    await nextTick()
+    setActivePinia(createPinia())
+    const next = useUIStore()
+    expect(next.sproutWheelEnabled).toBe(false)
+    expect(next.sproutCountEnabled).toBe(false)
   })
 })

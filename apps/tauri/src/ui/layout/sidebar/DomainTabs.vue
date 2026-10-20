@@ -20,11 +20,24 @@
         芽
       </button>
     </div>
-    <DomainList
-      v-if="tab === 'domains'"
+    <WheelDomainList
+      v-if="tab === 'domains' && uiStore.sproutWheelEnabled"
       :domains="domains"
       :active="filter"
       @select="onSelectDomain"
+      @settle="onSettleDomain"
+    />
+    <DomainList
+      v-else-if="tab === 'domains'"
+      :domains="domains"
+      :active="filter"
+      @select="onSelectDomain"
+    />
+    <WheelSproutList
+      v-else-if="uiStore.sproutWheelEnabled"
+      :views="views"
+      :active-id="activeId"
+      @select="(view) => emit('select-view', view)"
     />
     <SproutList
       v-else
@@ -37,11 +50,16 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useUIStore } from '@worldsea/entity-core'
 import type { PluginView } from '@worldsea/entity-core/types'
 import type { SproutDomainFilter } from '@/stores/uiStore'
 import DomainList from './DomainList.vue'
 import SproutList from './SproutList.vue'
+import WheelDomainList from './WheelDomainList.vue'
+import WheelSproutList from './WheelSproutList.vue'
 import type { SproutDomainGroup } from './sproutNavigation'
+
+const uiStore = useUIStore()
 
 defineProps<{
   domains: SproutDomainGroup[]
@@ -60,5 +78,10 @@ const tab = ref<'domains' | 'sprouts'>('domains')
 function onSelectDomain(id: SproutDomainGroup['id']) {
   emit('select-domain', id)
   tab.value = 'sprouts'
+}
+
+/** 域轮盘落定只切域、不切 Tab；否则滚轮一动就离开域列表，无法继续浏览。 */
+function onSettleDomain(id: SproutDomainGroup['id']) {
+  emit('select-domain', id)
 }
 </script>

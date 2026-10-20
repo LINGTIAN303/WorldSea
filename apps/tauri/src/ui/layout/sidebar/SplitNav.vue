@@ -1,9 +1,11 @@
 <template>
-  <SidebarV2 />
+  <SidebarV2 v-if="uiStore.sproutWheelEnabled" :force-side="sproutSide" />
+  <SproutNav v-else mode="flat" :force-side="sproutSide" />
   <DomainSidebar
     :side="domainSide"
     :domains="nav.domains"
     :filter="uiStore.sproutDomainFilter"
+    :wheel="uiStore.sproutWheelEnabled"
     @select="selectDomain"
   />
 </template>
@@ -11,15 +13,14 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
 import { useUIStore, type SproutDomainFilter } from '@/stores/uiStore'
-import { useSettingsStore } from '@/stores/settingsStore'
 import { availablePlugins } from '@/world'
 import SidebarV2 from './SidebarV2.vue'
 import DomainSidebar from './DomainSidebar.vue'
+import SproutNav from './SproutNav.vue'
 import { allVisibleViewsInSidebarOrder } from './viewOrder'
 import { buildDomainMap, buildSproutNavigation, filterForView, makeDomainOfPlugin } from './sproutNavigation'
 
 const uiStore = useUIStore()
-const settingsStore = useSettingsStore()
 
 const views = computed(() => allVisibleViewsInSidebarOrder())
 // availablePlugins() 非响应式；views 随树装载/卸载变化，借它触发域映射重读
@@ -29,7 +30,9 @@ const domainMap = computed(() => {
 })
 const domainOf = computed(() => makeDomainOfPlugin(domainMap.value))
 const nav = computed(() => buildSproutNavigation(views.value, domainOf.value, uiStore.sproutDomainFilter))
-const domainSide = computed(() => (settingsStore.sidebarPosition === 'right' ? 'left' : 'right'))
+/** 左右侧栏默认域左芽右；顺序设置只在 split 生效，不再借用「芽侧边栏位置」。 */
+const sproutSide = computed(() => (uiStore.splitSidebarOrder === 'sprout-left' ? 'left' : 'right'))
+const domainSide = computed(() => (sproutSide.value === 'left' ? 'right' : 'left'))
 
 function selectDomain(id: SproutDomainFilter) {
   uiStore.sproutDomainFilter = id

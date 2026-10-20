@@ -5,7 +5,7 @@
       collapsed: uiStore.sidebarCollapsed,
       dragging: interaction.isDragging.value,
       'sidebar-drag-mode': isCustomView,
-      'sidebar-right': settingsStore.sidebarPosition === 'right',
+      'sidebar-right': effectiveSide === 'right',
     }"
     role="navigation"
     aria-label="视图导航"
@@ -35,7 +35,7 @@
           @pointerdown.stop
           @click="uiStore.toggleSidebar()"
         >
-          <WsIcon :name="settingsStore.sidebarPosition === 'right' ? 'chevron-right' : 'chevron-left'" size="sm" />
+          <WsIcon :name="effectiveSide === 'right' ? 'chevron-right' : 'chevron-left'" size="sm" />
         </button>
       </div>
       <div class="sidebar-carousel" ref="carouselRef">
@@ -56,7 +56,7 @@
           <WsIcon v-if="hasIcon(item.view.icon)" :name="item.view.icon" size="md" class="sidebar-icon" />
           <span v-else class="sidebar-icon">{{ item.view.icon }}</span>
           <span v-if="!uiStore.sidebarCollapsed" class="sidebar-label">{{ item.view.label }}</span>
-          <CountBadge v-if="!uiStore.sidebarCollapsed && item.count > 0" :value="item.count" />
+          <CountBadge v-if="!uiStore.sidebarCollapsed && uiStore.sproutCountEnabled && item.count > 0" :value="item.count" />
         </div>
       </div>
     </div>
@@ -71,82 +71,33 @@
 import { computed, ref, watch, nextTick, onBeforeUnmount } from 'vue'
 import { useUIStore } from '@/stores/uiStore'
 import { useSettingsStore } from '@/stores/settingsStore'
-import { useEntityStore, entitySchemaRegistry } from '@worldsea/entity-core'
+import { useEntityStore } from '@worldsea/entity-core'
 import type { PluginView } from '@worldsea/entity-core/types'
 import { WsIcon } from '@worldsea/ui-kit'
 import { hasIcon } from '@/assets/iconRegistry'
 import CountBadge from './CountBadge.vue'
+import { countEntitiesByPlugin } from './sproutEntityCounts'
 import { visibleViewsInSidebarOrder } from './viewOrder'
 import { useSidebarPhysics } from './useSidebarPhysics'
 import { useSidebarInteraction } from './useSidebarInteraction'
 import { useSidebarDragHandler } from './useSidebarDragHandler'
 import AppMenu from '@/ui/layout/AppMenu.vue'
 
+const props = defineProps<{ forceSide?: 'left' | 'right' }>()
 const uiStore = useUIStore()
 const settingsStore = useSettingsStore()
 const entityStore = useEntityStore()
 
+/** 左右侧栏形态由双栏顺序强制芽栏侧；其余形态继续用「芽侧边栏位置」。 */
+const effectiveSide = computed(() => props.forceSide ?? settingsStore.sidebarPosition)
 const carouselRef = ref<HTMLElement | null>(null)
 
 const isCustomView = computed(() => uiStore.currentView === 'custom')
 
 /* ── 视图列表 + 实体计数(从原 Sidebar.vue 提取,保持行为一致) ── */
 
-const FALLBACK_TYPE_MAP: Record<string, string[]> = {
-  'official.characters': ['character'],
-  'official.regions': ['region'],
-  'official.timeline': ['event'],
-  'official.organizations': ['organization'],
-  'official.concepts': ['concept'],
-  'official.items': ['item'],
-  'official.buildings': ['building'],
-  'official.species': ['species'],
-  'official.magic': ['magic'],
-  'official.outline': ['outline_node'],
-  'official.languages': ['language'],
-  'official.culture': ['culture'],
-  'official.conflict': ['conflict'],
-  'official.inspiration': ['inspiration'],
-  'official.plants': ['plant'],
-  'official.combat_stats': ['combat_stat'],
-  'official.weapons': ['weapon'],
-  'official.apparel': ['apparel'],
-  'official.tactical-board': ['tactical-board'],
-  'official.notebook': ['notebook'],
-  'official.manuscript': ['manuscript'],
-  'official.orchestration': ['pipeline'],
-}
-
-const pluginEntityTypes = computed(() => {
-  const map = new Map<string, string[]>()
-  for (const schema of entitySchemaRegistry.getAll()) {
-    if (schema.pluginId) {
-      const list = map.get(schema.pluginId) || []
-      list.push(schema.typeKey)
-      map.set(schema.pluginId, list)
-    }
-  }
-  for (const [pid, types] of Object.entries(FALLBACK_TYPE_MAP)) {
-    if (!map.has(pid)) {
-      map.set(pid, types)
-    }
-  }
-  return map
-})
-
 /** 缓存每个芽的实体数量,仅在实体增删时更新,避免动画帧中重复计算 */
-const pluginEntityCounts = computed(() => {
-  const counts = new Map<string, number>()
-  const typesMap = pluginEntityTypes.value
-  for (const [pluginId, types] of typesMap) {
-    let total = 0
-    for (const t of types) {
-      total += entityStore.allTypeCounts.get(t) || 0
-    }
-    counts.set(pluginId, total)
-  }
-  return counts
-})
+const pluginEntityCounts = computed(() => countEntitiesByPlugin(entityStore.allTypeCounts))
 
 const sortedViews = computed(() => visibleViewsInSidebarOrder())
 

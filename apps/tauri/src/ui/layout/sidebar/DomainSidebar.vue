@@ -1,16 +1,17 @@
 <template>
   <div
     class="ws-split-sidebar"
-    :class="[side === 'right' ? 'is-right' : 'is-left', { collapsed: uiStore.sidebarCollapsed }]"
+    :class="[side === 'right' ? 'is-right' : 'is-left', { collapsed: uiStore.domainSidebarCollapsed }]"
     role="navigation"
     aria-label="语义域导航"
   >
     <button
-      v-if="uiStore.sidebarCollapsed"
+      v-if="uiStore.domainSidebarCollapsed"
       class="ws-split-toggle"
-      aria-label="展开侧边栏"
-      title="展开侧边栏（Ctrl+B）"
-      @click="uiStore.toggleSidebar()"
+      aria-label="展开语义域侧栏"
+      title="展开侧边栏"
+      data-ws-tip-keys="Ctrl+B"
+      @click="uiStore.toggleDomainSidebar()"
     >
       <WsIcon name="menu" size="md" />
     </button>
@@ -18,9 +19,11 @@
       <div class="ws-split-header">
         <button
           class="ws-split-collapse"
-          aria-label="收起侧边栏"
-          title="收起侧边栏（Ctrl+B）"
-          @click="uiStore.toggleSidebar()"
+          aria-label="收起语义域侧栏"
+          title="收起侧边栏"
+          data-ws-tip-keys="Ctrl+B"
+          @pointerdown.stop
+          @click="uiStore.toggleDomainSidebar()"
         >
           <WsIcon :name="side === 'right' ? 'chevron-right' : 'chevron-left'" size="sm" />
         </button>
@@ -28,18 +31,21 @@
       <div
         ref="carouselRef"
         class="ws-split-carousel"
+        :class="{ 'is-static': !wheel }"
         @wheel.prevent="onWheel"
         @pointerdown="onPointerDown"
       >
         <button
-          v-for="item in carouselItems"
+          v-for="item in displayItems"
           :key="item.realIndex"
           class="sidebar-btn ws-split-domain"
           :class="{ active: item.domain.id === filter }"
-          :data-offset="item.offset"
+          :data-offset="wheel ? item.offset : undefined"
           :title="item.domain.label"
           :aria-label="item.domain.label"
           :aria-pressed="item.domain.id === filter"
+          :aria-current="item.domain.id === filter ? 'page' : undefined"
+          @click="onDomainClick(item.domain.id)"
         >
           <WsIcon :name="item.domain.icon" size="md" class="ws-split-icon" />
           <span class="ws-split-label">{{ item.domain.label }}</span>
@@ -63,11 +69,12 @@ import { useSidebarInteraction } from './useSidebarInteraction'
 import { useSidebarPhysics } from './useSidebarPhysics'
 import type { SproutDomainGroup } from './sproutNavigation'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   side: 'left' | 'right'
   domains: SproutDomainGroup[]
   filter: SproutDomainFilter
-}>()
+  wheel?: boolean
+}>(), { wheel: true })
 
 const emit = defineEmits<{ select: [id: SproutDomainGroup['id']] }>()
 
@@ -100,13 +107,18 @@ const interaction = useSidebarInteraction({
 })
 
 function onPointerDown(e: PointerEvent) {
+  if (!props.wheel) return
   interaction.onPointerDown(e, physics.pos.value)
 }
 
 function onWheel(e: WheelEvent) {
-  if (props.domains.length === 0) return
+  if (!props.wheel || props.domains.length === 0) return
   const delta = Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX
   physics.applyImpulse(delta > 0 ? 1 : -1)
+}
+
+function onDomainClick(id: SproutDomainGroup['id']) {
+  if (!props.wheel) emit('select', id)
 }
 
 interface CarouselItem {
@@ -132,9 +144,16 @@ const carouselItems = computed<CarouselItem[]>(() => {
   return items
 })
 
+/** 轮盘关闭时按原顺序显示全部域，保留同一套按钮样式与选择行为。 */
+const displayItems = computed<CarouselItem[]>(() => (
+  props.wheel
+    ? carouselItems.value
+    : props.domains.map((domain, realIndex) => ({ domain, offset: 0, realIndex }))
+))
+
 function syncDomStyles() {
   const container = carouselRef.value
-  if (!container) return
+  if (!props.wheel || !container) return
   const buttons = container.querySelectorAll<HTMLElement>('.ws-split-domain')
   if (buttons.length === 0) return
   const center = Math.round(physics.pos.value)
@@ -163,6 +182,7 @@ function triggerPulse() {
 }
 
 function syncToCurrent() {
+  if (!props.wheel) return
   const n = props.domains.length
   if (n === 0) return
   const idx = props.domains.findIndex(domain => domain.id === props.filter)
@@ -177,7 +197,7 @@ watch(() => [props.filter, props.domains.map(domain => domain.id).join('|')], sy
   flush: 'post',
 })
 
-watch(() => uiStore.sidebarCollapsed, collapsed => {
+watch(() => uiStore.domainSidebarCollapsed, collapsed => {
   if (collapsed) physics.stopPhysics()
 })
 

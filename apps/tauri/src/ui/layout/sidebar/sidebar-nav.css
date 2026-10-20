@@ -57,7 +57,7 @@
   border-bottom: 1px solid var(--region-border, var(--border));
 }
 .ws-sn-collapse {
-  width: 28px;
+  width: 100%;
   height: 28px;
   display: inline-flex;
   align-items: center;
@@ -220,6 +220,58 @@
   opacity: 0.8;
 }
 
+/* 级联菜单的域触发区：让域轮盘填满侧栏主体，选中项才能落在垂直中线 */
+.ws-sn-popover-trigger {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 通用轮盘（R3-c）：绝对定位，选中项固定在列表垂直中线。
+   芽列表与域列表共用同一套物理滚轮/拖拽/缩放语义。 */
+.ws-wheel-list,
+.ws-wheel-domain-list {
+  position: relative;
+  flex: 1;
+  min-height: 160px;
+  overflow: hidden;
+}
+.ws-wheel-list .ws-wheel-view,
+.ws-wheel-domain-list .ws-wheel-domain {
+  position: absolute;
+  top: 50%;
+  left: 6px;
+  right: 6px;
+  width: auto;
+  height: 32px;
+  box-sizing: border-box;
+  padding: 0 8px;
+  gap: 8px;
+  cursor: grab;
+  will-change: transform, opacity;
+}
+.ws-wheel-list .ws-wheel-view:active,
+.ws-wheel-domain-list .ws-wheel-domain:active {
+  cursor: grabbing;
+}
+@keyframes ws-wheel-pulse {
+  0% { transform: translateY(-50%) scale(1); }
+  50% { transform: translateY(-50%) scale(1.15); }
+  100% { transform: translateY(-50%) scale(1); }
+}
+.ws-wheel-list .ws-wheel-view.pulse {
+  animation: ws-wheel-pulse 0.3s ease;
+}
+.ws-wheel-list > .ws-sn-empty,
+.ws-wheel-domain-list > .ws-sn-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
 /* 窄条 + 芽列表（形态 3） */
 .ws-sn-rail-layout {
   flex: 1;
@@ -228,7 +280,8 @@
   flex-direction: row;
   overflow: hidden;
 }
-.ws-sn-rail-layout > .ws-sn-view-list {
+.ws-sn-rail-layout > .ws-sn-view-list,
+.ws-sn-rail-layout > .ws-wheel-list {
   min-width: 0;
 }
 
@@ -266,7 +319,9 @@
   border-bottom-color: var(--primary);
 }
 .ws-sn-tabs-layout > .ws-sn-domain-list,
-.ws-sn-tabs-layout > .ws-sn-view-list {
+.ws-sn-tabs-layout > .ws-sn-view-list,
+.ws-sn-tabs-layout > .ws-wheel-list,
+.ws-sn-tabs-layout > .ws-wheel-domain-list {
   flex: 1;
   min-height: 0;
 }
@@ -279,7 +334,7 @@
   overflow: hidden;
 }
 .ws-sn-dual-domains {
-  width: 140px;
+  width: 124px;
   flex-shrink: 0;
   min-height: 0;
   display: flex;
@@ -306,11 +361,19 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.ws-sn-dual-domains .ws-sn-domain-list {
+.ws-sn-dual-domains .ws-sn-domain-list,
+.ws-sn-dual-domains .ws-wheel-domain-list {
   flex: 1;
   min-height: 0;
+  padding: 4px;
 }
-.ws-sn-dual-sprouts .ws-sn-view-list {
+/* 300px 总宽下域列 124px：压缩内边距/间距，保证 5–6 字域名与计数不截断 */
+.ws-sn-dual-domains .ws-sn-domain {
+  gap: 6px;
+  padding: 6px;
+}
+.ws-sn-dual-sprouts .ws-sn-view-list,
+.ws-sn-dual-sprouts .ws-wheel-list {
   flex: 1;
   min-height: 0;
 }
@@ -321,11 +384,34 @@
   z-index: 1000;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
   background: var(--region-bg, var(--bg-surface));
   border: 1px solid var(--region-border, var(--border));
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg, 0 12px 32px rgb(0 0 0 / 18%));
+}
+/* 指向选中域行的小三角：与浮层同底同边框，箭头中心由 --ws-sn-arrow-top 控制 */
+.ws-sn-popover::before {
+  content: '';
+  position: absolute;
+  top: var(--ws-sn-arrow-top, 20px);
+  left: -7px;
+  width: 12px;
+  height: 12px;
+  background: var(--region-bg, var(--bg-surface));
+  border-left: 1px solid var(--region-border, var(--border));
+  border-bottom: 1px solid var(--region-border, var(--border));
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+.ws-sn-popover.is-sidebar-right::before {
+  left: auto;
+  right: -7px;
+  border-left: none;
+  border-bottom: none;
+  border-top: 1px solid var(--region-border, var(--border));
+  border-right: 1px solid var(--region-border, var(--border));
+  transform: rotate(-45deg);
 }
 .ws-sn-popover-head {
   flex-shrink: 0;
@@ -422,7 +508,7 @@
   border-bottom: 1px solid var(--region-border, var(--border));
 }
 .ws-split-collapse {
-  width: 28px;
+  width: 100%;
   height: 28px;
   display: inline-flex;
   align-items: center;
@@ -449,6 +535,14 @@
   padding: 4px 6px;
   overflow: hidden;
   position: relative;
+}
+.ws-split-carousel.is-static {
+  justify-content: flex-start;
+  overflow-y: auto;
+  min-height: 0;
+}
+.ws-split-carousel.is-static .ws-split-domain {
+  cursor: pointer;
 }
 .ws-split-domain {
   display: flex;

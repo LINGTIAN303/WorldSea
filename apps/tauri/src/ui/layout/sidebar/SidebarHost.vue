@@ -1,5 +1,6 @@
 <template>
-  <SidebarV2 v-if="uiStore.sproutNavMode === 'flat'" />
+  <SidebarV2 v-if="uiStore.sproutNavMode === 'flat' && uiStore.sproutWheelEnabled" />
+  <SproutNav v-else-if="uiStore.sproutNavMode === 'flat'" mode="flat" />
   <SplitNav v-else-if="uiStore.sproutNavMode === 'split'" />
   <SproutNav v-else :mode="domainMode" />
 </template>

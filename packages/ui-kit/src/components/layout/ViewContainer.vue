@@ -1,7 +1,7 @@
 <template>
   <div
     class="view-container"
-    :class="{ 'sidebar-collapsed': uiStore.sidebarCollapsed, 'sidebar-right': settingsStore.sidebarPosition === 'right', 'split-nav': uiStore.sproutNavMode === 'split' }"
+    :class="{ 'sidebar-collapsed': uiStore.sidebarCollapsed, 'sidebar-right': sidebarRight, 'split-nav': uiStore.sproutNavMode === 'split', 'split-domain-left': uiStore.sproutNavMode === 'split' && uiStore.splitSidebarOrder === 'domain-left', 'split-domain-right': uiStore.sproutNavMode === 'split' && uiStore.splitSidebarOrder === 'sprout-left', 'split-domain-collapsed': uiStore.sproutNavMode === 'split' && uiStore.domainSidebarCollapsed }"
     @contextmenu.prevent="onViewContext"
   >
     <!-- 视图工具条（随流首子元素，2026-08-10）：占位 44px 不悬浮；两壳 v-show 常驻
@@ -39,6 +39,13 @@ import ViewToolbar from './ViewToolbar.vue'
 const uiStore = useUIStore()
 const settingsStore = useSettingsStore()
 const pluginStore = usePluginStore()
+
+/** split 的芽栏侧由双栏顺序决定；其余形态仍用「芽侧边栏位置」。 */
+const sidebarRight = computed(() => (
+  uiStore.sproutNavMode === 'split'
+    ? uiStore.splitSidebarOrder === 'domain-left'
+    : settingsStore.sidebarPosition === 'right'
+))
 provide('moduleViewId', toRef(uiStore, 'currentView'))
 
 const hasView = computed(() => !!uiStore.currentView)
@@ -122,21 +129,22 @@ onBeforeUnmount(() => {
 .view-container.sidebar-right.sidebar-collapsed {
   margin-right: calc(var(--layout-sidebar-collapsed-width) + var(--region-gap, 8px));
 }
-/* R3-b2 双栏分离式：芽侧栏与域侧栏分居两侧，主区同时左右让位 */
+/* R3-c 左右侧栏：芽栏与域栏分居两侧，各自独立收起；主区按每侧实际状态让位。
+   sidebar-collapsed = 芽栏收起；split-domain-collapsed = 域栏收起。 */
 .view-container.split-nav {
   margin-left: calc(var(--layout-sidebar-width) + var(--region-gap, 8px));
   margin-right: calc(var(--layout-sidebar-width) + var(--region-gap, 8px));
 }
-.view-container.split-nav.sidebar-collapsed {
-  margin-left: calc(var(--layout-sidebar-collapsed-width) + var(--region-gap, 8px));
+.view-container.split-nav.split-domain-left.sidebar-collapsed {
   margin-right: calc(var(--layout-sidebar-collapsed-width) + var(--region-gap, 8px));
 }
-.view-container.split-nav.sidebar-right {
-  margin-left: calc(var(--layout-sidebar-width) + var(--region-gap, 8px));
-  margin-right: calc(var(--layout-sidebar-width) + var(--region-gap, 8px));
-}
-.view-container.split-nav.sidebar-right.sidebar-collapsed {
+.view-container.split-nav.split-domain-left.split-domain-collapsed {
   margin-left: calc(var(--layout-sidebar-collapsed-width) + var(--region-gap, 8px));
+}
+.view-container.split-nav.split-domain-right.sidebar-collapsed {
+  margin-left: calc(var(--layout-sidebar-collapsed-width) + var(--region-gap, 8px));
+}
+.view-container.split-nav.split-domain-right.split-domain-collapsed {
   margin-right: calc(var(--layout-sidebar-collapsed-width) + var(--region-gap, 8px));
 }
 /* ── 视图画布（独立圆角块，随流位于工具条下方，间隙由 view-container gap 提供） ── */

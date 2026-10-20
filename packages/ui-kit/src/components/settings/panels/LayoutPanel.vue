@@ -2,7 +2,7 @@
   <CardDeck :count="4" :flat="!!searchQuery" @change="(i) => emit('card-change', i)" ref="deckRef">
     <template #card="{ idx, cls }">
       <div class="set-card deck-card" :class="cls" :data-index="idx"
-        v-show="idx === 0 ? match('思维导图 mindmap 中心 节点') : idx === 1 ? match('面板 panel 布局 宽度 侧边栏 位置 左右 sidebar 芽 导航 语义域 弹出 图标 tab 域 实体 详情 panel detail position 手机预览 phone preview') : idx === 2 ? match('字段 field 预设 布局 重置') : match('时间线 timeline 拖拽 泳道 甘特图 紧凑 分组')">
+        v-show="idx === 0 ? match('思维导图 mindmap 中心 节点') : idx === 1 ? match('面板 panel 布局 宽度 侧边栏 位置 左右 sidebar 芽 导航 语义域 默认 级联 条式 标签 双栏 左右侧栏 轮盘 徽章 同步 顺序 弹出 图标 tab 域 实体 详情 panel detail position 手机预览 phone preview') : idx === 2 ? match('字段 field 预设 布局 重置') : match('时间线 timeline 拖拽 泳道 甘特图 紧凑 分组')">
         <!-- 思维导图 -->
         <template v-if="idx === 0">
           <div class="sc-head">思维导图</div>
@@ -12,7 +12,17 @@
         <template v-else-if="idx === 1">
           <div class="sc-head">面板布局</div>
           <div class="set-row"><span>启用自定义视窗数量上限</span><label class="set-toggle"><input type="checkbox" :checked="store.panelLimitEnabled" @change="store.panelLimitEnabled = ($event.target as HTMLInputElement).checked" /><span class="set-toggle-slider"></span></label></div>
-          <div class="set-row"><span>芽侧边栏位置</span>
+          <div v-if="uiStore.sproutNavMode === 'split'" class="set-row"><span>双栏顺序</span>
+            <div class="set-chip-group">
+              <label class="set-chip" :class="{ on: uiStore.splitSidebarOrder === 'domain-left' }">
+                <input type="radio" name="splitOrder" value="domain-left" v-model="uiStore.splitSidebarOrder" /> 域左芽右
+              </label>
+              <label class="set-chip" :class="{ on: uiStore.splitSidebarOrder === 'sprout-left' }">
+                <input type="radio" name="splitOrder" value="sprout-left" v-model="uiStore.splitSidebarOrder" /> 芽左域右
+              </label>
+            </div>
+          </div>
+          <div v-else class="set-row"><span>芽侧边栏位置</span>
             <div class="set-chip-group">
               <label class="set-chip" :class="{ on: store.sidebarPosition === 'left' }">
                 <input type="radio" name="sidebarPos" value="left" v-model="store.sidebarPosition" /> 左侧
@@ -24,15 +34,15 @@
           </div>
           <div class="set-row"><span>芽导航形态</span>
             <select class="set-select" v-model="uiStore.sproutNavMode">
-              <option value="flat">平铺（当前）</option>
-              <option value="popover">域弹出层</option>
-              <option value="rail">域图标栏</option>
-              <option value="tabs">域-芽 Tab</option>
-              <option value="dual">双栏导航</option>
-              <option value="split">双栏分离式</option>
+              <option v-for="option in navModeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
             </select>
           </div>
-          <div class="set-hint">仅影响芽侧边栏；域过滤会记住上次选择；双栏形态后续加入。</div>
+          <div class="set-hint">仅影响芽侧边栏；域过滤会记住上次选择；左右侧栏按「双栏顺序」排列。</div>
+          <div v-if="uiStore.sproutNavMode === 'split'" class="set-row"><span>左右侧栏同步收起</span><label class="set-toggle"><input type="checkbox" v-model="uiStore.splitSyncCollapse" /><span class="set-toggle-slider"></span></label></div>
+          <div class="set-row"><span>芽导航轮盘</span><label class="set-toggle"><input type="checkbox" v-model="uiStore.sproutWheelEnabled" /><span class="set-toggle-slider"></span></label></div>
+          <div class="set-hint">开启时滚轮/拖拽轮播芽列表；关闭后全部形态改为静态滚动列表。</div>
+          <div class="set-row"><span>芽实体数徽章</span><label class="set-toggle"><input type="checkbox" v-model="uiStore.sproutCountEnabled" /><span class="set-toggle-slider"></span></label></div>
+          <div class="set-hint">在芽列表行尾显示实体数量；关闭后全部形态隐藏。</div>
           <div class="set-row"><span>实体详情面板位置</span>
             <div class="set-chip-group">
               <label class="set-chip" :class="{ on: store.detailPanelPosition === 'left' }">
@@ -86,7 +96,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useSettingsStore, useFieldOrderStore, useDetailLayoutStore, useUIStore, fieldRegistry } from '@worldsea/entity-core'
 import { useConfirm, getAllPanelWidths, resetPanelWidth, resetAllPanelWidths, PANEL_LABELS, toastSuccess, CardDeck } from '@worldsea/ui-kit'
 import { matchKeywords } from '../utils'
@@ -103,6 +113,20 @@ const uiStore = useUIStore()
 const detailStore = useDetailLayoutStore()
 const { confirm } = useConfirm()
 const fieldOrderStore = useFieldOrderStore()
+
+/** 形态 id 保持稳定；「（当前）」只跟随实际选中项，不再硬编码在默认项上。 */
+const NAV_MODE_LABELS = [
+  ['flat', '默认'],
+  ['popover', '级联菜单'],
+  ['rail', '条式平铺'],
+  ['tabs', '标签切换'],
+  ['dual', '双栏平铺'],
+  ['split', '左右侧栏'],
+] as const
+const navModeOptions = computed(() => NAV_MODE_LABELS.map(([value, label]) => ({
+  value,
+  label: value === uiStore.sproutNavMode ? `${label}（当前）` : label,
+})))
 
 const panelWidths = ref<{ panelId: string; width: number }[]>([])
 

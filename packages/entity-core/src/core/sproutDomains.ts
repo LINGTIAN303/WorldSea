@@ -21,7 +21,7 @@ export const SPROUT_DOMAINS = [
   { id: 'goods', icon: 'item', label: '物产与造物', question: '世界里有哪些物品、装备与造物' },
   { id: 'time', icon: 'timeline', label: '时间与事件', question: '世界发生了什么、按什么顺序发生' },
   { id: 'narrative', icon: 'manuscript', label: '叙事与文本', question: '如何把世界组织成可写的文本' },
-  { id: 'tool', icon: 'tactical', label: '推演与工具', question: '用什么工具观察、推演、编排' },
+  { id: 'tool', icon: 'tactical-board', label: '推演与工具', question: '用什么工具观察、推演、编排' },
 ] as const satisfies readonly SproutDomain[]
 
 export type SproutDomainId = (typeof SPROUT_DOMAINS)[number]['id']

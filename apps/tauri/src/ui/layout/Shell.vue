@@ -172,6 +172,6 @@ async function onRedoFromHistory(indices: number[]) {
 /* order 规则已移除:Sidebar 脱离 flex 文档流后,ViewContainer 是唯一 flex 子元素,order 无意义 */
 /* R3-b 双栏导航组：覆盖侧栏宽度变量，Sidebar 与 ViewContainer 共用同一让位口径 */
 .shell-body.sprout-nav-dual {
-  --layout-sidebar-width: var(--layout-sidebar-dual-width, 330px);
+  --layout-sidebar-width: var(--layout-sidebar-dual-width, 300px);
 }
 </style>
