@@ -164,10 +164,10 @@ import { ref, computed, reactive, watch, nextTick, onBeforeUnmount } from 'vue'
 import draggable from 'vuedraggable'
 import { TuiButton, WsIcon  } from '@worldsea/ui-kit'
 import { WsEmpty } from '@worldsea/ui-kit'
-import { useEntityStore } from '@worldsea/entity-core'
+import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
-// 「章节 ↔ 大纲节点」关联的唯一写入入口（双侧双写 + 1:1 清旧值）
-import { linkChapterToNode, unlinkChapter } from '@/entity/chapterLink'
+// 「章节 ↔ 大纲节点」关联的唯一写入入口（关系唯一真源 + 1:1 清旧值）
+import { buildChapterLinkIndex, linkChapterToNode, unlinkChapter } from '@/entity/chapterLink'
 
 const props = defineProps<{
   chapters: Entity[]
@@ -183,6 +183,7 @@ const emit = defineEmits<{
 }>()
 
 const es = useEntityStore()
+const rs = useRelationStore()
 
 // ── 分卷折叠持久化（2026-09-14 侧栏优化：此前刷新即丢；键按项目无关的全局——
 //    卷名是自由文本、跨项目同名的记忆冲突可忽略，与 notebook 侧栏 tab 记忆同口径）──
@@ -390,7 +391,7 @@ async function confirmVolume() {
 function ctxLinkOutline() {
   ctxMenu.show = false
   if (!ctxMenu.entity) return
-  outlinePickId.value = (ctxMenu.entity.properties.outlineNodeId as string) || ''
+  outlinePickId.value = buildChapterLinkIndex(es.entities ?? [], rs.relations ?? []).nodeByChapter.get(ctxMenu.entity.id) ?? ''
   showOutlinePicker.value = true
 }
 
@@ -399,14 +400,13 @@ async function confirmOutline() {
   if (!ctxMenu.entity) return
   const chapterId = ctxMenu.entity.id
   const nodeId = outlinePickId.value
-  // 走「章节 ↔ 大纲节点」关联的**唯一写入入口**（09-18 收敛）：
-  // 该函数负责双侧双写 + 1:1 清旧值。此前这里只写章节侧的 outlineNodeId，
-  // 导致大纲白板的「打开正文」永远不亮（关联只单向可见）。
+  // 走「章节 ↔ 大纲节点」关联的**唯一写入入口**（R6-a 关系化）：
+  // 该函数负责关系对增删 + 1:1 清旧值；实体 properties 不再写关联字段。
   if (!nodeId) {
-    await unlinkChapter(es, chapterId)
+    await unlinkChapter(es, rs, chapterId)
     return
   }
-  await linkChapterToNode(es, chapterId, nodeId)
+  await linkChapterToNode(es, rs, chapterId, nodeId)
 }
 
 /** 章节跨书移动：目标 = 书籍 id 或 ''（未归书）；当前所属书禁选（点了无变化） */

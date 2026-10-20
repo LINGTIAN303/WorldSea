@@ -38,7 +38,6 @@ export function apply(_ctx: unknown, api: WorldPluginApi) {
       } },
     ],
     ownFields: [
-      { key: 'outlineNodeId', label: '关联大纲节点ID', fieldType: 'text' },
       { key: 'volumeName', label: '所属卷名', fieldType: 'text' },
       { key: 'bookId', label: '所属书籍ID', fieldType: 'text' },
       { key: 'entityMentions', label: '提及实体ID列表', fieldType: 'text' },

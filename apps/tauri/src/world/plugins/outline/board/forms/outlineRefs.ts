@@ -12,6 +12,9 @@
  */
 import type { Relation } from '@worldsea/entity-core'
 
+/** 有专用写入入口/专用 UI 的关系类型：不进通用「关联实体」候选，避免绕过 1:1 约束。 */
+const DEDICATED_REF_RELATION_TYPES = new Set(['outline_chapter'])
+
 /** 徽章用的最小实体视图（只取分组与显示需要的字段，便于测试注入） */
 export interface RefEntityLike {
   id: string
@@ -142,7 +145,7 @@ export function pickRefRelationTypes(
   const out: string[] = []
   for (const r of schemas) {
     const name = r.type ?? r.typeKey ?? ''
-    if (!name) continue
+    if (!name || DEDICATED_REF_RELATION_TYPES.has(name)) continue
     if (!(r.sourceTypes ?? []).includes(nodeType)) continue
     const targets = r.targetTypes ?? []
     // 目标里出现 outline 自身/白板 → 属「大纲内部关系」，不进徽章
@@ -167,7 +170,7 @@ export function refRelationTypesForTarget(
   const hits: Array<{ name: string; breadth: number }> = []
   for (const r of schemas) {
     const name = r.type ?? r.typeKey ?? ''
-    if (!name) continue
+    if (!name || DEDICATED_REF_RELATION_TYPES.has(name)) continue
     if (!(r.sourceTypes ?? []).includes(nodeType)) continue
     const targets = r.targetTypes ?? []
     if (!targets.includes(targetType)) continue
@@ -183,6 +186,8 @@ export function refTargetTypes(
 ): string[] {
   const out = new Set<string>()
   for (const r of schemas) {
+    const name = r.type ?? r.typeKey ?? ''
+    if (name && DEDICATED_REF_RELATION_TYPES.has(name)) continue
     if (!(r.sourceTypes ?? []).includes(nodeType)) continue
     for (const t of r.targetTypes ?? []) {
       if (t === nodeType || t.startsWith('outline_')) continue

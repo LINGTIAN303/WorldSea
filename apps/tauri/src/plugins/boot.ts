@@ -14,6 +14,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { installViewSynchronizer } from './viewSync'
 import { readLastViewId, useUIStore } from '../stores/uiStore'
 import { resolveDefaultViewId, visibleViewsInSidebarOrder } from '../ui/layout/sidebar/viewOrder'
+import { migrateLegacyChapterLinks } from '../entity/chapterLink'
 
 export interface BootstrapOptions {
   /** 跳过「默认选中首个视图」：切项目重播种时不应打断当前视图选择 */
@@ -78,6 +79,17 @@ export async function bootstrapShell(opts?: BootstrapOptions): Promise<void> {
   installViewSynchronizer()
   // D2-b：能力桥变更通知消费端（幂等挂一次）——Agent 改完工作台即见
   installCapabilityMutationListener()
+
+  // R6-a：旧「章节↔大纲节点」双字段 → 关系迁移（幂等、skipUndo；失败不阻塞启动）
+  try {
+    const entityStore = useEntityStore()
+    const relationStore = useRelationStore()
+    if (!(entityStore.entities?.length)) await entityStore.loadAll()
+    if (!(relationStore.relations?.length)) await relationStore.loadAll()
+    await migrateLegacyChapterLinks(entityStore, relationStore)
+  } catch (err) {
+    console.warn('[boot] 章节关联迁移失败（不影响启动）:', err)
+  }
 
   // 首屏默认视图：优先恢复上次视图（`worldsea_last_view`），否则侧栏首项——与侧栏渲染 /
   // Ctrl+↑/↓ 同走 `viewOrder` 单一口径（旧实现取注册序 `views[0]`＝装载器字典序，

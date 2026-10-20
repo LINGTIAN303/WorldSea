@@ -1,109 +1,116 @@
 /**
- * chapterLink —— 「章节（manuscript）↔ 大纲节点（outline_node）」关联的**唯一写入入口**
+ * chapterLink —— 「正文章节（manuscript）↔ 大纲节点（outline_node）」关联的**唯一写入入口**。
  *
- * 【为什么需要这个模块（2026-09-18 取证结论）】
- * 这条关系此前**存储双轨、且无人同步**，造成双向断裂：
- *   · 章节侧写 `manuscript.properties.outlineNodeId`（章节右键「关联大纲节点」；ManuscriptView 的筛选读它）
- *   · 大纲侧写 `outline_node.properties.manuscriptId`（白板属性面板**手填 ID**；白板「打开正文」按钮读它）
- *   · **没有任何代码同步两者** →
- *     ① 章节侧关联了节点 → 白板的「打开正文」不亮；
- *     ② 大纲侧填了章节 ID → 章节侧的筛选看不到。
- *
- * 处置（负责人 09-18 拍板）：**保留两个字段、但把「关联 / 解除」收敛到本模块**，
- * 内部双侧同写 + 按 1:1 语义清理旧值。这样冗余仍存在，但**一致性由代码保证，不再靠纪律维持**。
- *
- * 【与关系表（relations）的关系】
- * 语义上最正确的做法是走关系表，但关系类型注册表目前只有 `appears_in` / `draft_of`
- * 两条且目标都必须是 manuscript，补 `outline_node ↔ manuscript` 属**未拍板**事项
- * （与「关联实体徽章 / `link_entity`」同一前置）。故本模块是**过渡实现**：
- * 将来关系表落地时，把本模块的实现换掉即可，调用方不必改。
- *
- * 【1:1 语义】
- * 一个章节只属于一个大纲节点，反之亦然。故建立新关联时必须**清理两侧的旧关联**，
- * 否则会出现「章节 A 指向节点 N，而 N 指向章节 B」这种不一致。
+ * R6-a（2026-10-20）：关系唯一真源。旧实现的双侧字符串字段（manuscript.outlineNodeId /
+ * outline_node.manuscriptId）已移除；旧存储值仅由 migrateLegacyChapterLinks 读取并迁移。
+ * 关系方向：outline_node --outline_chapter--> manuscript；反向 chapter_outline。
+ * 1:1 语义：一个章节只对应一个节点，反之亦然。
  */
-import type { Entity } from '@worldsea/entity-core'
+import type { Entity, Relation } from '@worldsea/entity-core'
 
-/** 章节实体类型名（与 manuscript 芽注册的 entityType 一致） */
 export const CHAPTER_TYPE = 'manuscript'
+export const NODE_TYPE = 'outline_node'
+export const CHAPTER_LINK_REL = 'outline_chapter'
+export const CHAPTER_LINK_INVERSE = 'chapter_outline'
 
-/** 字段名（两侧各有一个；本模块是它们唯一的写入方） */
-export const LINK_FIELD = {
-  /** 章节 → 节点 */
+/** 旧字段仅用于迁移与迁移前兜底读取；新代码不写。 */
+export const LEGACY_LINK_FIELD = {
   chapterToNode: 'outlineNodeId',
-  /** 节点 → 章节 */
   nodeToChapter: 'manuscriptId',
 } as const
 
-/**
- * 本模块对 store 的最小依赖（只用到这两条能力 → 便于测试注入替身）。
- * 注意 `getAllEntities()` **直接委托 storage、不改 store 状态**——本模块要同时看
- * 章节与大纲节点两类实体做双侧判定，用它会一次拿全，无需关心 store 里当前有哪些类型。
- *
- * （`es.loadByType` 的「挤掉其它类型」副作用已于 2026-09-18 修正为增量语义；
- *  但凡需要「一次看多类实体」的场合，`getAllEntities` 仍是更直接的读法。）
- */
 export interface ChapterLinkStore {
   getAllEntities(): Promise<Entity[]>
-  /** 与实体 store 的更新语义一致：顶层浅合并 + `properties` **整体替换** */
-  update(
+}
+
+export interface ChapterRelationStore {
+  relations: readonly Relation[]
+  add(
+    relation: Relation,
+    source?: 'user' | 'agent' | 'import',
+    opts?: { skipUndo?: boolean },
+  ): Promise<unknown>
+  remove(
     id: string,
-    patch: { properties: Record<string, unknown>; updatedAt?: string },
+    source?: 'user' | 'agent' | 'import',
+    opts?: { skipUndo?: boolean },
   ): Promise<unknown>
 }
 
-/** 写操作的结果（供调用方提示文案与测试断言） */
 export interface LinkOutcome {
-  /** 实际被写入的实体 id（最多两个：章节 + 节点） */
   written: string[]
-  /** 因 1:1 语义被解除的**旧**关联 */
   cleared: Array<{ id: string; side: 'chapter' | 'node' }>
 }
 
-// ── 纯判定（无副作用，可单测）────────────────────
-
-export function chapterIdOfNode(node: Entity | undefined | null): string {
-  return String((node?.properties?.[LINK_FIELD.nodeToChapter] as string) ?? '').trim()
+export interface ChapterLinkIndex {
+  nodeByChapter: Map<string, string>
+  chapterByNode: Map<string, string>
 }
 
-export function nodeIdOfChapter(chapter: Entity | undefined | null): string {
-  return String((chapter?.properties?.[LINK_FIELD.chapterToNode] as string) ?? '').trim()
+let relationSeq = 0
+function newRelationId(prefix: string): string {
+  relationSeq += 1
+  return `${prefix}-${Date.now()}-${relationSeq}-${Math.random().toString(36).slice(2, 6)}`
 }
 
-/**
- * 该章节是否**指向**指定节点（只看章节侧）。
- * 双侧汇总判定请用 `buildChapterLinkIndex`——双轨期间可能存在只有一侧有值的历史数据，
- * 只看一侧会把已关联的显示成未关联（用户会重复关联）。
- */
-export function isChapterLinkedToNode(chapter: Entity | undefined, nodeId: string): boolean {
-  if (!nodeId) return false
-  return nodeIdOfChapter(chapter) === nodeId
+function legacyNodeIdOfChapter(chapter: Entity | null | undefined): string {
+  return String((chapter?.properties?.[LEGACY_LINK_FIELD.chapterToNode] as string) ?? '').trim()
 }
 
-/** 该节点是否已关联某个章节（判断「打开正文」按钮该不该出现） */
-export function hasLinkedChapter(node: Entity | undefined): boolean {
-  return chapterIdOfNode(node) !== ''
+function legacyChapterIdOfNode(node: Entity | null | undefined): string {
+  return String((node?.properties?.[LEGACY_LINK_FIELD.nodeToChapter] as string) ?? '').trim()
 }
 
-// ── 内部工具 ────────────────────────────────────
-
-/** properties 是**整体替换**语义，故任何写入都必须基于当前 properties 合并 */
-function merged(entity: Entity, patch: Record<string, unknown>): Record<string, unknown> {
-  return { ...(entity.properties ?? {}), ...patch }
+/** 旧字段读取（迁移源/兜底；UI 不应新增调用）。 */
+export function nodeIdOfChapter(chapter: Entity | null | undefined): string {
+  return legacyNodeIdOfChapter(chapter)
 }
 
-function findById(all: Entity[], id: string): Entity | undefined {
-  return all.find(e => e.id === id)
+export function chapterIdOfNode(node: Entity | null | undefined): string {
+  return legacyChapterIdOfNode(node)
 }
 
-// ── 写操作（唯一入口）──────────────────────────
+function forwards(relations: readonly Relation[]): Relation[] {
+  return relations.filter(r => r.type === CHAPTER_LINK_REL)
+}
 
-/**
- * 建立关联（1:1）：清理两侧旧关联 → 双侧写入。
- * **幂等**：已互相关联时不做任何写入（返回空 outcome），避免无谓的 store 变更与渲染。
- */
+function buildPair(nodeId: string, chapterId: string): [Relation, Relation] {
+  const now = new Date().toISOString()
+  const pairId = newRelationId('pair')
+  return [
+    {
+      id: newRelationId('rel'),
+      type: CHAPTER_LINK_REL,
+      sourceId: nodeId,
+      targetId: chapterId,
+      properties: {},
+      pairId,
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: newRelationId('rel'),
+      type: CHAPTER_LINK_INVERSE,
+      sourceId: chapterId,
+      targetId: nodeId,
+      properties: {},
+      pairId,
+      createdAt: now,
+      updatedAt: now,
+    },
+  ]
+}
+
+async function removePair(relations: ChapterRelationStore, relation: Relation): Promise<void> {
+  const ids = relation.pairId
+    ? relations.relations.filter(r => r.pairId === relation.pairId).map(r => r.id)
+    : [relation.id]
+  for (const id of ids) await relations.remove(id)
+}
+
 export async function linkChapterToNode(
   store: ChapterLinkStore,
+  relations: ChapterRelationStore,
   chapterId: string,
   nodeId: string,
 ): Promise<LinkOutcome> {
@@ -111,150 +118,127 @@ export async function linkChapterToNode(
   if (!chapterId || !nodeId) return outcome
 
   const all = await store.getAllEntities()
-  const chapter = findById(all, chapterId)
-  const node = findById(all, nodeId)
+  const chapter = all.find(e => e.id === chapterId && e.type === CHAPTER_TYPE)
+  const node = all.find(e => e.id === nodeId && e.type === NODE_TYPE)
   if (!chapter || !node) return outcome
 
-  // 已是目标关联 → 幂等返回
-  if (nodeIdOfChapter(chapter) === nodeId && chapterIdOfNode(node) === chapterId) return outcome
+  const currentForChapter = forwards(relations.relations).find(r => r.targetId === chapterId)
+  const currentForNode = forwards(relations.relations).find(r => r.sourceId === nodeId)
+  if (currentForChapter?.sourceId === nodeId && currentForNode?.targetId === chapterId) return outcome
 
-  const writes: Array<Promise<unknown>> = []
-  const nowIso = new Date().toISOString()
-  // 注意：`updatedAt` 是实体**顶层**字段，不属 properties（写进 properties 会污染业务字段）
-  const touch = (e: Entity, patch: Record<string, unknown>) =>
-    store.update(e.id, { properties: merged(e, patch), updatedAt: nowIso })
-
-  // ① 章节原来属于别的节点 → 清掉那个节点的反向字段
-  const prevNodeId = nodeIdOfChapter(chapter)
-  if (prevNodeId && prevNodeId !== nodeId) {
-    const prevNode = findById(all, prevNodeId)
-    if (prevNode) {
-      writes.push(touch(prevNode, { [LINK_FIELD.nodeToChapter]: '' }))
-      outcome.cleared.push({ id: prevNode.id, side: 'node' })
+  const removing = new Map<string, Relation>()
+  const cleared = new Map<string, { id: string; side: 'chapter' | 'node' }>()
+  for (const relation of forwards(relations.relations)) {
+    if (relation.targetId === chapterId) {
+      removing.set(relation.id, relation)
+      cleared.set(`node:${relation.sourceId}`, { id: relation.sourceId, side: 'node' })
+    }
+    if (relation.sourceId === nodeId) {
+      removing.set(relation.id, relation)
+      cleared.set(`chapter:${relation.targetId}`, { id: relation.targetId, side: 'chapter' })
     }
   }
+  for (const relation of removing.values()) await removePair(relations, relation)
+  outcome.cleared = [...cleared.values()]
 
-  // ② 节点原来关联着别的章节 → 清掉那个章节的反向字段
-  const prevChapterId = chapterIdOfNode(node)
-  if (prevChapterId && prevChapterId !== chapterId) {
-    const prevChapter = findById(all, prevChapterId)
-    if (prevChapter) {
-      writes.push(touch(prevChapter, { [LINK_FIELD.chapterToNode]: '' }))
-      outcome.cleared.push({ id: prevChapter.id, side: 'chapter' })
-    }
-  }
-
-  // ③ 双侧写入新关联
-  writes.push(touch(chapter, { [LINK_FIELD.chapterToNode]: nodeId }))
-  writes.push(touch(node, { [LINK_FIELD.nodeToChapter]: chapterId }))
-  outcome.written.push(chapter.id, node.id)
-
-  await Promise.all(writes)
+  const [forward, inverse] = buildPair(nodeId, chapterId)
+  await relations.add(forward)
+  await relations.add(inverse)
+  outcome.written.push(chapterId, nodeId)
   return outcome
 }
 
-/**
- * 从**章节侧**解除关联：清两侧字段。
- * 章节与节点**都不删除**——解除关联是纯关系操作（与「删书不删章」同一纪律）。
- */
-export async function unlinkChapter(store: ChapterLinkStore, chapterId: string): Promise<LinkOutcome> {
+export async function unlinkChapter(
+  _store: ChapterLinkStore,
+  relations: ChapterRelationStore,
+  chapterId: string,
+): Promise<LinkOutcome> {
   const outcome: LinkOutcome = { written: [], cleared: [] }
   if (!chapterId) return outcome
-
-  const all = await store.getAllEntities()
-  const chapter = findById(all, chapterId)
-  if (!chapter) return outcome
-
-  const nodeId = nodeIdOfChapter(chapter)
-  const nowIso = new Date().toISOString()
-  const writes: Array<Promise<unknown>> = []
-  const touch = (e: Entity, patch: Record<string, unknown>) =>
-    store.update(e.id, { properties: merged(e, patch), updatedAt: nowIso })
-
-  writes.push(touch(chapter, { [LINK_FIELD.chapterToNode]: '' }))
-  outcome.written.push(chapter.id)
-
-  if (nodeId) {
-    const node = findById(all, nodeId)
-    // 仅当该节点的反向字段确实指向本章节时才清（避免误清「节点已改关联别的章节」的情况）
-    if (node && chapterIdOfNode(node) === chapterId) {
-      writes.push(touch(node, { [LINK_FIELD.nodeToChapter]: '' }))
-      outcome.written.push(node.id)
-    }
-  }
-
-  await Promise.all(writes)
+  const relation = forwards(relations.relations).find(r => r.targetId === chapterId)
+  if (!relation) return outcome
+  await removePair(relations, relation)
+  outcome.written.push(chapterId, relation.sourceId)
   return outcome
 }
 
-/** 从**节点侧**解除关联（白板属性面板的「解除关联」用） */
-export async function unlinkNode(store: ChapterLinkStore, nodeId: string): Promise<LinkOutcome> {
+export async function unlinkNode(
+  _store: ChapterLinkStore,
+  relations: ChapterRelationStore,
+  nodeId: string,
+): Promise<LinkOutcome> {
   const outcome: LinkOutcome = { written: [], cleared: [] }
   if (!nodeId) return outcome
-
-  const all = await store.getAllEntities()
-  const node = findById(all, nodeId)
-  if (!node) return outcome
-
-  const chapterId = chapterIdOfNode(node)
-  const nowIso = new Date().toISOString()
-  const writes: Array<Promise<unknown>> = []
-  const touch = (e: Entity, patch: Record<string, unknown>) =>
-    store.update(e.id, { properties: merged(e, patch), updatedAt: nowIso })
-
-  writes.push(touch(node, { [LINK_FIELD.nodeToChapter]: '' }))
-  outcome.written.push(node.id)
-
-  if (chapterId) {
-    const chapter = findById(all, chapterId)
-    if (chapter && nodeIdOfChapter(chapter) === nodeId) {
-      writes.push(touch(chapter, { [LINK_FIELD.chapterToNode]: '' }))
-      outcome.written.push(chapter.id)
-    }
-  }
-
-  await Promise.all(writes)
+  const relation = forwards(relations.relations).find(r => r.sourceId === nodeId)
+  if (!relation) return outcome
+  await removePair(relations, relation)
+  outcome.written.push(nodeId, relation.targetId)
   return outcome
 }
 
-/**
- * 一次性读取「章节 ↔ 节点」的双向映射（右栏「已关联」标记与反查用）。
- * 只读、不改 store 状态；O(n) 一次扫描。
- *
- * **归一化**：双轨期间可能存在「只有一侧有值」的历史数据，故两遍扫描互相补齐——
- * 消费方拿到的是「只要任一侧声明了该关联，两个方向的 map 都能查到」，
- * 不必自己写回退逻辑（否则每个消费点都要重复一遍，且容易只查一个方向）。
- */
-export interface ChapterLinkIndex {
-  /** 章节 id → 节点 id */
-  nodeByChapter: Map<string, string>
-  /** 节点 id → 章节 id */
-  chapterByNode: Map<string, string>
-}
-
-export function buildChapterLinkIndex(entities: Entity[]): ChapterLinkIndex {
+export function buildChapterLinkIndex(
+  entities: readonly Entity[],
+  relations: readonly Relation[],
+): ChapterLinkIndex {
   const nodeByChapter = new Map<string, string>()
   const chapterByNode = new Map<string, string>()
-
-  const record = (chapterId: string, nodeId: string): void => {
-    if (!chapterId || !nodeId) return
-    if (!nodeByChapter.has(chapterId)) nodeByChapter.set(chapterId, nodeId)
-    if (!chapterByNode.has(nodeId)) chapterByNode.set(nodeId, chapterId)
+  for (const relation of forwards(relations)) {
+    if (!nodeByChapter.has(relation.targetId)) nodeByChapter.set(relation.targetId, relation.sourceId)
+    if (!chapterByNode.has(relation.sourceId)) chapterByNode.set(relation.sourceId, relation.targetId)
   }
-
-  // 第一遍：章节侧声明的关联
-  for (const e of entities) {
-    if (e.type === CHAPTER_TYPE) record(e.id, nodeIdOfChapter(e))
-  }
-  // 第二遍：节点侧声明的关联（补上第一遍缺的那一侧）
-  for (const e of entities) {
-    if (e.type === 'outline_node') record(chapterIdOfNode(e), e.id)
+  // 旧字段兜底：迁移前/迁移失败时仍能显示既有绑定；关系永远优先
+  for (const entity of entities) {
+    if (entity.type === CHAPTER_TYPE) {
+      const nodeId = legacyNodeIdOfChapter(entity)
+      if (nodeId && !nodeByChapter.has(entity.id)) {
+        nodeByChapter.set(entity.id, nodeId)
+        if (!chapterByNode.has(nodeId)) chapterByNode.set(nodeId, entity.id)
+      }
+    }
+    if (entity.type === NODE_TYPE) {
+      const chapterId = legacyChapterIdOfNode(entity)
+      if (chapterId && !chapterByNode.has(entity.id)) {
+        chapterByNode.set(entity.id, chapterId)
+        if (!nodeByChapter.has(chapterId)) nodeByChapter.set(chapterId, entity.id)
+      }
+    }
   }
   return { nodeByChapter, chapterByNode }
 }
 
-/** 读章节列表（只读；供右栏「章节」tab 用） */
-export async function listChapters(store: ChapterLinkStore): Promise<Entity[]> {
+/** 旧字段 → 关系的一次性幂等迁移；不修改实体、不进撤销栈。 */
+export async function migrateLegacyChapterLinks(
+  store: ChapterLinkStore,
+  relations: ChapterRelationStore,
+): Promise<number> {
   const all = await store.getAllEntities()
-  return all.filter(e => e.type === CHAPTER_TYPE)
+  const nodes = new Map(all.filter(e => e.type === NODE_TYPE).map(e => [e.id, e]))
+  const chapters = new Map(all.filter(e => e.type === CHAPTER_TYPE).map(e => [e.id, e]))
+  const existing = forwards(relations.relations)
+  const usedNodes = new Set(existing.map(r => r.sourceId))
+  const usedChapters = new Set(existing.map(r => r.targetId))
+  const pairs = new Map<string, string>()
+
+  for (const chapter of chapters.values()) {
+    const nodeId = legacyNodeIdOfChapter(chapter)
+    if (nodeId && nodes.has(nodeId)) pairs.set(nodeId, chapter.id)
+  }
+  for (const node of nodes.values()) {
+    const chapterId = legacyChapterIdOfNode(node)
+    if (chapterId && chapters.has(chapterId) && !pairs.has(node.id)) {
+      pairs.set(node.id, chapterId)
+    }
+  }
+
+  let created = 0
+  for (const [nodeId, chapterId] of pairs) {
+    if (usedNodes.has(nodeId) || usedChapters.has(chapterId)) continue
+    const [forward, inverse] = buildPair(nodeId, chapterId)
+    await relations.add(forward, 'import', { skipUndo: true })
+    await relations.add(inverse, 'import', { skipUndo: true })
+    usedNodes.add(nodeId)
+    usedChapters.add(chapterId)
+    created += 1
+  }
+  return created
 }

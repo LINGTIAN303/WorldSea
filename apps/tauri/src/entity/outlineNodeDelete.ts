@@ -68,7 +68,7 @@ export async function deleteOutlineNodes(
     if (ids.has(r.sourceId) || ids.has(r.targetId)) await api.removeRelation(r.id)
   }
 
-  // 2) 章节：清章节侧 outlineNodeId（节点侧的 manuscriptId 随实体删除一并消失）
+  // 2) 章节：删节点时同时解除 outline_chapter 关系对（章节实体保留）
   for (const id of ids) await api.unlinkChapter(id)
 
   // 3) 实体

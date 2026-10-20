@@ -37,7 +37,7 @@ export interface BoardSnapshot {
 export interface EntityDeletePayload {
   nodes: Entity[]
   relations: Relation[]
-  /** 章节 ↔ 节点绑定（撤销时按此重建章节侧 outlineNodeId） */
+  /** 章节 ↔ 节点绑定（撤销时按此重建 outline_chapter 关系对） */
   chapterLinks: Array<{ chapterId: string; nodeId: string }>
   /** 非删除但被改动的节点（提升为根 / 转移到其它节点时改过 parentId/order）→ 撤销时写回 */
   restoreNodes?: Array<{ id: string; properties: Record<string, unknown> }>

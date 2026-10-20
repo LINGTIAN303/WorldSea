@@ -19,7 +19,7 @@
     </header>
 
     <div class="doc-callout">
-      <p><strong>2026-10-20 复核：</strong>芽数 26→27（新增字段矩阵芽）；关系网 / 孤岛 16/10→16/11；字段 270→276；大纲节点字段 9→15。以下数字已同步；界面截图仍为 2026-10-18 状态。</p>
+      <p><strong>2026-10-20 复核 + R6-a：</strong>芽数 26→27（新增字段矩阵芽）；关系 104→105；关系网 / 孤岛 16/11→17/10（正文随 `outline_chapter` 入网）；字段 276→274（移除两个章节关联字段）。以下数字已同步；界面截图仍为 2026-10-18 状态。</p>
     </div>
 
     <section class="doc-block" id="why">
@@ -40,13 +40,13 @@
       </div>
       <div class="doc-metric">
         <span>实体关系类型</span>
-        <strong>104</strong>
+        <strong>105</strong>
         <small>16 个关系域</small>
       </div>
       <div class="doc-metric">
         <span>关系网 / 孤岛</span>
-        <strong>16 / 11</strong>
-        <small>16 芽连通，11 芽在网外</small>
+        <strong>17 / 10</strong>
+        <small>17 芽连通，10 芽在网外</small>
       </div>
       <div class="doc-metric">
         <span>跨域 / 域内</span>
@@ -276,28 +276,29 @@ flowchart LR
             <tr><td><strong>T2 专业供给</strong></td><td>入度 4–7 且入 ≥ 出</td><td>物种 7/5 · 概念 7/1 · 魔法 4/3</td><td>被特定域依赖，专业化程度高</td></tr>
             <tr><td><strong>T3 组合消费</strong></td><td>出 &gt; 入</td><td>建筑 3/6 · 战力 2/5 · 文化 1/4 · 冲突 1/5 · 语言 1/4 · 植物 1/5 · 灵感 1/6</td><td>依赖他人多于被依赖</td></tr>
             <tr><td><strong>T4 叙事组织者</strong></td><td>出度极高、入度 0</td><td>大纲 0/15</td><td>唯一跨域消费者：消费 15 个芽，自身不被引用</td></tr>
-            <tr><td><strong>T5 孤岛</strong></td><td>出 = 入 = 0（或仅自环）</td><td>正文、笔记本、画板、战术棋盘、创作编排、全局图谱、思维导图、自定义视窗、服饰、武器、字段矩阵</td><td>不进入实体关系网，自成一体</td></tr>
+            <tr><td><strong>T5 孤岛</strong></td><td>出 = 入 = 0（或仅自环）</td><td>笔记本、画板、战术棋盘、创作编排、全局图谱、思维导图、自定义视窗、服饰、武器、字段矩阵</td><td>不进入实体关系网，自成一体（正文已于 R6-a 入网）</td></tr>
           </tbody>
         </table>
       </div>
 
       <section class="doc-diagram" id="network">
-        <h2>一网 + 十一岛</h2>
-        <p>把五级营养级压成一张结构图：大纲是唯一从“叙事”伸向“世界”的桥，十一个孤岛则在网外。</p>
+        <h2>一网 + 十岛</h2>
+        <p>把五级营养级压成一张结构图：大纲是唯一从“叙事”伸向“世界”的桥，正文经 `outline_chapter` 挂在它下游；十个孤岛则在网外。</p>
         <div class="diagram-frame table-scroll mermaid-frame">
           <pre class="mermaid">
 flowchart TB
-  subgraph net["关系网 · 16 芽"]
-    outlineNode["大纲 0/15<br/>唯一跨域消费者"]
+  subgraph net["关系网 · 17 芽"]
+    outlineNode["大纲 0/16<br/>唯一跨域消费者"]
+    manuscript["正文<br/>outline_chapter 下游"]
     t1["T1 基础基质 5 芽<br/>区域 · 角色 · 组织 · 道具 · 时间线"]
     t2["T2 专业供给 3 芽<br/>物种 · 概念 · 魔法"]
     t3["T3 组合消费 7 芽<br/>建筑 · 文化 · 冲突 · 语言 · 植物 · 战力 · 灵感"]
   end
+  outlineNode --> manuscript
   outlineNode --> t1
   outlineNode --> t2
   outlineNode --> t3
-  subgraph islands["孤岛 · 11 芽"]
-    i1["正文"]
+  subgraph islands["孤岛 · 10 芽"]
     i2["笔记本（仅自环）"]
     i3["画板"]
     i4["战术棋盘"]
@@ -437,7 +438,7 @@ flowchart LR
             <tr><td><strong>R3 侧栏两级</strong></td><td>域分组 + 折叠 + 收藏 / 最近；域内保留用户顺序</td><td><span class="tag done">R3-a/R3-b/R3-b2/R3-c 已完成</span> 六形态齐备 · 轮盘/徽章可配</td></tr>
             <tr><td><strong>R4 设置同源</strong></td><td>芽管理按域分组；“激活分组”独立小节；状态词统一</td><td><span class="tag done">已完成</span> 2026-10-20 走查通过 · 域 Tab / 工具域折叠 / 管理入口</td></tr>
             <tr><td><strong>R5 依赖与状态可见</strong></td><td>芽详情显示入 / 出依赖、装载态、被拒原因；外部插件显示 domain</td><td><span class="tag done">已完成</span> 2026-10-20 走查通过 · manifest entityTypes / 行内详情 / 外部域</td></tr>
-            <tr><td><strong>R6 孤岛治理</strong></td><td>大纲 ↔ 正文关系化；笔记文件夹实体化；编排步骤关系化</td><td><span class="tag off">待议</span> 涉及数据模型</td></tr>
+            <tr><td><strong>R6 孤岛治理</strong></td><td>大纲 ↔ 正文关系化；笔记文件夹实体化；编排步骤显式标注工具内部结构</td><td><span class="tag done">R6-a 已完成</span> 2026-10-20 走查通过 · 关系 105 / 孤岛 10 / 字段 274；R6-b/c 后续</td></tr>
           </tbody>
         </table>
       </div>
@@ -464,7 +465,7 @@ flowchart LR
       </div>
 
       <div class="doc-callout">
-        <p><strong>下一步：</strong>R1–R5 已完成（2026-10-20）。R3-a / R3-b / R3-b2 / R3-c / R3-d 均已完成并走查通过（六种形态齐备、轮盘/徽章可配、收藏/最近可用）；R4 设置同源已完成；R5 依赖与状态可见已完成（manifest entityTypes / 芽管理行内详情 / 外部插件域）。R6 涉及数据模型，最后再议。</p>
+        <p><strong>下一步：</strong>R1–R6-a 已完成（2026-10-20）。R3-a / R3-b / R3-b2 / R3-c / R3-d 均已完成并走查通过；R4 设置同源已完成；R5 依赖与状态可见已完成；R6-a 大纲↔正文关系化已完成（`outline_chapter` / 旧字段迁移 / 正文入网）。R6-b 笔记本文件夹实体化、R6-c 编排步骤显式标注待后续。</p>
       </div>
     </section>
 

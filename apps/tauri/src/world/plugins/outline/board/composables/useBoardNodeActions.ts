@@ -11,7 +11,7 @@ import {
   type ChildStrategy,
   type OutlineNodeDeleteApi,
 } from '@/entity/outlineNodeDelete'
-import { linkChapterToNode, nodeIdOfChapter, unlinkNode } from '@/entity/chapterLink'
+import { buildChapterLinkIndex, linkChapterToNode, unlinkNode } from '@/entity/chapterLink'
 import type { EntityDeletePayload } from './useBoardUndo'
 
 interface Options {
@@ -55,7 +55,7 @@ export function useBoardNodeActions(opts: Options) {
     relations: () => rs.relations ?? [],
     removeEntity: (id) => es.remove(id),
     removeRelation: (id) => rs.remove(id),
-    unlinkChapter: (nodeId) => unlinkNode(es, nodeId),
+    unlinkChapter: (nodeId) => unlinkNode(es, rs, nodeId),
     updateNode: async (id, properties) => {
       const node = es.entityMap.get(id)
       if (!node) return
@@ -98,7 +98,6 @@ export function useBoardNodeActions(opts: Options) {
         ...(srcNode.properties ?? {}),
         order: siblings.length + 1,
         parentId,
-        manuscriptId: '', // Q3：不复制关联章节
       },
       tags: [...(srcNode.tags ?? [])],
       createdAt: now,
@@ -147,9 +146,10 @@ export function useBoardNodeActions(opts: Options) {
     const doomedRelations = (rs.relations ?? []).filter(
       r => doomed.has(r.sourceId) || doomed.has(r.targetId),
     )
+    const linkIndex = buildChapterLinkIndex(es.entities ?? [], rs.relations ?? [])
     const chapterLinks = (es.entities ?? [])
       .filter(e => e.type === 'manuscript')
-      .map(c => ({ chapterId: c.id, nodeId: nodeIdOfChapter(c) }))
+      .map(c => ({ chapterId: c.id, nodeId: linkIndex.nodeByChapter.get(c.id) ?? '' }))
       .filter(l => l.nodeId && doomed.has(l.nodeId))
     // promote / reparent 会改子节点的 parentId/order —— 撤销时须写回原值
     const restoreNodes = (strategy === 'cascade' ? [] : childrenOf(nodes, target.id)).map(k => ({
@@ -189,7 +189,7 @@ export function useBoardNodeActions(opts: Options) {
     for (const r of payload.restoreNodes ?? []) await deleteApi.updateNode(r.id, r.properties)
     for (const n of payload.nodes) await es.add(n)
     for (const r of payload.relations) await rs.add(r)
-    for (const l of payload.chapterLinks) await linkChapterToNode(es, l.chapterId, l.nodeId)
+    for (const l of payload.chapterLinks) await linkChapterToNode(es, rs, l.chapterId, l.nodeId)
   }
 
   /** 重做删除：再删一次（关系与章节绑定由 deleteOutlineNodes 一并清理） */

@@ -59,8 +59,7 @@
         :key="c.id"
         :container="c"
         :node="nodesById.get(c.nodeId)"
-        :selected="selectedId === c.id"
-        :open-form-signal="openFormSignal"
+        :selected="selectedId === c.id" :has-manuscript="chapterNodeIds?.has(c.nodeId) ?? false" :open-form-signal="openFormSignal"
         @select="$emit('select', c.id)"
         @drag-start="onContainerDragStart(c, $event)"
         @resize-start="onContainerResizeStart(c, $event)"
@@ -131,6 +130,7 @@ const props = defineProps<{
   snapMode: SnapMode
   /** 背景点阵网格显示开关（与吸附模式解耦，规格 §一） */
   gridEnabled: boolean
+  chapterNodeIds?: Set<string>
   /** 画区模式：背景拖拽改为拖出矩形 */
   sectionDrawMode: boolean
   /** 右键菜单请求：区改名 / 容器展开形式菜单（透传给对应子组件，本组件不解释其内容） */

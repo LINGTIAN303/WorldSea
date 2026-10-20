@@ -53,6 +53,7 @@
       :selected-id="selection.selectedId.value"
       :snap-mode="snapMode"
       :grid-enabled="gridEnabled"
+      :chapter-node-ids="chapterNodeIds"
       :section-draw-mode="sectionDrawMode"
       :rename-section-signal="renameSignal"
       :open-form-signal="openFormSignal"
@@ -169,7 +170,7 @@
  * 所有写操作都遵循同一顺序：record()（撤销快照）→ 调 useBoardLayout 的原子操作 → 自动保存。
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useEntityStore, type Entity } from '@worldsea/entity-core'
+import { useEntityStore, useRelationStore, type Entity } from '@worldsea/entity-core'
 // 芽视图里的 UI 组件必须显式导入：它们**不是全局组件**，未导入时 vue-tsc 不报错、
 // 只在渲染时静默变成空节点（2026-09-16 真机走查踩坑）
 import { CreateButton } from '@worldsea/plugin-sdk'
@@ -189,6 +190,7 @@ import { useBoardUndo, provideBoardUndo } from './composables/useBoardUndo'
 import { parseSnapMode, type SnapMode } from './composables/useBoardSnap'
 import { useInspectorTarget } from './composables/useInspectorTarget'
 import { useBoardNodeActions } from './composables/useBoardNodeActions'
+import { useBoardChapterLinks } from './composables/useBoardChapterLinks'
 import { useNodeFieldWrite } from './composables/useNodeFieldWrite'
 import DeleteNodeDialog from './components/DeleteNodeDialog.vue'
 import { contentBounds, fitViewport, type Point, type Rect } from './boardGeometry'
@@ -215,20 +217,15 @@ import {
 import { initializeForms } from './forms/initializeForms'
 // 复用既有的 parent_child 关系同步（单一实现，避免第二份漂移）
 import { syncParentChildRelation } from '../parentChildSync'
-// 「章节 ↔ 大纲节点」关联的唯一写入入口（收敛此前的双字段双轨，见该模块头注释）
-import {
-  buildChapterLinkIndex,
-  CHAPTER_TYPE,
-  linkChapterToNode,
-  unlinkNode,
-  type ChapterLinkIndex,
-} from '@/entity/chapterLink'
+// 「章节 ↔ 大纲节点」关联的唯一写入入口（关系唯一真源，见该模块头注释）
+import { linkChapterToNode, unlinkNode } from '@/entity/chapterLink'
 
 /** 容器自适应尺寸的估算值统一取 layoutSchema.DEFAULT_CONTAINER_SIZE（避免多处漂移） */
 
 initializeForms()
 
 const es = useEntityStore()
+const rs = useRelationStore()
 const docs = useBoardDocs()
 const layoutApi = useBoardLayout()
 const selection = useBoardSelection()
@@ -306,29 +303,13 @@ const existingNodeIds = computed(() => new Set(outlineNodes.value.map(n => n.id)
 const danglingIds = computed(() => danglingContainerIds(layout.value, existingNodeIds.value))
 
 // ── 章节（右栏「章节」tab 的数据源）──────────────
-// 读法用 `es.getAllEntities()`（只读、直接委托 storage）：这里要同时拿章节与大纲节点做
-// 「已关联」判定，一次全量最省事。（`loadByType` 的收窄副作用已于 2026-09-18 修正，
-// 但它的语义是「只保证该类型最新」，跨类型判定仍以 getAllEntities 为直路。）
-const chapters = ref<Entity[]>([])
-const chapterLink = ref<ChapterLinkIndex>({ nodeByChapter: new Map(), chapterByNode: new Map() })
-
-async function refreshChapters(): Promise<void> {
-  const all = await es.getAllEntities()
-  chapters.value = all.filter(e => e.type === CHAPTER_TYPE)
-  // 索引取**全量实体**建：双轨期间历史数据可能只有一侧有值，两侧都收进来才能正确判定「已关联」
-  chapterLink.value = buildChapterLinkIndex(all)
-}
-
-/** 章节 id → 已关联的节点名（右栏「已关联」标记；双侧汇总，任一侧有值即算已关联） */
-const chapterNodeNames = computed(() => {
-  // 索引已**归一化**（双轨历史数据任一侧有值、两个方向都可查），故只读一个方向即可
-  const byId = nodesById.value
-  const out = new Map<string, string>()
-  for (const [chapterId, nodeId] of chapterLink.value.nodeByChapter) {
-    out.set(chapterId, (byId.get(nodeId)?.name ?? '').trim() || '未命名节点')
-  }
-  return out
-})
+const {
+  chapters,
+  index: chapterLink,
+  chapterNodeNames,
+  chapterNodeIds,
+  refresh: refreshChapters,
+} = useBoardChapterLinks()
 
 /** 进入编辑器时拉一次章节；关联动作后再刷新标记 */
 watch(inEditor, v => { if (v) void refreshChapters() }, { immediate: true })
@@ -362,8 +343,7 @@ const inspectedNode = computed(() =>
 const inspectedChapterName = computed(() => {
   const node = inspectedNode.value
   if (!node) return ''
-  const chapterId = chapterLink.value.chapterByNode.get(node.id)
-    || String((node.properties?.manuscriptId as string) ?? '').trim()
+  const chapterId = chapterLink.value.chapterByNode.get(node.id) ?? ''
   if (!chapterId) return ''
   return (chapters.value.find(c => c.id === chapterId)?.name ?? '').trim() || '未命名章节'
 })
@@ -481,7 +461,7 @@ function onContainerDrop(containerId: string): void {
 function onOpenManuscript(containerId: string): void {
   const container = layout.value.containers.find(c => c.id === containerId)
   if (!container) return
-  const manuscriptId = (nodesById.value.get(container.nodeId)?.properties?.manuscriptId as string) || ''
+  const manuscriptId = chapterLink.value.chapterByNode.get(container.nodeId) ?? ''
   if (!manuscriptId) return
   window.dispatchEvent(new CustomEvent('ws-navigate', {
     detail: { entityType: 'manuscript', entityId: manuscriptId },
@@ -565,7 +545,6 @@ async function onCreateNodeAt(pos: Point): Promise<void> {
       order: siblings.length + 1,
       parentId: '',
       storylines: '',
-      manuscriptId: '',
     },
     tags: [],
     createdAt: now,
@@ -616,7 +595,7 @@ function onLocate(nodeId: string): void {
  * 关联本身是幂等且可逆的（再关联 / 解除即可），故本轮不扩撤销条目类型。
  */
 async function linkChapter(chapterId: string, nodeId: string): Promise<void> {
-  const outcome = await linkChapterToNode(es, chapterId, nodeId)
+  const outcome = await linkChapterToNode(es, rs, chapterId, nodeId)
   if (!outcome.written.length) return
   await refreshChapters()
   const nodeName = (nodesById.value.get(nodeId)?.name ?? '').trim() || '未命名节点'
@@ -657,7 +636,6 @@ async function onDropChapter(
       order: siblings.length + 1,
       parentId: '',
       storylines: '',
-      manuscriptId: '',
     },
     tags: [],
     createdAt: now,
@@ -683,7 +661,7 @@ function onSidebarAddChapter(chapterId: string): void {
 async function onUnlinkChapter(): Promise<void> {
   const node = inspectedNode.value
   if (!node) return
-  const outcome = await unlinkNode(es, node.id)
+  const outcome = await unlinkNode(es, rs, node.id)
   if (!outcome.written.length) return
   await refreshChapters()
   toastInfo('已解除章节关联')
@@ -856,7 +834,7 @@ const ctxItems = computed<MenuItem[]>(() => {
     if (!c) return []
     const node = nodesById.value.get(c.nodeId)
     state.dangling = !node
-    state.hasManuscript = !!(node?.properties?.manuscriptId as string)
+    state.hasManuscript = node ? chapterLink.value.chapterByNode.has(node.id) : false
     state.collapsed = !!c.collapsed
     state.autoSized = !c.size
   }

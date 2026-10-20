@@ -241,12 +241,15 @@ describe('outlineRefs / refTargetTypes（合法目标并集）', () => {
     )
   })
 
-  it('真实注册表：并集恰为 15 类芽实体（含 building 二义，不含 outline 自身）', () => {
-    const types = refTargetTypes(relationshipRegistry.getBySourceType('outline_node'))
+  it('真实注册表：并集恰为 15 类芽实体（含 building 二义，不含 outline 自身与专用章节关系）', () => {
+    const schemas = relationshipRegistry.getBySourceType('outline_node')
+    const types = refTargetTypes(schemas)
     expect(types).toHaveLength(15)
     expect(types).toContain('building')
     expect(types).not.toContain('outline_node')
     expect(types).not.toContain('manuscript')
+    expect(pickRefRelationTypes(schemas)).not.toContain('outline_chapter')
+    expect(refRelationTypesForTarget(schemas, 'manuscript')).toEqual([])
   })
 
   it('V2 定义加载时同步到旧版 registry（canvas-engine 图标签等消费者的依赖）', () => {

@@ -32,7 +32,6 @@ export async function createChildNode(
       order: siblings.length + 1,
       parentId,
       storylines: '',
-      manuscriptId: '',
     },
     tags: [],
     createdAt: now,

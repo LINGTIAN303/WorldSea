@@ -559,7 +559,7 @@ defineRelation({
   type: 'outline_mentions', label: '提及', inverseType: 'mentioned_by_outline', inverseLabel: '被大纲提及',
   sourceTypes: ['outline_node'],
   // 泛指「被这个节点涉及的实体」：角色/道具/概念/组织/物种/语言/技能/建筑/文化/植物/战力/素材。
-  // 不含 manuscript（有关联字段）、notebook/book/drawing（非叙事实体）、outline_*（自身与容器）。
+  // 不含 manuscript（由 `outline_chapter` 专用关系表达）、notebook/book/drawing（非叙事实体）、outline_*（自身与容器）。
   targetTypes: [
     'character', 'item', 'concept', 'organization', 'species', 'language',
     'magic', 'building', 'culture', 'plant', 'combat_stat', 'inspiration',
@@ -582,6 +582,9 @@ defineRelation({
   targetTypes: ['event', 'conflict'],
   symmetric: false, domain: 'narrative',
 })
+
+defineRelation({ type: 'outline_chapter', label: '对应章节', inverseType: 'chapter_outline', inverseLabel: '所属大纲节点',
+  sourceTypes: ['outline_node'], targetTypes: ['manuscript'], symmetric: false, domain: 'narrative' })
 
 defineRelation({
   type: 'note_link', label: '笔记链接', inverseType: 'note_linked_from', inverseLabel: '笔记被链接',

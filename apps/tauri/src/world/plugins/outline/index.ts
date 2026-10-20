@@ -35,7 +35,6 @@ export function apply(_ctx: unknown, api: WorldPluginApi) {
     ownFields: [
       { key: 'parentId', label: '父节点ID', fieldType: 'text' },
       { key: 'storylines', label: '所属线索', fieldType: 'text' },
-      { key: 'manuscriptId', label: '关联章节ID', fieldType: 'text' },
       // 原由 narrative trait 提供；语义是**规划期人工预估**（≠ manuscript 的机器统计字数）
       { key: 'wordCount', label: '字数（预估）', fieldType: 'number' },
       // 2026-09-18（Q6-①）：此前是「自由写入」字段 —— Agent 侧 `create_node`/`batch_create`

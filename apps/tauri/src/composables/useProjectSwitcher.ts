@@ -216,6 +216,14 @@ export function useProjectSwitcher() {
       fileStore.loadAll(),
     ])
 
+    // R6-a：项目数据就绪后迁移旧「章节↔大纲节点」字段（幂等、skipUndo）
+    try {
+      const { migrateLegacyChapterLinks } = await import('@/entity/chapterLink')
+      await migrateLegacyChapterLinks(entityStore, relationStore)
+    } catch (err) {
+      console.warn('[project] 章节关联迁移失败（不影响切项目）:', err)
+    }
+
     // 加载项目级芽开关 + 芽分组（分组持久化模式与芽开关一致：localStorage 回退 + 项目 DB）
     const { useSettingsStore } = await import('@/stores/settingsStore')
     const settings = useSettingsStore()

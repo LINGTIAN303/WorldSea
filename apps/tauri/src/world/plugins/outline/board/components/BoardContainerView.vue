@@ -139,6 +139,8 @@ const props = defineProps<{
   /** 悬空（节点已删）时为 undefined */
   node?: Entity
   selected: boolean
+  /** 节点是否已关联正文章节（由装配层用 relation 索引注入） */
+  hasManuscript?: boolean
   /** 外部请求展开「形式选择菜单」（右键菜单「添加表现形式」）；{id, token} 保证可重复触发 */
   openFormSignal?: { id: string; token: number } | null
 }>()
@@ -154,9 +156,6 @@ const emit = defineEmits<{
   (e: 'openManuscript'): void
   (e: 'addComponent', form: string): void
 }>()
-
-/** 节点关联了正文章节时才提供「打开正文」入口（规格 §三） */
-const hasManuscript = computed(() => !!(props.node?.properties?.manuscriptId as string))
 
 const menuOpen = ref(false)
 const formDefs = computed(() => getAllForms())

@@ -163,7 +163,7 @@ const storylinesValue = computed(() => String(props.node?.properties?.storylines
 const wordCountValue = computed(() => Number(props.node?.properties?.wordCount ?? 0) || 0)
 /** 节点类型现值（空串 = 未设，下拉里有「（未设）」项可选回空） */
 const nodeTypeValue = computed(() => String(props.node?.properties?.nodeType ?? ''))
-const hasManuscript = computed(() => !!(props.node?.properties?.manuscriptId as string))
+const hasManuscript = computed(() => !!props.linkedChapterName)
 </script>
 
 <style scoped>
