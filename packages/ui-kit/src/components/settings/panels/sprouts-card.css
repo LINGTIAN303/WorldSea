@@ -262,3 +262,41 @@
 .sp-label {
   font-size: var(--font-size-sm);
 }
+.sp-info {
+  margin-left: auto;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-tertiary, var(--color-text-tertiary));
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.1s, background 0.1s, color 0.1s;
+}
+.sp-info:hover,
+.sp-info:focus-visible {
+  opacity: 1;
+  background: var(--hover-bg, var(--color-bg-hover));
+  color: var(--text-color, var(--color-text-primary));
+}
+.sp-info.warn {
+  opacity: 1;
+  color: var(--warning, var(--color-warning, #d97706));
+}
+.sp-info.warn::after {
+  content: '';
+  width: 4px;
+  height: 4px;
+  margin-left: 1px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.sp-detail {
+  margin: 2px 0 8px 18px;
+}

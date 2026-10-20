@@ -7,6 +7,7 @@ import type { WorldPluginManifest } from '../../manifest'
 export const MINDMAP_MANIFEST: WorldPluginManifest = {
   id: 'official.mindmap',
   domain: 'tool',
+  entityTypes: [],
   name: '思维导图',
   version: '2.0.0',
   description:

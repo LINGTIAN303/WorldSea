@@ -4,6 +4,7 @@ import PlantView from './PlantView.vue'
 export const manifest = {
   id: 'official.plants',
   domain: 'life',
+  entityTypes: ['plant'],
   secondaryDomains: ['goods'],
   name: '植物/生态',
   version: '2.0.0',

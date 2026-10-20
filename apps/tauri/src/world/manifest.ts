@@ -28,6 +28,9 @@ export interface WorldPluginManifest {
   domain?: string
   /** 副语义域（R1）：与主域并列的关联域，不得与主域重复；内置芽取值由测试守卫。 */
   secondaryDomains?: string[]
+  /** 实体类型（R5）：该芽注册的实体 type；纯视图芽显式声明 []。
+   *  用于依赖图，独立于运行时注册表（停用芽也能参与）。 */
+  entityTypes?: string[]
 }
 
 /** 一个树插件：清单 + 装载函数（`ctx` 是 cordis 上下文，`api` 是**作用域化插件 API**）。 */
@@ -73,6 +76,17 @@ export function validateManifest(value: unknown): ManifestCheck {
   if (manifest.secondaryDomains !== undefined) {
     if (!Array.isArray(manifest.secondaryDomains) || manifest.secondaryDomains.some(item => typeof item !== 'string' || !item.trim())) {
       return { ok: false, reason: 'secondaryDomains 须为字符串数组' }
+    }
+  }
+  if (manifest.entityTypes !== undefined) {
+    if (
+      !Array.isArray(manifest.entityTypes) ||
+      manifest.entityTypes.some(item => typeof item !== 'string' || !item.trim())
+    ) {
+      return { ok: false, reason: 'entityTypes 须为字符串数组（元素非空）' }
+    }
+    if (new Set(manifest.entityTypes).size !== manifest.entityTypes.length) {
+      return { ok: false, reason: 'entityTypes 不得重复' }
     }
   }
   return { ok: true, manifest: manifest as WorldPluginManifest }

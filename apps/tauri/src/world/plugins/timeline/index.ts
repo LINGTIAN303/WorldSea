@@ -4,6 +4,7 @@ import TimelineView from './TimelineView.vue'
 export const manifest = {
   id: 'official.timeline',
   domain: 'time',
+  entityTypes: ['event'],
   secondaryDomains: ['society'],
   name: '时间线',
   version: '2.0.0',

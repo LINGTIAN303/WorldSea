@@ -4,6 +4,7 @@ import InspirationView from './InspirationView.vue'
 export const manifest = {
   id: 'official.inspiration',
   domain: 'narrative',
+  entityTypes: ['inspiration'],
   name: '灵感/素材库',
   version: '2.0.0',
   description: '收集创作灵感、参考图、摘抄、链接等素材',

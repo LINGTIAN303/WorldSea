@@ -4,6 +4,7 @@ import NotebookView from './NotebookView.vue'
 export const manifest = {
   id: 'official.notebook',
   domain: 'narrative',
+  entityTypes: ['notebook'],
   secondaryDomains: ['tool'],
   name: '笔记本',
   version: '2.0.0',

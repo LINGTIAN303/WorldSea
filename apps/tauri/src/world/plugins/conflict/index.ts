@@ -4,6 +4,7 @@ import ConflictView from './ConflictView.vue'
 export const manifest = {
   id: 'official.conflict',
   domain: 'society',
+  entityTypes: ['conflict'],
   secondaryDomains: ['time'],
   name: '冲突/战争',
   version: '2.0.0',

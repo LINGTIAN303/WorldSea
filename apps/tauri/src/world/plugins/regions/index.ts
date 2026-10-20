@@ -4,6 +4,7 @@ import RegionList from './RegionList.vue'
 export const manifest = {
   id: 'official.regions',
   domain: 'geo',
+  entityTypes: ['region'],
   secondaryDomains: ['society'],
   name: '区域图谱',
   version: '2.0.0',

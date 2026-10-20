@@ -4,6 +4,7 @@ import MagicView from './MagicView.vue'
 export const manifest = {
   id: 'official.magic',
   domain: 'knowledge',
+  entityTypes: ['magic'],
   secondaryDomains: ['society'],
   name: '魔法/技能体系',
   version: '2.0.0',

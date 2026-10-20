@@ -18,6 +18,7 @@ interface ParsedManifest {
   id: string
   domain?: string
   secondaryDomains?: string[]
+  entityTypes?: string[]
   file: string
 }
 
@@ -72,7 +73,12 @@ function manifestObjects(file: string): ParsedManifest[] {
           if (secondaryNode && !secondaryDomains) {
             throw new Error(`${id} 的 secondaryDomains 不是字符串数组（${file}）`)
           }
-          found.push({ id, domain, secondaryDomains, file })
+          const typesNode = prop(init, 'entityTypes')?.initializer
+          const entityTypes = typesNode ? stringArray(typesNode) : undefined
+          if (typesNode && !entityTypes) {
+            throw new Error(`${id} 的 entityTypes 不是字符串数组（${file}）`)
+          }
+          found.push({ id, domain, secondaryDomains, entityTypes, file })
         }
       }
     }
@@ -146,5 +152,68 @@ describe('R1/R2 芽语义域', () => {
 
   it('字段矩阵芽归 tool 域', () => {
     expect(manifests.find(manifest => manifest.id === 'official.field-matrix')?.domain).toBe('tool')
+  })
+})
+
+/** 从插件目录的 index.ts 里提取 apply 中实际注册的实体类型（registerEntityV2 / registerEntityType）。 */
+function registeredEntityTypes(file: string): string[] {
+  const indexFile = path.join(path.dirname(file), 'index.ts')
+  const sf = ts.createSourceFile(
+    indexFile,
+    fs.readFileSync(indexFile, 'utf8'),
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  )
+  const types: string[] = []
+  const visit = (node: ts.Node) => {
+    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)) {
+      const method = node.expression.name.text
+      if (method === 'registerEntityV2' || method === 'registerEntityType') {
+        const arg = unwrap(node.arguments[0])
+        if (arg && ts.isObjectLiteralExpression(arg)) {
+          const key = method === 'registerEntityV2' ? 'type' : 'typeKey'
+          const value = stringValue(prop(arg, key)?.initializer)
+          if (value) types.push(value)
+        }
+      }
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(sf)
+  return types
+}
+
+describe('R5 芽实体类型声明', () => {
+  it('27 个内置芽声明 entityTypes，且与实际 registerEntityV2 一致', () => {
+    expect(manifests).toHaveLength(27)
+    const owners = new Map<string, string>()
+    for (const manifest of manifests) {
+      expect(manifest.entityTypes, `${manifest.id} 缺 entityTypes（${manifest.file}）`).toBeDefined()
+      const actual = registeredEntityTypes(manifest.file)
+      expect(
+        [...new Set(manifest.entityTypes!)].sort(),
+        `${manifest.id} entityTypes 与注册不一致`,
+      ).toEqual([...new Set(actual)].sort())
+      for (const type of manifest.entityTypes!) {
+        expect(
+          owners.has(type),
+          `实体类型 ${type} 被 ${owners.get(type)} 与 ${manifest.id} 重复声明`,
+        ).toBe(false)
+        owners.set(type, manifest.id)
+      }
+    }
+    const pureView = manifests
+      .filter(manifest => manifest.entityTypes?.length === 0)
+      .map(manifest => manifest.id)
+      .sort()
+    expect(pureView).toEqual([
+      'official.apparel',
+      'official.custom',
+      'official.field-matrix',
+      'official.graph',
+      'official.mindmap',
+      'official.weapons',
+    ])
   })
 })

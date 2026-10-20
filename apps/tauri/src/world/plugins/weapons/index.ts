@@ -4,6 +4,7 @@ import WeaponView from './WeaponView.vue'
 export const manifest = {
   id: 'official.weapons',
   domain: 'goods',
+  entityTypes: [],
   secondaryDomains: ['knowledge'],
   name: '武器',
   version: '2.0.0',

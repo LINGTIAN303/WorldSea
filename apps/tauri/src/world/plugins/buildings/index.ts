@@ -4,6 +4,7 @@ import BuildingView from './BuildingView.vue'
 export const manifest = {
   id: 'official.buildings',
   domain: 'geo',
+  entityTypes: ['building'],
   secondaryDomains: ['society'],
   name: '建筑/地点细节',
   version: '2.0.0',

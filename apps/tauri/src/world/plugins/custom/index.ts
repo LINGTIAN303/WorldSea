@@ -4,6 +4,7 @@ import CustomView from './CustomView.vue'
 export const manifest = {
   id: 'official.custom',
   domain: 'tool',
+  entityTypes: [],
   name: '自定义视窗',
   version: '1.0.0',
   description: '界面内多窗口，自由拼装视图面板',

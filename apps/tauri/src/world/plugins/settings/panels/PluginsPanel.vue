@@ -35,6 +35,7 @@
               </div>
               <div class="exp-item-meta">
                 <span class="exp-id">{{ item.id }}</span>
+                <span v-if="item.status !== 'rejected'" class="exp-domain">{{ externalDomainText(item.domain, item.secondaryDomains) }}</span>
                 <span v-if="item.reason" class="exp-reason" :title="item.reason">{{ item.reason }}</span>
               </div>
             </div>
@@ -88,7 +89,20 @@
       </div>
 
       <!-- 卡 2 · 芽管理 -->
-      <SproutsCardContent v-else-if="idx === 2" :class="cls" :search-query="searchQuery" :domain-of="domainOf" @dirty="emit('dirty')" ref="sproutsContentRef" />
+      <SproutsCardContent
+        v-else-if="idx === 2"
+        :class="cls"
+        :search-query="searchQuery"
+        :domain-of="domainOf"
+        :attention-ids="attentionIds"
+        @dirty="emit('dirty')"
+        @inspect="refreshInsights"
+        ref="sproutsContentRef"
+      >
+        <template #sprout-detail="{ id }">
+          <SproutDetailPanel :insight="insightMap.get(id) ?? null" />
+        </template>
+      </SproutsCardContent>
 
       <!-- 卡 3 · 激活分组（启用范围预设；与域导航正交） -->
       <SproutGroupsCardContent v-else-if="idx === 3" :class="cls" :search-query="searchQuery" @dirty="emit('dirty')" />
@@ -97,14 +111,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { getFileStorageBackend, useSettingsStore } from '@worldsea/entity-core'
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
+import { getFileStorageBackend, pluginAPI, useSettingsStore } from '@worldsea/entity-core'
 import { toastSuccess, toastWarn, WsIcon, CardDeck, matchKeywords } from '@worldsea/ui-kit'
 import SproutsCardContent from '@worldsea/ui-kit/components/settings/panels/SproutsCardContent.vue'
 import SproutGroupsCardContent from '@worldsea/ui-kit/components/settings/panels/SproutGroupsCardContent.vue'
 import TuiModal from '@/components/ui/TuiModal.vue'
-import { availablePlugins, externalPluginStates, reloadExternalPlugins } from '@/world'
-import type { ExternalPluginState } from '@/world'
+import { availablePlugins, externalPluginStates, reloadExternalPlugins, collectSproutInsights, externalDomainText } from '@/world'
+import type { ExternalPluginState, SproutInsight } from '@/world'
+import SproutDetailPanel from './SproutDetailPanel.vue'
 
 const props = defineProps<{ searchQuery?: string }>()
 const emit = defineEmits<{ dirty: []; 'card-change': [index: number] }>()
@@ -127,6 +142,19 @@ const domainMap = computed(() => {
 })
 function domainOf(pluginId: string): string {
   return domainMap.value.get(pluginId) ?? 'unclassified'
+}
+
+/** 芽洞察快照：域/启用态/装载态/入口视图/入出依赖（R5）。 */
+const insights = ref<SproutInsight[]>([])
+const insightMap = computed(() => new Map(insights.value.map(item => [item.id, item])))
+const attentionIds = computed(() => insights.value
+  .filter(item => item.active && (item.runtime !== 'loaded' || item.viewCount === 0))
+  .map(item => item.id))
+/** 视图变更订阅（apply 时视图注册/卸载；配合芽开关 watch 刷新快照）。 */
+let stopViewWatch: (() => void) | null = null
+
+function refreshInsights(): void {
+  insights.value = collectSproutInsights(settings.sprouts)
 }
 
 /** 非芽类（utility）内置插件：manifest 自声明 kind，常驻装载（无启停——批5 对齐 dsh 内置语义）。
@@ -179,6 +207,7 @@ async function onReload() {
     }
     settings.syncExternalSprouts(sproutEntries())
     refresh()
+    refreshInsights()
     emit('dirty')
   } catch (err) {
     toastWarn(`重载失败：${String(err)}`)
@@ -202,6 +231,7 @@ function sproutEntries() {
 function onToggle(id: string) {
   settings.toggleSprout(id)
   refresh()
+  void nextTick(refreshInsights)
   emit('dirty')
 }
 
@@ -247,10 +277,18 @@ async function onDelete(item: ExternalPluginState) {
 watch(() => settings.sprouts.map(s => `${s.id}:${s.active}`).join('|'), () => {
   treePlugins.value = availablePlugins()
   refresh()
+  refreshInsights()
 })
 
-onMounted(refresh)
-onUnmounted(() => { if (deleteTimer) clearTimeout(deleteTimer) })
+onMounted(() => {
+  refresh()
+  refreshInsights()
+  stopViewWatch = pluginAPI.onViewChange(() => refreshInsights())
+})
+onUnmounted(() => {
+  if (deleteTimer) clearTimeout(deleteTimer)
+  stopViewWatch?.()
+})
 
 defineExpose({
   goToCard: (i: number) => deckRef.value?.goToCard(i),
@@ -277,6 +315,7 @@ defineExpose({
 .exp-status.is-rejected { color: var(--danger, var(--color-danger)); }
 .exp-item-meta { display: flex; align-items: center; gap: 8px; margin-top: 2px; min-width: 0; }
 .exp-id { font-size: var(--text-micro-font-size, 10px); color: var(--text-tertiary, var(--color-text-tertiary)); font-family: var(--font-mono, monospace); }
+.exp-domain { font-size: var(--text-micro-font-size, 10px); color: var(--text-tertiary, var(--color-text-tertiary)); }
 .exp-desc { font-size: var(--text-micro-font-size, 10px); color: var(--text-tertiary, var(--color-text-tertiary)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .exp-reason { font-size: var(--text-micro-font-size, 10px); color: var(--danger, var(--color-danger)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .exp-item-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }

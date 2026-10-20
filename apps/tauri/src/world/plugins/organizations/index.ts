@@ -4,6 +4,7 @@ import OrganizationView from './OrganizationView.vue'
 export const manifest = {
   id: 'official.organizations',
   domain: 'society',
+  entityTypes: ['organization'],
   secondaryDomains: ['life'],
   name: '势力/组织',
   version: '2.0.0',

@@ -4,6 +4,7 @@ import CombatStatView from './CombatStatView.vue'
 export const manifest = {
   id: 'official.combat_stats',
   domain: 'knowledge',
+  entityTypes: ['combat_stat'],
   secondaryDomains: ['life'],
   name: '战力',
   version: '2.0.0',

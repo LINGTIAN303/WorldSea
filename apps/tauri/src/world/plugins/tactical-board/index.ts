@@ -4,6 +4,7 @@ import TacticalBoardView from './TacticalBoardView.vue'
 export const manifest = {
   id: 'official.tactical-board',
   domain: 'tool',
+  entityTypes: ['tactical-board'],
   secondaryDomains: ['society'],
   name: '战术棋盘',
   version: '1.0.0',

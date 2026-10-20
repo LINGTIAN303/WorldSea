@@ -48,6 +48,14 @@ describe('validateManifest', () => {
     expect(validateManifest({ ...valid, secondaryDomains: [''] }).ok).toBe(false)
   })
 
+  it('entityTypes 若给则须为字符串数组、元素非空且不重复；空数组合法', () => {
+    expect(validateManifest({ ...valid, entityTypes: ['character'] }).ok).toBe(true)
+    expect(validateManifest({ ...valid, entityTypes: [] }).ok).toBe(true)
+    expect(validateManifest({ ...valid, entityTypes: 'character' }).ok).toBe(false)
+    expect(validateManifest({ ...valid, entityTypes: [''] }).ok).toBe(false)
+    expect(validateManifest({ ...valid, entityTypes: ['x', 'x'] }).ok).toBe(false)
+  })
+
   it('非对象一律拒', () => {
     for (const value of [null, undefined, 'x', 1, []]) {
       expect(validateManifest(value).ok).toBe(false)

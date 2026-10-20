@@ -4,6 +4,7 @@ import OrchestrationView from './OrchestrationView.vue'
 export const manifest = {
   id: 'official.orchestration',
   domain: 'tool',
+  entityTypes: ['pipeline'],
   secondaryDomains: ['narrative'],
   name: '创作编排',
   version: '2.0.0',

@@ -4,6 +4,7 @@ import LanguageView from './LanguageView.vue'
 export const manifest = {
   id: 'official.languages',
   domain: 'society',
+  entityTypes: ['language'],
   secondaryDomains: ['knowledge'],
   name: '语言/文字',
   version: '2.0.0',

@@ -4,6 +4,7 @@ import ManuscriptView from './ManuscriptView.vue'
 export const manifest = {
   id: 'official.manuscript',
   domain: 'narrative',
+  entityTypes: ['book', 'manuscript'],
   name: '正文写作',
   version: '2.0.0',
   description: '正文写作与章节管理',

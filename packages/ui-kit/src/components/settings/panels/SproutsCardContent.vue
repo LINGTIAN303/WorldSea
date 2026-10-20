@@ -96,6 +96,17 @@
               <span class="sp-grip" title="域内拖拽排序"><WsIcon name="grip" size="xs" /></span>
               <span v-if="p.source" class="sp-source">{{ sourceLabel(p) }}</span>
               <label class="sp-toggle"><input type="checkbox" :checked="p.active" @change="onSproutToggle(p.id)" /><span class="sp-icon"><WsIcon v-if="hasIcon(p.icon)" :name="p.icon" size="sm" /><span v-else>{{ p.icon }}</span></span><span class="sp-label">{{ p.label }}</span></label>
+              <button
+                type="button"
+                class="sp-info"
+                :class="{ warn: attentionIds.includes(p.id) }"
+                :aria-label="`${p.label}详情`"
+                :aria-expanded="expandedId === p.id"
+                :title="attentionIds.includes(p.id) ? '芽详情（状态异常）' : '芽详情'"
+                @click="toggleDetail(p.id)"
+              >
+                <WsIcon name="info" size="xs" />
+              </button>
             </div>
           </template>
         </draggable>
@@ -103,7 +114,21 @@
           <div v-for="p in group.items" :key="p.id" class="set-plugin-item">
             <span v-if="p.source" class="sp-source">{{ sourceLabel(p) }}</span>
             <label class="sp-toggle"><input type="checkbox" :checked="p.active" @change="onSproutToggle(p.id)" /><span class="sp-icon"><WsIcon v-if="hasIcon(p.icon)" :name="p.icon" size="sm" /><span v-else>{{ p.icon }}</span></span><span class="sp-label">{{ p.label }}</span></label>
+            <button
+              type="button"
+              class="sp-info"
+              :class="{ warn: attentionIds.includes(p.id) }"
+              :aria-label="`${p.label}详情`"
+              :aria-expanded="expandedId === p.id"
+              :title="attentionIds.includes(p.id) ? '芽详情（状态异常）' : '芽详情'"
+              @click="toggleDetail(p.id)"
+            >
+              <WsIcon name="info" size="xs" />
+            </button>
           </div>
+        </div>
+        <div v-if="expandedId && group.items.some(p => p.id === expandedId)" class="sp-detail">
+          <slot name="sprout-detail" :id="expandedId" />
         </div>
       </template>
     </section>
@@ -124,17 +149,27 @@ const props = withDefaults(defineProps<{
   excludeIds?: string[]
   /** manifest.domain 查询口（由应用侧注入；ui-kit 不反向依赖世界树） */
   domainOf?: (pluginId: string) => string
+  /** 需要提示状态异常的芽 id（已启用但未装载/被拒/无入口视图） */
+  attentionIds?: string[]
 }>(), {
   domainOf: () => () => UNCLASSIFIED_DOMAIN,
+  attentionIds: () => [],
 })
 
-const emit = defineEmits<{ dirty: [] }>()
+const emit = defineEmits<{ dirty: []; inspect: [id: string] }>()
 
 const store = useSettingsStore()
 const uiStore = useUIStore()
 const pluginStore = usePluginStore()
 
 const sproutSearch = ref('')
+const expandedId = ref<string | null>(null)
+
+function toggleDetail(id: string) {
+  expandedId.value = expandedId.value === id ? null : id
+  emit('inspect', id)
+}
+
 const activeDomain = ref<string>('all')
 const flatSprouts = ref<SproutToggle[]>([])
 const groups = ref<SproutDomainGroup<SproutToggle>[]>([])

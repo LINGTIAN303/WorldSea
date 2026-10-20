@@ -8,6 +8,8 @@
  */
 export { startWorldTree, disposeWorldTree, worldTreeState, worldTreeContext, availablePlugins, setPluginEnabled, unloadPlugin, WORLD_SERVICES, reloadExternalPlugins, externalPluginStates, setExternalProjectDirProvider } from './tree'
 export type { WorldTreeHandle, WorldTreeState, StartOptions, ExternalReloadReport, ExternalPluginState } from './tree'
+export { collectSproutInsights, sproutDomainLabel, externalDomainText } from './sproutInsights'
+export type { SproutInsight, SproutDependency, SproutRuntimeStatus } from './sproutInsights'
 export { validateManifest } from './manifest'
 export type { WorldPlugin, WorldPluginManifest } from './manifest'
 export { assemblePlugins, collectWorldPlugins } from './loader'

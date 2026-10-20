@@ -4,6 +4,7 @@ import CultureView from './CultureView.vue'
 export const manifest = {
   id: 'official.culture',
   domain: 'society',
+  entityTypes: ['culture'],
   secondaryDomains: ['time'],
   name: '文化/习俗',
   version: '2.0.0',
