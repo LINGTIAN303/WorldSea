@@ -27,6 +27,7 @@
     <div class="sidebar-inner">
       <!-- 展开态头部：收起侧边栏按钮 -->
       <div v-if="!uiStore.sidebarCollapsed" class="sidebar-header">
+        <QuickAccess :side="effectiveSide" />
         <button
           class="sidebar-collapse"
           aria-label="收起侧边栏"
@@ -76,6 +77,7 @@ import type { PluginView } from '@worldsea/entity-core/types'
 import { WsIcon } from '@worldsea/ui-kit'
 import { hasIcon } from '@/assets/iconRegistry'
 import CountBadge from './CountBadge.vue'
+import QuickAccess from './QuickAccess.vue'
 import { countEntitiesByPlugin } from './sproutEntityCounts'
 import { visibleViewsInSidebarOrder } from './viewOrder'
 import { useSidebarPhysics } from './useSidebarPhysics'
@@ -89,7 +91,9 @@ const settingsStore = useSettingsStore()
 const entityStore = useEntityStore()
 
 /** 左右侧栏形态由双栏顺序强制芽栏侧；其余形态继续用「芽侧边栏位置」。 */
-const effectiveSide = computed(() => props.forceSide ?? settingsStore.sidebarPosition)
+const effectiveSide = computed<'left' | 'right'>(() => (
+  props.forceSide ?? (settingsStore.sidebarPosition === 'right' ? 'right' : 'left')
+))
 const carouselRef = ref<HTMLElement | null>(null)
 
 const isCustomView = computed(() => uiStore.currentView === 'custom')
@@ -352,6 +356,7 @@ onBeforeUnmount(() => {
 }
 /* 展开态头部：收起侧边栏按钮 */
 .sidebar-header {
+  position: relative;
   flex-shrink: 0;
   height: 40px;
   display: flex;

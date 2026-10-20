@@ -17,6 +17,7 @@
     </button>
     <div v-else class="ws-sn-inner">
       <div class="ws-sn-header">
+        <QuickAccess :side="sidebarRight ? 'right' : 'left'" />
         <button
           class="ws-sn-collapse"
           aria-label="收起侧边栏"
@@ -95,6 +96,7 @@ import DomainDual from './DomainDual.vue'
 import DomainPopover from './DomainPopover.vue'
 import DomainRail from './DomainRail.vue'
 import DomainTabs from './DomainTabs.vue'
+import QuickAccess from './QuickAccess.vue'
 import SproutList from './SproutList.vue'
 import './sidebar-nav.css'
 

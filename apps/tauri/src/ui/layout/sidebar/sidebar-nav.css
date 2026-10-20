@@ -48,6 +48,7 @@
   overflow: hidden;
 }
 .ws-sn-header {
+  position: relative;
   flex-shrink: 0;
   height: 40px;
   display: flex;

@@ -1,0 +1,176 @@
+/* 热区：绝对定位在侧栏头部，不占布局 */
+.ws-qa-trigger {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-tertiary, var(--text-secondary));
+  cursor: pointer;
+  z-index: 2;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+.ws-qa-trigger.is-right {
+  left: auto;
+  right: 8px;
+}
+.ws-qa-trigger:hover {
+  background: var(--hover-bg);
+  color: var(--text-color);
+}
+
+/* 悬浮快捷区：Teleport 到 body，不参与侧栏布局 */
+.ws-qa-panel {
+  position: fixed;
+  z-index: 1200;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  background: var(--region-bg, var(--bg-surface));
+  border: 1px solid var(--region-border, var(--border));
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg, 0 12px 32px rgb(0 0 0 / 18%));
+  padding-bottom: 2px;
+}
+.ws-qa-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--region-border, var(--border));
+  font-size: 12px;
+}
+.ws-qa-head strong {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+}
+.ws-qa-head-icon {
+  color: var(--primary);
+}
+.ws-qa-current {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.ws-qa-current:hover {
+  background: var(--hover-bg);
+  color: var(--text-color);
+}
+.ws-qa-current.on {
+  color: var(--primary);
+}
+.ws-qa-current.on :deep(svg) {
+  fill: currentColor;
+}
+.ws-qa-current:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.ws-qa-section {
+  padding: 6px 6px 2px;
+}
+.ws-qa-section-title {
+  padding: 4px 6px;
+  font-size: 11px;
+  color: var(--text-tertiary, var(--text-secondary));
+}
+.ws-qa-row-wrap {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.ws-qa-row {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-color);
+  cursor: pointer;
+  font-size: 12px;
+  text-align: left;
+}
+.ws-qa-row:hover {
+  background: var(--hover-bg);
+}
+.ws-qa-row.active {
+  background: var(--active-bg);
+  font-weight: var(--font-weight-semibold, 600);
+}
+.ws-qa-icon {
+  flex-shrink: 0;
+  width: 16px;
+  text-align: center;
+}
+.ws-qa-icon-text {
+  font-size: 12px;
+}
+.ws-qa-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ws-qa-domain {
+  flex-shrink: 0;
+  max-width: 76px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10.5px;
+  color: var(--text-tertiary, var(--text-secondary));
+}
+.ws-qa-star {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-tertiary, var(--text-secondary));
+  cursor: pointer;
+}
+.ws-qa-star:hover {
+  background: var(--hover-bg);
+  color: var(--text-color);
+}
+.ws-qa-star.on {
+  color: var(--primary);
+}
+.ws-qa-star.on :deep(svg) {
+  fill: currentColor;
+}
+.ws-qa-empty {
+  padding: 5px 8px 7px;
+  font-size: 11px;
+  color: var(--text-tertiary, var(--text-secondary));
+}
+.ws-qa-foot {
+  padding: 7px 10px;
+  border-top: 1px solid var(--region-border, var(--border));
+  font-size: 10.5px;
+  color: var(--text-tertiary, var(--text-secondary));
+}
