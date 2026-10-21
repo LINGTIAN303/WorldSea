@@ -1,0 +1,907 @@
+<style>
+  /* ── Study 03 · 阶段线 / 文字推进 / 扫描雷达 ── */
+  #ld3 {
+    --bg-app: #fafaf9;
+    --bg-surface: #ffffff;
+    --bg-muted: #f4f4f5;
+    --bg-active: #e9e9ea;
+    --border: #ececec;
+    --border-strong: #d9d9de;
+    --text-primary: #1f2328;
+    --text-secondary: #6b7280;
+    --text-muted: #9ca3af;
+    --accent: #4f46e5;
+    --accent-hover: #4338ca;
+    --accent-soft: #eef2ff;
+    --accent-soft-border: #e0e7ff;
+    --on-accent: #ffffff;
+    --success: #16a34a;
+    --warning: #d97706;
+    --danger: #dc2626;
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05);
+    --shadow-md: 0 4px 16px rgba(16, 24, 40, 0.07);
+    --shadow-lg: 0 12px 32px rgba(16, 24, 40, 0.12);
+    --ease: cubic-bezier(0.4, 0, 0.2, 1);
+    --ease-out: cubic-bezier(0, 0, 0.2, 1);
+    --ease-weight: cubic-bezier(0.2, 0.8, 0.2, 1);
+    --dur-fast: 0.15s;
+    --dur-base: 0.22s;
+    --dur-lg: 0.32s;
+
+    /* 星轨基础（沿用 Study 02） */
+    --loading-accent: var(--accent);
+    --loading-track-opacity: 24%;
+    --loading-orbit-duration: 1.15s;
+    --loading-scrim: color-mix(in srgb, var(--bg-app) 80%, transparent);
+    --loading-scrim-blur: 2px;
+
+    /* Study 03 新增 */
+    --loading-thread-track: color-mix(in srgb, var(--accent) 24%, transparent);
+    --loading-thread-fill: var(--accent);
+    --loading-node-size: 9px;
+    --loading-node-active: 11px;
+    --loading-label-fill: var(--accent);
+    --loading-underline-height: 1px;
+    --loading-stage-hold: 120ms;
+    --loading-radar-sweep: color-mix(in srgb, var(--accent) 75%, transparent);
+    --loading-radar-duration: 2.2s;
+
+    font-family: 'Inter', system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    color: var(--text-primary);
+    background:
+      radial-gradient(ellipse 58% 38% at 20% -10%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 62%),
+      radial-gradient(ellipse 40% 28% at 92% 0%, color-mix(in srgb, #0891b2 5%, transparent), transparent 60%),
+      var(--bg-app);
+    min-height: 100vh;
+    padding: 24px clamp(16px, 3vw, 40px) 56px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  #ld3[data-theme='dark'] {
+    --bg-app: #111113;
+    --bg-surface: #18181b;
+    --bg-muted: #202024;
+    --bg-active: #2e2e34;
+    --border: #27272c;
+    --border-strong: #38383f;
+    --text-primary: #e7e7ea;
+    --text-secondary: #a1a1aa;
+    --text-muted: #71717a;
+    --accent: #8b87f8;
+    --accent-hover: #a09bfa;
+    --accent-soft: rgba(99, 102, 241, 0.18);
+    --accent-soft-border: rgba(99, 102, 241, 0.35);
+    --on-accent: #17171b;
+    --success: #34d399;
+    --warning: #fbbf24;
+    --danger: #f87171;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.45);
+    --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55);
+    --loading-scrim: rgba(17, 17, 19, 0.74);
+    --loading-thread-track: color-mix(in srgb, var(--accent) 30%, transparent);
+  }
+  #ld3 * { box-sizing: border-box; }
+  #ld3 button { font: inherit; }
+  #ld3::before { content: ''; position: fixed; inset: 0; z-index: -1; background: var(--bg-app); }
+
+  .l3-wrap { max-width: 1280px; margin: 0 auto; }
+  .l3-top {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    padding: 2px 2px 18px; border-bottom: 1px solid var(--border); flex-wrap: wrap;
+  }
+  .l3-brand { display: flex; align-items: center; gap: 10px; }
+  .l3-logo {
+    width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center;
+    color: var(--accent); background: var(--accent-soft); border: 1px solid var(--accent-soft-border);
+  }
+  .l3-brand strong { display: block; font-size: 13px; }
+  .l3-brand span { display: block; font-size: 10.5px; color: var(--text-muted); letter-spacing: 0.04em; }
+  .l3-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .l3-ctl {
+    height: 30px; padding: 0 11px; border-radius: var(--radius-sm); border: 1px solid var(--border-strong);
+    background: var(--bg-surface); color: var(--text-secondary); font-size: 11.5px;
+    display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+    transition: border-color var(--dur-fast), color var(--dur-fast), background var(--dur-fast);
+  }
+  .l3-ctl:hover { border-color: var(--accent); color: var(--accent); }
+  .l3-ctl--primary { background: var(--accent); border-color: transparent; color: var(--on-accent); }
+  .l3-ctl--primary:hover { background: var(--accent-hover); color: var(--on-accent); }
+
+  .l3-hero { padding: 44px 2px 8px; }
+  .l3-kicker { margin: 0 0 12px; font-size: 10px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent); }
+  .l3-hero h1 { margin: 0; font-size: clamp(30px, 4.4vw, 48px); line-height: 1.08; letter-spacing: -0.035em; font-weight: 680; max-width: 820px; }
+  .l3-lede { margin: 16px 0 0; max-width: 740px; font-size: 14px; color: var(--text-secondary); line-height: 1.75; }
+  .l3-chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 20px; }
+  .l3-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 9px; border: 1px solid var(--border); border-radius: 999px; background: var(--bg-surface); font-size: 10.5px; color: var(--text-secondary); }
+  .l3-chip i { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
+
+  .l3-section { margin-top: 44px; }
+  .l3-section-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
+  .l3-badge { width: 34px; height: 34px; border-radius: 10px; flex: none; display: grid; place-items: center; background: var(--accent-soft); border: 1px solid var(--accent-soft-border); color: var(--accent); font-size: 12px; font-weight: 700; }
+  .l3-section-head h2 { margin: 1px 0 3px; font-size: 19px; letter-spacing: -0.02em; }
+  .l3-section-head p { margin: 0; font-size: 12.5px; color: var(--text-secondary); }
+  .l3-grid { display: grid; gap: 12px; }
+  .l3-grid--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  .l3-card {
+    background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm); display: flex; flex-direction: column; min-width: 0;
+    transition: border-color var(--dur-base), box-shadow var(--dur-base);
+  }
+  .l3-card:hover { border-color: var(--border-strong); box-shadow: var(--shadow-md); }
+  .l3-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px 0; font-size: 11.5px; font-weight: 600; flex-wrap: wrap; }
+  .l3-meta { font-size: 10px; font-weight: 400; color: var(--text-muted); }
+  .l3-stage {
+    margin: 10px 14px 0; padding: 16px; border: 1px solid var(--border); border-radius: 9px;
+    background:
+      radial-gradient(circle, color-mix(in srgb, var(--text-muted) 10%, transparent) 0.5px, transparent 0.6px) 0 0 / 8px 8px,
+      color-mix(in srgb, var(--bg-muted) 62%, var(--bg-surface));
+    display: flex; flex-direction: column; gap: 10px; justify-content: center; min-height: 132px;
+  }
+  .l3-note { padding: 10px 14px 13px; font-size: 10.5px; color: var(--text-muted); line-height: 1.65; }
+  .l3-note code { font-family: 'JetBrains Mono', Consolas, monospace; font-size: 10px; color: var(--text-secondary); }
+  .l3-play {
+    display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; height: 24px;
+    border: 1px solid var(--border); border-radius: 999px; background: transparent;
+    color: var(--text-secondary); font-size: 10.5px; cursor: pointer;
+    transition: border-color var(--dur-fast), color var(--dur-fast), background var(--dur-fast);
+  }
+  .l3-play:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+  .l3-head-tools { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+
+  .l3-seg { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; padding: 2px; gap: 2px; background: var(--bg-surface); }
+  .l3-seg button { border: none; background: transparent; color: var(--text-muted); font-size: 10px; padding: 3px 8px; border-radius: 999px; cursor: pointer; white-space: nowrap; }
+  .l3-seg button.is-active { background: var(--accent-soft); color: var(--accent); }
+
+  /* ── 工作台 ── */
+  .l3-workbench { position: relative; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--bg-app); box-shadow: var(--shadow-sm); }
+  .l3-titlebar { height: 32px; display: flex; align-items: center; gap: 9px; padding: 0 9px; background: var(--bg-muted); border-bottom: 1px solid var(--border); font-size: 10.5px; color: var(--text-secondary); }
+  .l3-titlebar .l3-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+  .l3-titlebar strong { font-size: 10.5px; color: var(--text-primary); }
+  .l3-project { color: var(--accent); }
+  .l3-tb-spacer { flex: 1; }
+  .l3-winbtns { display: flex; gap: 2px; color: var(--text-muted); }
+  .l3-winbtn { width: 22px; height: 24px; display: grid; place-items: center; border-radius: 4px; font-size: 11px; }
+  .l3-wb-body { position: relative; display: flex; min-height: 344px; }
+  .l3-sidebar { width: 150px; flex: none; padding: 10px 8px; display: flex; flex-direction: column; gap: 3px; background: var(--bg-surface); border-right: 1px solid var(--border); }
+  .l3-nav { display: flex; align-items: center; gap: 7px; padding: 6px 8px; border-radius: 6px; font-size: 10.5px; color: var(--text-secondary); }
+  .l3-nav.is-active { background: var(--accent-soft); color: var(--accent); }
+  .l3-nav svg { flex: none; color: var(--text-muted); }
+  .l3-nav.is-active svg { color: var(--accent); }
+  .l3-main { flex: 1; min-width: 0; padding: 12px 14px; }
+  .l3-main-head { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 11px; }
+  .l3-main-title { font-weight: 600; }
+  .l3-main-sub { color: var(--text-muted); font-size: 10px; }
+  .l3-entity-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .l3-entity { padding: 9px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-surface); font-size: 9.5px; color: var(--text-secondary); }
+  .l3-entity strong { display: block; margin-bottom: 4px; font-size: 10.5px; color: var(--text-primary); }
+
+  .l3-overlay {
+    position: absolute; inset: 0; z-index: 20; display: grid; place-items: center; padding: 20px;
+    background: var(--loading-scrim); backdrop-filter: blur(var(--loading-scrim-blur));
+    -webkit-backdrop-filter: blur(var(--loading-scrim-blur));
+    opacity: 0; pointer-events: none; transition: opacity var(--dur-base) var(--ease);
+  }
+  .l3-overlay.is-visible { opacity: 1; pointer-events: auto; }
+  .l3-panel {
+    width: min(388px, 100%); padding: 18px 20px 14px; border-radius: 14px;
+    background: var(--bg-surface); border: 1px solid var(--border); box-shadow: var(--shadow-lg);
+    display: flex; flex-direction: column; gap: 8px;
+    transform: translateY(5px) scale(0.985); transition: transform var(--dur-base) var(--ease-out);
+  }
+  .l3-overlay.is-visible .l3-panel { transform: none; }
+  .l3-panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+  .l3-panel-head h3 { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: -0.01em; }
+  .l3-count { font-size: 9.5px; color: var(--text-muted); font-variant-numeric: tabular-nums; letter-spacing: 0.06em; }
+  .l3-panel-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px; font-size: 9px; color: var(--text-muted); }
+  .l3-panel-foot span:last-child { color: var(--text-muted); }
+
+  /* ── 文字推进 ── */
+  .l3-stage-block { display: flex; flex-direction: column; gap: 5px; }
+  .l3-stage-text { position: relative; font-size: 12.5px; font-weight: 600; line-height: 1.4; min-height: 18px; }
+  .l3-stage-base { color: var(--text-secondary); }
+  .l3-stage-fill {
+    position: absolute; inset: 0; color: var(--loading-label-fill);
+    clip-path: inset(0 calc(100% - var(--p, 0%)) 0 0);
+    transition: clip-path 0.55s var(--ease-weight);
+    pointer-events: none; white-space: nowrap;
+  }
+  .l3-stage-base { white-space: nowrap; display: block; }
+  .l3-underline { position: relative; height: var(--loading-underline-height); background: color-mix(in srgb, var(--accent) 15%, transparent); border-radius: 999px; }
+  .l3-underline-fill { position: absolute; left: 0; top: 0; height: 100%; width: var(--p, 0%); background: var(--accent); border-radius: inherit; transition: width 0.55s var(--ease-weight); }
+  .l3-underline-tick { position: absolute; left: var(--p, 0%); top: -2px; width: 1px; height: 5px; background: var(--accent); transform: translateX(-50%); transition: left 0.55s var(--ease-weight); }
+  .l3-stage-detail { font-size: 9.5px; color: var(--text-muted); min-height: 14px; }
+
+  /* ── 变体容器 ── */
+  .l3-variant { min-height: 146px; display: flex; flex-direction: column; justify-content: center; }
+  .l3-panel[data-mode='thread'] .l3-route { display: none; }
+  .l3-panel[data-mode='route'] .l3-thread { display: none; }
+
+  /* ── 阶段线 ── */
+  .l3-thread { position: relative; padding: 6px 0; }
+  .l3-thread-rail {
+    position: absolute; left: 7px; width: 1px;
+    background: repeating-linear-gradient(to bottom, var(--loading-thread-track) 0 2px, transparent 2px 5px);
+  }
+  .l3-thread-fill {
+    position: absolute; left: 0; top: 0; width: 1px; height: 0;
+    background: var(--loading-thread-fill); transition: height 0.55s var(--ease-weight);
+  }
+  .l3-thread-star {
+    position: absolute; left: 7px; top: 0; width: 6px; height: 6px; z-index: 3;
+    background: var(--accent); transform: translate(-50%, -50%);
+    clip-path: polygon(50% 0%, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0% 50%, 40% 40%);
+    filter: drop-shadow(0 0 5px color-mix(in srgb, var(--accent) 60%, transparent));
+    transition: top 0.55s var(--ease-weight);
+  }
+  .l3-thread-star.is-done { animation: l3-star-settle 0.62s var(--ease) forwards; }
+  .l3-thread-row { display: flex; align-items: center; gap: 10px; height: 32px; position: relative; z-index: 2; }
+  .l3-thread-node {
+    width: var(--loading-node-size); height: var(--loading-node-size); margin-left: 3px; flex: none;
+    border-radius: 50%; border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+    background: var(--bg-surface);
+    transition: width var(--dur-base), height var(--dur-base), background var(--dur-base), border-color var(--dur-base), box-shadow var(--dur-base);
+  }
+  .l3-thread-row.is-done .l3-thread-node { background: var(--accent); border-color: var(--accent); }
+  .l3-thread-row.is-active .l3-thread-node {
+    width: var(--loading-node-active); height: var(--loading-node-active); margin-left: 2px;
+    background: var(--accent); border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .l3-thread-label { font-size: 11px; color: var(--text-muted); transition: color var(--dur-base); }
+  .l3-thread-row.is-done .l3-thread-label { color: var(--text-secondary); }
+  .l3-thread-row.is-active .l3-thread-label { color: var(--accent); font-weight: 600; }
+  .l3-thread-state { margin-left: auto; font-size: 9px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .l3-thread-row.is-done .l3-thread-state::before { content: '✓'; color: var(--accent); }
+  .l3-thread-row.is-active .l3-thread-state::before { content: '进行中'; color: var(--accent); letter-spacing: 0.04em; }
+
+  /* ── 弧形航线 ── */
+  .l3-route { min-height: 146px; justify-content: center; gap: 3px; }
+  .l3-route-canvas { position: relative; width: 100%; aspect-ratio: 320 / 72; }
+  .l3-route-canvas svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .l3-route-fill { transition: stroke-dashoffset 0.55s var(--ease-weight); }
+  .l3-route-node {
+    position: absolute; width: 3.5px; height: 3.5px; border-radius: 50%;
+    background: var(--bg-surface); border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+    transform: translate(-50%, -50%);
+    transition: width var(--dur-base), height var(--dur-base), background var(--dur-base), border-color var(--dur-base), box-shadow var(--dur-base);
+  }
+  .l3-route-node.is-done { background: var(--accent); border-color: var(--accent); }
+  .l3-route-node.is-active { width: 6px; height: 6px; background: var(--accent); border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .l3-route-star {
+    position: absolute; width: 6px; height: 6px; left: 0; top: 0;
+    background: var(--accent); transform: translate(-50%, -50%);
+    clip-path: polygon(50% 0%, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0% 50%, 40% 40%);
+    filter: drop-shadow(0 0 5px color-mix(in srgb, var(--accent) 60%, transparent));
+    transition: left 0.55s var(--ease-weight), top 0.55s var(--ease-weight);
+  }
+  .l3-route-star.is-done { animation: l3-star-settle 0.62s var(--ease) forwards; }
+  .l3-route-labels { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 1px; }
+  .l3-route-label { position: relative; padding-top: 7px; font-size: 9px; color: var(--text-muted); text-align: center; transition: color var(--dur-base); }
+  .l3-route-label::before { content: ''; position: absolute; top: 0; left: 50%; width: 1px; height: 4px; background: color-mix(in srgb, var(--accent) 24%, transparent); transform: translateX(-50%); }
+  .l3-route-label.is-active { color: var(--accent); }
+  .l3-route-label.is-active::before { background: var(--accent); box-shadow: 0 0 5px color-mix(in srgb, var(--accent) 45%, transparent); }
+
+  /* ── 文字推进实验 ── */
+  .l3-text-demo { width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 6px; }
+  .l3-text-demo .l3-stage-text { font-size: 14px; }
+  .l3-text-demo .l3-stage-base,
+  .l3-text-demo .l3-stage-fill { white-space: normal; }
+  .l3-range {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; max-width: 360px; height: 16px; margin-top: 2px;
+    background: transparent; cursor: pointer;
+  }
+  .l3-range::-webkit-slider-runnable-track { height: 1px; background: var(--border-strong); border-radius: 999px; }
+  .l3-range::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 9px; height: 9px; margin-top: -4px; border-radius: 50%;
+    background: var(--accent); border: 2px solid var(--bg-surface);
+    box-shadow: 0 0 0 1px var(--accent-soft-border);
+  }
+  .l3-range::-moz-range-track { height: 1px; background: var(--border-strong); border-radius: 999px; }
+  .l3-range::-moz-range-thumb { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); border: 2px solid var(--bg-surface); }
+
+  /* ── 扫描雷达 ── */
+  .l3-scan { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+  .l3-scan-top { display: flex; align-items: center; gap: 11px; }
+  .l3-radar {
+    position: relative; width: 36px; height: 36px; flex: none; border-radius: 50%;
+    border: 1px dashed color-mix(in srgb, var(--accent) 42%, transparent);
+    background: color-mix(in srgb, var(--bg-muted) 60%, transparent);
+    overflow: hidden;
+  }
+  .l3-radar::before {
+    content: ''; position: absolute; inset: 0; border-radius: 50%;
+    background: conic-gradient(from 0deg, transparent 0deg, transparent 300deg, var(--loading-radar-sweep) 360deg);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
+    animation: l3-radar var(--loading-radar-duration) linear infinite;
+    animation-play-state: paused;
+  }
+  .l3-scan.is-active .l3-radar::before { animation-play-state: running; }
+  .l3-radar::after {
+    content: ''; position: absolute; left: 50%; top: 50%; width: 2px; height: 2px;
+    border-radius: 50%; background: var(--accent); transform: translate(-50%, -50%);
+  }
+  .l3-radar-dot {
+    position: absolute; left: var(--x); top: var(--y); width: 3px; height: 3px; border-radius: 50%;
+    background: var(--accent); transform: translate(-50%, -50%) scale(0.4); opacity: 0;
+    transition: opacity 0.3s var(--ease), transform 0.3s var(--ease);
+  }
+  .l3-scan.is-found-0 [data-dot='0'],
+  .l3-scan.is-found-1 [data-dot='1'],
+  .l3-scan.is-found-2 [data-dot='2'] { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  .l3-scan-title { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+  .l3-scan-title strong { font-size: 11px; font-weight: 600; }
+  .l3-scan-title span { font-size: 9.5px; color: var(--text-muted); }
+  .l3-scan-pct { margin-left: auto; font-size: 11px; font-weight: 600; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .l3-scan-line { position: relative; height: 1px; background: color-mix(in srgb, var(--accent) 15%, transparent); border-radius: 999px; overflow: hidden; }
+  .l3-scan-line span { position: absolute; left: 0; top: 0; height: 100%; width: 0; background: var(--accent); border-radius: inherit; transition: width 0.18s linear; }
+
+  /* ── 差异 / token ── */
+  .l3-diff { margin-top: 44px; display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 12px; }
+  .l3-panel-card { padding: 18px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg-surface); box-shadow: var(--shadow-sm); }
+  .l3-panel-card h3 { margin: 0 0 4px; font-size: 14px; }
+  .l3-panel-card .l3-sub { margin: 0 0 14px; font-size: 11px; color: var(--text-muted); line-height: 1.6; }
+  .l3-rules { display: flex; flex-direction: column; gap: 9px; }
+  .l3-rule { display: flex; gap: 9px; align-items: flex-start; font-size: 11.5px; color: var(--text-secondary); line-height: 1.65; }
+  .l3-rule b { flex: none; width: 18px; height: 18px; border-radius: 5px; display: grid; place-items: center; background: var(--bg-muted); color: var(--text-secondary); font-size: 9px; font-weight: 600; }
+  .l3-rule strong { color: var(--text-primary); font-weight: 600; }
+  .l3-rule code { font-family: 'JetBrains Mono', Consolas, monospace; font-size: 10px; }
+  .l3-token-table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+  .l3-token-table th { text-align: left; font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); font-weight: 600; padding: 0 0 7px; }
+  .l3-token-table td { padding: 6px 0; border-top: 1px solid var(--border); color: var(--text-secondary); vertical-align: top; }
+  .l3-token-table code { font-family: 'JetBrains Mono', Consolas, monospace; font-size: 9.5px; color: var(--accent); }
+  .l3-token-table td:last-child { color: var(--text-muted); padding-left: 10px; }
+  .l3-source { margin-top: 12px; font-size: 9.5px; color: var(--text-muted); line-height: 1.7; }
+  .l3-source a { color: var(--text-secondary); text-decoration: none; border-bottom: 1px dotted var(--border-strong); }
+
+  /* ── 动效 ── */
+  @keyframes l3-radar { to { transform: rotate(360deg); } }
+  @keyframes l3-star-settle {
+    0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+    45% { transform: translate(-50%, -50%) scale(1.8); opacity: 1; }
+    100% { transform: translate(-50%, -50%) scale(2.6); opacity: 0; }
+  }
+
+  #ld3[data-motion='off'] .l3-radar::before { animation-duration: 4.6s; }
+  #ld3[data-motion='off'] .l3-thread-star,
+  #ld3[data-motion='off'] .l3-thread-fill,
+  #ld3[data-motion='off'] .l3-route-star,
+  #ld3[data-motion='off'] .l3-route-fill,
+  #ld3[data-motion='off'] .l3-stage-fill,
+  #ld3[data-motion='off'] .l3-underline-fill,
+  #ld3[data-motion='off'] .l3-underline-tick { transition-duration: 0.01ms; }
+  #ld3[data-motion='off'] .l3-thread-star.is-done,
+  #ld3[data-motion='off'] .l3-route-star.is-done { animation-duration: 0.01ms; }
+  #ld3[data-motion='off'] .l3-scan-line span { transition-duration: 0.01ms; }
+
+  @media (max-width: 900px) {
+    .l3-diff { grid-template-columns: 1fr; }
+    .l3-grid--2 { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 680px) {
+    #ld3 { padding: 16px 12px 40px; }
+    .l3-hero { padding-top: 30px; }
+    .l3-sidebar { width: 116px; }
+    .l3-entity-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .l3-panel { width: 100%; padding: 16px; }
+    .l3-stage-text { font-size: 12px; }
+  }
+</style>
+
+<div id="ld3" data-theme="light" data-motion="on">
+  <div class="l3-wrap">
+    <header class="l3-top">
+      <div class="l3-brand">
+        <span class="l3-logo" aria-hidden="true">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="8.4" stroke="currentColor" stroke-width="1.4" opacity="0.5"/>
+            <path d="M12 3.6 13.7 10.3 20.4 12 13.7 13.7 12 20.4 10.3 13.7 3.6 12 10.3 10.3 12 3.6Z" fill="currentColor" opacity="0.9"/>
+          </svg>
+        </span>
+        <div>
+          <strong>WorldSea</strong>
+          <span>Refined Loading · Study 03</span>
+        </div>
+      </div>
+      <div class="l3-controls">
+        <button type="button" class="l3-ctl" id="l3-theme">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+          <span id="l3-theme-label">深色</span>
+        </button>
+        <button type="button" class="l3-ctl" id="l3-motion">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 12h4l2-5 4 10 2-5h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span id="l3-motion-label">减弱动态：关</span>
+        </button>
+        <button type="button" class="l3-ctl l3-ctl--primary" id="l3-replay">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4.5 9A7.5 7.5 0 1 1 4 13.5M4.5 9V4.8M4.5 9h4.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          重播全部
+        </button>
+      </div>
+    </header>
+
+    <section class="l3-hero">
+      <p class="l3-kicker">Study 03 · Stage Thread</p>
+      <h1>把阶段，做成一条线。</h1>
+      <p class="l3-lede">
+        从 Uiverse 提取四个结构：竖向阶段列表、文字下划线推进、雷达扫描、移动标记的停顿。
+        现在把 R3 从「弧形航线」改成「竖向阶段线」，并保留 A/B 对比。
+      </p>
+      <div class="l3-chips">
+        <span class="l3-chip"><i></i>竖向阶段线</span>
+        <span class="l3-chip"><i></i>文字推进</span>
+        <span class="l3-chip"><i></i>扫描雷达</span>
+        <span class="l3-chip"><i></i>进站停顿</span>
+      </div>
+    </section>
+
+    <!-- R3 A/B -->
+    <section class="l3-section" id="l3-r3">
+      <div class="l3-section-head">
+        <span class="l3-badge">R3</span>
+        <div>
+          <h2>阶段线 vs 弧形航线</h2>
+          <p>同一组阶段状态，两种结构。阶段线更清楚、可扩展；航线更有「旅程」感。</p>
+        </div>
+      </div>
+
+      <article class="l3-card">
+        <div class="l3-card-head">
+          <span>全局内容区 · 只盖内容区</span>
+          <div class="l3-head-tools">
+            <div class="l3-seg" id="l3-mode" role="group" aria-label="切换 R3 视觉结构">
+              <button type="button" class="is-active" data-mode="thread">A · 阶段线</button>
+              <button type="button" data-mode="route">B · 弧形航线</button>
+            </div>
+            <button type="button" class="l3-play" data-play="switch">切换项目</button>
+          </div>
+        </div>
+
+        <div class="l3-stage" style="padding:12px;">
+          <div class="l3-workbench" id="l3-workbench">
+            <div class="l3-titlebar">
+              <span class="l3-dot"></span><strong>WorldSea</strong><span class="l3-project">默认工作区</span>
+              <span class="l3-tb-spacer"></span>
+              <span class="l3-winbtns"><span class="l3-winbtn">—</span><span class="l3-winbtn">□</span><span class="l3-winbtn">×</span></span>
+            </div>
+            <div class="l3-wb-body">
+              <aside class="l3-sidebar">
+                <div class="l3-nav is-active">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.2" stroke="currentColor" stroke-width="1.5"/><path d="M5 20c.8-3.4 3.4-5.2 7-5.2s6.2 1.8 7 5.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                  角色
+                </div>
+                <div class="l3-nav">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M4 6.5 12 3l8 3.5-8 3.5-8-3.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M4 6.5V17l8 4 8-4V6.5" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+                  地点
+                </div>
+                <div class="l3-nav">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M5 4.5h14v15H5z" stroke="currentColor" stroke-width="1.5"/><path d="M8 8h8M8 11.5h8M8 15h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                  事件
+                </div>
+              </aside>
+              <div class="l3-main">
+                <div class="l3-main-head"><span class="l3-main-title">角色</span><span class="l3-main-sub">12 个实体 · 按修改时间</span></div>
+                <div class="l3-entity-grid">
+                  <div class="l3-entity"><strong>雾港守夜人</strong>守望雾港的古老组织</div>
+                  <div class="l3-entity"><strong>潮汐祭司</strong>解读潮汐与星象</div>
+                  <div class="l3-entity"><strong>群岛信使</strong>往返岛屿之间</div>
+                  <div class="l3-entity"><strong>盐雾匠</strong>以盐与雾造物</div>
+                  <div class="l3-entity"><strong>灯塔守望者</strong>记录每一次涨潮</div>
+                  <div class="l3-entity"><strong>深潮学者</strong>研究海底遗迹</div>
+                </div>
+              </div>
+
+              <div class="l3-overlay" id="l3-overlay" role="status" aria-live="polite">
+                <div class="l3-panel" id="l3-panel" data-mode="thread">
+                  <div class="l3-panel-head">
+                    <h3>正在切换项目</h3>
+                    <span class="l3-count" id="l3-count">1 / 4</span>
+                  </div>
+
+                  <div class="l3-stage-block" id="l3-stage-block" style="--p:8%">
+                    <div class="l3-stage-text">
+                      <span class="l3-stage-base" id="l3-stage-base">切换数据源…</span>
+                      <span class="l3-stage-fill" id="l3-stage-fill" aria-hidden="true">切换数据源…</span>
+                    </div>
+                    <div class="l3-underline">
+                      <span class="l3-underline-fill"></span>
+                      <span class="l3-underline-tick"></span>
+                    </div>
+                    <div class="l3-stage-detail" id="l3-stage-detail">绑定工作区指针</div>
+                  </div>
+
+                  <div class="l3-variant l3-thread" id="l3-thread">
+                    <div class="l3-thread-rail" id="l3-thread-rail"><span class="l3-thread-fill" id="l3-thread-fill"></span></div>
+                    <div class="l3-thread-star" id="l3-thread-star" aria-hidden="true"></div>
+                    <div class="l3-thread-row is-active" data-i="0">
+                      <span class="l3-thread-node" aria-hidden="true"></span>
+                      <span class="l3-thread-label">数据源</span>
+                      <span class="l3-thread-state" aria-hidden="true"></span>
+                    </div>
+                    <div class="l3-thread-row" data-i="1">
+                      <span class="l3-thread-node" aria-hidden="true"></span>
+                      <span class="l3-thread-label">装载实体</span>
+                      <span class="l3-thread-state" aria-hidden="true"></span>
+                    </div>
+                    <div class="l3-thread-row" data-i="2">
+                      <span class="l3-thread-node" aria-hidden="true"></span>
+                      <span class="l3-thread-label">重装芽</span>
+                      <span class="l3-thread-state" aria-hidden="true"></span>
+                    </div>
+                    <div class="l3-thread-row" data-i="3">
+                      <span class="l3-thread-node" aria-hidden="true"></span>
+                      <span class="l3-thread-label">恢复关联</span>
+                      <span class="l3-thread-state" aria-hidden="true"></span>
+                    </div>
+                  </div>
+
+                  <div class="l3-variant l3-route" id="l3-route">
+                    <div class="l3-route-canvas">
+                      <svg viewBox="0 0 320 72" preserveAspectRatio="none" aria-hidden="true">
+                        <path id="l3-route-track" d="M18 56 C 96 8, 224 8, 302 56" fill="none" stroke="var(--loading-thread-track)" stroke-width="1.2" stroke-linecap="round" stroke-dasharray="2 4"/>
+                        <path id="l3-route-fill" class="l3-route-fill" d="M18 56 C 96 8, 224 8, 302 56" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round"/>
+                      </svg>
+                      <span class="l3-route-node" data-i="0"></span>
+                      <span class="l3-route-node" data-i="1"></span>
+                      <span class="l3-route-node" data-i="2"></span>
+                      <span class="l3-route-node" data-i="3"></span>
+                      <span class="l3-route-star" id="l3-route-star"></span>
+                    </div>
+                    <div class="l3-route-labels">
+                      <span class="l3-route-label is-active">数据源</span>
+                      <span class="l3-route-label">实体</span>
+                      <span class="l3-route-label">芽</span>
+                      <span class="l3-route-label">关联</span>
+                    </div>
+                  </div>
+
+                  <div class="l3-panel-foot">
+                    <span>目标：群岛档案</span>
+                    <span>星点进站：减速 180ms · 停 120ms</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="l3-note">A 阶段线：1px 竖线 + 四颗节点，星点停在当前阶段；B 弧形航线保留 Study 02 的旅程感。两者共用同一段阶段文案与进度。</div>
+      </article>
+    </section>
+
+    <!-- 文字推进 -->
+    <section class="l3-section" id="l3-text">
+      <div class="l3-section-head">
+        <span class="l3-badge">R3</span>
+        <div>
+          <h2>文字推进 · 标签即进度</h2>
+          <p>文字本身承担一部分进度：左侧已读部分用 accent 填充，下划线只做 1px。拖动试试。</p>
+        </div>
+      </div>
+      <article class="l3-card">
+        <div class="l3-card-head">
+          <span>阶段标签 · 装载实体</span>
+          <span class="l3-meta" id="l3-text-pct">46%</span>
+        </div>
+        <div class="l3-stage" style="align-items:center;">
+          <div class="l3-text-demo" id="l3-text-demo" style="--p:46%">
+            <div class="l3-stage-text">
+              <span class="l3-stage-base">装载实体 / 关系 / 文件</span>
+              <span class="l3-stage-fill" aria-hidden="true">装载实体 / 关系 / 文件</span>
+            </div>
+            <div class="l3-underline">
+              <span class="l3-underline-fill"></span>
+              <span class="l3-underline-tick"></span>
+            </div>
+          </div>
+          <input type="range" min="0" max="100" value="46" id="l3-text-range" class="l3-range" aria-label="调整文字推进示例的进度" />
+        </div>
+        <div class="l3-note">来源：andrew-manzyk 的文字下划线 + faheemmehdi 的文字填充。只保留 1px 线与星形刻度，不做字效。</div>
+      </article>
+    </section>
+
+    <!-- 扫描雷达 -->
+    <section class="l3-section" id="l3-scan">
+      <div class="l3-section-head">
+        <span class="l3-badge">R3-L</span>
+        <div>
+          <h2>扫描雷达 · 只用于「扫」的任务</h2>
+          <p>存储扫描、孤立文件、一致性检查：雷达说明「正在扫」，百分比仍然来自真实进度。</p>
+        </div>
+      </div>
+      <article class="l3-card">
+        <div class="l3-card-head">
+          <span>设置 › 存储 › 孤立文件扫描</span>
+          <button type="button" class="l3-play" data-play="scan">开始扫描</button>
+        </div>
+        <div class="l3-stage">
+          <div class="l3-scan" id="l3-scan" role="status" aria-live="polite" aria-label="扫描示例">
+            <div class="l3-scan-top">
+              <div class="l3-radar" aria-hidden="true">
+                <span class="l3-radar-dot" data-dot="0" style="--x:66%;--y:30%"></span>
+                <span class="l3-radar-dot" data-dot="1" style="--x:34%;--y:60%"></span>
+                <span class="l3-radar-dot" data-dot="2" style="--x:58%;--y:74%"></span>
+              </div>
+              <div class="l3-scan-title">
+                <strong>扫描孤立文件</strong>
+                <span id="l3-scan-sub">只读扫描，不会修改文件</span>
+              </div>
+              <span class="l3-scan-pct" id="l3-scan-pct">0%</span>
+            </div>
+            <div class="l3-scan-line"><span id="l3-scan-fill"></span></div>
+          </div>
+        </div>
+        <div class="l3-note">来源：mrhyddenn 的虚线环 + 扫描扇。缩到 36px、单色 accent、去霓虹；它不替代真实百分比。演示停在 63% 中间态；点「开始扫描」看完整过程。</div>
+      </article>
+    </section>
+
+    <!-- 差异 / token -->
+    <section class="l3-diff">
+      <div class="l3-panel-card">
+        <h3>Study 03 改了什么</h3>
+        <p class="l3-sub">只改进 R3 与扫描类；R1 星轨、R2 测线骨架、R4 星点状态沿用 Study 02。</p>
+        <div class="l3-rules">
+          <div class="l3-rule"><b>1</b><span><strong>R3 主结构改为竖向阶段线。</strong> 阶段名、状态、当前进度在同一条竖线上读完；弧形航线保留为 B 案。</span></div>
+          <div class="l3-rule"><b>2</b><span><strong>标签承担进度。</strong> 已完成文字用 accent 填充，下划线 1px；不再额外加粗进度条。</span></div>
+          <div class="l3-rule"><b>3</b><span><strong>星点有重量。</strong> 进站减速 180ms、停 120ms 再走；不是匀速滑行。</span></div>
+          <div class="l3-rule"><b>4</b><span><strong>扫描类有专用雷达。</strong> 存储/一致性检查用 36px 雷达 + 真实百分比；其他加载不滥用。</span></div>
+          <div class="l3-rule"><b>5</b><span><strong>来源只取结构。</strong> dexter-st 的阶段列表、andrew-manzyk 的下划线、mrhyddenn 的雷达、Shoh2008 的停顿；不复制颜色和尺寸。</span></div>
+        </div>
+      </div>
+      <div class="l3-panel-card">
+        <h3>新增 token 草案</h3>
+        <p class="l3-sub">在 Study 02 的加载 token 上补 8 个；仍然只落 <code>theme.css</code> + <code>packages/ui-kit</code>。</p>
+        <table class="l3-token-table">
+          <thead><tr><th>Token</th><th>值</th><th>用途</th></tr></thead>
+          <tbody>
+            <tr><td><code>--loading-thread-track</code></td><td>accent 24%</td><td>阶段线虚线轨道</td></tr>
+            <tr><td><code>--loading-thread-fill</code></td><td>var(--accent)</td><td>已完成阶段线</td></tr>
+            <tr><td><code>--loading-node-size</code></td><td>9px</td><td>阶段节点</td></tr>
+            <tr><td><code>--loading-node-active</code></td><td>11px</td><td>当前阶段节点</td></tr>
+            <tr><td><code>--loading-label-fill</code></td><td>var(--accent)</td><td>文字填充</td></tr>
+            <tr><td><code>--loading-underline-height</code></td><td>1px</td><td>文字下划线</td></tr>
+            <tr><td><code>--loading-stage-hold</code></td><td>120ms</td><td>星点进站停顿</td></tr>
+            <tr><td><code>--loading-radar-sweep</code></td><td>accent 75%</td><td>扫描扇</td></tr>
+          </tbody>
+        </table>
+        <div class="l3-source">
+          结构参考：
+          <a href="https://uiverse.io/dexter-st/honest-husky-81" target="_blank" rel="noreferrer">dexter-st · 阶段列表</a> ·
+          <a href="https://uiverse.io/andrew-manzyk/unlucky-mouse-21" target="_blank" rel="noreferrer">andrew-manzyk · 下划线</a> ·
+          <a href="https://uiverse.io/mrhyddenn/giant-lion-34" target="_blank" rel="noreferrer">mrhyddenn · 雷达</a> ·
+          <a href="https://uiverse.io/Shoh2008/cold-walrus-85" target="_blank" rel="noreferrer">Shoh2008 · 停顿</a>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+(() => {
+  const root = document.getElementById('ld3');
+  if (!root) return;
+
+  const timers = new Map();
+  function later(key, fn, ms) {
+    const old = timers.get(key);
+    if (old) clearTimeout(old);
+    timers.set(key, setTimeout(fn, ms));
+  }
+  function clearPrefix(prefix) {
+    for (const [key, timer] of timers) {
+      if (key.startsWith(prefix)) { clearTimeout(timer); timers.delete(key); }
+    }
+  }
+
+  const stages = [
+    { p: 0.08, label: '切换数据源…', detail: '绑定工作区指针', short: '数据源' },
+    { p: 0.46, label: '装载实体 / 关系 / 文件…', detail: '实体 1,284 · 关系 3,106 · 文件 42', short: '装载实体' },
+    { p: 0.78, label: '重装芽与视图…', detail: '27 个芽 · 视图注册', short: '重装芽' },
+    { p: 1, label: '恢复文件关联…', detail: '文件监听 / 导图 / 章节迁移', short: '恢复关联' },
+  ];
+
+  const panel = document.getElementById('l3-panel');
+  const overlay = document.getElementById('l3-overlay');
+  const wbBody = document.querySelector('#l3-workbench .l3-wb-body');
+  const stageBlock = document.getElementById('l3-stage-block');
+  const stageBase = document.getElementById('l3-stage-base');
+  const stageFill = document.getElementById('l3-stage-fill');
+  const stageDetail = document.getElementById('l3-stage-detail');
+  const count = document.getElementById('l3-count');
+
+  const thread = document.getElementById('l3-thread');
+  const threadRows = thread ? [...thread.querySelectorAll('.l3-thread-row')] : [];
+  const threadRail = document.getElementById('l3-thread-rail');
+  const threadFill = document.getElementById('l3-thread-fill');
+  const threadStar = document.getElementById('l3-thread-star');
+  let centers = [];
+
+  const routeCanvas = document.getElementById('l3-route');
+  const routePath = document.getElementById('l3-route-track');
+  const routeFill = document.getElementById('l3-route-fill');
+  const routeStar = document.getElementById('l3-route-star');
+  const routeNodes = routeCanvas ? [...routeCanvas.querySelectorAll('.l3-route-node')] : [];
+  const routeLabels = [...document.querySelectorAll('.l3-route-labels .l3-route-label')];
+  const routeLen = routePath ? routePath.getTotalLength() : 0;
+  const routeRatios = stages.map((_, i) => i / (stages.length - 1));
+
+  if (routeFill) {
+    routeFill.style.strokeDasharray = String(routeLen);
+    routeFill.style.strokeDashoffset = String(routeLen);
+  }
+  routeRatios.forEach((ratio, i) => {
+    if (!routePath) return;
+    const point = routePath.getPointAtLength(routeLen * ratio);
+    const node = routeNodes[i];
+    if (node) {
+      node.style.left = (point.x / 320 * 100) + '%';
+      node.style.top = (point.y / 72 * 100) + '%';
+    }
+  });
+
+  function layoutThread() {
+    if (!thread || threadRows.length === 0) return;
+    centers = threadRows.map(row => row.offsetTop + row.offsetHeight / 2);
+    if (threadRail) {
+      threadRail.style.top = centers[0] + 'px';
+      threadRail.style.height = (centers[centers.length - 1] - centers[0]) + 'px';
+    }
+  }
+
+  function setThread(index, complete) {
+    if (!thread || centers.length === 0) return;
+    const top = centers[index];
+    if (threadStar) threadStar.style.top = top + 'px';
+    if (threadFill) threadFill.style.height = (top - centers[0]) + 'px';
+    threadRows.forEach((row, i) => {
+      row.classList.toggle('is-done', i < index || (complete && i <= index));
+      row.classList.toggle('is-active', i === index && !complete);
+    });
+    if (threadStar) threadStar.classList.toggle('is-done', !!complete);
+  }
+
+  function setRoute(index, complete) {
+    if (!routePath || !routeFill || !routeStar) return;
+    const ratio = complete ? 1 : routeRatios[index];
+    const point = routePath.getPointAtLength(routeLen * ratio);
+    routeStar.style.left = (point.x / 320 * 100) + '%';
+    routeStar.style.top = (point.y / 72 * 100) + '%';
+    routeFill.style.strokeDashoffset = String(routeLen * (1 - ratio));
+    routeNodes.forEach((node, i) => {
+      node.classList.toggle('is-done', i < index || (complete && i <= index));
+      node.classList.toggle('is-active', i === index && !complete);
+    });
+    routeLabels.forEach((label, i) => label.classList.toggle('is-active', i === index && !complete));
+    routeStar.classList.toggle('is-done', !!complete);
+  }
+
+  function setStage(index, complete) {
+    const stage = stages[index];
+    const p = complete ? 1 : stage.p;
+    if (count) count.textContent = complete ? '4 / 4' : (index + 1) + ' / 4';
+    if (stageBase) stageBase.textContent = complete ? '就绪' : stage.label;
+    if (stageFill) stageFill.textContent = complete ? '就绪' : stage.label;
+    if (stageBlock) stageBlock.style.setProperty('--p', (p * 100) + '%');
+    if (stageDetail) stageDetail.textContent = complete ? '群岛档案已就绪' : stage.detail;
+    setThread(index, complete);
+    setRoute(index, complete);
+  }
+
+  function playSwitch() {
+    clearPrefix('l3-switch');
+    if (!overlay) return;
+    layoutThread();
+    overlay.classList.add('is-visible');
+    if (wbBody) wbBody.setAttribute('aria-busy', 'true');
+    setStage(0, false);
+    later('l3-switch-1', () => setStage(1, false), 900);
+    later('l3-switch-2', () => setStage(2, false), 1700);
+    later('l3-switch-3', () => setStage(3, false), 2500);
+    later('l3-switch-complete', () => setStage(3, true), 3200);
+    later('l3-switch-end', () => {
+      overlay.classList.remove('is-visible');
+      if (wbBody) wbBody.removeAttribute('aria-busy');
+    }, 3950);
+  }
+
+  // A/B
+  const modeSeg = document.getElementById('l3-mode');
+  modeSeg?.addEventListener('click', event => {
+    const btn = event.target.closest('button[data-mode]');
+    if (!btn) return;
+    modeSeg.querySelectorAll('button').forEach(b => b.classList.toggle('is-active', b === btn));
+    if (panel) panel.dataset.mode = btn.dataset.mode;
+  });
+
+  // 文字推进实验
+  const range = document.getElementById('l3-text-range');
+  const textDemo = document.getElementById('l3-text-demo');
+  const textPct = document.getElementById('l3-text-pct');
+  range?.addEventListener('input', () => {
+    const value = Number(range.value);
+    textDemo?.style.setProperty('--p', value + '%');
+    if (textPct) textPct.textContent = Math.round(value) + '%';
+  });
+
+  // 扫描
+  const scan = document.getElementById('l3-scan');
+  const scanPct = document.getElementById('l3-scan-pct');
+  const scanFill = document.getElementById('l3-scan-fill');
+  const scanSub = document.getElementById('l3-scan-sub');
+  function setScan(value) {
+    if (scanPct) scanPct.textContent = Math.round(value) + '%';
+    if (scanFill) scanFill.style.width = value + '%';
+  }
+  function playScan() {
+    clearPrefix('l3-scan');
+    if (!scan) return;
+    scan.classList.remove('is-active', 'is-found-0', 'is-found-1', 'is-found-2');
+    if (scanSub) scanSub.textContent = '只读扫描，不会修改文件';
+    scan.classList.add('is-active');
+    setScan(0);
+    const step = () => {
+      const current = Number((scanPct?.textContent || '0').replace('%', ''));
+      const next = Math.min(100, current + 2 + Math.random() * 6);
+      setScan(next);
+      if (next >= 30) scan.classList.add('is-found-0');
+      if (next >= 60) scan.classList.add('is-found-1');
+      if (next >= 90) scan.classList.add('is-found-2');
+      if (next < 100) {
+        later('l3-scan-step', step, 110);
+      } else {
+        scan.classList.remove('is-active');
+        if (scanSub) scanSub.textContent = '扫描完成 · 找到 3 个孤立文件';
+      }
+    };
+    step();
+  }
+
+  document.querySelectorAll('[data-play]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.dataset.play === 'switch') playSwitch();
+      if (btn.dataset.play === 'scan') playScan();
+    });
+  });
+
+  const themeBtn = document.getElementById('l3-theme');
+  const themeLabel = document.getElementById('l3-theme-label');
+  themeBtn?.addEventListener('click', () => {
+    const dark = root.dataset.theme === 'dark';
+    root.dataset.theme = dark ? 'light' : 'dark';
+    if (themeLabel) themeLabel.textContent = dark ? '深色' : '浅色';
+  });
+  const motionBtn = document.getElementById('l3-motion');
+  const motionLabel = document.getElementById('l3-motion-label');
+  motionBtn?.addEventListener('click', () => {
+    const off = root.dataset.motion === 'off';
+    root.dataset.motion = off ? 'on' : 'off';
+    if (motionLabel) motionLabel.textContent = off ? '减弱动态：关' : '减弱动态：开';
+  });
+
+  document.getElementById('l3-replay')?.addEventListener('click', () => {
+    playSwitch();
+    later('l3-replay-scan', () => playScan(), 4200);
+    if (range) {
+      range.value = '46';
+      textDemo?.style.setProperty('--p', '46%');
+      if (textPct) textPct.textContent = '46%';
+    }
+  });
+
+  layoutThread();
+  // 静态预览：默认展示 2/4 的阶段线与 63% 扫描中间态
+  overlay?.classList.add('is-visible');
+  if (wbBody) wbBody.setAttribute('aria-busy', 'true');
+  setStage(1, false);
+  setScan(63);
+  scan?.classList.add('is-active', 'is-found-0', 'is-found-1');
+  if (scanSub) scanSub.textContent = '只读扫描，不会修改文件';
+  window.addEventListener('resize', layoutThread);
+})();
+</script>

@@ -82,6 +82,11 @@ const cls = computed(() => [`is-${props.variant}`, `is-${props.size}`, { 'is-loa
 .tui-btn__spin {
   animation: tui-btn-spin 1s linear infinite;
 }
+.tui-btn__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
 @keyframes tui-btn-spin {
   to { transform: rotate(360deg); }
 }

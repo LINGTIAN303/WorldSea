@@ -11,7 +11,7 @@
         </div>
 
         <div class="trash-toolbar" v-if="trashStore.totalCount > 0">
-          <TuiButton variant="danger-ghost" @click="confirmEmptyTrash">清空回收站</TuiButton>
+          <TuiButton variant="danger-ghost" :disabled="busy" @click="confirmEmptyTrash">清空回收站</TuiButton>
         </div>
 
         <div class="trash-list">
@@ -22,8 +22,11 @@
               <span class="trash-item-date">{{ formatDate(item.deletedAt) }}</span>
             </div>
             <div class="trash-item-actions">
-              <TuiButton variant="secondary" size="sm" @click="doRestore(item.id)">恢复</TuiButton>
-              <TuiButton variant="danger-ghost" size="sm" @click="doPermanentDelete(item.id)">永久删除</TuiButton>
+              <TuiButton variant="secondary" size="sm" :disabled="busy" @click="doRestore(item.id)">
+                <WsInlineLoading v-if="busyId === item.id" size="sm" label="正在恢复" />
+                恢复
+              </TuiButton>
+              <TuiButton variant="danger-ghost" size="sm" :disabled="busy" @click="doPermanentDelete(item.id)">永久删除</TuiButton>
             </div>
           </div>
 
@@ -37,7 +40,8 @@
 </template>
 
 <script setup lang="ts">
-import { TuiButton } from '@worldsea/ui-kit'
+import { ref } from 'vue'
+import { TuiButton, WsInlineLoading } from '@worldsea/ui-kit'
 import { useTrashStore } from '@worldsea/entity-core'
 import { useTrash } from '@worldsea/entity-core'
 
@@ -46,6 +50,8 @@ const emit = defineEmits<{ close: [] }>()
 
 const trashStore = useTrashStore()
 const { restoreEntity, permanentDeleteEntity } = useTrash()
+const busy = ref(false)
+const busyId = ref<string | null>(null)
 
 function formatDate(iso: string): string {
   const d = new Date(iso)
@@ -53,28 +59,39 @@ function formatDate(iso: string): string {
 }
 
 async function doRestore(trashItemId: string) {
-  const ok = await restoreEntity(trashItemId)
-  if (ok) {
-    // 恢复成功后刷新数据
-    const { useEntityStore, useRelationStore } = await import('@worldsea/entity-core')
-    await useEntityStore().loadAll()
-    await useRelationStore().loadAll()
+  if (busy.value) return
+  busy.value = true
+  busyId.value = trashItemId
+  try {
+    const ok = await restoreEntity(trashItemId)
+    if (ok) {
+      // 恢复成功后刷新数据
+      const { useEntityStore, useRelationStore } = await import('@worldsea/entity-core')
+      await useEntityStore().loadAll()
+      await useRelationStore().loadAll()
+    }
+  } finally {
+    busy.value = false
+    busyId.value = null
   }
 }
 
 function doPermanentDelete(trashItemId: string) {
+  if (busy.value) return
   if (confirm('永久删除后无法恢复，确定？')) {
     permanentDeleteEntity(trashItemId)
   }
 }
 
 function confirmEmptyTrash() {
+  if (busy.value) return
   if (confirm('清空回收站后所有项目将永久删除，确定？')) {
     trashStore.emptyTrash()
   }
 }
 
 function close() {
+  if (busy.value) return
   emit('close')
 }
 </script>
@@ -97,5 +114,5 @@ function close() {
 .trash-item-type { font-size: var(--font-size-xs); color: var(--text-tertiary); background: var(--bg); padding: 2px 6px; border-radius: var(--radius-xs); flex-shrink: 0; }
 .trash-item-date { font-size: var(--font-size-xs); color: var(--text-tertiary); flex-shrink: 0; }
 .trash-item-actions { display: flex; gap: 6px; flex-shrink: 0; margin-left: 12px; }
-.trash-empty { text-align: center; padding: 40px; color: var(--text-tertiary); }
+.trash-empty { text-align: center; padding: 40px; color: var(--text-tertiary); }
 </style>

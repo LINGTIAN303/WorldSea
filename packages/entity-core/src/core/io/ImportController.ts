@@ -16,6 +16,7 @@ export class ImportController {
   async importPack(
     pack: WorldSeaPack,
     strategy: ImportStrategy = 'overwrite',
+    onProgress?: (done: number, total: number, id: string) => void,
   ): Promise<ImportReport> {
     const report: ImportReport = {
       success: true,
@@ -60,13 +61,10 @@ export class ImportController {
 
     // 按依赖顺序执行导入
     const serializers = serializerRegistry.getSorted()
-
-    for (const s of serializers) {
+    const targets = serializers.filter(s => migratedData[s.id] !== undefined)
+    for (let i = 0; i < targets.length; i++) {
+      const s = targets[i]
       const data = migratedData[s.id]
-      if (data === undefined) {
-        console.log(`[ImportController] 跳过 ${s.id}（包中无数据）`)
-        continue
-      }
       try {
         const result = await s.import(data as Record<string, unknown>, strategy)
         if (result && typeof result === 'object' && 'serializerId' in result) {
@@ -93,6 +91,7 @@ export class ImportController {
         })
         report.success = false
       }
+      onProgress?.(i + 1, targets.length, s.id)
     }
 
     report.completedAt = new Date().toISOString()

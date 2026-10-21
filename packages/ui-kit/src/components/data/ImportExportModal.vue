@@ -41,7 +41,13 @@
           <!-- 预览 -->
           <div class="ie-preview">
             <textarea readonly :value="exportPreview" rows="10"></textarea>
+            <div v-if="previewGenerating" class="ie-preview-loading">
+              <WsInlineLoading size="md" label="正在生成导出预览" />
+              <span>正在生成预览…</span>
+            </div>
           </div>
+
+          <p v-if="exportError" class="ie-error">{{ exportError }}</p>
 
           <div class="ie-actions">
             <TuiButton variant="secondary" @click="close">取消</TuiButton>
@@ -56,7 +62,11 @@
           <!-- 文件选择 -->
           <div class="ie-upload" @dragover.prevent @drop.prevent="onFileDrop">
             <input type="file" accept=".json,.yaml,.yml,.ws" @change="onFileChange" ref="fileInput" hidden />
-            <div v-if="!importPack" class="ie-dropzone" @click="fileInput?.click()">
+            <div v-if="parsing" class="ie-dropzone ie-dropzone--loading">
+              <WsInlineLoading size="lg" label="正在解析导入文件" />
+              <p>正在解析文件…</p>
+            </div>
+            <div v-else-if="!importPack" class="ie-dropzone" @click="fileInput?.click()">
               <WsIcon class="dz-icon" name="folder" size="lg" />
               <p>点击选择文件，或拖拽 JSON / YAML 文件到此处</p>
             </div>
@@ -93,7 +103,10 @@
           <div class="ie-overwrite-warn" v-if="importPack && importStrategy === 'overwrite' && !overwriteConfirmed">
             <p class="ie-warn-text">覆盖模式将清空所有现有数据！建议先备份。</p>
             <div class="ie-warn-actions">
-              <TuiButton variant="secondary" @click="doBackupFirst">先备份再导入</TuiButton>
+              <TuiButton variant="secondary" :disabled="backupBusy" @click="doBackupFirst">
+                <WsInlineLoading v-if="backupBusy" size="sm" label="正在备份" />
+                {{ backupBusy ? '备份中…' : '先备份再导入' }}
+              </TuiButton>
               <label class="ie-warn-check">
                 <input type="checkbox" v-model="overwriteConfirmed" />
                 我已了解风险，确认覆盖
@@ -124,7 +137,7 @@
 
           <div class="ie-actions" v-if="!importReport">
             <TuiButton variant="secondary" @click="close">取消</TuiButton>
-            <TuiButton variant="danger-ghost" @click="doImport" :disabled="!importPack || importing || (importStrategy === 'overwrite' && !overwriteConfirmed)">
+            <TuiButton variant="danger-ghost" @click="doImport" :disabled="!importPack || importing || parsing || (importStrategy === 'overwrite' && !overwriteConfirmed)">
               {{ importing ? '导入中...' : '导入数据' }}
             </TuiButton>
           </div>
@@ -133,6 +146,43 @@
           </div>
         </div>
       </div>
+
+      <WsLoadingOverlay
+        :show="exportVisible"
+        scope="panel"
+        title="正在导出"
+        success-title="导出完成"
+        error-title="导出失败"
+        :stages="exportStages"
+        :current="exportStage"
+        :status="exportOverlayStatus"
+        :target="`格式：${exportFormat.toUpperCase()}`"
+        :error="exportErrorText"
+        error-text="导出没有完成"
+        success-text="文件已开始下载"
+        success-detail="可以继续操作"
+        @retry="doExport"
+        @close="closeExportOverlay"
+      />
+
+      <WsLoadingOverlay
+        :show="importVisible"
+        scope="panel"
+        title="正在导入"
+        success-title="导入完成"
+        error-title="导入失败"
+        :stages="importStages"
+        :current="importStage"
+        :status="importOverlayStatus"
+        :target="importFileName ? `文件：${importFileName}` : ''"
+        :error="importErrorText"
+        error-text="导入没有完成"
+        success-text="报告已生成"
+        success-detail="可以继续操作"
+        @retry="doImport"
+        @close="closeImportOverlay"
+      />
+
       <div class="resize-handle-right" @mousedown="modalResizable.onResizeStart"></div>
     </div>
   </div>
@@ -153,7 +203,11 @@ import {
   type ImportStrategy,
   type ImportReport,
 } from '@worldsea/entity-core'
-import { TuiButton, useResizable, useModalShortcuts  } from '@worldsea/ui-kit'
+import { TuiButton, useResizable, useModalShortcuts } from '@worldsea/ui-kit'
+import WsLoadingOverlay from '../feedback/loading/WsLoadingOverlay.vue'
+import WsInlineLoading from '../feedback/loading/WsInlineLoading.vue'
+import { useAsyncTask } from '../../composables/useAsyncTask'
+import type { LoadingStage } from '../feedback/loading/types'
 import WsIcon from '../WsIcon.vue'
 
 const props = defineProps<{ show: boolean }>()
@@ -222,11 +276,73 @@ const mode = ref<'export' | 'import'>('export')
 const exportFormat = ref<'json' | 'yaml' | 'ws'>('json')
 const exporting = ref(false)
 const importing = ref(false)
+const parsing = ref(false)
 const importStrategy = ref<ImportStrategy>('overwrite')
 const importError = ref('')
+const exportError = ref('')
 const importReport = ref<ImportReport | null>(null)
 const overwriteConfirmed = ref(false)
 const backupInfo = ref<ReturnType<typeof getBackupInfo>>(null)
+
+const exportTask = useAsyncTask({ delay: 200, minVisible: 400, successHold: 300 })
+const importTask = useAsyncTask({ delay: 200, minVisible: 400, successHold: 300 })
+const exportVisible = exportTask.visible
+const importVisible = importTask.visible
+const exportStatus = exportTask.status
+const importStatus = importTask.status
+const exportStage = ref(0)
+const importStage = ref(0)
+const exportProgress = ref({ done: 0, total: 0 })
+const importProgress = ref({ done: 0, total: 0 })
+const previewGenerating = ref(false)
+let previewToken = 0
+
+const exportOverlayStatus = computed<'loading' | 'success' | 'error'>(() =>
+  exportStatus.value === 'success' ? 'success' : exportStatus.value === 'error' ? 'error' : 'loading',
+)
+const importOverlayStatus = computed<'loading' | 'success' | 'error'>(() =>
+  importStatus.value === 'success' ? 'success' : importStatus.value === 'error' ? 'error' : 'loading',
+)
+const exportErrorText = computed(() => exportError.value || exportTask.error.value || '')
+const importErrorText = computed(() => importError.value || importTask.error.value || '')
+
+const exportStages = computed<LoadingStage[]>(() => {
+  const { done, total } = exportProgress.value
+  return [
+    {
+      short: '收集',
+      full: '收集导出数据…',
+      detail: total > 0 ? `已收集 ${done} / ${total} 类` : '读取实体 / 关系 / 字段',
+    },
+    {
+      short: exportFormat.value === 'ws' ? '打包' : '编码',
+      full: exportFormat.value === 'ws' ? '打包并下载 .ws…' : '编码并下载…',
+      detail: exportFormat.value === 'ws' ? '包含媒体文件' : exportFormat.value === 'yaml' ? 'YAML' : 'JSON',
+    },
+  ]
+})
+
+const importStages = computed<LoadingStage[]>(() => {
+  const { done, total } = importProgress.value
+  const write: LoadingStage = {
+    short: '写入',
+    full: '写入导入数据…',
+    detail: total > 0 ? `已写入 ${done} / ${total} 类` : '实体 / 关系 / 字段',
+  }
+  const refresh: LoadingStage = {
+    short: '刷新',
+    full: '刷新实体 / 关系 / 文件…',
+    detail: '重新加载工作区数据',
+  }
+  if (importStrategy.value === 'overwrite') {
+    return [
+      { short: '备份', full: '备份当前数据…', detail: '覆盖前自动备份' },
+      write,
+      refresh,
+    ]
+  }
+  return [write, refresh]
+})
 
 const importPack = ref<WorldSeaPack | null>(null)
 const importFileName = ref('')
@@ -258,46 +374,56 @@ watch(availableSerializers, (list) => {
 const exportPreview = ref('')
 
 watch([mode, exportFormat, selectedSerializers], async () => {
-  if (mode.value !== 'export') { exportPreview.value = ''; return }
-  if (exportFormat.value === 'ws') {
-    exportPreview.value = '（.ws 包为二进制格式，预览不可用。下载后将包含所有数据和媒体文件。）'
+  const token = ++previewToken
+  if (mode.value !== 'export') {
+    exportPreview.value = ''
+    previewGenerating.value = false
     return
   }
+  if (exportFormat.value === 'ws') {
+    exportPreview.value = '（.ws 包为二进制格式，预览不可用。下载后将包含所有数据和媒体文件。）'
+    previewGenerating.value = false
+    return
+  }
+  previewGenerating.value = true
   try {
     const ctrl = getExportController(
       { views: pluginStore.views },
     )
-    exportPreview.value = await ctrl.exportToString(exportFormat.value, selectedSerializers.value)
+    const text = await ctrl.exportToString(exportFormat.value, selectedSerializers.value)
+    if (token === previewToken) exportPreview.value = text
   } catch {
-    exportPreview.value = '（生成预览失败）'
+    if (token === previewToken) exportPreview.value = '（生成预览失败）'
+  } finally {
+    if (token === previewToken) previewGenerating.value = false
   }
 }, { immediate: true })
 
 /* ─── 导入文件 ─── */
 function onFileChange(e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0]
-  if (file) parseFile(file)
+  if (file) void parseFile(file)
 }
 
 function onFileDrop(e: DragEvent) {
   const file = e.dataTransfer?.files?.[0]
-  if (file) parseFile(file)
+  if (file) void parseFile(file)
 }
 
-function parseFile(file: File) {
+async function parseFile(file: File) {
   importError.value = ''
   importPack.value = null
   importReport.value = null
   importFileName.value = file.name
-
-  ;(async () => {
-    try {
-      const ctrl = getImportController()
-      importPack.value = await ctrl.parseImportBlob(file)
-    } catch (err: any) {
-      importError.value = err.message
-    }
-  })()
+  parsing.value = true
+  try {
+    const ctrl = getImportController()
+    importPack.value = await ctrl.parseImportBlob(file)
+  } catch (err: any) {
+    importError.value = err.message
+  } finally {
+    parsing.value = false
+  }
 }
 
 function clearImport() {
@@ -311,69 +437,100 @@ const importManifest = computed(() => importPack.value?.manifest)
 
 /* ─── 导出操作 ─── */
 async function doExport() {
+  if (exporting.value) return
   exporting.value = true
+  exportError.value = ''
+  exportStage.value = 0
+  exportProgress.value = { done: 0, total: 0 }
   try {
-    const ctrl = getExportController(
-      { views: pluginStore.views },
-    )
-    if (exportFormat.value === 'ws') {
-      await ctrl.downloadWS(undefined, selectedSerializers.value)
-    } else {
-      await ctrl.download(exportFormat.value)
-    }
+    await exportTask.run(async () => {
+      const ctrl = getExportController(
+        { views: pluginStore.views },
+      )
+      const onProgress = (done: number, total: number) => {
+        exportProgress.value = { done, total }
+        if (done >= total) exportStage.value = 1
+      }
+      if (exportFormat.value === 'ws') {
+        await ctrl.downloadWS(undefined, selectedSerializers.value, onProgress)
+      } else {
+        await ctrl.download(exportFormat.value, undefined, selectedSerializers.value, onProgress)
+      }
+    })
   } catch (err: any) {
-    alert('导出失败：' + err.message)
+    exportError.value = err?.message ?? String(err)
   } finally {
     exporting.value = false
   }
 }
 
+function closeExportOverlay(): void {
+  exportTask.reset()
+}
+
 /* ─── 导入操作 ─── */
 async function doImport() {
-  if (!importPack.value) return
-  // overwrite模式自动备份
-  if (importStrategy.value === 'overwrite') {
-    await createBackup()
-  }
+  const pack = importPack.value
+  if (!pack || importing.value) return
   importing.value = true
   importError.value = ''
-
-  getExportController(
-    { views: pluginStore.views },
-  )
+  importReport.value = null
+  importStage.value = 0
+  importProgress.value = { done: 0, total: 0 }
 
   try {
-    console.log('[ImportModal] pack keys:', Object.keys(importPack.value.serializers))
-    console.log('[ImportModal] strategy:', importStrategy.value)
-    if (importStrategy.value === 'overwrite') {
-      fieldRegistry.resetToBuiltin()
-    }
-    const ic = getImportController()
-    const report = await ic.importPack(importPack.value, importStrategy.value)
-    console.log('[ImportModal] report:', JSON.stringify(report, null, 2))
-    importReport.value = report
-
-    if (report.success) {
-      console.log('[ImportModal] loading all data...')
+    await importTask.run(async () => {
+      const overwrite = importStrategy.value === 'overwrite'
+      if (overwrite) {
+        importStage.value = 0
+        await createBackup()
+        importStage.value = 1
+      }
+      if (overwrite) {
+        fieldRegistry.resetToBuiltin()
+      }
+      const ic = getImportController()
+      const report = await ic.importPack(pack, importStrategy.value, (done, total) => {
+        importProgress.value = { done, total }
+      })
+      importReport.value = report
+      if (!report.success) {
+        const firstError = report.items.flatMap(item => item.errors).find(Boolean)
+        throw new Error(firstError ?? '导入失败')
+      }
+      importStage.value = overwrite ? 2 : 1
       await entityStore.loadAll()
       await relationStore.loadAll()
       fieldRegistry.loadPersisted()
-      console.log('[ImportModal] entities after load:', entityStore.entities.length)
-    }
+    })
   } catch (err: any) {
-    console.error('[ImportModal] error:', err)
-    importError.value = err.message
+    importError.value = err?.message ?? String(err)
   } finally {
     importing.value = false
   }
 }
 
+function closeImportOverlay(): void {
+  importTask.reset()
+}
+
 /* ─── 辅助 ─── */
+const backupBusy = ref(false)
+
 async function doBackupFirst() {
-  const ts = await createBackup()
-  overwriteConfirmed.value = true
-  backupInfo.value = getBackupInfo()
-  console.log('[ImportModal] 自动备份完成:', ts)
+  if (backupBusy.value) return
+  backupBusy.value = true
+  importError.value = ''
+  try {
+    const ts = await createBackup()
+    overwriteConfirmed.value = true
+    backupInfo.value = getBackupInfo()
+    console.log('[ImportModal] 自动备份完成:', ts)
+  } catch (err: any) {
+    importError.value = err?.message ?? String(err)
+  } finally {
+    backupBusy.value = false
+  }
 }
 
 function serializerIcon(id: string): string {
@@ -406,9 +563,17 @@ function itemCount(data: unknown): number {
 }
 
 function close() {
+  if (exporting.value || importing.value || parsing.value) return
+  exportTask.reset()
+  importTask.reset()
+  exportError.value = ''
+  importError.value = ''
+  exportStage.value = 0
+  importStage.value = 0
+  exportProgress.value = { done: 0, total: 0 }
+  importProgress.value = { done: 0, total: 0 }
   mode.value = 'export'
   importPack.value = null
-  importError.value = ''
   importReport.value = null
   overwriteConfirmed.value = false
   backupInfo.value = null
@@ -448,11 +613,26 @@ function close() {
 .ie-hint { font-size: var(--font-size-xs); color: var(--text-tertiary); margin: 0; }
 
 /* ─── Preview ─── */
+.ie-preview { position: relative; }
 .ie-preview textarea { width: 100%; border: 1px solid var(--border, #ddd); border-radius: var(--radius-sm); padding: 8px; font-size: var(--font-size-xs); font-family: monospace; resize: vertical; background: var(--bg, #fafafa); }
+.ie-preview-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--content-bg, #fff) 78%, transparent);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  pointer-events: none;
+}
 
 /* ─── Upload ─── */
 .ie-upload { border: 2px dashed var(--border-color, var(--color-border)); border-radius: 8px; padding: 20px; text-align: center; cursor: pointer; }
 .ie-dropzone { padding: 10px; }
+.ie-dropzone--loading { cursor: default; display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .dz-icon { font-size: var(--font-size-3xl); display: block; margin-bottom: 6px; }
 .ie-dropzone p { font-size: var(--font-size-sm); color: var(--text-tertiary); margin: 0; }
 .ie-file-info { display: flex; align-items: center; gap: 10px; text-align: left; }

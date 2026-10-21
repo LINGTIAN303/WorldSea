@@ -10,8 +10,19 @@ type SpaceTarget = 'space' | 'workbench'
 
 type SpaceSwitchBridge = (to: string) => Promise<unknown>
 
+/** 项目切换期间禁止空间切换：避免另一窗继续操作旧工作区（产品域侧入口） */
+let spaceSwitchBlocked = false
+
+export function setSpaceSwitchBlocked(blocked: boolean): void {
+  spaceSwitchBlocked = blocked
+}
+
 /** 切到目标空间：有壳桥走壳（窗口级互斥切换）；无桥仅警告（浏览器预览无窗口可切）。 */
 export function switchShell(target: SpaceTarget): void {
+  if (spaceSwitchBlocked) {
+    console.warn('[shell-switch] 项目切换进行中，暂不切换空间:', target)
+    return
+  }
   const bridge = (globalThis as { __WORLDSEA_SPACE_SWITCH__?: SpaceSwitchBridge }).__WORLDSEA_SPACE_SWITCH__
   if (typeof bridge === 'function') {
     void bridge(target).catch(e => console.error('[shell-switch] 空间切换失败:', e))

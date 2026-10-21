@@ -23,8 +23,10 @@ export class ExportController {
    */
   async collectAll(
     includeSerializers?: string[],
+    onProgress?: (done: number, total: number, id: string) => void,
   ): Promise<WorldSeaPack> {
     const serializers = serializerRegistry.getSorted()
+    const targets = serializers.filter(s => !includeSerializers || includeSerializers.includes(s.id))
     const pack: WorldSeaPack = {
       manifest: {
         version: PACK_VERSION,
@@ -34,10 +36,8 @@ export class ExportController {
       serializers: {},
     }
 
-    for (const s of serializers) {
-      if (includeSerializers && !includeSerializers.includes(s.id)) {
-        continue
-      }
+    for (let i = 0; i < targets.length; i++) {
+      const s = targets[i]
       try {
         const data = await s.collect()
         pack.serializers[s.id] = data
@@ -45,6 +45,7 @@ export class ExportController {
         console.error(`[ExportController] ${s.id} collect 失败:`, err)
         pack.serializers[s.id] = { error: err.message }
       }
+      onProgress?.(i + 1, targets.length, s.id)
     }
 
     return pack
@@ -56,8 +57,9 @@ export class ExportController {
   async exportToString(
     format: 'json' | 'yaml',
     includeSerializers?: string[],
+    onProgress?: (done: number, total: number, id: string) => void,
   ): Promise<string> {
-    const pack = await this.collectAll(includeSerializers)
+    const pack = await this.collectAll(includeSerializers, onProgress)
     return await this.formatEncoder.encode(pack, format)
   }
 
@@ -69,8 +71,9 @@ export class ExportController {
   async downloadWS(
     filename?: string,
     includeSerializers?: string[],
+    onProgress?: (done: number, total: number, id: string) => void,
   ): Promise<void> {
-    const pack = await this.collectAll(includeSerializers)
+    const pack = await this.collectAll(includeSerializers, onProgress)
     const entityData = pack.serializers['entities'] as any
     const entities = entityData?.entities ?? []
 
@@ -89,8 +92,10 @@ export class ExportController {
   async download(
     format: 'json' | 'yaml',
     filename?: string,
+    includeSerializers?: string[],
+    onProgress?: (done: number, total: number, id: string) => void,
   ): Promise<void> {
-    const text = await this.exportToString(format)
+    const text = await this.exportToString(format, includeSerializers, onProgress)
     const ext = format === 'yaml' ? 'yaml' : 'json'
     const name = filename ?? `worldsea-export-${new Date().toISOString().slice(0, 10)}.${ext}`
     const blob = new Blob([text], { type: 'text/plain' })

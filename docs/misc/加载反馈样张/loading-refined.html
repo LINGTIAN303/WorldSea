@@ -1,0 +1,1034 @@
+<style>
+  /* ── Refined Loading Study 02 · 星轨 / 测线 ── */
+  #ld2 {
+    --bg-app: #fafaf9;
+    --bg-surface: #ffffff;
+    --bg-muted: #f4f4f5;
+    --bg-active: #e9e9ea;
+    --border: #ececec;
+    --border-strong: #d9d9de;
+    --text-primary: #1f2328;
+    --text-secondary: #6b7280;
+    --text-muted: #9ca3af;
+    --accent: #4f46e5;
+    --accent-hover: #4338ca;
+    --accent-soft: #eef2ff;
+    --accent-soft-border: #e0e7ff;
+    --on-accent: #ffffff;
+    --success: #16a34a;
+    --warning: #d97706;
+    --danger: #dc2626;
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05);
+    --shadow-md: 0 4px 16px rgba(16, 24, 40, 0.07);
+    --shadow-lg: 0 12px 32px rgba(16, 24, 40, 0.12);
+    --ease: cubic-bezier(0.4, 0, 0.2, 1);
+    --ease-out: cubic-bezier(0, 0, 0.2, 1);
+    --dur-fast: 0.15s;
+    --dur-base: 0.22s;
+    --dur-lg: 0.32s;
+
+    /* refined loading token 草案 */
+    --loading-accent: var(--accent);
+    --loading-orbit-duration: 1.15s;
+    --loading-trail-angle: 78deg;
+    --loading-head-size: 4.5px;
+    --loading-head-glow: 7px;
+    --loading-track-opacity: 24%;
+    --loading-route-track: color-mix(in srgb, var(--accent) 22%, transparent);
+    --loading-route-fill: var(--accent);
+    --loading-stage-node: 3.5px;
+    --loading-survey-duration: 2.6s;
+    --loading-survey-color: color-mix(in srgb, var(--accent) 70%, transparent);
+    --loading-settle-duration: 0.6s;
+    --loading-scrim: color-mix(in srgb, var(--bg-app) 80%, transparent);
+    --loading-scrim-blur: 2px;
+
+    font-family: 'Inter', system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    color: var(--text-primary);
+    background:
+      radial-gradient(ellipse 58% 38% at 20% -10%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 62%),
+      radial-gradient(ellipse 40% 28% at 92% 0%, color-mix(in srgb, #0891b2 5%, transparent), transparent 60%),
+      var(--bg-app);
+    min-height: 100vh;
+    padding: 24px clamp(16px, 3vw, 40px) 56px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  #ld2[data-theme='dark'] {
+    --bg-app: #111113;
+    --bg-surface: #18181b;
+    --bg-muted: #202024;
+    --bg-active: #2e2e34;
+    --border: #27272c;
+    --border-strong: #38383f;
+    --text-primary: #e7e7ea;
+    --text-secondary: #a1a1aa;
+    --text-muted: #71717a;
+    --accent: #8b87f8;
+    --accent-hover: #a09bfa;
+    --accent-soft: rgba(99, 102, 241, 0.18);
+    --accent-soft-border: rgba(99, 102, 241, 0.35);
+    --on-accent: #17171b;
+    --success: #34d399;
+    --warning: #fbbf24;
+    --danger: #f87171;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.45);
+    --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55);
+    --loading-scrim: rgba(17, 17, 19, 0.74);
+    --loading-route-track: color-mix(in srgb, var(--accent) 30%, transparent);
+  }
+  #ld2 * { box-sizing: border-box; }
+  #ld2 button { font: inherit; }
+  #ld2::before { content: ''; position: fixed; inset: 0; z-index: -1; background: var(--bg-app); }
+
+  .l2-wrap { max-width: 1280px; margin: 0 auto; }
+  .l2-top {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    padding: 2px 2px 18px; border-bottom: 1px solid var(--border); flex-wrap: wrap;
+  }
+  .l2-brand { display: flex; align-items: center; gap: 10px; }
+  .l2-logo {
+    width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center;
+    color: var(--accent); background: var(--accent-soft); border: 1px solid var(--accent-soft-border);
+  }
+  .l2-brand strong { display: block; font-size: 13px; }
+  .l2-brand span { display: block; font-size: 10.5px; color: var(--text-muted); letter-spacing: 0.04em; }
+  .l2-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .l2-ctl {
+    height: 30px; padding: 0 11px; border-radius: var(--radius-sm); border: 1px solid var(--border-strong);
+    background: var(--bg-surface); color: var(--text-secondary); font-size: 11.5px;
+    display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+    transition: border-color var(--dur-fast), color var(--dur-fast), background var(--dur-fast);
+  }
+  .l2-ctl:hover { border-color: var(--accent); color: var(--accent); }
+  .l2-ctl--primary { background: var(--accent); border-color: transparent; color: var(--on-accent); }
+  .l2-ctl--primary:hover { background: var(--accent-hover); color: var(--on-accent); }
+
+  .l2-hero { padding: 44px 2px 8px; }
+  .l2-kicker { margin: 0 0 12px; font-size: 10px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent); }
+  .l2-hero h1 { margin: 0; font-size: clamp(30px, 4.4vw, 48px); line-height: 1.08; letter-spacing: -0.035em; font-weight: 680; max-width: 800px; }
+  .l2-lede { margin: 16px 0 0; max-width: 720px; font-size: 14px; color: var(--text-secondary); line-height: 1.75; }
+  .l2-chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 20px; }
+  .l2-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 9px; border: 1px solid var(--border); border-radius: 999px; background: var(--bg-surface); font-size: 10.5px; color: var(--text-secondary); }
+  .l2-chip i { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
+
+  .l2-section { margin-top: 46px; }
+  .l2-section-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
+  .l2-badge { width: 34px; height: 34px; border-radius: 10px; flex: none; display: grid; place-items: center; background: var(--accent-soft); border: 1px solid var(--accent-soft-border); color: var(--accent); font-size: 12px; font-weight: 700; }
+  .l2-section-head h2 { margin: 1px 0 3px; font-size: 19px; letter-spacing: -0.02em; }
+  .l2-section-head p { margin: 0; font-size: 12.5px; color: var(--text-secondary); }
+  .l2-grid { display: grid; gap: 12px; }
+  .l2-grid--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .l2-grid--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  .l2-card {
+    background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm); display: flex; flex-direction: column; min-width: 0;
+    transition: border-color var(--dur-base), box-shadow var(--dur-base);
+  }
+  .l2-card:hover { border-color: var(--border-strong); box-shadow: var(--shadow-md); }
+  .l2-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px 0; font-size: 11.5px; font-weight: 600; }
+  .l2-meta { font-size: 10px; font-weight: 400; color: var(--text-muted); }
+  .l2-stage {
+    margin: 10px 14px 0; padding: 16px; border: 1px solid var(--border); border-radius: 9px;
+    background:
+      radial-gradient(circle, color-mix(in srgb, var(--text-muted) 10%, transparent) 0.5px, transparent 0.6px) 0 0 / 8px 8px,
+      color-mix(in srgb, var(--bg-muted) 62%, var(--bg-surface));
+    display: flex; flex-direction: column; gap: 10px; justify-content: center; min-height: 132px;
+  }
+  .l2-stage--center { align-items: center; }
+  .l2-note { padding: 10px 14px 13px; font-size: 10.5px; color: var(--text-muted); line-height: 1.65; }
+  .l2-note code { font-family: 'JetBrains Mono', Consolas, monospace; font-size: 10px; color: var(--text-secondary); }
+  .l2-play {
+    display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; height: 24px;
+    border: 1px solid var(--border); border-radius: 999px; background: transparent;
+    color: var(--text-secondary); font-size: 10.5px; cursor: pointer;
+    transition: border-color var(--dur-fast), color var(--dur-fast), background var(--dur-fast);
+  }
+  .l2-play:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+
+  /* ── 星轨环 ── */
+  .l2-orbit { position: relative; display: inline-block; width: var(--size, 20px); height: var(--size, 20px); flex: none; }
+  .l2-orbit__track {
+    position: absolute; inset: 0; border-radius: 50%;
+    border: 1px dashed color-mix(in srgb, var(--accent) var(--loading-track-opacity), transparent);
+  }
+  .l2-orbit__rotor { position: absolute; inset: 0; animation: l2-orbit var(--loading-orbit-duration) linear infinite; }
+  .l2-orbit__tail {
+    position: absolute; inset: 0; border-radius: 50%;
+    background: conic-gradient(from 0deg,
+      transparent 0deg,
+      transparent calc(360deg - var(--loading-trail-angle)),
+      color-mix(in srgb, var(--accent) 26%, transparent) calc(360deg - var(--loading-trail-angle)),
+      color-mix(in srgb, var(--accent) 62%, transparent) calc(360deg - (var(--loading-trail-angle) * 0.42)),
+      var(--accent) 360deg);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - var(--stroke, 1.5px)), #000 calc(100% - var(--stroke, 1.5px) + 0.4px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - var(--stroke, 1.5px)), #000 calc(100% - var(--stroke, 1.5px) + 0.4px));
+  }
+  .l2-orbit__head {
+    position: absolute; left: 50%; top: calc((var(--stroke, 1.5px) - var(--head, var(--loading-head-size))) / 2);
+    width: var(--head, var(--loading-head-size)); height: var(--head, var(--loading-head-size));
+    background: var(--accent); transform: translateX(-50%);
+    clip-path: polygon(50% 0%, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0% 50%, 40% 40%);
+    filter: drop-shadow(0 0 calc(var(--loading-head-glow) * 0.6) color-mix(in srgb, var(--accent) 60%, transparent));
+  }
+  .l2-orbit--sm { --size: 14px; --stroke: 1.5px; --head: 3.5px; }
+  .l2-orbit--md { --size: 20px; --stroke: 1.5px; --head: 4.5px; }
+  .l2-orbit--lg { --size: 30px; --stroke: 2px; --head: 5.5px; }
+
+  .l2-star-line {
+    position: relative; display: inline-block; width: 26px; height: 2px; border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 16%, transparent); overflow: visible;
+  }
+  .l2-star-line::after {
+    content: ''; position: absolute; top: 50%; left: 0; width: 3.5px; height: 3.5px;
+    background: var(--accent); transform: translate(-50%, -50%);
+    clip-path: polygon(50% 0%, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0% 50%, 40% 40%);
+    filter: drop-shadow(0 0 4px color-mix(in srgb, var(--accent) 55%, transparent));
+    animation: l2-line-travel var(--loading-orbit-duration) ease-in-out infinite;
+  }
+
+  /* ── 按钮/行/菜单 ── */
+  .l2-btn {
+    height: 34px; padding: 0 13px; border-radius: var(--radius-sm); border: 1px solid transparent;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer;
+    font-size: 12.5px; white-space: nowrap;
+    transition: background var(--dur-fast), border-color var(--dur-fast), color var(--dur-fast), transform var(--dur-fast);
+  }
+  .l2-btn:active:not(:disabled) { transform: scale(0.97); }
+  .l2-btn--primary { background: var(--accent); color: var(--on-accent); }
+  .l2-btn--primary:hover:not(:disabled) { background: var(--accent-hover); }
+  .l2-btn--secondary { background: var(--bg-surface); color: var(--text-secondary); border-color: var(--border-strong); }
+  .l2-btn--secondary:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .l2-btn.is-loading { cursor: progress; }
+  .l2-btn.is-loading .l2-btn-label { opacity: 0.78; }
+  .l2-btn .l2-orbit { display: none; }
+  .l2-btn.is-loading .l2-orbit { display: inline-block; }
+  .l2-btn.is-loading .l2-btn-idle { display: none; }
+  .l2-btn-idle { width: 14px; height: 14px; display: inline-block; }
+
+  .l2-row {
+    width: 100%; display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: 6px;
+    border: 1px solid transparent; font-size: 12px; color: var(--text-secondary); background: var(--bg-surface);
+  }
+  .l2-row--active { background: var(--bg-muted); border-color: var(--border); color: var(--text-primary); }
+  .l2-row svg { flex: none; color: var(--text-muted); }
+  .l2-row--active svg { color: var(--accent); }
+  .l2-row .l2-orbit { margin-left: auto; display: none; }
+  .l2-row.is-loading .l2-orbit { display: inline-block; }
+  .l2-row-meta { margin-left: auto; font-size: 10px; color: var(--text-muted); }
+  .l2-row.is-loading .l2-row-meta { display: none; }
+
+  .l2-menu {
+    width: 100%; max-width: 236px; padding: 6px; border-radius: 10px;
+    background: var(--bg-surface); border: 1px solid var(--border); box-shadow: var(--shadow-md);
+  }
+  .l2-menu-head { display: flex; align-items: center; gap: 7px; padding: 4px 8px 6px; font-size: 9.5px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); }
+  .l2-menu-head .l2-star-line { opacity: 0; transition: opacity var(--dur-fast); }
+  .l2-menu.is-loading .l2-star-line { opacity: 1; }
+  .l2-menu-item { padding: 6px 8px; border-radius: 6px; font-size: 11.5px; color: var(--text-secondary); }
+  .l2-menu-item.is-active { background: var(--accent-soft); color: var(--accent); }
+  .l2-menu-item small { display: block; font-size: 9.5px; color: var(--text-muted); margin-top: 2px; }
+
+  /* ── 测线骨架 ── */
+  .l2-survey { position: relative; width: 100%; overflow: hidden; border-radius: 9px; }
+  .l2-survey-caption { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; font-size: 9px; letter-spacing: 0.06em; color: var(--text-muted); }
+  .l2-survey-caption__star {
+    width: 5px; height: 5px; background: var(--accent); opacity: 0.85;
+    clip-path: polygon(50% 0%, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0% 50%, 40% 40%);
+    filter: drop-shadow(0 0 3px color-mix(in srgb, var(--accent) 55%, transparent));
+  }
+  .l2-survey::after {
+    content: ''; position: absolute; top: 0; bottom: 0; width: 1px; left: -1%;
+    background: linear-gradient(to bottom, transparent, var(--loading-survey-color) 48%, transparent);
+    box-shadow: 0 0 7px color-mix(in srgb, var(--accent) 28%, transparent);
+    animation: l2-survey var(--loading-survey-duration) cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
+  .l2-bp {
+    background-color: color-mix(in srgb, var(--bg-muted) 72%, transparent);
+    background-image: radial-gradient(circle, color-mix(in srgb, var(--text-muted) 14%, transparent) 0.5px, transparent 0.6px);
+    background-size: 6px 6px;
+    border: 1px solid color-mix(in srgb, var(--text-muted) 10%, transparent);
+    border-radius: 5px;
+  }
+  .l2-survey.is-shimmer::after { display: none; }
+  .l2-survey.is-shimmer .l2-bp {
+    background-image: linear-gradient(100deg, var(--bg-muted) 18%, color-mix(in srgb, var(--bg-surface) 70%, transparent) 36%, var(--bg-muted) 54%);
+    background-size: 220% 100%;
+    animation: l2-shimmer 1.5s ease-in-out infinite;
+  }
+  .l2-mini-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; width: 100%; }
+  .l2-mini-card { padding: 7px; border-radius: 8px; background: var(--bg-surface); border: 1px solid var(--border); }
+  .l2-mini-thumb { aspect-ratio: 16 / 10; }
+  .l2-mini-line { height: 7px; margin-top: 7px; }
+  .l2-mini-line--short { width: 62%; }
+  .l2-list { display: flex; flex-direction: column; gap: 7px; width: 100%; }
+  .l2-list-row { display: flex; align-items: center; gap: 9px; padding: 8px 9px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 8px; }
+  .l2-avatar { width: 26px; height: 26px; border-radius: 50%; flex: none; }
+  .l2-lines { flex: 1; display: flex; flex-direction: column; gap: 5px; }
+  .l2-line { height: 7px; border-radius: 4px; }
+  .l2-line--short { width: 55%; }
+  .l2-seg { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; padding: 2px; gap: 2px; }
+  .l2-seg button { border: none; background: transparent; color: var(--text-muted); font-size: 10px; padding: 3px 8px; border-radius: 999px; cursor: pointer; }
+  .l2-seg button.is-active { background: var(--accent-soft); color: var(--accent); }
+
+  /* ── R3 航线 ── */
+  .l2-workbench { position: relative; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--bg-app); box-shadow: var(--shadow-sm); }
+  .l2-titlebar { height: 32px; display: flex; align-items: center; gap: 9px; padding: 0 9px; background: var(--bg-muted); border-bottom: 1px solid var(--border); font-size: 10.5px; color: var(--text-secondary); }
+  .l2-titlebar .l2-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+  .l2-titlebar strong { font-size: 10.5px; color: var(--text-primary); }
+  .l2-project { color: var(--accent); }
+  .l2-tb-spacer { flex: 1; }
+  .l2-winbtns { display: flex; gap: 2px; color: var(--text-muted); }
+  .l2-winbtn { width: 22px; height: 24px; display: grid; place-items: center; border-radius: 4px; font-size: 11px; }
+  .l2-wb-body { position: relative; display: flex; min-height: 330px; }
+  .l2-sidebar { width: 150px; flex: none; padding: 10px 8px; display: flex; flex-direction: column; gap: 3px; background: var(--bg-surface); border-right: 1px solid var(--border); }
+  .l2-nav { display: flex; align-items: center; gap: 7px; padding: 6px 8px; border-radius: 6px; font-size: 10.5px; color: var(--text-secondary); }
+  .l2-nav.is-active { background: var(--accent-soft); color: var(--accent); }
+  .l2-nav svg { flex: none; color: var(--text-muted); }
+  .l2-nav.is-active svg { color: var(--accent); }
+  .l2-main { flex: 1; min-width: 0; padding: 12px 14px; }
+  .l2-main-head { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 11px; }
+  .l2-main-title { font-weight: 600; }
+  .l2-main-sub { color: var(--text-muted); font-size: 10px; }
+  .l2-entity-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .l2-entity { padding: 9px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-surface); font-size: 9.5px; color: var(--text-secondary); }
+  .l2-entity strong { display: block; margin-bottom: 4px; font-size: 10.5px; color: var(--text-primary); }
+  .l2-overlay {
+    position: absolute; inset: 0; z-index: 20; display: grid; place-items: center; padding: 20px;
+    background: var(--loading-scrim); backdrop-filter: blur(var(--loading-scrim-blur));
+    -webkit-backdrop-filter: blur(var(--loading-scrim-blur));
+    opacity: 0; pointer-events: none; transition: opacity var(--dur-base) var(--ease);
+  }
+  .l2-overlay.is-visible { opacity: 1; pointer-events: auto; }
+  .l2-route-panel {
+    width: min(370px, 100%); padding: 20px 20px 16px; border-radius: 14px;
+    background: var(--bg-surface); border: 1px solid var(--border); box-shadow: var(--shadow-lg);
+    display: flex; flex-direction: column; gap: 8px;
+    transform: translateY(5px) scale(0.985); transition: transform var(--dur-base) var(--ease-out);
+  }
+  .l2-overlay.is-visible .l2-route-panel { transform: none; }
+  .l2-route-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+  .l2-route-head h3 { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: -0.01em; }
+  .l2-route-count { font-size: 9.5px; color: var(--text-muted); font-variant-numeric: tabular-nums; letter-spacing: 0.06em; }
+  .l2-route-stage { font-size: 10.5px; color: var(--text-secondary); min-height: 16px; }
+  .l2-route-canvas { position: relative; width: 100%; aspect-ratio: 320 / 84; margin-top: 2px; }
+  .l2-route-canvas svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .l2-route-fill { transition: stroke-dashoffset var(--loading-settle-duration) var(--ease); }
+  .l2-route-node {
+    position: absolute; width: var(--loading-stage-node); height: var(--loading-stage-node);
+    border-radius: 50%; background: var(--bg-surface); border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+    transform: translate(-50%, -50%); transition: width var(--dur-base), height var(--dur-base), background var(--dur-base), border-color var(--dur-base), box-shadow var(--dur-base);
+  }
+  .l2-route-node.is-done { background: var(--accent); border-color: var(--accent); }
+  .l2-route-node.is-active {
+    width: calc(var(--loading-stage-node) + 2px); height: calc(var(--loading-stage-node) + 2px);
+    background: var(--accent); border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft), 0 0 8px color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+  .l2-route-star {
+    position: absolute; width: 6px; height: 6px; left: 0; top: 0;
+    background: var(--accent); transform: translate(-50%, -50%);
+    clip-path: polygon(50% 0%, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0% 50%, 40% 40%);
+    filter: drop-shadow(0 0 5px color-mix(in srgb, var(--accent) 60%, transparent));
+    transition: left var(--loading-settle-duration) var(--ease), top var(--loading-settle-duration) var(--ease);
+  }
+  .l2-route-star.is-done { animation: l2-star-settle 0.62s var(--ease) forwards; }
+  .l2-route-labels { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 1px; }
+  .l2-route-label { position: relative; padding-top: 7px; font-size: 9px; color: var(--text-muted); text-align: center; transition: color var(--dur-base); }
+  .l2-route-label::before { content: ''; position: absolute; top: 0; left: 50%; width: 1px; height: 4px; background: color-mix(in srgb, var(--accent) 24%, transparent); transform: translateX(-50%); }
+  .l2-route-label.is-active { color: var(--accent); }
+  .l2-route-label.is-active::before { background: var(--accent); box-shadow: 0 0 5px color-mix(in srgb, var(--accent) 45%, transparent); }
+  .l2-route-target { margin-top: 2px; font-size: 9px; color: var(--text-muted); text-align: right; }
+
+  /* ── R4 测线背景 ── */
+  .l2-ambient {
+    border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--bg-surface);
+    position: relative;
+  }
+  .l2-ambient-line { position: relative; height: 1px; background: color-mix(in srgb, var(--accent) 12%, transparent); opacity: 0; transition: opacity var(--dur-base); }
+  .l2-ambient.is-active .l2-ambient-line { opacity: 1; }
+  .l2-ambient-star {
+    position: absolute; top: 50%; left: 0; width: 3.5px; height: 3.5px;
+    transform: translate(-50%, -50%);
+    animation: l2-ambient-travel 2.6s ease-in-out infinite; animation-play-state: paused;
+  }
+  .l2-ambient.is-active .l2-ambient-star { animation-play-state: running; }
+  .l2-ambient-star::before {
+    content: ''; position: absolute; right: 50%; top: 50%; width: 28px; height: 1px;
+    background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 55%, transparent));
+    transform: translateY(-50%);
+  }
+  .l2-ambient-star::after {
+    content: ''; position: absolute; inset: 0; background: var(--accent);
+    clip-path: polygon(50% 0%, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0% 50%, 40% 40%);
+    filter: drop-shadow(0 0 3px color-mix(in srgb, var(--accent) 60%, transparent));
+  }
+  .l2-ambient-body { padding: 12px 13px; display: flex; flex-direction: column; gap: 10px; }
+  .l2-ambient-row { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-secondary); }
+  .l2-ambient-row strong { font-size: 10.5px; color: var(--text-primary); font-weight: 600; }
+  .l2-ambient-meta { margin-left: auto; font-size: 9.5px; color: var(--text-muted); }
+  .l2-star-dot {
+    width: 7px; height: 7px; flex: none; background: var(--accent);
+    clip-path: polygon(50% 0%, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0% 50%, 40% 40%);
+    filter: drop-shadow(0 0 4px color-mix(in srgb, var(--accent) 45%, transparent));
+    animation: l2-breathe 2.4s ease-in-out infinite; animation-play-state: paused;
+  }
+  .l2-ambient.is-active .l2-star-dot { animation-play-state: running; }
+  .l2-inline-badge { display: inline-flex; align-items: center; gap: 5px; padding: 2px 6px; border: 1px solid var(--border); border-radius: 999px; font-size: 9.5px; color: var(--text-muted); white-space: nowrap; }
+  .l2-inline-badge .l2-star-dot { width: 5px; height: 5px; box-shadow: none; animation: none; opacity: 0.7; }
+
+  /* ── 对比 ── */
+  .l2-compare { margin-top: 26px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .l2-compare-card { padding: 16px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg-surface); box-shadow: var(--shadow-sm); }
+  .l2-compare-label { display: flex; align-items: center; justify-content: space-between; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 12px; }
+  .l2-compare-label b { font-size: 10px; color: var(--text-secondary); font-weight: 600; letter-spacing: 0; text-transform: none; }
+  .l2-compare-stage { min-height: 124px; display: flex; align-items: center; justify-content: center; gap: 20px; background: color-mix(in srgb, var(--bg-muted) 62%, var(--bg-surface)); border: 1px solid var(--border); border-radius: 9px; padding: 16px; }
+  .l2-compare-stage .l2-mini-grid { max-width: 210px; }
+  .l2-compare-note { margin-top: 10px; font-size: 10.5px; color: var(--text-muted); line-height: 1.6; }
+  .l2-ring { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--border-strong); border-top-color: var(--accent); animation: l2-ring 0.7s linear infinite; }
+  .l2-shimmer { background: linear-gradient(100deg, var(--bg-muted) 18%, color-mix(in srgb, var(--bg-surface) 70%, transparent) 36%, var(--bg-muted) 54%); background-size: 220% 100%; animation: l2-shimmer 1.5s ease-in-out infinite; border-radius: 5px; }
+
+  /* ── 微细节 ── */
+  .l2-details { margin-top: 46px; }
+  .l2-details-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+  .l2-detail { padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg-surface); box-shadow: var(--shadow-sm); min-height: 150px; display: flex; flex-direction: column; gap: 8px; }
+  .l2-detail h4 { margin: 0; font-size: 11.5px; font-weight: 600; }
+  .l2-detail p { margin: 0; font-size: 10.5px; color: var(--text-muted); line-height: 1.6; }
+  .l2-detail-visual { flex: 1; display: flex; align-items: center; justify-content: center; gap: 14px; min-height: 52px; }
+  .l2-detail-visual .l2-orbit--md { --size: 34px; --stroke: 2px; --head: 6px; }
+  .l2-detail-visual .l2-orbit--md .l2-orbit__head { filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 70%, transparent)); }
+  .l2-detail-route { display: flex; align-items: center; gap: 5px; }
+  .l2-detail-route i { width: 4px; height: 4px; border-radius: 50%; background: color-mix(in srgb, var(--accent) 30%, transparent); }
+  .l2-detail-route i.done { background: var(--accent); }
+  .l2-detail-route i.active { width: 7px; height: 7px; background: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .l2-detail-route span { width: 18px; height: 1px; background: color-mix(in srgb, var(--accent) 22%, transparent); }
+  .l2-detail-route span.done { background: var(--accent); }
+
+  /* ── Token ── */
+  .l2-tokens { margin-top: 46px; display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 12px; }
+  .l2-panel { padding: 18px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg-surface); box-shadow: var(--shadow-sm); }
+  .l2-panel h3 { margin: 0 0 4px; font-size: 14px; }
+  .l2-panel .l2-sub { margin: 0 0 14px; font-size: 11px; color: var(--text-muted); line-height: 1.6; }
+  .l2-rules { display: flex; flex-direction: column; gap: 9px; }
+  .l2-rule { display: flex; gap: 9px; align-items: flex-start; font-size: 11.5px; color: var(--text-secondary); line-height: 1.65; }
+  .l2-rule b { flex: none; width: 18px; height: 18px; border-radius: 5px; display: grid; place-items: center; background: var(--bg-muted); color: var(--text-secondary); font-size: 9px; font-weight: 600; }
+  .l2-rule strong { color: var(--text-primary); font-weight: 600; }
+  .l2-token-table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+  .l2-token-table th { text-align: left; font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); font-weight: 600; padding: 0 0 7px; }
+  .l2-token-table td { padding: 6px 0; border-top: 1px solid var(--border); color: var(--text-secondary); vertical-align: top; }
+  .l2-token-table code { font-family: 'JetBrains Mono', Consolas, monospace; font-size: 9.5px; color: var(--accent); }
+  .l2-token-table td:last-child { color: var(--text-muted); padding-left: 10px; }
+  .l2-token-note { margin-top: 12px; font-size: 10px; color: var(--text-muted); line-height: 1.7; }
+
+  /* ── 动效 ── */
+  @keyframes l2-orbit { to { transform: rotate(360deg); } }
+  @keyframes l2-line-travel { 0% { left: 0; opacity: 0; } 15% { opacity: 1; } 85% { opacity: 1; } 100% { left: 100%; opacity: 0; } }
+  @keyframes l2-survey { 0% { left: -1%; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { left: 101%; opacity: 0; } }
+  @keyframes l2-ambient-travel { 0% { left: 0; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { left: 100%; opacity: 0; } }
+  @keyframes l2-breathe { 0%, 100% { transform: scale(0.92); opacity: 0.7; } 50% { transform: scale(1.08); opacity: 1; } }
+  @keyframes l2-star-settle { 0% { transform: translate(-50%, -50%) scale(1); opacity: 1; } 45% { transform: translate(-50%, -50%) scale(1.8); opacity: 1; } 100% { transform: translate(-50%, -50%) scale(2.6); opacity: 0; } }
+  @keyframes l2-ring { to { transform: rotate(360deg); } }
+  @keyframes l2-shimmer { 0% { background-position: 180% 0; } 100% { background-position: -80% 0; } }
+
+  #ld2[data-motion='off'] .l2-orbit__rotor { animation-duration: 2.4s; }
+  #ld2[data-motion='off'] .l2-star-line::after { animation-duration: 2.4s; }
+  #ld2[data-motion='off'] .l2-survey::after { animation-duration: 4.6s; }
+  #ld2[data-motion='off'] .l2-ambient-star { animation-duration: 4.4s; }
+  #ld2[data-motion='off'] .l2-star-dot { animation: none; opacity: 0.85; }
+  #ld2[data-motion='off'] .l2-route-star,
+  #ld2[data-motion='off'] .l2-route-node,
+  #ld2[data-motion='off'] .l2-route-fill { transition-duration: 0.01ms; }
+  #ld2[data-motion='off'] .l2-route-star.is-done { animation-duration: 0.01ms; }
+  #ld2[data-motion='off'] .l2-ring,
+  #ld2[data-motion='off'] .l2-shimmer { animation: none; }
+  #ld2[data-motion='off'] .l2-shimmer { background: var(--bg-muted); }
+
+  @media (max-width: 1000px) {
+    .l2-grid--3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .l2-details-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .l2-tokens { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 720px) {
+    #ld2 { padding: 16px 12px 40px; }
+    .l2-grid--3, .l2-grid--2, .l2-compare { grid-template-columns: 1fr; }
+    .l2-details-grid { grid-template-columns: 1fr; }
+    .l2-sidebar { width: 116px; }
+    .l2-entity-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .l2-hero { padding-top: 30px; }
+  }
+</style>
+
+<div id="ld2" data-theme="light" data-motion="on">
+  <div class="l2-wrap">
+    <header class="l2-top">
+      <div class="l2-brand">
+        <span class="l2-logo" aria-hidden="true">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="8.4" stroke="currentColor" stroke-width="1.4" opacity="0.5"/>
+            <path d="M12 3.6 13.7 10.3 20.4 12 13.7 13.7 12 20.4 10.3 13.7 3.6 12 10.3 10.3 12 3.6Z" fill="currentColor" opacity="0.9"/>
+          </svg>
+        </span>
+        <div>
+          <strong>WorldSea</strong>
+          <span>Refined Loading · Study 02</span>
+        </div>
+      </div>
+      <div class="l2-controls">
+        <button type="button" class="l2-ctl" id="l2-theme">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+          <span id="l2-theme-label">深色</span>
+        </button>
+        <button type="button" class="l2-ctl" id="l2-motion">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 12h4l2-5 4 10 2-5h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span id="l2-motion-label">减弱动态：关</span>
+        </button>
+        <button type="button" class="l2-ctl l2-ctl--primary" id="l2-replay">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4.5 9A7.5 7.5 0 1 1 4 13.5M4.5 9V4.8M4.5 9h4.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          重播全部
+        </button>
+      </div>
+    </header>
+
+    <section class="l2-hero">
+      <p class="l2-kicker">Refined Loading · Study 02</p>
+      <h1>让等待像一颗星，<br>沿测线移动。</h1>
+      <p class="l2-lede">
+        不是环在原地转，也不是灰块在闪。用一颗移动的星点、渐隐的尾迹和阶段节点，
+        把「系统正在做什么」讲清楚。星点只负责方向，文字负责进度。
+      </p>
+      <div class="l2-chips">
+        <span class="l2-chip"><i></i>星轨环</span>
+        <span class="l2-chip"><i></i>测线骨架</span>
+        <span class="l2-chip"><i></i>航线切换</span>
+        <span class="l2-chip"><i></i>星点状态</span>
+      </div>
+    </section>
+
+    <!-- 对比 -->
+    <section class="l2-compare">
+      <div class="l2-compare-card">
+        <div class="l2-compare-label"><span>Common</span><b>常见做法</b></div>
+        <div class="l2-compare-stage">
+          <div class="l2-ring" aria-hidden="true"></div>
+          <div class="l2-mini-grid">
+            <div class="l2-mini-card"><div class="l2-mini-thumb l2-shimmer"></div><div class="l2-mini-line l2-shimmer"></div></div>
+            <div class="l2-mini-card"><div class="l2-mini-thumb l2-shimmer"></div><div class="l2-mini-line l2-shimmer"></div></div>
+            <div class="l2-mini-card"><div class="l2-mini-thumb l2-shimmer"></div><div class="l2-mini-line l2-shimmer"></div></div>
+          </div>
+        </div>
+        <div class="l2-compare-note">转圈只说明「在转」，扫光只说明「在闪」。用户仍然不知道系统在做什么。</div>
+      </div>
+      <div class="l2-compare-card">
+        <div class="l2-compare-label"><span>Refined</span><b>星轨做法</b></div>
+        <div class="l2-compare-stage">
+          <span class="l2-orbit l2-orbit--lg" role="status" aria-label="加载中"><span class="l2-orbit__track"></span><span class="l2-orbit__rotor"><span class="l2-orbit__tail"></span><span class="l2-orbit__head"></span></span></span>
+          <div class="l2-mini-grid l2-survey">
+            <div class="l2-mini-card"><div class="l2-mini-thumb l2-bp"></div><div class="l2-mini-line l2-bp"></div></div>
+            <div class="l2-mini-card"><div class="l2-mini-thumb l2-bp"></div><div class="l2-mini-line l2-bp"></div></div>
+            <div class="l2-mini-card"><div class="l2-mini-thumb l2-bp"></div><div class="l2-mini-line l2-bp"></div></div>
+          </div>
+        </div>
+        <div class="l2-compare-note">星点给出方向，尾迹给出速度，测线让骨架像正在被描摹的结构。</div>
+      </div>
+    </section>
+
+    <!-- R1 -->
+    <section class="l2-section" id="l2-r1">
+      <div class="l2-section-head">
+        <span class="l2-badge">R1</span>
+        <div>
+          <h2>星轨环 · 行内</h2>
+          <p>一个移动的星点，不做整圈旋转；14 / 20 / 30px 三档，按钮与行内共用。</p>
+        </div>
+      </div>
+      <div class="l2-grid l2-grid--3">
+        <article class="l2-card">
+          <div class="l2-card-head">
+            <span>按钮 · 保存 / 应用</span>
+            <button type="button" class="l2-play" data-play="r1">试运行</button>
+          </div>
+          <div class="l2-stage l2-stage--center">
+            <button type="button" class="l2-btn l2-btn--primary" id="l2-r1-btn">
+              <span class="l2-btn-idle" aria-hidden="true"></span>
+              <span class="l2-orbit l2-orbit--sm" aria-hidden="true"><span class="l2-orbit__track"></span><span class="l2-orbit__rotor"><span class="l2-orbit__tail"></span><span class="l2-orbit__head"></span></span></span>
+              <span class="l2-btn-label">保存更改</span>
+            </button>
+            <div style="display:flex;align-items:center;gap:14px;margin-top:4px;">
+              <span class="l2-orbit l2-orbit--sm" aria-hidden="true"><span class="l2-orbit__track"></span><span class="l2-orbit__rotor"><span class="l2-orbit__tail"></span><span class="l2-orbit__head"></span></span></span>
+              <span class="l2-orbit l2-orbit--md" aria-hidden="true"><span class="l2-orbit__track"></span><span class="l2-orbit__rotor"><span class="l2-orbit__tail"></span><span class="l2-orbit__head"></span></span></span>
+              <span class="l2-orbit l2-orbit--lg" aria-hidden="true"><span class="l2-orbit__track"></span><span class="l2-orbit__rotor"><span class="l2-orbit__tail"></span><span class="l2-orbit__head"></span></span></span>
+            </div>
+          </div>
+          <div class="l2-note">主按钮用 14px；行内用 14px；大空态用 30px。光环只留在星点上，轨道是 1px 虚线。</div>
+        </article>
+
+        <article class="l2-card">
+          <div class="l2-card-head">
+            <span>列表行 · 文件树节点</span>
+            <button type="button" class="l2-play" data-play="row">试运行</button>
+          </div>
+          <div class="l2-stage">
+            <div class="l2-row l2-row--active" id="l2-r1-row">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l1.6 2h7.4a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2v-10Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+              <span>worlddata</span>
+              <span class="l2-orbit l2-orbit--sm" aria-hidden="true"><span class="l2-orbit__track"></span><span class="l2-orbit__rotor"><span class="l2-orbit__tail"></span><span class="l2-orbit__head"></span></span></span>
+              <span class="l2-row-meta">3 项</span>
+            </div>
+            <div class="l2-row">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 3.5h7l5 5v12h-12v-17Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M13 3.5v5h5" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+              <span>第一章.md</span>
+              <span class="l2-row-meta">2.4 KB</span>
+            </div>
+          </div>
+          <div class="l2-note">星点占行尾固定位，不新增行高；轨道是 1px 虚线，避免整行变亮。</div>
+        </article>
+
+        <article class="l2-card">
+          <div class="l2-card-head">
+            <span>菜单头 · 项目刷新</span>
+            <button type="button" class="l2-play" data-play="menu">试运行</button>
+          </div>
+          <div class="l2-stage l2-stage--center">
+            <div class="l2-menu" id="l2-r1-menu">
+              <div class="l2-menu-head">项目 <span class="l2-star-line" aria-hidden="true"></span></div>
+              <div class="l2-menu-item is-active">默认工作区<small>%USERPROFILE%\WorldSea</small></div>
+              <div class="l2-menu-item">群岛档案<small>D:\Worlds\Archipelago</small></div>
+            </div>
+          </div>
+          <div class="l2-note">极窄场景用「星线」：一条 26px 测线上，星点从左到右走一次。</div>
+        </article>
+      </div>
+    </section>
+
+    <!-- R2 -->
+    <section class="l2-section" id="l2-r2">
+      <div class="l2-section-head">
+        <span class="l2-badge">R2</span>
+        <div>
+          <h2>测线骨架 · 内容首载</h2>
+          <p>不再用扫光。骨架是「测绘图」：点阵底、细描边，一条 1px 测线缓慢扫过。</p>
+        </div>
+      </div>
+      <div class="l2-grid l2-grid--2">
+        <article class="l2-card">
+          <div class="l2-card-head">
+            <span>卡片网格 · 画板列表</span>
+            <div class="l2-seg" id="l2-survey-seg">
+              <button type="button" class="is-active" data-mode="survey">测线</button>
+              <button type="button" data-mode="shimmer">微光</button>
+            </div>
+          </div>
+          <div class="l2-stage">
+            <div class="l2-survey-caption"><span class="l2-survey-caption__star" aria-hidden="true"></span>描摹结构…</div>
+            <div class="l2-survey" id="l2-survey-cards">
+              <div class="l2-mini-grid">
+                <div class="l2-mini-card"><div class="l2-mini-thumb l2-bp"></div><div class="l2-mini-line l2-bp"></div><div class="l2-mini-line l2-mini-line--short l2-bp"></div></div>
+                <div class="l2-mini-card"><div class="l2-mini-thumb l2-bp"></div><div class="l2-mini-line l2-bp"></div><div class="l2-mini-line l2-mini-line--short l2-bp"></div></div>
+                <div class="l2-mini-card"><div class="l2-mini-thumb l2-bp"></div><div class="l2-mini-line l2-bp"></div><div class="l2-mini-line l2-mini-line--short l2-bp"></div></div>
+              </div>
+            </div>
+          </div>
+          <div class="l2-note">测线是一根 1px 的光丝，不改变骨架底色；切换「微光」可对比传统做法。</div>
+        </article>
+
+        <article class="l2-card">
+          <div class="l2-card-head">
+            <span>列表 · 实体 / 文件行</span>
+            <span class="l2-meta">2.6s 一个来回</span>
+          </div>
+          <div class="l2-stage">
+            <div class="l2-survey-caption"><span class="l2-survey-caption__star" aria-hidden="true"></span>读取实体…</div>
+            <div class="l2-survey" id="l2-survey-list">
+              <div class="l2-list">
+                <div class="l2-list-row"><div class="l2-avatar l2-bp"></div><div class="l2-lines"><div class="l2-line l2-bp"></div><div class="l2-line l2-line--short l2-bp"></div></div></div>
+                <div class="l2-list-row"><div class="l2-avatar l2-bp"></div><div class="l2-lines"><div class="l2-line l2-bp"></div><div class="l2-line l2-line--short l2-bp"></div></div></div>
+                <div class="l2-list-row"><div class="l2-avatar l2-bp"></div><div class="l2-lines"><div class="l2-line l2-bp"></div><div class="l2-line l2-line--short l2-bp"></div></div></div>
+              </div>
+            </div>
+          </div>
+          <div class="l2-note">没有呼吸、没有缩放；唯一的运动是测线，所以它更像「正在读取」而不是「正在装饰」。</div>
+        </article>
+      </div>
+    </section>
+
+    <!-- R3 -->
+    <section class="l2-section" id="l2-r3">
+      <div class="l2-section-head">
+        <span class="l2-badge">R3</span>
+        <div>
+          <h2>航线切换 · 项目切换</h2>
+          <p>用一条弧形航线和四颗阶段节点，替代「转圈 + 粗进度条」。星点走到哪，文字就说到哪。</p>
+        </div>
+      </div>
+      <article class="l2-card">
+        <div class="l2-card-head">
+          <span>全局内容区 · 只盖内容区</span>
+          <button type="button" class="l2-play" data-play="route">切换项目</button>
+        </div>
+        <div class="l2-stage" style="padding:12px;">
+          <div class="l2-workbench" id="l2-workbench">
+            <div class="l2-titlebar">
+              <span class="l2-dot"></span><strong>WorldSea</strong><span class="l2-project">默认工作区</span>
+              <span class="l2-tb-spacer"></span>
+              <span class="l2-winbtns"><span class="l2-winbtn">—</span><span class="l2-winbtn">□</span><span class="l2-winbtn">×</span></span>
+            </div>
+            <div class="l2-wb-body">
+              <aside class="l2-sidebar">
+                <div class="l2-nav is-active">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.2" stroke="currentColor" stroke-width="1.5"/><path d="M5 20c.8-3.4 3.4-5.2 7-5.2s6.2 1.8 7 5.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                  角色
+                </div>
+                <div class="l2-nav">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M4 6.5 12 3l8 3.5-8 3.5-8-3.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M4 6.5V17l8 4 8-4V6.5" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+                  地点
+                </div>
+                <div class="l2-nav">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M5 4.5h14v15H5z" stroke="currentColor" stroke-width="1.5"/><path d="M8 8h8M8 11.5h8M8 15h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                  事件
+                </div>
+              </aside>
+              <div class="l2-main">
+                <div class="l2-main-head"><span class="l2-main-title">角色</span><span class="l2-main-sub">12 个实体 · 按修改时间</span></div>
+                <div class="l2-entity-grid">
+                  <div class="l2-entity"><strong>雾港守夜人</strong>守望雾港的古老组织</div>
+                  <div class="l2-entity"><strong>潮汐祭司</strong>解读潮汐与星象</div>
+                  <div class="l2-entity"><strong>群岛信使</strong>往返岛屿之间</div>
+                  <div class="l2-entity"><strong>盐雾匠</strong>以盐与雾造物</div>
+                  <div class="l2-entity"><strong>灯塔守望者</strong>记录每一次涨潮</div>
+                  <div class="l2-entity"><strong>深潮学者</strong>研究海底遗迹</div>
+                </div>
+              </div>
+              <div class="l2-overlay" id="l2-overlay" role="status" aria-live="polite">
+                <div class="l2-route-panel">
+                  <div class="l2-route-head">
+                    <h3>正在切换项目</h3>
+                    <span class="l2-route-count" id="l2-route-count">1 / 4</span>
+                  </div>
+                  <div class="l2-route-stage" id="l2-route-stage">切换数据源…</div>
+                  <div class="l2-route-canvas" id="l2-route-canvas">
+                    <svg viewBox="0 0 320 84" preserveAspectRatio="none" aria-hidden="true">
+                      <path id="l2-route-track" d="M18 64 C 96 12, 224 12, 302 64" fill="none" stroke="var(--loading-route-track)" stroke-width="1.2" stroke-linecap="round" stroke-dasharray="2 4"/>
+                      <path id="l2-route-fill" class="l2-route-fill" d="M18 64 C 96 12, 224 12, 302 64" fill="none" stroke="var(--loading-route-fill)" stroke-width="1.6" stroke-linecap="round"/>
+                    </svg>
+                    <span class="l2-route-node" data-node="0"></span>
+                    <span class="l2-route-node" data-node="1"></span>
+                    <span class="l2-route-node" data-node="2"></span>
+                    <span class="l2-route-node" data-node="3"></span>
+                    <span class="l2-route-star" id="l2-route-star"></span>
+                  </div>
+                  <div class="l2-route-labels" id="l2-route-labels">
+                    <span class="l2-route-label is-active">数据源</span>
+                    <span class="l2-route-label">实体</span>
+                    <span class="l2-route-label">芽</span>
+                    <span class="l2-route-label">关联</span>
+                  </div>
+                  <div class="l2-route-target">目标：群岛档案</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="l2-note">星点沿弧线移动，已完成航段变实线，未完成航段保持虚线；阶段节点同时亮起。窗口栏不盖。</div>
+      </article>
+    </section>
+
+    <!-- R4 -->
+    <section class="l2-section" id="l2-r4">
+      <div class="l2-section-head">
+        <span class="l2-badge">R4</span>
+        <div>
+          <h2>测线背景 · 非阻断</h2>
+          <p>把 2px 粗线换成 1px 测线 + 一颗星；状态点也从圆点换成四角星。</p>
+        </div>
+      </div>
+      <div class="l2-grid l2-grid--2">
+        <article class="l2-card">
+          <div class="l2-card-head">
+            <span>顶部测线 · 后台同步</span>
+            <button type="button" class="l2-play" data-play="ambient">触发后台任务</button>
+          </div>
+          <div class="l2-stage">
+            <div class="l2-ambient" id="l2-ambient">
+              <div class="l2-ambient-line"><span class="l2-ambient-star" aria-hidden="true"></span></div>
+              <div class="l2-ambient-body">
+                <div class="l2-ambient-row">
+                  <span class="l2-star-dot" aria-hidden="true"></span>
+                  <strong>正在后台同步</strong>
+                  <span>3 个文件</span>
+                  <span class="l2-ambient-meta">可继续操作</span>
+                </div>
+                <div class="l2-ambient-row" style="font-size:10px;color:var(--text-muted);">
+                  <span class="l2-inline-badge"><span class="l2-star-dot" aria-hidden="true"></span>LSP · 正在索引</span>
+                  <span class="l2-inline-badge">自动保存 · 已开启</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="l2-note">星点沿 1px 测线移动，尾迹只在身后 28px；它不抢焦点，也不锁滚动。</div>
+        </article>
+        <article class="l2-card">
+          <div class="l2-card-head">
+            <span>状态点 · 侧栏角落</span>
+            <span class="l2-meta">常驻但不打扰</span>
+          </div>
+          <div class="l2-stage">
+            <div class="l2-list">
+              <div class="l2-list-row" style="justify-content:space-between;">
+                <div style="display:flex;align-items:center;gap:8px;"><span class="l2-star-dot" aria-hidden="true"></span><span style="font-size:11px;color:var(--text-secondary);">AutoLink 后台匹配</span></div>
+                <span style="font-size:9.5px;color:var(--text-muted);">运行中</span>
+              </div>
+              <div class="l2-list-row" style="justify-content:space-between;">
+                <div style="display:flex;align-items:center;gap:8px;"><span class="l2-inline-badge"><span class="l2-star-dot" aria-hidden="true"></span>自动备份</span><span style="font-size:11px;color:var(--text-secondary);">下一次 12:40</span></div>
+                <span style="font-size:9.5px;color:var(--text-muted);">已开启</span>
+              </div>
+              <div class="l2-list-row" style="justify-content:space-between;">
+                <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:11px;color:var(--text-muted);">文件监听</span><span style="font-size:9.5px;color:var(--text-muted);">空闲</span></div>
+                <span class="l2-inline-badge">静默</span>
+              </div>
+            </div>
+          </div>
+          <div class="l2-note">四角星比圆点更像「一个正在发生的事件」，但只在后台任务时呼吸。</div>
+        </article>
+      </div>
+    </section>
+
+    <!-- 微细节 -->
+    <section class="l2-details">
+      <div class="l2-section-head">
+        <span class="l2-badge" aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.4 13.7 10.3 21.6 12 13.7 13.7 12 21.6 10.3 13.7 2.4 12 10.3 10.3 12 2.4Z"/></svg>
+        </span>
+        <div>
+          <h2>四个小铆钉</h2>
+          <p>精致的来源不是更复杂的动画，而是四个克制的小决定。</p>
+        </div>
+      </div>
+      <div class="l2-details-grid">
+        <div class="l2-detail">
+          <h4>光环只在头部</h4>
+          <div class="l2-detail-visual">
+            <span class="l2-orbit l2-orbit--md" aria-hidden="true"><span class="l2-orbit__track"></span><span class="l2-orbit__rotor"><span class="l2-orbit__tail"></span><span class="l2-orbit__head"></span></span></span>
+          </div>
+          <p>轨道保持 24% 透明的 1px 虚线；只有星点带 7px 光晕。整圈发光会让它重新变回「转圈」。</p>
+        </div>
+        <div class="l2-detail">
+          <h4>尾巴是渐隐的</h4>
+          <div class="l2-detail-visual">
+            <span class="l2-orbit l2-orbit--md" aria-hidden="true"><span class="l2-orbit__track"></span><span class="l2-orbit__rotor"><span class="l2-orbit__tail"></span><span class="l2-orbit__head"></span></span></span>
+          </div>
+          <p>78° 尾迹从 accent 渐隐到透明，不是整圈等亮。速度感来自尾巴，不来自转速。</p>
+        </div>
+        <div class="l2-detail">
+          <h4>节点会变成星</h4>
+          <div class="l2-detail-visual">
+            <div class="l2-detail-route">
+              <i class="done"></i><span class="done"></span><i class="done"></i><span class="done"></span><i class="active"></i><span></span><i></i>
+            </div>
+          </div>
+          <p>已完成节点实心，当前节点带光环并放大 2px；不给每个节点都加动画。</p>
+        </div>
+        <div class="l2-detail">
+          <h4>完成时收束</h4>
+          <div class="l2-detail-visual">
+            <span class="l2-orbit l2-orbit--md" style="--loading-orbit-duration:2.4s" aria-hidden="true"><span class="l2-orbit__track"></span><span class="l2-orbit__rotor"><span class="l2-orbit__tail"></span><span class="l2-orbit__head"></span></span></span>
+          </div>
+          <p>到达 100% 时星点放大到 2.6 倍并淡出，航线保持 300ms 再退场，不是瞬间消失。</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Token -->
+    <section class="l2-tokens">
+      <div class="l2-panel">
+        <h3>这套语言的三条纪律</h3>
+        <p class="l2-sub">精致不是加装饰，而是让每个动作都有理由。</p>
+        <div class="l2-rules">
+          <div class="l2-rule"><b>1</b><span><strong>一个移动的点，不做整圈旋转。</strong> 点给方向，尾迹给速度，轨道只给参照。</span></div>
+          <div class="l2-rule"><b>2</b><span><strong>文字说阶段，星点说位置。</strong> 不再用「加载中…」四个字包打天下；项目切换说「装载实体」，导入说「备份」。</span></div>
+          <div class="l2-rule"><b>3</b><span><strong>只在终点收束。</strong> 完成时星点放大淡出、航线保留 300ms；失败时星点停在原地并转为 warning 色。</span></div>
+          <div class="l2-rule"><b>4</b><span><strong>背景态只给一颗星。</strong> 不是整条进度条常驻；任务结束，测线立即消失。</span></div>
+        </div>
+      </div>
+      <div class="l2-panel">
+        <h3>Refined token 草案</h3>
+        <p class="l2-sub">在现有加载 token 上补 8 个「星轨」参数；仍然只落 <code>theme.css</code> + <code>packages/ui-kit</code>。</p>
+        <table class="l2-token-table">
+          <thead><tr><th>Token</th><th>值</th><th>用途</th></tr></thead>
+          <tbody>
+            <tr><td><code>--loading-orbit-duration</code></td><td>1.15s</td><td>星点绕行周期</td></tr>
+            <tr><td><code>--loading-trail-angle</code></td><td>78deg</td><td>尾迹角度</td></tr>
+            <tr><td><code>--loading-head-size</code></td><td>4.5px</td><td>星点尺寸</td></tr>
+            <tr><td><code>--loading-head-glow</code></td><td>7px</td><td>星点光晕</td></tr>
+            <tr><td><code>--loading-track-opacity</code></td><td>24%</td><td>虚线轨道透明度</td></tr>
+            <tr><td><code>--loading-route-track</code></td><td>accent 22%</td><td>未完成航段（虚线）</td></tr>
+            <tr><td><code>--loading-route-fill</code></td><td>var(--accent)</td><td>已完成航段</td></tr>
+            <tr><td><code>--loading-settle-duration</code></td><td>0.6s</td><td>阶段移动/收束</td></tr>
+          </tbody>
+        </table>
+        <div class="l2-token-note">
+          星轨只是 R0 星座语言的运行时回声：同一颗星，更小的词汇。R0 本身不重绘。<br>
+          减弱动态时：星点减速到 2.4s、测线 4.6s、阶段跳转不补间；语义不消失。
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+(() => {
+  const root = document.getElementById('ld2');
+  if (!root) return;
+  const timers = new Map();
+  function later(key, fn, ms) {
+    const old = timers.get(key);
+    if (old) clearTimeout(old);
+    timers.set(key, setTimeout(fn, ms));
+  }
+  function clearPrefix(prefix) {
+    for (const [key, timer] of timers) {
+      if (key.startsWith(prefix)) { clearTimeout(timer); timers.delete(key); }
+    }
+  }
+
+  document.querySelectorAll('[data-play]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const kind = btn.dataset.play;
+      if (kind === 'r1') {
+        const el = document.getElementById('l2-r1-btn');
+        if (!el) return;
+        el.classList.add('is-loading'); el.disabled = true;
+        later('l2-r1', () => { el.classList.remove('is-loading'); el.disabled = false; }, 1400);
+      } else if (kind === 'row') {
+        const el = document.getElementById('l2-r1-row');
+        if (!el) return;
+        el.classList.add('is-loading');
+        later('l2-row', () => el.classList.remove('is-loading'), 1400);
+      } else if (kind === 'menu') {
+        const el = document.getElementById('l2-r1-menu');
+        if (!el) return;
+        el.classList.add('is-loading');
+        later('l2-menu', () => el.classList.remove('is-loading'), 1400);
+      } else if (kind === 'ambient') {
+        const el = document.getElementById('l2-ambient');
+        if (!el) return;
+        el.classList.add('is-active');
+        later('l2-ambient', () => el.classList.remove('is-active'), 3200);
+      } else if (kind === 'route') {
+        playRoute();
+      }
+    });
+  });
+
+  const seg = document.getElementById('l2-survey-seg');
+  const cards = document.getElementById('l2-survey-cards');
+  const list = document.getElementById('l2-survey-list');
+  seg?.addEventListener('click', e => {
+    const btn = e.target.closest('button[data-mode]');
+    if (!btn) return;
+    const mode = btn.dataset.mode;
+    seg.querySelectorAll('button').forEach(b => b.classList.toggle('is-active', b === btn));
+    [cards, list].forEach(el => el && el.classList.toggle('is-shimmer', mode === 'shimmer'));
+  });
+
+  const path = document.getElementById('l2-route-track');
+  const fill = document.getElementById('l2-route-fill');
+  const canvas = document.getElementById('l2-route-canvas');
+  const star = document.getElementById('l2-route-star');
+  const nodes = canvas ? [...canvas.querySelectorAll('.l2-route-node')] : [];
+  const labels = [...document.querySelectorAll('#l2-route-labels .l2-route-label')];
+  const count = document.getElementById('l2-route-count');
+  const stage = document.getElementById('l2-route-stage');
+  const overlay = document.getElementById('l2-overlay');
+  const wbBody = document.querySelector('#l2-workbench .l2-wb-body');
+  const total = path ? path.getTotalLength() : 0;
+  const ratios = [0, 1 / 3, 2 / 3, 1];
+
+  if (fill) {
+    fill.style.strokeDasharray = String(total);
+    fill.style.strokeDashoffset = String(total);
+  }
+  ratios.forEach((ratio, i) => {
+    const point = path.getPointAtLength(total * ratio);
+    const node = nodes[i];
+    if (node) {
+      node.style.left = (point.x / 320 * 100) + '%';
+      node.style.top = (point.y / 84 * 100) + '%';
+    }
+  });
+
+  function setRoute(ratio, activeIndex) {
+    if (!path || !star || !fill) return;
+    const point = path.getPointAtLength(total * ratio);
+    star.style.left = (point.x / 320 * 100) + '%';
+    star.style.top = (point.y / 84 * 100) + '%';
+    fill.style.strokeDashoffset = String(total * (1 - ratio));
+    nodes.forEach((node, i) => {
+      node.classList.toggle('is-active', i === activeIndex);
+      node.classList.toggle('is-done', i < activeIndex);
+    });
+    labels.forEach((label, i) => label.classList.toggle('is-active', i === activeIndex));
+    if (count) count.textContent = (activeIndex + 1) + ' / 4';
+  }
+
+  function setStageText(text) {
+    if (stage) stage.textContent = text;
+  }
+
+  function playRoute() {
+    clearPrefix('l2-route');
+    if (!overlay) return;
+    overlay.classList.add('is-visible');
+    if (wbBody) wbBody.setAttribute('aria-busy', 'true');
+    star?.classList.remove('is-done');
+    setRoute(0, 0);
+    setStageText('切换数据源…');
+    const sequence = [
+      [420, 0, 0, '切换数据源…'],
+      [1100, 1 / 3, 1, '装载实体 / 关系 / 文件…'],
+      [1800, 2 / 3, 2, '重装芽与视图…'],
+      [2500, 1, 3, '恢复文件关联…'],
+    ];
+    for (const [at, ratio, index, text] of sequence) {
+      later('l2-route-' + at, () => setRoute(ratio, index), at);
+      later('l2-route-text-' + at, () => setStageText(text), at);
+    }
+    later('l2-route-done', () => {
+      star?.classList.add('is-done');
+      setStageText('就绪');
+    }, 3100);
+    later('l2-route-end', () => {
+      overlay.classList.remove('is-visible');
+      if (wbBody) wbBody.removeAttribute('aria-busy');
+      star?.classList.remove('is-done');
+    }, 3900);
+  }
+
+  const themeBtn = document.getElementById('l2-theme');
+  const themeLabel = document.getElementById('l2-theme-label');
+  themeBtn?.addEventListener('click', () => {
+    const dark = root.dataset.theme === 'dark';
+    root.dataset.theme = dark ? 'light' : 'dark';
+    if (themeLabel) themeLabel.textContent = dark ? '深色' : '浅色';
+  });
+  const motionBtn = document.getElementById('l2-motion');
+  const motionLabel = document.getElementById('l2-motion-label');
+  motionBtn?.addEventListener('click', () => {
+    const off = root.dataset.motion === 'off';
+    root.dataset.motion = off ? 'on' : 'off';
+    if (motionLabel) motionLabel.textContent = off ? '减弱动态：关' : '减弱动态：开';
+  });
+  document.getElementById('l2-replay')?.addEventListener('click', () => {
+    document.querySelector('[data-play="r1"]')?.click();
+    later('l2-replay-row', () => document.querySelector('[data-play="row"]')?.click(), 180);
+    later('l2-replay-menu', () => document.querySelector('[data-play="menu"]')?.click(), 320);
+    later('l2-replay-route', () => playRoute(), 500);
+    later('l2-replay-ambient', () => document.querySelector('[data-play="ambient"]')?.click(), 900);
+  });
+})();
+</script>

@@ -5,13 +5,14 @@
  * 无桥（浏览器预览）仅警告不抛错。每个用例对一处变异敏感（反证口径）。
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { switchShell } from '../shellSwitch'
+import { setSpaceSwitchBlocked, switchShell } from '../shellSwitch'
 
 type BridgeHost = { __WORLDSEA_SPACE_SWITCH__?: (to: string) => Promise<unknown> }
 
 describe('shellSwitch（空间切换统一入口，双窗定向）', () => {
   beforeEach(() => {
     delete (globalThis as BridgeHost).__WORLDSEA_SPACE_SWITCH__
+    setSpaceSwitchBlocked(false)
     vi.restoreAllMocks()
   })
 
@@ -48,6 +49,18 @@ describe('shellSwitch（空间切换统一入口，双窗定向）', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
     expect(() => switchShell('space')).not.toThrow()
+    expect(warn).toHaveBeenCalled()
+  })
+
+  it('项目切换期间：阻止空间切换并警告', () => {
+    const bridge = vi.fn().mockResolvedValue('space')
+    ;(globalThis as BridgeHost).__WORLDSEA_SPACE_SWITCH__ = bridge
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    setSpaceSwitchBlocked(true)
+    switchShell('space')
+
+    expect(bridge).not.toHaveBeenCalled()
     expect(warn).toHaveBeenCalled()
   })
 })

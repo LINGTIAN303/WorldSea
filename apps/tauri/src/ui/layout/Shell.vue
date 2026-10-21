@@ -2,9 +2,37 @@
   <div class="shell">
     <TitleBar />
     <WelcomeOverlay />
-    <div id="main-content" tabindex="-1" class="shell-body" :class="{ 'sidebar-right': settingsStore.sidebarPosition === 'right', 'sprout-nav-dual': uiStore.sproutNavMode === 'dual' }">
-      <Sidebar />
-      <ViewContainer />
+    <div class="shell-content">
+      <!-- 导出到文件夹由菜单触发，菜单会立即收起；用顶部测线保证反馈可见（R4） -->
+      <WsAmbientLine class="shell-ambient" :active="projectSaving" label="正在导出项目到文件夹" />
+      <div
+        id="main-content"
+        tabindex="-1"
+        class="shell-body"
+        :class="{ 'sidebar-right': settingsStore.sidebarPosition === 'right', 'sprout-nav-dual': uiStore.sproutNavMode === 'dual' }"
+        :inert="switchVisible || undefined"
+        :aria-busy="switchVisible ? 'true' : undefined"
+      >
+        <Sidebar />
+        <ViewContainer />
+      </div>
+      <WsLoadingOverlay
+        :show="switchVisible"
+        scope="content"
+        title="正在切换项目"
+        success-title="切换完成"
+        error-title="切换失败"
+        :stages="switchStages"
+        :current="switchStage"
+        :status="switchStatus"
+        :target="switchTargetName ? `目标：${switchTargetName}` : ''"
+        :error="switchError ?? ''"
+        :success-text="switchSuccessText"
+        success-detail="可以继续工作"
+        error-text="无法完成项目切换"
+        @retry="retrySwitch"
+        @close="dismissSwitchError"
+      />
     </div>
     <Toast />
     <DialogContainer />
@@ -19,11 +47,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, defineAsyncComponent, onMounted, onUnmounted } from 'vue'
+import { ref, computed, defineAsyncComponent, onMounted, onUnmounted } from 'vue'
 import TitleBar from './TitleBar.vue'
 import Sidebar from './sidebar/SidebarHost.vue'
 import { visibleViewsInSidebarOrder } from './sidebar/viewOrder'
-import { Toast, DialogContainer, ViewContainer } from '@worldsea/ui-kit'
+import { Toast, DialogContainer, ViewContainer, WsLoadingOverlay, WsAmbientLine } from '@worldsea/ui-kit'
 import WsConfirmDialog from '../WsConfirmDialog.vue'
 import WsAskDialog from '../WsAskDialog.vue'
 
@@ -35,6 +63,7 @@ import { usePluginStore, useDirtyTracker, useEntityStore, useRelationStore, enti
 import { useFileSystemProject } from '@worldsea/entity-core/composables'
 // D2-b2：useProjectSwitcher 引用已随「打开目录建项目」入口退役移除（项目切换在 ProjectSwitcher 下拉）
 import { switchShell } from '@/composables/shellSwitch'
+import { useProjectSwitcher } from '@/composables/useProjectSwitcher'
 
 const shortcutHelpOpen = ref(false)
 const undoHistoryOpen = ref(false)
@@ -53,6 +82,20 @@ const OverlayHost = defineAsyncComponent(() => import('@/shell/OverlayHost.vue')
 const pluginStore = usePluginStore()
 const uiStore = useUIStore()
 const settingsStore = useSettingsStore()
+const { saving: projectSaving } = useFileSystemProject()
+
+const {
+  switchVisible,
+  switchStatus,
+  switchStage,
+  switchTargetName,
+  switchError,
+  switchStages,
+  retrySwitch,
+  dismissSwitchError,
+} = useProjectSwitcher()
+
+const switchSuccessText = computed(() => switchTargetName.value ? `${switchTargetName.value} 已就绪` : '已就绪')
 
 onMounted(() => {
   // 注册 beforeunload 防丢失提醒
@@ -158,6 +201,21 @@ async function onRedoFromHistory(indices: number[]) {
   height: 100vh;
   overflow: hidden;
   contain: layout style;
+}
+/* 内容区容器：titlebar 之外的全部区域；加载遮罩以它为定位上下文（不盖标题栏） */
+.shell-content {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+}
+.shell-ambient {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: calc(var(--z-loading) - 1);
 }
 .shell-body {
   display: flex;

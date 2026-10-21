@@ -5,9 +5,13 @@
         <div class="artifacts-header">
           <h3>产物</h3>
           <div class="artifacts-hdr-actions">
+            <span v-if="busy" class="artifacts-busy">
+              <WsInlineLoading size="sm" :label="busyLabel" />
+              {{ busyLabel }}
+            </span>
             <span class="artifacts-count">{{ artifacts.length }} 项</span>
-            <TuiButton variant="secondary" size="sm" @click="openCreate">+ 新建</TuiButton>
-            <button class="artifacts-close" @click="close">✕</button>
+            <TuiButton variant="secondary" size="sm" :disabled="busy" @click="openCreate">+ 新建</TuiButton>
+            <button class="artifacts-close" :disabled="busy" @click="close">✕</button>
           </div>
         </div>
 
@@ -22,12 +26,12 @@
           </select>
           <textarea v-model="createContent" class="input textarea" rows="4" placeholder="产物内容" />
           <div class="create-actions">
-            <TuiButton variant="secondary" size="sm" @click="creating = false">取消</TuiButton>
-            <TuiButton variant="primary" size="sm" @click="doCreate">保存</TuiButton>
+            <TuiButton variant="secondary" size="sm" :disabled="busy" @click="creating = false">取消</TuiButton>
+            <TuiButton variant="primary" size="sm" :disabled="busy" @click="doCreate">保存</TuiButton>
           </div>
         </div>
 
-        <div class="artifacts-body">
+        <div class="artifacts-body" :inert="busy || undefined">
           <!-- 左：产物列表 -->
           <div class="artifacts-list">
             <div
@@ -42,7 +46,7 @@
                 <span class="artifact-item-meta">v{{ a.version }} · {{ typeLabel(a.artifact_type) }}</span>
               </div>
               <div class="artifact-item-actions">
-                <TuiButton variant="danger-ghost" size="sm" @click.stop="doDelete(a)">删除</TuiButton>
+                <TuiButton variant="danger-ghost" size="sm" :disabled="busy" @click.stop="doDelete(a)">删除</TuiButton>
               </div>
             </div>
             <div v-if="artifacts.length === 0" class="artifacts-empty">暂无产物，点击「新建」创建</div>
@@ -54,7 +58,7 @@
               <div class="preview-header">
                 <span class="preview-title">{{ selected.title }}</span>
                 <span class="preview-meta">v{{ selected.version }}</span>
-                <TuiButton variant="secondary" size="sm" @click="openVersions(selected)">历史版本</TuiButton>
+                <TuiButton variant="secondary" size="sm" :disabled="busy" @click="openVersions(selected)">历史版本</TuiButton>
               </div>
               <div class="preview-content">{{ selected.content }}</div>
             </template>
@@ -63,10 +67,10 @@
         </div>
 
         <!-- 版本抽屉 -->
-        <div v-if="versionsOpen" class="versions-drawer">
+        <div v-if="versionsOpen" class="versions-drawer" :inert="busy || undefined">
           <div class="versions-header">
             <span>历史版本 · {{ versionsTarget?.title }}</span>
-            <TuiButton variant="secondary" size="sm" @click="versionsOpen = false">关闭</TuiButton>
+            <TuiButton variant="secondary" size="sm" :disabled="busy" @click="versionsOpen = false">关闭</TuiButton>
           </div>
           <div class="versions-list">
             <div v-for="v in versions" :key="v.id" class="version-item">
@@ -74,7 +78,7 @@
               <span class="version-date">{{ formatDate(v.created_at) }}</span>
               <TuiButton
                 variant="secondary" size="sm"
-                :disabled="v.version === selected?.version"
+                :disabled="busy || v.version === selected?.version"
                 @click="doRollback(v)"
               >
                 {{ v.version === selected?.version ? '当前' : '回滚到此版本' }}
@@ -89,7 +93,7 @@
 </template>
 
 <script setup lang="ts">
-import { TuiButton } from '@worldsea/ui-kit'
+import { TuiButton, WsInlineLoading } from '@worldsea/ui-kit'
 import { ref, watch } from 'vue'
 import { useArtifacts } from '@worldsea/entity-core'
 import type { Artifact, ArtifactVersion } from '@worldsea/entity-core'
@@ -110,6 +114,20 @@ const selected = ref<Artifact | null>(null)
 const versionsOpen = ref(false)
 const versionsTarget = ref<Artifact | null>(null)
 const versions = ref<ArtifactVersion[]>([])
+const busy = ref(false)
+const busyLabel = ref('')
+
+async function withBusy(label: string, task: () => Promise<void>): Promise<void> {
+  if (busy.value) return
+  busy.value = true
+  busyLabel.value = label
+  try {
+    await task()
+  } finally {
+    busy.value = false
+    busyLabel.value = ''
+  }
+}
 
 // 新建表单态
 const creating = ref(false)
@@ -146,40 +164,49 @@ function openCreate() {
 
 async function doCreate() {
   if (!createTitle.value.trim()) return
-  await create({
-    title: createTitle.value.trim(),
-    content: createContent.value,
-    artifact_type: createType.value,
+  await withBusy('正在保存产物…', async () => {
+    await create({
+      title: createTitle.value.trim(),
+      content: createContent.value,
+      artifact_type: createType.value,
+    })
+    creating.value = false
   })
-  creating.value = false
 }
 
 async function openVersions(a: Artifact) {
-  versionsTarget.value = a
-  versions.value = await getVersions(a.id)
-  versionsOpen.value = true
+  await withBusy('正在读取历史版本…', async () => {
+    versionsTarget.value = a
+    versions.value = await getVersions(a.id)
+    versionsOpen.value = true
+  })
 }
 
 async function doRollback(v: ArtifactVersion) {
   const target = versionsTarget.value
   if (!target) return
   if (confirm(`确定回滚「${target.title}」到 v${v.version}？\n将追加一个新版本，历史完整保留。`)) {
-    await rollback(target.id, v.version)
-    await loadAll()
-    selected.value = artifacts.value.find(a => a.id === target.id) ?? null
-    versions.value = await getVersions(target.id)
+    await withBusy('正在回滚产物…', async () => {
+      await rollback(target.id, v.version)
+      await loadAll()
+      selected.value = artifacts.value.find(a => a.id === target.id) ?? null
+      versions.value = await getVersions(target.id)
+    })
   }
 }
 
 async function doDelete(a: Artifact) {
   if (confirm(`删除产物「${a.title}」及其全部历史版本？`)) {
-    await remove(a.id)
-    if (selected.value?.id === a.id) selected.value = null
-    versionsOpen.value = false
+    await withBusy('正在删除产物…', async () => {
+      await remove(a.id)
+      if (selected.value?.id === a.id) selected.value = null
+      versionsOpen.value = false
+    })
   }
 }
 
 function close() {
+  if (busy.value) return
   emit('close')
 }
 
@@ -195,8 +222,10 @@ watch(() => props.show, (v: boolean) => {
 .artifacts-header h3 { margin: 0; font-size: var(--font-size-lg); }
 .artifacts-hdr-actions { display: flex; align-items: center; gap: 12px; }
 .artifacts-count { font-size: var(--font-size-sm); color: var(--text-secondary); }
+.artifacts-busy { display: inline-flex; align-items: center; gap: 6px; font-size: var(--font-size-xs); color: var(--text-secondary); }
 .artifacts-close { background: none; border: none; font-size: var(--font-size-xl); cursor: pointer; padding: 4px 8px; border-radius: var(--radius-xs); }
 .artifacts-close:hover { background: var(--hover-bg); }
+.artifacts-close:disabled { opacity: var(--disabled-opacity, 0.5); cursor: not-allowed; }
 .artifacts-create { display: flex; flex-direction: column; gap: 8px; padding: 12px 20px; border-bottom: 1px solid var(--border); background: var(--bg); }
 .input { padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--content-bg); color: var(--text); font-size: var(--font-size-sm); }
 .input.select { width: 120px; }

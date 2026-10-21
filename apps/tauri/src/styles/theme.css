@@ -116,6 +116,26 @@
   --z-modal: 1000;
   --z-toast: 2000;
 
+  /* ── 加载反馈（产品域）──
+     与 dsh 无关；组件在 packages/ui-kit/components/feedback/loading，
+     详细 why 见 docs/details/注释/tauri/components/加载反馈.md。 */
+  --loading-accent: var(--accent);
+  --loading-track: color-mix(in srgb, var(--accent) 24%, transparent);
+  --loading-label: var(--text-secondary);
+  --loading-scrim: color-mix(in srgb, var(--bg-app) 80%, transparent);
+  --loading-scrim-blur: 2px;
+  --loading-scrim-local: color-mix(in srgb, var(--bg-surface) 62%, transparent);
+  --loading-skeleton-base: var(--bg-muted);
+  --loading-skeleton-shine: color-mix(in srgb, var(--bg-surface) 65%, transparent);
+  --loading-size-sm: 14px;
+  --loading-size-md: 20px;
+  --loading-size-lg: 30px;
+  --loading-orbit-duration: 1.15s;
+  --loading-survey-duration: 2.6s;
+  --loading-delay: 200ms;      /* useAsyncTask 默认值；此处供文档/主题覆盖 */
+  --loading-min-visible: 400ms;
+  --z-loading: 1500;           /* modal 之上、toast 之下 */
+
   /* ── 遮罩 / 玻璃 ── */
   --overlay: rgba(15, 23, 42, 0.45);
   --overlay-blur: 4px;        /* 弹窗遮罩背景模糊（营造纵深） */
@@ -255,6 +275,8 @@
   /* 焦点环 / 遮罩 / 玻璃 */
   --ring-color: rgba(139, 135, 248, 0.45);
   --overlay: rgba(0, 0, 0, 0.55);
+  --loading-scrim: rgba(17, 17, 19, 0.74);
+  --loading-scrim-local: rgba(24, 24, 27, 0.62);
   --glass-bg: rgba(24, 24, 27, 0.82);
 
   /* Markdown 内容区 */

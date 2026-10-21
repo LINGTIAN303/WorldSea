@@ -53,7 +53,10 @@
               <FieldControl :value="editDraft.tags" raw-type="tags" label="标签" :editing="true" @update:value="editDraft.tags = toTagList($event)" />
             </div>
             <div class="be-inline-actions">
-              <button class="be-btn primary" @click="saveEdit(e)">保存</button>
+              <button class="be-btn primary" :disabled="savingEdit" @click="saveEdit(e)">
+                <WsInlineLoading v-if="savingEdit" size="sm" label="正在保存" />
+                保存
+              </button>
               <button class="be-btn" @click="editingId = null">取消</button>
             </div>
           </div>
@@ -112,6 +115,18 @@
           </div>
         </div>
       </div>
+      <WsLoadingOverlay
+        :show="busyVisible"
+        scope="panel"
+        title="批量编辑"
+        success-title="处理完成"
+        error-title="处理失败"
+        :stages="busyStages"
+        :current="busyStage"
+        :status="busyOverlayStatus"
+        @close="busyTask.reset()"
+      />
+
       <div class="resize-handle-right" @mousedown="modalResizable.onResizeStart"></div>
     </div>
   </div>
@@ -123,7 +138,16 @@ import { useUndoRedo, useResizable } from '../composables'
 import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
 import { useEntityStore, useRelationStore, entitySchemaRegistry } from '@worldsea/entity-core'
 import { getEventBus } from '@worldsea/entity-core'
-import { WsIcon, useModalShortcuts, toastSuccess } from '@worldsea/ui-kit'
+import {
+  WsIcon,
+  WsInlineLoading,
+  WsLoadingOverlay,
+  useAsyncTask,
+  useModalShortcuts,
+  toastSuccess,
+  toastError,
+  type LoadingStage,
+} from '@worldsea/ui-kit'
 import FieldControl from '../detail/FieldControl.vue'
 import type { Entity } from '@worldsea/entity-core'
 
@@ -201,6 +225,45 @@ const removeTags = ref('')
 const namePrefix = ref('')
 const nameSuffix = ref('')
 
+const busyTask = useAsyncTask({ delay: 200, minVisible: 400, successHold: 300 })
+const busyVisible = busyTask.visible
+const busyStatus = busyTask.status
+const busyStage = ref(0)
+const busyLabel = ref('')
+const busyProgress = ref({ done: 0, total: 0 })
+const savingEdit = ref(false)
+const busyOverlayStatus = computed<'loading' | 'success' | 'error'>(() =>
+  busyStatus.value === 'success' ? 'success' : busyStatus.value === 'error' ? 'error' : 'loading',
+)
+const busyStages = computed<LoadingStage[]>(() => [
+  {
+    short: '处理',
+    full: busyLabel.value || '正在处理…',
+    detail: busyProgress.value.total > 0
+      ? `已处理 ${busyProgress.value.done} / ${busyProgress.value.total}`
+      : '批量写入',
+  },
+  { short: '完成', full: '正在收尾…', detail: '刷新列表 / 提交结果' },
+])
+
+async function runBusy(label: string, task: () => Promise<void>): Promise<boolean> {
+  if (busyStatus.value === 'loading') return false
+  busyLabel.value = label
+  busyProgress.value = { done: 0, total: 0 }
+  busyStage.value = 0
+  try {
+    await busyTask.run(async () => {
+      await task()
+      busyStage.value = 1
+    })
+    return true
+  } catch (err) {
+    busyTask.reset()
+    toastError(err instanceof Error ? err.message : String(err))
+    return false
+  }
+}
+
 const filtered = computed(() => {
   let items = entityStore.entities
   if (typeFilter.value) items = items.filter(e => e.type === typeFilter.value)
@@ -246,10 +309,15 @@ function toggleEdit(e: Entity) {
 
 async function saveEdit(e: Entity) {
   const name = editDraft.value.name.trim()
-  if (!name) return
-  await entityStore.update(e.id, { name, description: editDraft.value.description, tags: editDraft.value.tags })
-  editingId.value = null
-  toastSuccess(`已更新「${name}」`)
+  if (!name || savingEdit.value) return
+  savingEdit.value = true
+  try {
+    await entityStore.update(e.id, { name, description: editDraft.value.description, tags: editDraft.value.tags })
+    editingId.value = null
+    toastSuccess(`已更新「${name}」`)
+  } finally {
+    savingEdit.value = false
+  }
 }
 
 function batchDelete() {
@@ -263,49 +331,64 @@ async function doBatchDelete() {
   const ids = pendingDeleteIds.value
   showDeleteConfirm.value = false
   if (ids.length === 0) return
-  beginTransaction()
-  for (const id of ids) {
-    await entityStore.remove(id) // 级联删除已内置
-  }
-  commitTransaction()
-  getEventBus().emit('batch:edit', { entityIds: ids, action: 'delete' })
-  selected.value.clear()
-  selectAll.value = false
-  pendingDeleteIds.value = []
-  await entityStore.loadAll()
-  await relationStore.loadAll()
+  await runBusy('正在删除实体…', async () => {
+    beginTransaction()
+    for (let i = 0; i < ids.length; i++) {
+      await entityStore.remove(ids[i]) // 级联删除已内置
+      busyProgress.value = { done: i + 1, total: ids.length }
+    }
+    commitTransaction()
+    getEventBus().emit('batch:edit', { entityIds: ids, action: 'delete' })
+    selected.value.clear()
+    selectAll.value = false
+    pendingDeleteIds.value = []
+    await entityStore.loadAll()
+    await relationStore.loadAll()
+  })
 }
 
 async function applyTags() {
   const add = addTags.value.split(/[,，\s]+/).filter(Boolean)
   const remove = removeTags.value.split(/[,，\s]+/).filter(Boolean)
   const ids = [...selected.value]
-  for (const id of selected.value) {
-    const e = entityStore.entityMap.get(id)
-    if (!e) continue
-    let tags = [...(e.tags || [])]
-    if (add.length) add.forEach(t => { if (!tags.includes(t)) tags.push(t) })
-    if (remove.length) tags = tags.filter(t => !remove.includes(t))
-    await entityStore.update(id, { tags })
+  const ok = await runBusy('正在批量修改标签…', async () => {
+    let done = 0
+    for (const id of selected.value) {
+      const e = entityStore.entityMap.get(id)
+      if (!e) continue
+      let tags = [...(e.tags || [])]
+      if (add.length) add.forEach(t => { if (!tags.includes(t)) tags.push(t) })
+      if (remove.length) tags = tags.filter(t => !remove.includes(t))
+      await entityStore.update(id, { tags })
+      busyProgress.value = { done: ++done, total: ids.length }
+    }
+    getEventBus().emit('batch:edit', { entityIds: ids, action: 'tags' })
+  })
+  if (ok) {
+    showTagEditor.value = false
+    addTags.value = ''
+    removeTags.value = ''
   }
-  getEventBus().emit('batch:edit', { entityIds: ids, action: 'tags' })
-  showTagEditor.value = false
-  addTags.value = ''
-  removeTags.value = ''
 }
 
-function applyRename() {
+async function applyRename() {
   const ids = [...selected.value]
-  for (const id of selected.value) {
-    const e = entityStore.entityMap.get(id)
-    if (!e) continue
-    const newName = namePrefix.value + e.name + nameSuffix.value
-    if (newName !== e.name) entityStore.update(id, { name: newName })
+  const ok = await runBusy('正在批量重命名…', async () => {
+    let done = 0
+    for (const id of selected.value) {
+      const e = entityStore.entityMap.get(id)
+      if (!e) continue
+      const newName = namePrefix.value + e.name + nameSuffix.value
+      if (newName !== e.name) await entityStore.update(id, { name: newName })
+      busyProgress.value = { done: ++done, total: ids.length }
+    }
+    getEventBus().emit('batch:edit', { entityIds: ids, action: 'rename' })
+  })
+  if (ok) {
+    showRename.value = false
+    namePrefix.value = ''
+    nameSuffix.value = ''
   }
-  getEventBus().emit('batch:edit', { entityIds: ids, action: 'rename' })
-  showRename.value = false
-  namePrefix.value = ''
-  nameSuffix.value = ''
 }
 
 function batchExport() {
@@ -318,7 +401,14 @@ function batchExport() {
   URL.revokeObjectURL(url)
 }
 
-function close() { showDeleteConfirm.value = false; pendingDeleteIds.value = []; selected.value.clear(); selectAll.value = false; emit('close') }
+function close() {
+  if (busyStatus.value === 'loading') return
+  showDeleteConfirm.value = false
+  pendingDeleteIds.value = []
+  selected.value.clear()
+  selectAll.value = false
+  emit('close')
+}
 </script>
 
 <style scoped>
@@ -335,7 +425,7 @@ function close() { showDeleteConfirm.value = false; pendingDeleteIds.value = [];
 .be-search { flex: 1; }
 .be-chk { font-size: var(--font-size-sm); cursor: pointer; white-space: nowrap; }
 .be-actions { display: flex; gap: 8px; padding: 10px 20px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
-.be-btn { padding: 6px 14px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg, #f8f8f8); cursor: pointer; font-size: var(--font-size-sm); transition: background 0.15s; }
+.be-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 6px 14px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg, #f8f8f8); cursor: pointer; font-size: var(--font-size-sm); transition: background 0.15s; }
 .be-btn:hover { background: var(--bg-hover); }
 .be-btn.primary { background: var(--primary); color: var(--text); border-color: var(--primary); }
 .be-btn.primary:hover { background: var(--primary-hover); }

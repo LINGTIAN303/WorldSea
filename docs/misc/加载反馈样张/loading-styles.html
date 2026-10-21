@@ -1,0 +1,1186 @@
+<style>
+  /* ── WorldSea 加载反馈样张 · 所有样式限定在 #ld-demo 内 ── */
+  #ld-demo {
+    --bg-app: #fafaf9;
+    --bg-surface: #ffffff;
+    --bg-muted: #f4f4f5;
+    --bg-active: #e9e9ea;
+    --border: #ececec;
+    --border-strong: #d9d9de;
+    --text-primary: #1f2328;
+    --text-secondary: #6b7280;
+    --text-muted: #9ca3af;
+    --accent: #4f46e5;
+    --accent-hover: #4338ca;
+    --accent-soft: #eef2ff;
+    --accent-soft-border: #e0e7ff;
+    --on-accent: #ffffff;
+    --success: #16a34a;
+    --warning: #d97706;
+    --danger: #dc2626;
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05);
+    --shadow-md: 0 4px 16px rgba(16, 24, 40, 0.07);
+    --shadow-lg: 0 12px 32px rgba(16, 24, 40, 0.12);
+    --ease: cubic-bezier(0.4, 0, 0.2, 1);
+    --ease-out: cubic-bezier(0, 0, 0.2, 1);
+    --dur-fast: 0.15s;
+    --dur-base: 0.22s;
+    --dur-lg: 0.32s;
+
+    /* 加载反馈 token 草案 */
+    --loading-accent: var(--accent);
+    --loading-track: var(--border-strong);
+    --loading-label: var(--text-secondary);
+    --loading-scrim: color-mix(in srgb, var(--bg-app) 80%, transparent);
+    --loading-scrim-blur: 2px;
+    --loading-skeleton-base: var(--bg-muted);
+    --loading-skeleton-shine: color-mix(in srgb, var(--bg-surface) 70%, transparent);
+    --loading-progress-track: var(--bg-muted);
+    --loading-progress-fill: var(--accent);
+    --loading-size-sm: 14px;
+    --loading-size-md: 20px;
+    --loading-size-lg: 30px;
+    --loading-stroke: 2px;
+    --loading-spin-duration: 0.7s;
+    --loading-shimmer-duration: 1.5s;
+    --loading-delay: 200ms;
+    --loading-min-visible: 400ms;
+    --z-loading: 1500;
+
+    font-family: 'Inter', system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    position: relative;
+    color: var(--text-primary);
+    background:
+      radial-gradient(ellipse 60% 38% at 18% -8%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 62%),
+      radial-gradient(ellipse 42% 30% at 92% 2%, color-mix(in srgb, #0891b2 5%, transparent), transparent 58%),
+      var(--bg-app);
+    min-height: 100vh;
+    padding: 24px clamp(16px, 3vw, 40px) 56px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  #ld-demo[data-theme='dark'] {
+    --bg-app: #111113;
+    --bg-surface: #18181b;
+    --bg-muted: #202024;
+    --bg-active: #2e2e34;
+    --border: #27272c;
+    --border-strong: #38383f;
+    --text-primary: #e7e7ea;
+    --text-secondary: #a1a1aa;
+    --text-muted: #71717a;
+    --accent: #8b87f8;
+    --accent-hover: #a09bfa;
+    --accent-soft: rgba(99, 102, 241, 0.18);
+    --accent-soft-border: rgba(99, 102, 241, 0.35);
+    --on-accent: #17171b;
+    --success: #34d399;
+    --warning: #fbbf24;
+    --danger: #f87171;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.45);
+    --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55);
+    --loading-scrim: rgba(17, 17, 19, 0.72);
+    --loading-skeleton-shine: rgba(255, 255, 255, 0.06);
+  }
+  #ld-demo * { box-sizing: border-box; }
+  #ld-demo button { font: inherit; }
+  /* 视口底色兜底：独立打开文件时，滚动到内容盒之外也不露出白底 */
+  #ld-demo::before {
+    content: ''; position: fixed; inset: 0; z-index: -1; background: var(--bg-app);
+  }
+
+  .ld-wrap { max-width: 1320px; margin: 0 auto; }
+
+  /* ── 顶栏 ── */
+  .ld-top {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    padding: 2px 2px 18px; border-bottom: 1px solid var(--border); flex-wrap: wrap;
+  }
+  .ld-brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .ld-logo {
+    width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center;
+    color: var(--accent); background: var(--accent-soft); border: 1px solid var(--accent-soft-border);
+    flex: none;
+  }
+  .ld-brand-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .ld-brand-text strong { font-size: 13px; letter-spacing: 0.01em; }
+  .ld-brand-text span { font-size: 10.5px; color: var(--text-muted); letter-spacing: 0.04em; }
+  .ld-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .ld-ctl {
+    height: 30px; padding: 0 11px; border-radius: var(--radius-sm);
+    border: 1px solid var(--border-strong); background: var(--bg-surface); color: var(--text-secondary);
+    font-size: 11.5px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+    transition: border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+  }
+  .ld-ctl:hover { border-color: var(--accent); color: var(--accent); }
+  .ld-ctl--primary { background: var(--accent); border-color: transparent; color: var(--on-accent); }
+  .ld-ctl--primary:hover { background: var(--accent-hover); color: var(--on-accent); }
+  .ld-ctl svg { flex: none; }
+
+  /* ── Hero ── */
+  .ld-hero { padding: 42px 2px 10px; }
+  .ld-kicker {
+    margin: 0 0 12px; font-size: 10px; font-weight: 600; letter-spacing: 0.18em;
+    text-transform: uppercase; color: var(--accent);
+  }
+  .ld-hero h1 {
+    margin: 0; font-size: clamp(30px, 4.4vw, 48px); line-height: 1.08; letter-spacing: -0.035em;
+    font-weight: 680; max-width: 760px;
+  }
+  .ld-lede {
+    margin: 16px 0 0; max-width: 720px; font-size: 14px; color: var(--text-secondary); line-height: 1.75;
+  }
+  .ld-chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 20px; }
+  .ld-chip {
+    display: inline-flex; align-items: center; gap: 6px; padding: 4px 9px;
+    border: 1px solid var(--border); border-radius: 999px; background: var(--bg-surface);
+    font-size: 10.5px; color: var(--text-secondary);
+  }
+  .ld-chip i { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
+
+  /* ── Section ── */
+  .ld-section { margin-top: 46px; }
+  .ld-section-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
+  .ld-badge {
+    width: 34px; height: 34px; border-radius: 10px; flex: none;
+    display: grid; place-items: center; background: var(--accent-soft);
+    border: 1px solid var(--accent-soft-border); color: var(--accent);
+    font-size: 12px; font-weight: 700; letter-spacing: 0.02em;
+  }
+  .ld-section-head h2 { margin: 1px 0 3px; font-size: 19px; letter-spacing: -0.02em; }
+  .ld-section-head p { margin: 0; font-size: 12.5px; color: var(--text-secondary); }
+  .ld-grid { display: grid; gap: 12px; }
+  .ld-grid--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .ld-grid--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  /* ── Card ── */
+  .ld-card {
+    background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm); display: flex; flex-direction: column; min-width: 0;
+    transition: border-color var(--dur-base) var(--ease), box-shadow var(--dur-base) var(--ease);
+  }
+  .ld-card:hover { border-color: var(--border-strong); box-shadow: var(--shadow-md); }
+  .ld-card-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 12px 14px 0; font-size: 11.5px; font-weight: 600; color: var(--text-primary);
+  }
+  .ld-meta { font-size: 10px; font-weight: 400; color: var(--text-muted); letter-spacing: 0.02em; }
+  .ld-stage {
+    margin: 10px 14px 0; padding: 16px; border: 1px solid var(--border); border-radius: 9px;
+    background: color-mix(in srgb, var(--bg-muted) 62%, var(--bg-surface));
+    display: flex; flex-direction: column; gap: 10px; justify-content: center; min-height: 132px;
+  }
+  .ld-stage--center { align-items: center; }
+  .ld-note { padding: 10px 14px 13px; font-size: 10.5px; color: var(--text-muted); line-height: 1.6; }
+  .ld-note code { font-family: 'JetBrains Mono', Consolas, monospace; font-size: 10px; color: var(--text-secondary); }
+  .ld-play {
+    display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; height: 24px;
+    border: 1px solid var(--border); border-radius: 999px; background: transparent;
+    color: var(--text-secondary); font-size: 10.5px; cursor: pointer;
+    transition: border-color var(--dur-fast), color var(--dur-fast), background var(--dur-fast);
+  }
+  .ld-play:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+  .ld-play svg { flex: none; }
+
+  /* ── Spinner ── */
+  .ld-spinner {
+    width: var(--loading-size-sm); height: var(--loading-size-sm); flex: none;
+    border: var(--loading-stroke) solid var(--loading-track);
+    border-top-color: var(--loading-accent); border-radius: 50%;
+    animation: ld-spin var(--loading-spin-duration) linear infinite;
+  }
+  .ld-spinner--sm { width: 11px; height: 11px; border-width: 1.5px; }
+  .ld-spinner--md { width: var(--loading-size-md); height: var(--loading-size-md); }
+  .ld-spinner--lg { width: var(--loading-size-lg); height: var(--loading-size-lg); border-width: 3px; }
+  .ld-spinner--on-accent { border-color: color-mix(in srgb, var(--on-accent) 30%, transparent); border-top-color: var(--on-accent); }
+  .ld-spinner[hidden] { display: none; }
+
+  .ld-dots { display: inline-flex; align-items: center; gap: 3px; }
+  .ld-dots i {
+    width: 4px; height: 4px; border-radius: 50%; background: currentColor; opacity: 0.3;
+    animation: ld-dot 1s ease-in-out infinite;
+  }
+  .ld-dots i:nth-child(2) { animation-delay: 0.12s; }
+  .ld-dots i:nth-child(3) { animation-delay: 0.24s; }
+
+  /* ── Buttons ── */
+  .ld-btn {
+    height: 34px; padding: 0 13px; border-radius: var(--radius-sm); border: 1px solid transparent;
+    display: inline-flex; align-items: center; justify-content: center; gap: 7px; cursor: pointer;
+    font-size: 12.5px; white-space: nowrap;
+    transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
+      color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease-out);
+  }
+  .ld-btn:active:not(:disabled) { transform: scale(0.97); }
+  .ld-btn--primary { background: var(--accent); color: var(--on-accent); }
+  .ld-btn--primary:hover:not(:disabled) { background: var(--accent-hover); }
+  .ld-btn--secondary { background: var(--bg-surface); color: var(--text-secondary); border-color: var(--border-strong); }
+  .ld-btn--secondary:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .ld-btn.is-loading { cursor: progress; }
+  .ld-btn.is-loading .ld-btn-label { opacity: 0.72; }
+  .ld-btn .ld-spinner, .ld-btn .ld-dots { display: none; }
+  .ld-btn.is-loading .ld-spinner { display: inline-block; }
+  .ld-btn.is-loading .ld-dots { display: inline-flex; }
+
+  /* ── R1 行/树/菜单 ── */
+  .ld-tree { width: 100%; display: flex; flex-direction: column; gap: 3px; }
+  .ld-row {
+    display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: 6px;
+    border: 1px solid transparent; font-size: 12px; color: var(--text-secondary);
+    background: var(--bg-surface);
+  }
+  .ld-row--active { background: var(--bg-muted); border-color: var(--border); color: var(--text-primary); }
+  .ld-row svg { flex: none; color: var(--text-muted); }
+  .ld-row--active svg { color: var(--accent); }
+  .ld-row .ld-row-spin {
+    margin-left: auto; width: 12px; height: 12px; flex: none; border: 2px solid var(--loading-track);
+    border-top-color: var(--loading-accent); border-radius: 50%; opacity: 0;
+    animation: ld-spin 0.7s linear infinite;
+  }
+  .ld-row.is-loading .ld-row-spin { opacity: 1; }
+  .ld-row-meta { margin-left: auto; font-size: 10px; color: var(--text-muted); }
+
+  .ld-menu {
+    width: 100%; max-width: 236px; padding: 6px; border-radius: 10px;
+    background: var(--bg-surface); border: 1px solid var(--border); box-shadow: var(--shadow-md);
+  }
+  .ld-menu-head {
+    display: flex; align-items: center; gap: 6px; padding: 4px 8px 6px;
+    font-size: 9.5px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted);
+  }
+  .ld-menu-head .ld-spinner { opacity: 0; transition: opacity var(--dur-fast); }
+  .ld-menu.is-loading .ld-menu-head .ld-spinner { opacity: 1; }
+  .ld-menu-item { padding: 6px 8px; border-radius: 6px; font-size: 11.5px; color: var(--text-secondary); }
+  .ld-menu-item.is-active { background: var(--accent-soft); color: var(--accent); }
+  .ld-menu-item small { display: block; font-size: 9.5px; color: var(--text-muted); margin-top: 2px; }
+
+  /* ── R2 骨架 ── */
+  .ld-skel {
+    background: linear-gradient(100deg,
+      var(--loading-skeleton-base) 18%,
+      var(--loading-skeleton-shine) 36%,
+      var(--loading-skeleton-base) 54%);
+    background-size: 220% 100%;
+    animation: ld-shimmer var(--loading-shimmer-duration) ease-in-out infinite;
+    border-radius: 6px;
+  }
+  .ld-swap[data-state='skeleton'] .ld-real-layer { display: none; }
+  .ld-swap[data-state='content'] .ld-skel-layer { display: none; }
+  .ld-mini-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; width: 100%; }
+  .ld-mini-card { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 8px; padding: 7px; min-width: 0; }
+  .ld-mini-thumb { aspect-ratio: 16 / 10; border-radius: 5px; }
+  .ld-mini-line { height: 7px; border-radius: 4px; margin-top: 7px; }
+  .ld-mini-line--short { width: 62%; }
+  .ld-mini-thumb--a { background: linear-gradient(135deg, #4f46e5, #7c3aed); }
+  .ld-mini-thumb--b { background: linear-gradient(135deg, #0891b2, #4f46e5); }
+  .ld-mini-thumb--c { background: linear-gradient(135deg, #d97706, #ef4444); }
+  .ld-mini-real-title { margin-top: 7px; font-size: 10.5px; font-weight: 600; color: var(--text-primary); }
+  .ld-mini-real-meta { margin-top: 2px; font-size: 9.5px; color: var(--text-muted); }
+
+  .ld-list { width: 100%; display: flex; flex-direction: column; gap: 7px; }
+  .ld-list-row {
+    display: flex; align-items: center; gap: 9px; padding: 8px 9px;
+    background: var(--bg-surface); border: 1px solid var(--border); border-radius: 8px;
+  }
+  .ld-avatar { width: 26px; height: 26px; border-radius: 50%; flex: none; }
+  .ld-avatar--real { background: linear-gradient(135deg, var(--accent), #0891b2); color: var(--on-accent); display: grid; place-items: center; font-size: 10px; font-weight: 600; }
+  .ld-lines { flex: 1; display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+  .ld-line { height: 7px; border-radius: 4px; }
+  .ld-line--short { width: 55%; }
+  .ld-real-line { font-size: 11px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ld-real-line strong { color: var(--text-primary); font-weight: 500; }
+  .ld-real-sub { font-size: 9.5px; color: var(--text-muted); }
+
+  .ld-img { width: 100%; aspect-ratio: 16 / 9; border-radius: 9px; overflow: hidden; position: relative; background: var(--bg-muted); }
+  .ld-img .ld-skel { position: absolute; inset: 0; border-radius: 0; }
+  .ld-img .ld-real-layer { position: absolute; inset: 0; }
+  .ld-img svg { display: block; width: 100%; height: 100%; }
+  .ld-img-caption {
+    position: absolute; left: 9px; bottom: 8px; z-index: 2; padding: 3px 7px; border-radius: 999px;
+    background: rgba(17, 17, 19, 0.42); color: #fff; font-size: 9.5px; backdrop-filter: blur(4px);
+  }
+
+  .ld-chart { width: 100%; height: 128px; display: flex; align-items: flex-end; gap: 7px; padding: 12px 12px 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg-surface); }
+  .ld-bar { flex: 1; border-radius: 4px 4px 2px 2px; min-height: 8px; }
+  .ld-bar--real { background: linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 45%, transparent)); }
+  .ld-bar--soft { background: var(--bg-muted); }
+
+  /* ── R3 workbench ── */
+  .ld-workbench {
+    position: relative; border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
+    background: var(--bg-app); box-shadow: var(--shadow-sm); width: 100%;
+  }
+  .ld-titlebar {
+    height: 32px; display: flex; align-items: center; gap: 9px; padding: 0 9px;
+    background: var(--bg-muted); border-bottom: 1px solid var(--border);
+    font-size: 10.5px; color: var(--text-secondary); user-select: none;
+  }
+  .ld-titlebar .ld-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex: none; }
+  .ld-titlebar strong { font-size: 10.5px; color: var(--text-primary); font-weight: 600; }
+  .ld-project { color: var(--accent); }
+  .ld-tb-center { position: absolute; left: 50%; transform: translateX(-50%); font-size: 10px; color: var(--text-muted); }
+  .ld-tb-spacer { flex: 1; }
+  .ld-winbtns { display: flex; align-items: center; gap: 2px; color: var(--text-muted); }
+  .ld-winbtn { width: 22px; height: 24px; display: grid; place-items: center; border-radius: 4px; font-size: 11px; }
+  .ld-wb-body { position: relative; display: flex; min-height: 318px; }
+  .ld-sidebar {
+    width: 152px; flex: none; padding: 10px 8px; display: flex; flex-direction: column; gap: 3px;
+    background: var(--bg-surface); border-right: 1px solid var(--border);
+  }
+  .ld-nav-item { display: flex; align-items: center; gap: 7px; padding: 6px 8px; border-radius: 6px; font-size: 10.5px; color: var(--text-secondary); }
+  .ld-nav-item svg { color: var(--text-muted); flex: none; }
+  .ld-nav-item.is-active { background: var(--accent-soft); color: var(--accent); }
+  .ld-nav-item.is-active svg { color: var(--accent); }
+  .ld-main { flex: 1; min-width: 0; padding: 12px 14px 16px; }
+  .ld-main-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+  .ld-main-title { font-size: 12px; font-weight: 600; }
+  .ld-main-sub { font-size: 10px; color: var(--text-muted); }
+  .ld-content-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .ld-entity-card {
+    padding: 9px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-surface);
+    font-size: 9.5px; color: var(--text-secondary); min-width: 0;
+  }
+  .ld-entity-card strong { display: block; margin-bottom: 4px; font-size: 10.5px; color: var(--text-primary); font-weight: 600; }
+  .ld-entity-tag { display: inline-block; margin-top: 6px; padding: 1px 5px; border-radius: 999px; background: var(--bg-muted); color: var(--text-muted); font-size: 8.5px; }
+
+  .ld-overlay {
+    position: absolute; inset: 0; z-index: 20; display: grid; place-items: center; padding: 20px;
+    background: var(--loading-scrim); backdrop-filter: blur(var(--loading-scrim-blur));
+    -webkit-backdrop-filter: blur(var(--loading-scrim-blur));
+    opacity: 0; pointer-events: none; transition: opacity var(--dur-base) var(--ease);
+  }
+  .ld-overlay.is-visible { opacity: 1; pointer-events: auto; }
+  .ld-overlay-panel {
+    width: min(328px, 100%); display: flex; flex-direction: column; align-items: center; gap: 10px;
+    padding: 22px 22px 18px; border-radius: 14px; text-align: center;
+    background: var(--bg-surface); border: 1px solid var(--border); box-shadow: var(--shadow-lg);
+    transform: translateY(5px) scale(0.985); transition: transform var(--dur-base) var(--ease-out);
+  }
+  .ld-overlay.is-visible .ld-overlay-panel { transform: none; }
+  .ld-overlay-panel h3 { margin: 0; font-size: 13.5px; font-weight: 600; letter-spacing: -0.01em; }
+  .ld-overlay-panel .ld-stage-text { margin: 0; min-height: 17px; font-size: 11px; color: var(--text-secondary); }
+  .ld-overlay-panel .ld-overlay-hint { font-size: 9.5px; color: var(--text-muted); }
+  .ld-overlay-panel .ld-progress { margin-top: 2px; }
+
+  .ld-progress { width: 100%; height: 3px; border-radius: 999px; background: var(--loading-progress-track); overflow: hidden; }
+  .ld-progress-fill {
+    height: 100%; width: 0; border-radius: inherit; background: var(--loading-progress-fill);
+    transition: width var(--dur-lg) var(--ease);
+  }
+
+  /* ── R3 modal ── */
+  .ld-modal {
+    position: relative; width: 100%; max-width: 372px; border-radius: 12px; overflow: hidden;
+    background: var(--bg-surface); border: 1px solid var(--border); box-shadow: var(--shadow-md);
+  }
+  .ld-modal-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 9px; font-size: 12.5px; font-weight: 600; }
+  .ld-modal-close { width: 22px; height: 22px; display: grid; place-items: center; border: none; background: transparent; color: var(--text-muted); cursor: pointer; border-radius: 4px; }
+  .ld-modal-body { padding: 0 14px 14px; display: flex; flex-direction: column; gap: 8px; }
+  .ld-radio-row {
+    display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px;
+    border: 1px solid var(--border); font-size: 11px; color: var(--text-secondary);
+  }
+  .ld-radio-row.is-active { border-color: var(--accent-soft-border); background: var(--accent-soft); color: var(--accent); }
+  .ld-radio { width: 11px; height: 11px; border-radius: 50%; border: 1.5px solid currentColor; display: grid; place-items: center; flex: none; }
+  .ld-radio::after { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; opacity: 0; }
+  .ld-radio-row.is-active .ld-radio::after { opacity: 1; }
+  .ld-modal-actions { display: flex; justify-content: flex-end; gap: 7px; margin-top: 4px; }
+  .ld-modal-overlay {
+    position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 11px;
+    padding: 20px; text-align: center; background: var(--loading-scrim); backdrop-filter: blur(2px);
+    opacity: 0; pointer-events: none; transition: opacity var(--dur-base) var(--ease);
+  }
+  .ld-modal-overlay.is-visible { opacity: 1; pointer-events: auto; }
+  .ld-modal-overlay h4 { margin: 0; font-size: 12.5px; font-weight: 600; }
+  .ld-modal-overlay p { margin: 0; min-height: 16px; font-size: 10.5px; color: var(--text-secondary); }
+  .ld-modal-overlay .ld-progress { max-width: 240px; }
+
+  /* ── R3 scan ── */
+  .ld-scan {
+    width: 100%; padding: 13px; border-radius: 9px; border: 1px solid var(--border);
+    background: var(--bg-surface); display: flex; flex-direction: column; gap: 9px;
+  }
+  .ld-scan-head { display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: var(--text-secondary); }
+  .ld-scan-pct { color: var(--accent); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .ld-scan-sub { font-size: 9.5px; color: var(--text-muted); }
+
+  /* ── R4 ambient ── */
+  .ld-ambient {
+    position: relative; border-radius: 10px; overflow: hidden; border: 1px solid var(--border);
+    background: var(--bg-surface); min-height: 0;
+  }
+  .ld-ambient-line { height: 2px; background: var(--loading-progress-track); overflow: hidden; opacity: 0; transition: opacity var(--dur-base); }
+  .ld-ambient.is-active .ld-ambient-line { opacity: 1; }
+  .ld-ambient-line span {
+    display: block; width: 32%; height: 100%; border-radius: 999px; background: var(--loading-progress-fill);
+    animation: ld-indeterminate 1.5s ease-in-out infinite; animation-play-state: paused;
+  }
+  .ld-ambient.is-active .ld-ambient-line span { animation-play-state: running; }
+  .ld-ambient-body { padding: 12px 13px; display: flex; flex-direction: column; gap: 10px; }
+  .ld-ambient-row { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-secondary); }
+  .ld-ambient-row strong { font-size: 10.5px; color: var(--text-primary); font-weight: 600; }
+  .ld-ambient-meta { margin-left: auto; font-size: 9.5px; color: var(--text-muted); }
+  .ld-status-dot {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex: none;
+    box-shadow: 0 0 0 3px var(--accent-soft); animation: ld-pulse 1.6s ease-in-out infinite;
+    animation-play-state: paused;
+  }
+  .ld-ambient.is-active .ld-status-dot { animation-play-state: running; }
+  .ld-inline-badge {
+    display: inline-flex; align-items: center; gap: 5px; padding: 2px 6px; border-radius: 999px;
+    border: 1px solid var(--border); font-size: 9.5px; color: var(--text-muted); white-space: nowrap;
+  }
+  .ld-inline-badge .ld-status-dot { width: 5px; height: 5px; box-shadow: none; }
+
+  /* ── Principles / tokens ── */
+  .ld-principles { margin-top: 48px; display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 12px; }
+  .ld-panel {
+    padding: 18px; border-radius: var(--radius-lg); border: 1px solid var(--border);
+    background: var(--bg-surface); box-shadow: var(--shadow-sm);
+  }
+  .ld-panel h3 { margin: 0 0 4px; font-size: 14px; letter-spacing: -0.01em; }
+  .ld-panel .ld-sub { margin: 0 0 14px; font-size: 11px; color: var(--text-muted); }
+  .ld-rules { display: flex; flex-direction: column; gap: 9px; }
+  .ld-rule { display: flex; gap: 9px; align-items: flex-start; font-size: 11.5px; color: var(--text-secondary); line-height: 1.65; }
+  .ld-rule b { flex: none; width: 18px; height: 18px; border-radius: 5px; display: grid; place-items: center; background: var(--bg-muted); color: var(--text-secondary); font-size: 9px; font-weight: 600; }
+  .ld-rule strong { color: var(--text-primary); font-weight: 600; }
+  .ld-token-table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+  .ld-token-table th { text-align: left; font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); font-weight: 600; padding: 0 0 7px; }
+  .ld-token-table td { padding: 6px 0; border-top: 1px solid var(--border); color: var(--text-secondary); vertical-align: top; }
+  .ld-token-table code { font-family: 'JetBrains Mono', Consolas, monospace; font-size: 9.5px; color: var(--accent); }
+  .ld-token-table td:last-child { color: var(--text-muted); padding-left: 10px; }
+  .ld-swatches { display: flex; gap: 6px; margin-top: 14px; flex-wrap: wrap; }
+  .ld-swatch { display: flex; align-items: center; gap: 6px; padding: 4px 7px; border: 1px solid var(--border); border-radius: 6px; font-size: 9.5px; color: var(--text-muted); }
+  .ld-swatch i { width: 10px; height: 10px; border-radius: 3px; display: block; }
+  .ld-boundary { margin-top: 12px; font-size: 10px; color: var(--text-muted); line-height: 1.7; }
+  .ld-boundary code { color: var(--text-secondary); font-family: 'JetBrains Mono', Consolas, monospace; }
+
+  /* ── 动效 ── */
+  @keyframes ld-spin { to { transform: rotate(360deg); } }
+  @keyframes ld-dot { 0%, 100% { opacity: 0.25; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-1.5px); } }
+  @keyframes ld-shimmer { 0% { background-position: 180% 0; } 100% { background-position: -80% 0; } }
+  @keyframes ld-indeterminate { 0% { transform: translateX(-120%); } 55% { transform: translateX(210%); } 100% { transform: translateX(340%); } }
+  @keyframes ld-pulse { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
+  @keyframes ld-fade-in { from { opacity: 0; } to { opacity: 1; } }
+  .ld-skel-layer, .ld-real-layer { animation: ld-fade-in var(--dur-base) var(--ease); }
+
+  #ld-demo[data-motion='off'] .ld-spinner { animation-duration: 1.6s; }
+  #ld-demo[data-motion='off'] .ld-skel { animation: none; background: var(--loading-skeleton-base); }
+  #ld-demo[data-motion='off'] .ld-status-dot { animation: none; opacity: 0.85; }
+  #ld-demo[data-motion='off'] .ld-ambient-line span { animation-duration: 3s; }
+  #ld-demo[data-motion='off'] .ld-dots i { animation: none; opacity: 0.55; }
+  #ld-demo[data-motion='off'] .ld-overlay-panel,
+  #ld-demo[data-motion='off'] .ld-overlay,
+  #ld-demo[data-motion='off'] .ld-modal-overlay { transition-duration: 0.01ms; }
+
+  @media (max-width: 980px) {
+    .ld-grid--3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .ld-principles { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 680px) {
+    #ld-demo { padding: 16px 12px 40px; }
+    .ld-grid--3, .ld-grid--2 { grid-template-columns: 1fr; }
+    .ld-hero { padding-top: 30px; }
+    .ld-content-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .ld-sidebar { width: 118px; }
+    .ld-tb-center { display: none; }
+  }
+</style>
+
+<div id="ld-demo" data-theme="light" data-motion="on">
+  <div class="ld-wrap">
+    <header class="ld-top">
+      <div class="ld-brand">
+        <span class="ld-logo" aria-hidden="true">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="8.4" stroke="currentColor" stroke-width="1.4" opacity="0.55"/>
+            <path d="M15.6 8.4 13.4 13.4 8.4 15.6 10.6 10.6 15.6 8.4Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+            <circle cx="12" cy="12" r="1.2" fill="currentColor"/>
+          </svg>
+        </span>
+        <div class="ld-brand-text">
+          <strong>WorldSea</strong>
+          <span>加载反馈 · 样式提案</span>
+        </div>
+      </div>
+      <div class="ld-controls">
+        <button type="button" class="ld-ctl" id="ld-theme">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+          </svg>
+          <span id="ld-theme-label">深色</span>
+        </button>
+        <button type="button" class="ld-ctl" id="ld-motion">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M4 12h4l2-5 4 10 2-5h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span id="ld-motion-label">减弱动态：关</span>
+        </button>
+        <button type="button" class="ld-ctl ld-ctl--primary" id="ld-replay">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M4.5 9A7.5 7.5 0 1 1 4 13.5M4.5 9V4.8M4.5 9h4.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          重播全部
+        </button>
+      </div>
+    </header>
+
+    <section class="ld-hero">
+      <p class="ld-kicker">Loading Language · v0.1</p>
+      <h1>等待，也要有语言。</h1>
+      <p class="ld-lede">
+        R1 行内、R2 骨架、R3 遮罩、R4 背景态。确定进度是 R1/R3/R4 的一种模式，不单独算一类。
+        点按卡片里的「试运行」，看它们如何出现、升级与退出。
+      </p>
+      <div class="ld-chips">
+        <span class="ld-chip"><i></i>R1 行内</span>
+        <span class="ld-chip"><i></i>R2 骨架</span>
+        <span class="ld-chip"><i></i>R3 遮罩</span>
+        <span class="ld-chip"><i></i>R4 背景</span>
+        <span class="ld-chip"><i></i>延迟 200ms / 最短 400ms</span>
+      </div>
+    </section>
+
+    <!-- ══════════ R1 行内加载 ══════════ -->
+    <section class="ld-section" id="ld-r1">
+      <div class="ld-section-head">
+        <span class="ld-badge">R1</span>
+        <div>
+          <h2>行内加载</h2>
+          <p>贴在控件里、行尾或菜单头；不遮挡、不改变布局，先出现、再升级。</p>
+        </div>
+      </div>
+
+      <div class="ld-grid ld-grid--3">
+        <article class="ld-card">
+          <div class="ld-card-head">
+            <span>按钮 · 保存 / 应用</span>
+            <button type="button" class="ld-play" data-play="r1-button">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5L8 5.5Z"/></svg>试运行
+            </button>
+          </div>
+          <div class="ld-stage ld-stage--center">
+            <button type="button" class="ld-btn ld-btn--primary" id="ld-r1-btn">
+              <span class="ld-spinner ld-spinner--on-accent" aria-hidden="true"></span>
+              <span class="ld-btn-label">保存更改</span>
+            </button>
+            <button type="button" class="ld-btn ld-btn--secondary" id="ld-r1-dots-btn">
+              <span class="ld-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="ld-btn-label">导出到文件夹</span>
+            </button>
+          </div>
+          <div class="ld-note">环形用于主按钮，点阵用于紧凑按钮；高度不跳，不降整块透明度。 <code>R1 · 14–16px</code></div>
+        </article>
+
+        <article class="ld-card">
+          <div class="ld-card-head">
+            <span>列表行 · 文件树节点</span>
+            <button type="button" class="ld-play" data-play="r1-row">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5L8 5.5Z"/></svg>试运行
+            </button>
+          </div>
+          <div class="ld-stage">
+            <div class="ld-tree">
+              <div class="ld-row ld-row--active" id="ld-r1-row">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l1.6 2h7.4a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2v-10Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+                <span>worlddata</span>
+                <span class="ld-row-spin" aria-hidden="true"></span>
+              </div>
+              <div class="ld-row">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 3.5h7l5 5v12h-12v-17Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M13 3.5v5h5" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+                <span>第一章.md</span>
+                <span class="ld-row-meta">2.4 KB</span>
+              </div>
+            </div>
+          </div>
+          <div class="ld-note">spinner 占行尾固定位，不新增行高；父行 <code>aria-busy</code>。</div>
+        </article>
+
+        <article class="ld-card">
+          <div class="ld-card-head">
+            <span>菜单头 · 项目刷新</span>
+            <button type="button" class="ld-play" data-play="r1-menu">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5L8 5.5Z"/></svg>试运行
+            </button>
+          </div>
+          <div class="ld-stage ld-stage--center">
+            <div class="ld-menu" id="ld-r1-menu">
+              <div class="ld-menu-head">
+                项目
+                <span class="ld-spinner ld-spinner--sm" aria-hidden="true"></span>
+              </div>
+              <div class="ld-menu-item is-active">默认工作区<small>C:\Users\LINGTIAN\WorldSea</small></div>
+              <div class="ld-menu-item">群岛档案<small>D:\Worlds\Archipelago</small></div>
+            </div>
+          </div>
+          <div class="ld-note">200ms 后才出现；快速刷新不闪一下。 <code>--loading-delay</code></div>
+        </article>
+      </div>
+    </section>
+
+    <!-- ══════════ R2 骨架屏 ══════════ -->
+    <section class="ld-section" id="ld-r2">
+      <div class="ld-section-head">
+        <span class="ld-badge">R2</span>
+        <div>
+          <h2>骨架屏</h2>
+          <p>内容形状已知时使用：先给结构，再给数据；切换时淡入，不抖动。</p>
+        </div>
+      </div>
+
+      <div class="ld-grid ld-grid--2">
+        <article class="ld-card">
+          <div class="ld-card-head">
+            <span>卡片网格 · 画板列表</span>
+            <button type="button" class="ld-play" data-play="r2-cards">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5L8 5.5Z"/></svg>试运行
+            </button>
+          </div>
+          <div class="ld-stage ld-swap" id="ld-r2-cards" data-state="content">
+            <div class="ld-skel-layer">
+              <div class="ld-mini-grid">
+                <div class="ld-mini-card"><div class="ld-mini-thumb ld-skel"></div><div class="ld-mini-line ld-skel"></div><div class="ld-mini-line ld-mini-line--short ld-skel"></div></div>
+                <div class="ld-mini-card"><div class="ld-mini-thumb ld-skel"></div><div class="ld-mini-line ld-skel"></div><div class="ld-mini-line ld-mini-line--short ld-skel"></div></div>
+                <div class="ld-mini-card"><div class="ld-mini-thumb ld-skel"></div><div class="ld-mini-line ld-skel"></div><div class="ld-mini-line ld-mini-line--short ld-skel"></div></div>
+              </div>
+            </div>
+            <div class="ld-real-layer">
+              <div class="ld-mini-grid">
+                <div class="ld-mini-card"><div class="ld-mini-thumb ld-mini-thumb--a"></div><div class="ld-mini-real-title">雾港</div><div class="ld-mini-real-meta">3 个画板</div></div>
+                <div class="ld-mini-card"><div class="ld-mini-thumb ld-mini-thumb--b"></div><div class="ld-mini-real-title">群岛档案</div><div class="ld-mini-real-meta">7 个画板</div></div>
+                <div class="ld-mini-card"><div class="ld-mini-thumb ld-mini-thumb--c"></div><div class="ld-mini-real-title">潮汐历</div><div class="ld-mini-real-meta">1 个画板</div></div>
+              </div>
+            </div>
+          </div>
+          <div class="ld-note">占位块贴合缩略图/标题/元信息三段结构；真实内容 <code>200ms</code> 淡入。</div>
+        </article>
+
+        <article class="ld-card">
+          <div class="ld-card-head">
+            <span>列表 · 实体 / 文件行</span>
+            <button type="button" class="ld-play" data-play="r2-list">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5L8 5.5Z"/></svg>试运行
+            </button>
+          </div>
+          <div class="ld-stage ld-swap" id="ld-r2-list" data-state="content">
+            <div class="ld-skel-layer">
+              <div class="ld-list">
+                <div class="ld-list-row"><div class="ld-avatar ld-skel"></div><div class="ld-lines"><div class="ld-line ld-skel"></div><div class="ld-line ld-line--short ld-skel"></div></div></div>
+                <div class="ld-list-row"><div class="ld-avatar ld-skel"></div><div class="ld-lines"><div class="ld-line ld-skel"></div><div class="ld-line ld-line--short ld-skel"></div></div></div>
+                <div class="ld-list-row"><div class="ld-avatar ld-skel"></div><div class="ld-lines"><div class="ld-line ld-skel"></div><div class="ld-line ld-line--short ld-skel"></div></div></div>
+              </div>
+            </div>
+            <div class="ld-real-layer">
+              <div class="ld-list">
+                <div class="ld-list-row"><div class="ld-avatar ld-avatar--real">雾</div><div class="ld-lines"><div class="ld-real-line"><strong>雾港守夜人</strong></div><div class="ld-real-sub">角色 · 12 个字段</div></div></div>
+                <div class="ld-list-row"><div class="ld-avatar ld-avatar--real">群</div><div class="ld-lines"><div class="ld-real-line"><strong>群岛档案</strong></div><div class="ld-real-sub">地点 · 8 个字段</div></div></div>
+                <div class="ld-list-row"><div class="ld-avatar ld-avatar--real">潮</div><div class="ld-lines"><div class="ld-real-line"><strong>潮汐历</strong></div><div class="ld-real-sub">事件 · 6 个字段</div></div></div>
+              </div>
+            </div>
+          </div>
+          <div class="ld-note">行高与内容态一致；头像/两行文本分别占位，切换不引起位移。</div>
+        </article>
+
+        <article class="ld-card">
+          <div class="ld-card-head">
+            <span>图片预览 · 渐进占位</span>
+            <button type="button" class="ld-play" data-play="r2-image">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5L8 5.5Z"/></svg>试运行
+            </button>
+          </div>
+          <div class="ld-stage ld-swap" id="ld-r2-image" data-state="content">
+            <div class="ld-img">
+              <div class="ld-skel-layer"><div class="ld-skel"></div></div>
+              <div class="ld-real-layer">
+                <svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" role="img" aria-label="雾港群岛插画">
+                  <defs>
+                    <linearGradient id="ld-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c7d2fe"/><stop offset="1" stop-color="#eef2ff"/></linearGradient>
+                    <linearGradient id="ld-m1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6366f1"/><stop offset="1" stop-color="#4338ca"/></linearGradient>
+                    <linearGradient id="ld-m2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#818cf8"/><stop offset="1" stop-color="#4f46e5"/></linearGradient>
+                    <linearGradient id="ld-m3" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#a5b4fc"/><stop offset="1" stop-color="#6366f1"/></linearGradient>
+                  </defs>
+                  <rect width="320" height="180" fill="url(#ld-sky)"/>
+                  <circle cx="250" cy="48" r="19" fill="#fbbf24" opacity="0.85"/>
+                  <path d="M0 140 L60 80 L120 140 Z" fill="url(#ld-m1)" opacity="0.86"/>
+                  <path d="M78 155 L160 62 L242 155 Z" fill="url(#ld-m2)" opacity="0.92"/>
+                  <path d="M178 160 L260 94 L320 160 Z" fill="url(#ld-m3)" opacity="0.8"/>
+                  <rect y="150" width="320" height="30" fill="#1e1b4b" opacity="0.14"/>
+                </svg>
+                <span class="ld-img-caption">雾港 · 群岛档案</span>
+              </div>
+            </div>
+          </div>
+          <div class="ld-note">图片容器先锁定比例；可用 shimmer，也可用低清图 blur-up。 <code>aspect-ratio</code></div>
+        </article>
+
+        <article class="ld-card">
+          <div class="ld-card-head">
+            <span>图表 · 时间线 / 统计</span>
+            <button type="button" class="ld-play" data-play="r2-chart">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5L8 5.5Z"/></svg>试运行
+            </button>
+          </div>
+          <div class="ld-stage ld-swap" id="ld-r2-chart" data-state="content">
+            <div class="ld-skel-layer">
+              <div class="ld-chart">
+                <div class="ld-bar ld-bar--soft ld-skel" style="height:42%"></div>
+                <div class="ld-bar ld-bar--soft ld-skel" style="height:68%"></div>
+                <div class="ld-bar ld-bar--soft ld-skel" style="height:34%"></div>
+                <div class="ld-bar ld-bar--soft ld-skel" style="height:82%"></div>
+                <div class="ld-bar ld-bar--soft ld-skel" style="height:56%"></div>
+                <div class="ld-bar ld-bar--soft ld-skel" style="height:74%"></div>
+                <div class="ld-bar ld-bar--soft ld-skel" style="height:46%"></div>
+              </div>
+            </div>
+            <div class="ld-real-layer">
+              <div class="ld-chart">
+                <div class="ld-bar ld-bar--real" style="height:42%"></div>
+                <div class="ld-bar ld-bar--real" style="height:68%"></div>
+                <div class="ld-bar ld-bar--real" style="height:34%"></div>
+                <div class="ld-bar ld-bar--real" style="height:82%"></div>
+                <div class="ld-bar ld-bar--real" style="height:56%"></div>
+                <div class="ld-bar ld-bar--real" style="height:74%"></div>
+                <div class="ld-bar ld-bar--real" style="height:46%"></div>
+              </div>
+            </div>
+          </div>
+          <div class="ld-note">图表先给坐标/柱形占位；不要用整块 spinner 遮住已知结构。</div>
+        </article>
+      </div>
+    </section>
+
+    <!-- ══════════ R3 区域遮罩 ══════════ -->
+    <section class="ld-section" id="ld-r3">
+      <div class="ld-section-head">
+        <span class="ld-badge">R3</span>
+        <div>
+          <h2>区域遮罩</h2>
+          <p>只在「用户不能继续操作」时阻断。全局只盖工作台内容区；弹窗内操作盖弹窗内部。</p>
+        </div>
+      </div>
+
+      <div class="ld-grid">
+        <article class="ld-card">
+          <div class="ld-card-head">
+            <span>全局内容区 · 项目切换</span>
+            <button type="button" class="ld-play" data-play="r3-switch">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5L8 5.5Z"/></svg>切换项目
+            </button>
+          </div>
+          <div class="ld-stage" style="padding:12px;">
+            <div class="ld-workbench" id="ld-r3-workbench">
+              <div class="ld-titlebar">
+                <span class="ld-dot"></span>
+                <strong>WorldSea</strong>
+                <span class="ld-project">默认工作区</span>
+                <span class="ld-tb-center">角色</span>
+                <span class="ld-tb-spacer"></span>
+                <span class="ld-winbtns"><span class="ld-winbtn">—</span><span class="ld-winbtn">□</span><span class="ld-winbtn">×</span></span>
+              </div>
+              <div class="ld-wb-body">
+                <aside class="ld-sidebar">
+                  <div class="ld-nav-item is-active">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.2" stroke="currentColor" stroke-width="1.5"/><path d="M5 20c.8-3.4 3.4-5.2 7-5.2s6.2 1.8 7 5.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                    角色
+                  </div>
+                  <div class="ld-nav-item">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M4 6.5 12 3l8 3.5-8 3.5-8-3.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M4 6.5V17l8 4 8-4V6.5" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+                    地点
+                  </div>
+                  <div class="ld-nav-item">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M5 4.5h14v15H5z" stroke="currentColor" stroke-width="1.5"/><path d="M8 8h8M8 11.5h8M8 15h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                    事件
+                  </div>
+                  <div class="ld-nav-item">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M4 4.5h16v15H4z" stroke="currentColor" stroke-width="1.5"/><path d="M4 9h16M9 9v10.5" stroke="currentColor" stroke-width="1.5"/></svg>
+                    组织
+                  </div>
+                </aside>
+                <div class="ld-main">
+                  <div class="ld-main-head">
+                    <span class="ld-main-title">角色</span>
+                    <span class="ld-main-sub">12 个实体 · 按修改时间</span>
+                  </div>
+                  <div class="ld-content-grid">
+                    <div class="ld-entity-card"><strong>雾港守夜人</strong>守望雾港的古老组织<span class="ld-entity-tag">角色</span></div>
+                    <div class="ld-entity-card"><strong>潮汐祭司</strong>解读潮汐与星象<span class="ld-entity-tag">角色</span></div>
+                    <div class="ld-entity-card"><strong>群岛信使</strong>往返岛屿之间<span class="ld-entity-tag">角色</span></div>
+                    <div class="ld-entity-card"><strong>盐雾匠</strong>以盐与雾造物<span class="ld-entity-tag">角色</span></div>
+                    <div class="ld-entity-card"><strong>灯塔守望者</strong>记录每一次涨潮<span class="ld-entity-tag">角色</span></div>
+                    <div class="ld-entity-card"><strong>深潮学者</strong>研究海底遗迹<span class="ld-entity-tag">角色</span></div>
+                  </div>
+                </div>
+                <div class="ld-overlay" id="ld-r3-overlay" role="status" aria-live="polite">
+                  <div class="ld-overlay-panel">
+                    <span class="ld-spinner ld-spinner--lg" aria-hidden="true"></span>
+                    <h3>正在切换项目</h3>
+                    <p class="ld-stage-text" id="ld-r3-stage">准备切换…</p>
+                    <div class="ld-progress"><div class="ld-progress-fill" id="ld-r3-progress"></div></div>
+                    <span class="ld-overlay-hint">目标：群岛档案 · 可关闭窗口但不可操作内容</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="ld-note">遮罩从标题栏下方开始：窗口栏与项目名保持可见、可拖动。阶段文案 + 确定进度；不使用假进度。</div>
+        </article>
+      </div>
+
+      <div class="ld-grid ld-grid--2" style="margin-top:12px;">
+        <article class="ld-card">
+          <div class="ld-card-head">
+            <span>弹窗内遮罩 · 导入</span>
+            <button type="button" class="ld-play" data-play="r3-import">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5L8 5.5Z"/></svg>开始导入
+            </button>
+          </div>
+          <div class="ld-stage ld-stage--center">
+            <div class="ld-modal" id="ld-r3-modal">
+              <div class="ld-modal-head">
+                导入数据
+                <button type="button" class="ld-modal-close" aria-label="关闭">×</button>
+              </div>
+              <div class="ld-modal-body">
+                <div class="ld-radio-row"><span class="ld-radio"></span>合并：保留现有数据</div>
+                <div class="ld-radio-row is-active"><span class="ld-radio"></span>覆盖：导入前自动备份</div>
+                <div class="ld-modal-actions">
+                  <button type="button" class="ld-btn ld-btn--secondary" style="height:28px;font-size:11px;">取消</button>
+                  <button type="button" class="ld-btn ld-btn--primary" style="height:28px;font-size:11px;">导入数据</button>
+                </div>
+              </div>
+              <div class="ld-modal-overlay" id="ld-r3-modal-overlay" role="status" aria-live="polite">
+                <span class="ld-spinner ld-spinner--md" aria-hidden="true"></span>
+                <h4>正在导入</h4>
+                <p id="ld-r3-modal-stage">正在备份当前项目…</p>
+                <div class="ld-progress"><div class="ld-progress-fill" id="ld-r3-modal-progress"></div></div>
+              </div>
+            </div>
+          </div>
+          <div class="ld-note">遮罩只盖弹窗内部，不盖全局；备份阶段也要有文案，不能等真正写入才出现。</div>
+        </article>
+
+        <article class="ld-card">
+          <div class="ld-card-head">
+            <span>确定进度 · 存储扫描</span>
+            <button type="button" class="ld-play" data-play="r3-scan">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5L8 5.5Z"/></svg>重新扫描
+            </button>
+          </div>
+          <div class="ld-stage">
+            <div class="ld-scan">
+              <div class="ld-scan-head">
+                <span>扫描孤立文件</span>
+                <span class="ld-scan-pct" id="ld-r3-scan-pct">0%</span>
+              </div>
+              <div class="ld-progress"><div class="ld-progress-fill" id="ld-r3-scan-progress"></div></div>
+              <div class="ld-scan-sub" id="ld-r3-scan-sub">只读扫描，不会修改文件</div>
+            </div>
+          </div>
+          <div class="ld-note">真实百分比才显示进度；扫描完成前禁用清理，但保留取消/关闭路径。</div>
+        </article>
+      </div>
+    </section>
+
+    <!-- ══════════ R4 背景态 ══════════ -->
+    <section class="ld-section" id="ld-r4">
+      <div class="ld-section-head">
+        <span class="ld-badge">R4</span>
+        <div>
+          <h2>背景态</h2>
+          <p>不阻断、不抢焦点。只在用户可继续操作的任务上出现；失败用 toast，不常驻。</p>
+        </div>
+      </div>
+
+      <div class="ld-grid ld-grid--2">
+        <article class="ld-card">
+          <div class="ld-card-head">
+            <span>顶部细线 · 后台同步</span>
+            <button type="button" class="ld-play" data-play="r4-ambient">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5L8 5.5Z"/></svg>触发后台任务
+            </button>
+          </div>
+          <div class="ld-stage">
+            <div class="ld-ambient" id="ld-r4-ambient">
+              <div class="ld-ambient-line"><span></span></div>
+              <div class="ld-ambient-body">
+                <div class="ld-ambient-row">
+                  <span class="ld-status-dot" aria-hidden="true"></span>
+                  <strong>正在后台同步</strong>
+                  <span>3 个文件</span>
+                  <span class="ld-ambient-meta">可继续操作</span>
+                </div>
+                <div class="ld-ambient-row" style="font-size:10px;color:var(--text-muted);">
+                  <span class="ld-inline-badge"><span class="ld-status-dot" aria-hidden="true"></span>LSP · 正在索引</span>
+                  <span class="ld-inline-badge">自动保存 · 已开启</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="ld-note">线宽 2px，出现在内容区顶部；不用遮罩、不锁滚动、不抢 tab 焦点。</div>
+        </article>
+
+        <article class="ld-card">
+          <div class="ld-card-head">
+            <span>状态点 · 侧栏/面板角落</span>
+            <span class="ld-meta">常驻但不打扰</span>
+          </div>
+          <div class="ld-stage">
+            <div class="ld-list">
+              <div class="ld-list-row" style="justify-content:space-between;">
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <span class="ld-status-dot" aria-hidden="true"></span>
+                  <span class="ld-real-line">AutoLink 后台匹配</span>
+                </div>
+                <span class="ld-real-sub">运行中</span>
+              </div>
+              <div class="ld-list-row" style="justify-content:space-between;">
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <span class="ld-inline-badge" style="border:none;padding:0;"><span class="ld-status-dot" aria-hidden="true"></span>自动备份</span>
+                  <span class="ld-real-line">下一次 12:40</span>
+                </div>
+                <span class="ld-real-sub">已开启</span>
+              </div>
+              <div class="ld-list-row" style="justify-content:space-between;">
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <span class="ld-real-line" style="color:var(--text-muted);">文件监听</span>
+                  <span class="ld-real-sub">空闲</span>
+                </div>
+                <span class="ld-inline-badge">静默</span>
+              </div>
+            </div>
+          </div>
+          <div class="ld-note">状态点只表达「有人在后台工作」，不展开进度；详细进度放在对应面板里。</div>
+        </article>
+      </div>
+    </section>
+
+    <!-- ══════════ 规则 / token ══════════ -->
+    <section class="ld-principles">
+      <div class="ld-panel">
+        <h3>这套机制的边界</h3>
+        <p class="ld-sub">不是“到处加转圈”，而是先判断该不该出现。</p>
+        <div class="ld-rules">
+          <div class="ld-rule"><b>1</b><span><strong>延迟出现、最短展示。</strong> 200ms 内完成不显示；一旦显示，至少 400ms，避免闪屏。</span></div>
+          <div class="ld-rule"><b>2</b><span><strong>一个任务一个指示器。</strong> 按钮已是 R1 时，不再叠加全局遮罩；升级时替换，不并存。</span></div>
+          <div class="ld-rule"><b>3</b><span><strong>只有真实进度才显示百分比。</strong> 拿不到进度就用不确定态，禁止模拟。</span></div>
+          <div class="ld-rule"><b>4</b><span><strong>阻断型必须有出口。</strong> 成功、空、失败三态；失败可重试，不能把用户关在遮罩里。</span></div>
+          <div class="ld-rule"><b>5</b><span><strong>减弱动态时保留语义。</strong> 减速/去微光，但不隐藏加载指示器。</span></div>
+          <div class="ld-rule"><b>6</b><span><strong>无障碍是默认项。</strong> <code>role="status"</code>、<code>aria-busy</code>、读屏标签；遮罩拦截指针与焦点。</span></div>
+        </div>
+      </div>
+
+      <div class="ld-panel">
+        <h3>Token 草案</h3>
+        <p class="ld-sub">只落产品域 <code>theme.css</code> + <code>packages/ui-kit</code>；dsh 不加载，不动 <code>--dsw-*</code>。</p>
+        <table class="ld-token-table">
+          <thead><tr><th>Token</th><th>值</th><th>用途</th></tr></thead>
+          <tbody>
+            <tr><td><code>--loading-accent</code></td><td>var(--accent)</td><td>环形 / 进度填充</td></tr>
+            <tr><td><code>--loading-track</code></td><td>var(--border-strong)</td><td>环形轨道</td></tr>
+            <tr><td><code>--loading-scrim</code></td><td>bg-app 72%</td><td>区域遮罩</td></tr>
+            <tr><td><code>--loading-skeleton-base</code></td><td>var(--bg-muted)</td><td>骨架底色</td></tr>
+            <tr><td><code>--loading-skeleton-shine</code></td><td>bg-surface 70%</td><td>骨架微光</td></tr>
+            <tr><td><code>--loading-delay</code></td><td>200ms</td><td>延迟出现</td></tr>
+            <tr><td><code>--loading-min-visible</code></td><td>400ms</td><td>最短展示</td></tr>
+            <tr><td><code>--loading-spin-duration</code></td><td>0.7s</td><td>环形周期</td></tr>
+            <tr><td><code>--loading-shimmer-duration</code></td><td>1.5s</td><td>骨架微光</td></tr>
+            <tr><td><code>--z-loading</code></td><td>1500</td><td>遮罩层级</td></tr>
+          </tbody>
+        </table>
+        <div class="ld-swatches">
+          <span class="ld-swatch"><i style="background:var(--accent)"></i>accent</span>
+          <span class="ld-swatch"><i style="background:var(--border-strong)"></i>track</span>
+          <span class="ld-swatch"><i style="background:var(--bg-muted)"></i>skeleton</span>
+          <span class="ld-swatch"><i style="background:var(--bg-surface);border:1px solid var(--border-strong)"></i>surface</span>
+        </div>
+        <div class="ld-boundary">
+          R0 启动页保持现有星座/HUD 品牌动效，只替换颜色与动效 token，本次不重绘；<br>
+          R1–R4 共用同一套延迟/最短展示/无障碍规则，避免每个芽各写一套。
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+(() => {
+  const root = document.getElementById('ld-demo');
+  if (!root) return;
+
+  const timers = new Map();
+  const scan = { timer: null };
+
+  function later(key, fn, ms) {
+    const old = timers.get(key);
+    if (old) clearTimeout(old);
+    timers.set(key, setTimeout(fn, ms));
+  }
+  function clearPrefix(prefix) {
+    for (const [key, timer] of timers) {
+      if (key.startsWith(prefix)) {
+        clearTimeout(timer);
+        timers.delete(key);
+      }
+    }
+  }
+  function playButton(id) {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    btn.classList.add('is-loading');
+    btn.disabled = true;
+    later('btn-' + id, () => {
+      btn.classList.remove('is-loading');
+      btn.disabled = false;
+    }, 1400);
+  }
+  function playRow() {
+    const row = document.getElementById('ld-r1-row');
+    if (!row) return;
+    row.classList.add('is-loading');
+    later('r1-row', () => row.classList.remove('is-loading'), 1300);
+  }
+  function playMenu() {
+    const menu = document.getElementById('ld-r1-menu');
+    if (!menu) return;
+    menu.classList.add('is-loading');
+    later('r1-menu', () => menu.classList.remove('is-loading'), 1300);
+  }
+  function playSwap(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.dataset.state = 'skeleton';
+    later('swap-' + id, () => { el.dataset.state = 'content'; }, 1700);
+  }
+  function playR3Switch() {
+    clearPrefix('r3-switch');
+    const overlay = document.getElementById('ld-r3-overlay');
+    const stage = document.getElementById('ld-r3-stage');
+    const fill = document.getElementById('ld-r3-progress');
+    if (!overlay || !stage || !fill) return;
+    overlay.classList.add('is-visible');
+    stage.textContent = '准备切换…';
+    fill.style.width = '0%';
+    const seq = [
+      [280, 14, '切换数据源…'],
+      [820, 46, '加载实体 / 关系 / 文件…'],
+      [1500, 74, '重装芽与视图…'],
+      [2200, 94, '恢复文件关联…'],
+      [2850, 100, '就绪'],
+    ];
+    for (const [at, pct, text] of seq) {
+      later('r3-switch-' + at, () => {
+        fill.style.width = pct + '%';
+        stage.textContent = text;
+      }, at);
+    }
+    later('r3-switch-end', () => overlay.classList.remove('is-visible'), 3300);
+  }
+  function playR3Import() {
+    clearPrefix('r3-import');
+    const overlay = document.getElementById('ld-r3-modal-overlay');
+    const stage = document.getElementById('ld-r3-modal-stage');
+    const fill = document.getElementById('ld-r3-modal-progress');
+    if (!overlay || !stage || !fill) return;
+    overlay.classList.add('is-visible');
+    stage.textContent = '正在备份当前项目…';
+    fill.style.width = '0%';
+    const seq = [
+      [500, 18, '正在备份当前项目…'],
+      [1150, 50, '写入实体 / 关系…'],
+      [1850, 82, '重新加载数据…'],
+      [2500, 100, '完成'],
+    ];
+    for (const [at, pct, text] of seq) {
+      later('r3-import-' + at, () => {
+        fill.style.width = pct + '%';
+        stage.textContent = text;
+      }, at);
+    }
+    later('r3-import-end', () => overlay.classList.remove('is-visible'), 2950);
+  }
+  function playR3Scan() {
+    if (scan.timer) clearTimeout(scan.timer);
+    const fill = document.getElementById('ld-r3-scan-progress');
+    const pct = document.getElementById('ld-r3-scan-pct');
+    const sub = document.getElementById('ld-r3-scan-sub');
+    if (!fill || !pct || !sub) return;
+    let value = 0;
+    fill.style.width = '0%';
+    pct.textContent = '0%';
+    sub.textContent = '只读扫描，不会修改文件';
+    const step = () => {
+      value = Math.min(100, value + 3 + Math.random() * 9);
+      fill.style.width = value + '%';
+      pct.textContent = Math.round(value) + '%';
+      if (value < 100) {
+        scan.timer = setTimeout(step, 170);
+      } else {
+        sub.textContent = '扫描完成 · 找到 3 个孤立文件';
+      }
+    };
+    step();
+  }
+  function playR4() {
+    const el = document.getElementById('ld-r4-ambient');
+    if (!el) return;
+    el.classList.add('is-active');
+    later('r4-end', () => el.classList.remove('is-active'), 3200);
+  }
+  function play(kind) {
+    switch (kind) {
+      case 'r1-button': playButton('ld-r1-btn'); break;
+      case 'r1-dots': playButton('ld-r1-dots-btn'); break;
+      case 'r1-row': playRow(); break;
+      case 'r1-menu': playMenu(); break;
+      case 'r2-cards': playSwap('ld-r2-cards'); break;
+      case 'r2-list': playSwap('ld-r2-list'); break;
+      case 'r2-image': playSwap('ld-r2-image'); break;
+      case 'r2-chart': playSwap('ld-r2-chart'); break;
+      case 'r3-switch': playR3Switch(); break;
+      case 'r3-import': playR3Import(); break;
+      case 'r3-scan': playR3Scan(); break;
+      case 'r4-ambient': playR4(); break;
+      default: break;
+    }
+  }
+
+  document.querySelectorAll('[data-play]').forEach(btn => {
+    btn.addEventListener('click', () => play(btn.dataset.play));
+  });
+
+  const themeBtn = document.getElementById('ld-theme');
+  const themeLabel = document.getElementById('ld-theme-label');
+  themeBtn?.addEventListener('click', () => {
+    const dark = root.dataset.theme === 'dark';
+    root.dataset.theme = dark ? 'light' : 'dark';
+    if (themeLabel) themeLabel.textContent = dark ? '深色' : '浅色';
+  });
+
+  const motionBtn = document.getElementById('ld-motion');
+  const motionLabel = document.getElementById('ld-motion-label');
+  motionBtn?.addEventListener('click', () => {
+    const off = root.dataset.motion === 'off';
+    root.dataset.motion = off ? 'on' : 'off';
+    if (motionLabel) motionLabel.textContent = off ? '减弱动态：关' : '减弱动态：开';
+  });
+
+  document.getElementById('ld-replay')?.addEventListener('click', () => {
+    play('r1-button');
+    later('replay-dots', () => play('r1-dots'), 220);
+    play('r1-row');
+    later('replay-menu', () => play('r1-menu'), 420);
+    ['r2-cards', 'r2-list', 'r2-image', 'r2-chart'].forEach((id, i) => {
+      later('replay-' + id, () => play(id), 120 + i * 160);
+    });
+    later('replay-r3-switch', () => play('r3-switch'), 260);
+    later('replay-r4', () => play('r4-ambient'), 600);
+    later('replay-r3-import', () => play('r3-import'), 3800);
+    later('replay-r3-scan', () => play('r3-scan'), 7100);
+  });
+})();
+</script>

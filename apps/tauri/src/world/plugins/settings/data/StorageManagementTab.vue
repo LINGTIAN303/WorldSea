@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, computed, ref } from 'vue'
-import { TuiButton, WsIcon, useConfirm } from '@worldsea/ui-kit'
+import { TuiButton, WsIcon, WsInlineLoading, WsScanRadar, useConfirm } from '@worldsea/ui-kit'
 import { CardDeck } from '@worldsea/ui-kit'
 import TuiCheckbox from '@/components/ui/TuiCheckbox.vue'
 import { useStorageStats } from '@worldsea/entity-core/composables'
@@ -18,7 +18,7 @@ const entityStore = useEntityStore()
 const { stats, isScanning: statsScanning, refresh, scanOrphanCount } = useStorageStats()
 const {
   orphans, selectedIds, isScanning: orphanScanning, isCleaning,
-  scanProgress, scan, cleanSelected, cleanAll, selectAll, deselectAll, toggleSelect,
+  scanProgress, cleanProgress, scan, cleanSelected, cleanAll, selectAll, deselectAll, toggleSelect,
 } = useOrphanCleanup()
 
 // ── 项目目录 + 磁盘占用（cmd_fs_usage 递归真值，2026-10-02）──
@@ -221,13 +221,17 @@ onMounted(async () => {
             <WsIcon name="dashboard" size="xs" />
             <span>存储概览</span>
             <TuiButton size="sm" variant="ghost" @click="onRefreshStats" :disabled="statsScanning">
-              刷新统计
+              <WsInlineLoading v-if="statsScanning" size="sm" label="正在刷新统计" />
+              {{ statsScanning ? '刷新中…' : '刷新统计' }}
             </TuiButton>
           </div>
           <div class="sm-dir-row">
             <WsIcon name="folder" size="xs" />
             <span class="sm-dir-path" :title="projectDir || ''">{{ projectDir || '（未打开文件项目）' }}</span>
-            <TuiButton size="sm" variant="secondary" :disabled="!projectDir || backingUp" @click="onBackupProject">{{ backingUp ? '备份中…' : '备份项目' }}</TuiButton>
+            <TuiButton size="sm" variant="secondary" :disabled="!projectDir || backingUp" @click="onBackupProject">
+              <WsInlineLoading v-if="backingUp" size="sm" label="正在备份项目" />
+              {{ backingUp ? '备份中…' : '备份项目' }}
+            </TuiButton>
             <TuiButton size="sm" variant="ghost" :disabled="!projectDir" @click="openProjectDir">打开文件夹</TuiButton>
           </div>
           <div class="sm-stats-grid">
@@ -296,10 +300,17 @@ onMounted(async () => {
             <WsIcon name="delete" size="xs" />
             <span>孤立文件清理</span>
             <TuiButton size="sm" variant="ghost" @click="onScanOrphans" :disabled="orphanScanning">
-              {{ orphanScanning ? `扫描中 ${scanProgress}%` : '扫描' }}
+              {{ orphanScanning ? '扫描中…' : '扫描' }}
             </TuiButton>
           </div>
-          <div v-if="orphans.length > 0" class="sm-orphan-list">
+          <div v-if="orphanScanning" class="sm-scanning">
+            <WsScanRadar :progress="scanProgress" label="扫描孤立文件" />
+            <div class="sm-scanning-text">
+              <strong>正在扫描孤立文件</strong>
+              <span>只读扫描 · {{ scanProgress }}%</span>
+            </div>
+          </div>
+          <div v-else-if="orphans.length > 0" class="sm-orphan-list">
             <div class="sm-orphan-actions">
               <TuiButton size="sm" variant="ghost" @click="selectAll">全选</TuiButton>
               <TuiButton size="sm" variant="ghost" @click="deselectAll">全不选</TuiButton>
@@ -318,6 +329,10 @@ onMounted(async () => {
                 清理全部
               </TuiButton>
             </div>
+            <div v-if="isCleaning" class="sm-cleaning">
+              <WsInlineLoading size="sm" label="正在清理孤立文件" />
+              <span>清理中 {{ cleanProgress }}%</span>
+            </div>
           </div>
           <div v-else-if="!orphanScanning" class="sm-empty-hint">
             {{ stats.orphanFileCount === 0 ? '未发现孤立文件' : '点击"扫描"检测孤立文件' }}
@@ -332,3 +347,31 @@ onMounted(async () => {
 </template>
 
 <style scoped src="./storage-management.css"></style>
+<style scoped>
+.sm-scanning {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 4px;
+}
+.sm-scanning-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--font-size-sm);
+}
+.sm-scanning-text span {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.sm-cleaning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 2px 0;
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+</style>

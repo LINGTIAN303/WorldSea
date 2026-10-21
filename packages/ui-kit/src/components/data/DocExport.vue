@@ -36,11 +36,15 @@
             :srcdoc="renderedMd"
             sandbox="allow-same-origin"
           ></iframe>
+          <div v-if="generating" class="de-preview-loading">
+            <WsInlineLoading size="md" label="正在生成文档预览" />
+            <span>正在生成预览…</span>
+          </div>
         </div>
         <div class="de-actions">
-          <button class="de-btn" @click="downloadHTML"><WsIcon name="item" size="xs" /> 下载 HTML</button>
-          <button class="de-btn" @click="downloadMarkdown"><WsIcon name="item" size="xs" /> 下载 Markdown</button>
-          <button class="de-btn" @click="printDoc"><WsIcon name="brush" size="xs" /> 打印</button>
+          <button class="de-btn" :disabled="generating" @click="downloadHTML"><WsIcon name="item" size="xs" /> 下载 HTML</button>
+          <button class="de-btn" :disabled="generating" @click="downloadMarkdown"><WsIcon name="item" size="xs" /> 下载 Markdown</button>
+          <button class="de-btn" :disabled="generating" @click="printDoc"><WsIcon name="brush" size="xs" /> 打印</button>
         </div>
       </div>
       <div class="resize-handle-right" @mousedown="modalResizable.onResizeStart"></div>
@@ -58,6 +62,7 @@ import {
   relationSerializer,
 } from '@worldsea/entity-core'
 import { useResizable } from '@worldsea/ui-kit'
+import WsInlineLoading from '../feedback/loading/WsInlineLoading.vue'
 import WsIcon from '../WsIcon.vue'
 
 defineProps<{ show: boolean }>()
@@ -70,6 +75,8 @@ const includeTimestamps = ref(true)
 const previewFormat = ref<'html' | 'markdown'>('html')
 const preview = ref('')
 const previewMd = ref('')
+const generating = ref(false)
+let generateToken = 0
 
 function mdToHtml(md: string): string {
   let html = md
@@ -94,31 +101,45 @@ function mdToHtml(md: string): string {
 const renderedMd = computed(() => mdToHtml(previewMd.value))
 
 async function generatePack() {
-  serializerRegistry.clear()
-  serializerRegistry.register(entitySerializer)
-  serializerRegistry.register(relationSerializer)
+  const token = ++generateToken
+  generating.value = true
+  try {
+    serializerRegistry.clear()
+    serializerRegistry.register(entitySerializer)
+    serializerRegistry.register(relationSerializer)
 
-  const ec = getExportController()
-  const selected: string[] = []
-  if (includeEntities.value) selected.push('entities')
-  if (includeRelations.value) selected.push('relations')
-  const pack = await ec.collectAll(selected.length > 0 ? selected : undefined)
+    const ec = getExportController()
+    const selected: string[] = []
+    if (includeEntities.value) selected.push('entities')
+    if (includeRelations.value) selected.push('relations')
+    const pack = await ec.collectAll(selected.length > 0 ? selected : undefined)
+    if (token !== generateToken) return
 
-  const html = defaultFormatEncoder.encodeHTML(pack, {
-    includeTimestamps: includeTimestamps.value,
-    title: 'WorldSea 设定文档',
-  })
-  preview.value = html
+    const html = defaultFormatEncoder.encodeHTML(pack, {
+      includeTimestamps: includeTimestamps.value,
+      title: 'WorldSea 设定文档',
+    })
+    preview.value = html
 
-  const md = defaultFormatEncoder.encodeMarkdown(pack, {
-    includeTimestamps: includeTimestamps.value,
-  })
-  previewMd.value = md
+    const md = defaultFormatEncoder.encodeMarkdown(pack, {
+      includeTimestamps: includeTimestamps.value,
+    })
+    previewMd.value = md
+  } catch (err) {
+    if (token === generateToken) {
+      preview.value = ''
+      previewMd.value = ''
+      console.warn('[DocExport] 生成预览失败:', err)
+    }
+  } finally {
+    if (token === generateToken) generating.value = false
+  }
 }
 
 watch([includeEntities, includeRelations, includeTimestamps], generatePack, { immediate: true })
 
 function downloadHTML() {
+  if (generating.value) return
   const html = preview.value
   const blob = new Blob([html], { type: 'text/html' })
   const url = URL.createObjectURL(blob)
@@ -128,6 +149,7 @@ function downloadHTML() {
 }
 
 function downloadMarkdown() {
+  if (generating.value) return
   const md = previewMd.value
   const blob = new Blob([md], { type: 'text/markdown' })
   const url = URL.createObjectURL(blob)
@@ -137,6 +159,7 @@ function downloadMarkdown() {
 }
 
 function printDoc() {
+  if (generating.value) return
   const win = window.open('', '_blank')
   if (!win) return
   win.document.write(preview.value)
@@ -162,11 +185,25 @@ function close() { emit('close') }
 .de-format-btn.active { background: var(--accent, #4a90d9); color: #fff; }
 .de-format-btn:hover:not(.active) { background: var(--bg-secondary, #e8e8e8); }
 .de-preview { position: relative; }
+.de-preview-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--content-bg, #fff) 78%, transparent);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  pointer-events: none;
+}
 .de-preview-iframe { width: 100%; height: 360px; border: 1px solid var(--border, #ddd); border-radius: var(--radius-sm); background: #fff; }
 .de-preview textarea { width: 100%; border: 1px solid var(--border, #ddd); border-radius: var(--radius-sm); padding: 8px; font-size: var(--font-size-sm); font-family: monospace; background: var(--bg, #fafafa); resize: vertical; }
 .de-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
 .de-btn { padding: 8px 20px; border: 1px solid var(--border, #ddd); border-radius: var(--radius-sm); background: var(--bg, #f8f8f8); cursor: pointer; font-size: var(--font-size-base); }
 .de-btn:hover { background: var(--color-bg-hover); }
+.de-btn:disabled { opacity: var(--disabled-opacity, 0.5); cursor: not-allowed; }
 .resize-handle-right {
   position: absolute;
   right: 0;

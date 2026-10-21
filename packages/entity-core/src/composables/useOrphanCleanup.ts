@@ -19,6 +19,7 @@ export function useOrphanCleanup() {
   const isScanning = ref(false)
   const isCleaning = ref(false)
   const scanProgress = ref(0)
+  const cleanProgress = ref(0)
 
   async function scan(): Promise<void> {
     isScanning.value = true
@@ -91,17 +92,20 @@ export function useOrphanCleanup() {
     if (!ok) return 0
 
     isCleaning.value = true
+    cleanProgress.value = 0
     let cleaned = 0
     let failed = 0
     const fileStore = useFileStore()
 
-    for (const orphan of selected) {
+    for (let i = 0; i < selected.length; i++) {
+      const orphan = selected[i]
       try {
         await fileStore.remove(orphan.id)
         cleaned++
       } catch {
         failed++
       }
+      cleanProgress.value = Math.round(((i + 1) / selected.length) * 100)
     }
 
     orphans.value = orphans.value.filter(o => !ids.includes(o.id))
@@ -145,6 +149,7 @@ export function useOrphanCleanup() {
     isScanning,
     isCleaning,
     scanProgress,
+    cleanProgress,
     scan,
     cleanSelected,
     cleanAll,

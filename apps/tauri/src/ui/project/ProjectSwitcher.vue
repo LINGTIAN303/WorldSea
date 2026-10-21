@@ -5,6 +5,7 @@
       class="ps-trigger"
       :class="`ps--${variant}`"
       :title="currentLabel"
+      :disabled="switching"
       @click="toggle"
     >
       <WorldSeaLogo v-if="variant === 'titlebar'" :size="15" :radius="4" class="ps-logo" />
@@ -18,7 +19,12 @@
       <div v-if="open" class="ps-backdrop" @click="close"></div>
       <Transition name="dropdown">
         <div v-if="open" class="ps-menu" :style="menuStyle">
-          <div class="ps-menu-header">项目</div>
+          <div class="ps-menu-header">
+            <span>项目</span>
+            <span v-if="refreshing" class="ps-refresh">
+              <WsInlineLoading size="sm" variant="line" label="正在刷新项目列表" live />
+            </span>
+          </div>
           <div v-if="projectList.length === 0" class="ps-empty">暂无项目——在 Agent 空间的 dsh 界面里添加工作区即可创建项目</div>
           <div v-else class="ps-list">
             <div
@@ -41,8 +47,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onBeforeUnmount, nextTick } from 'vue'
-import { WsIcon, useModalShortcuts } from '@worldsea/ui-kit'
+import { ref, computed, onBeforeUnmount, nextTick, watch } from 'vue'
+import { WsIcon, WsInlineLoading, useModalShortcuts } from '@worldsea/ui-kit'
 import { useProjectSwitcher } from '@/composables/useProjectSwitcher'
 import WorldSeaLogo from '@/components/brand/WorldSeaLogo.vue'
 import type { ProjectInfo } from '@worldsea/entity-core/core'
@@ -52,9 +58,10 @@ const props = withDefaults(defineProps<{
   variant?: 'titlebar' | 'pill'
 }>(), { variant: 'pill' })
 
-const { currentProject, projectList, switchProject, refreshProjectList } = useProjectSwitcher()
+const { switching, currentProject, projectList, switchProject, refreshProjectList } = useProjectSwitcher()
 
 const open = ref(false)
+const refreshing = ref(false)
 const wrapRef = ref<HTMLElement>()
 const menuStyle = ref<Record<string, string>>({})
 
@@ -78,10 +85,22 @@ function truncatePath(p: string, max = 30): string {
   return `${head}…${tail}`
 }
 
+async function refresh(): Promise<void> {
+  if (refreshing.value) return
+  refreshing.value = true
+  try {
+    await refreshProjectList()
+  } catch (err) {
+    console.warn('[ProjectSwitcher] 刷新项目列表失败:', err)
+  } finally {
+    refreshing.value = false
+  }
+}
+
 function toggle(): void {
   open.value = !open.value
   if (open.value) {
-    void refreshProjectList()
+    void refresh()
     void position()
   }
 }
@@ -104,6 +123,7 @@ async function position(): Promise<void> {
 }
 
 async function onPick(p: ProjectInfo): Promise<void> {
+  if (switching.value) return
   close()
   if (p.id === currentProject.value?.id) return
   await switchProject(p.id)
@@ -111,6 +131,10 @@ async function onPick(p: ProjectInfo): Promise<void> {
 
 // Esc 关闭收编 useModalShortcuts（modal 层，替代 document 常驻监听）
 useModalShortcuts(() => open.value, { id: 'project-switcher.close', onEscape: () => close() })
+// 任意来源（下拉/托盘）开始切换都收起下拉，避免菜单浮在加载遮罩之上
+watch(switching, (value) => {
+  if (value) open.value = false
+})
 onBeforeUnmount(() => {
   open.value = false
 })
@@ -135,6 +159,13 @@ onBeforeUnmount(() => {
 }
 .ps-trigger:hover {
   background: var(--color-surface);
+}
+.ps-trigger:disabled {
+  opacity: var(--disabled-opacity, 0.5);
+  cursor: not-allowed;
+}
+.ps-trigger:disabled:hover {
+  background: transparent;
 }
 .ps--titlebar {
   font-weight: 600;
@@ -181,12 +212,20 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 .ps-menu-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   padding: 4px 8px 6px;
   font-size: var(--font-size-2xs);
   font-weight: 600;
   color: var(--color-text-tertiary);
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+.ps-refresh {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
 }
 .ps-open-folder {
   display: flex;

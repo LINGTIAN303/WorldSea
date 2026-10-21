@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WorldSea · Loading Study 04 · B 弧形航线（修正版）</title>
+<style>
+  /* ─────────────────────────────────────────────
+     Study 04 · R3 B 弧形航线 · 生产修正版
+     修正：4 节点 / 11px 短标签 / 完整阶段文案在上
+           星点停在节点 / 去掉假 46% / 完成与失败态
+     ───────────────────────────────────────────── */
+  :root {
+    --bg-app: #fafaf9;
+    --bg-surface: #ffffff;
+    --bg-muted: #f4f4f5;
+    --bg-active: #e9e9ea;
+    --border: #ececec;
+    --border-strong: #d9d9de;
+    --text-primary: #1f2328;
+    --text-secondary: #6b7280;
+    --text-muted: #9ca3af;
+    --accent: #4f46e5;
+    --accent-hover: #4338ca;
+    --accent-soft: #eef2ff;
+    --accent-soft-border: #e0e7ff;
+    --on-accent: #ffffff;
+    --success: #16a34a;
+    --warning: #d97706;
+    --danger: #dc2626;
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05);
+    --shadow-md: 0 4px 16px rgba(16, 24, 40, 0.07);
+    --shadow-lg: 0 12px 32px rgba(16, 24, 40, 0.12);
+    --ease: cubic-bezier(0.4, 0, 0.2, 1);
+    --ease-out: cubic-bezier(0, 0, 0.2, 1);
+    --dur-fast: 0.15s;
+    --dur-base: 0.22s;
+    --dur-lg: 0.32s;
+
+    /* 全局语义 token（计划 §4.1 节选） */
+    --loading-accent: var(--accent);
+    --loading-track: color-mix(in srgb, var(--accent) 24%, transparent);
+    --loading-label: var(--text-secondary);
+    --loading-scrim: color-mix(in srgb, var(--bg-app) 80%, transparent);
+    --loading-scrim-blur: 2px;
+    --loading-scrim-local: color-mix(in srgb, var(--bg-surface) 62%, transparent);
+    --loading-skeleton-base: var(--bg-muted);
+    --loading-size-sm: 14px;
+    --loading-size-md: 20px;
+    --loading-size-lg: 30px;
+    --loading-orbit-duration: 1.15s;
+    --loading-survey-duration: 2.6s;
+    --loading-delay: 200ms;
+    --loading-min-visible: 400ms;
+    --z-loading: 1500;
+
+    /* 组件内部参数（不进全局契约） */
+    --_loading-trail-angle: 78deg;
+    --_loading-head-size: 4.5px;
+    --_loading-head-glow: 7px;
+    --_loading-node-size: 9px;
+    --_loading-node-active: 11px;
+    --_loading-stage-hold: 120ms;
+    --_loading-radar-size: 36px;
+    --_loading-radar-duration: 2.2s;
+  }
+
+  :root[data-theme='dark'] {
+    --bg-app: #111113;
+    --bg-surface: #18181b;
+    --bg-muted: #202024;
+    --bg-active: #2e2e34;
+    --border: #27272c;
+    --border-strong: #38383f;
+    --text-primary: #e7e7ea;
+    --text-secondary: #a1a1aa;
+    --text-muted: #71717a;
+    --accent: #8b87f8;
+    --accent-hover: #a09bfa;
+    --accent-soft: rgba(99, 102, 241, 0.18);
+    --accent-soft-border: rgba(99, 102, 241, 0.35);
+    --on-accent: #17171b;
+    --success: #34d399;
+    --warning: #fbbf24;
+    --danger: #f87171;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.45);
+    --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55);
+    --loading-scrim: rgba(17, 17, 19, 0.74);
+    --loading-scrim-local: rgba(24, 24, 27, 0.62);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    font-family: 'Inter', system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    color: var(--text-primary);
+    background:
+      radial-gradient(ellipse 58% 38% at 20% -10%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 62%),
+      radial-gradient(ellipse 40% 28% at 92% 0%, color-mix(in srgb, #0891b2 5%, transparent), transparent 60%),
+      var(--bg-app);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    line-height: 1.55;
+    transition: background var(--dur-base), color var(--dur-base);
+  }
+  button { font: inherit; }
+  code { font-family: 'JetBrains Mono', Consolas, monospace; font-size: 0.92em; }
+
+  .page {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 24px clamp(16px, 3vw, 40px) 56px;
+  }
+
+  /* ── 顶栏 ── */
+  .top {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    padding: 2px 2px 18px; border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .logo {
+    width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center;
+    color: var(--accent); background: var(--accent-soft); border: 1px solid var(--accent-soft-border);
+    font-size: 15px;
+  }
+  .brand strong { display: block; font-size: 13px; }
+  .brand span { display: block; font-size: 10.5px; color: var(--text-muted); letter-spacing: 0.04em; }
+  .controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .ctl {
+    height: 30px; padding: 0 11px; border-radius: var(--radius-sm);
+    border: 1px solid var(--border-strong); background: var(--bg-surface);
+    color: var(--text-secondary); font-size: 11.5px;
+    display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+    transition: border-color var(--dur-fast), color var(--dur-fast), background var(--dur-fast);
+  }
+  .ctl:hover { border-color: var(--accent); color: var(--accent); }
+  .ctl--primary { background: var(--accent); border-color: transparent; color: var(--on-accent); }
+  .ctl--primary:hover { background: var(--accent-hover); color: var(--on-accent); }
+  .ctl.is-active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+
+  /* ── Hero ── */
+  .hero { padding: 42px 2px 6px; }
+  .kicker {
+    margin: 0 0 12px; font-size: 10px; font-weight: 600; letter-spacing: 0.18em;
+    text-transform: uppercase; color: var(--accent);
+  }
+  .hero h1 {
+    margin: 0; font-size: clamp(30px, 4.4vw, 48px); line-height: 1.08;
+    letter-spacing: -0.035em; font-weight: 680; max-width: 860px;
+  }
+  .lede {
+    margin: 16px 0 0; max-width: 760px; font-size: 14px;
+    color: var(--text-secondary); line-height: 1.75;
+  }
+  .chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 20px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px; padding: 4px 9px;
+    border: 1px solid var(--border); border-radius: 999px; background: var(--bg-surface);
+    font-size: 10.5px; color: var(--text-secondary);
+  }
+  .chip i { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); display: inline-block; }
+
+  /* ── 分区头 ── */
+  .section { margin-top: 38px; }
+  .section-head {
+    display: flex; align-items: flex-end; justify-content: space-between;
+    gap: 16px; margin-bottom: 14px; flex-wrap: wrap;
+  }
+  .section-head h2 { margin: 0; font-size: 27px; line-height: 1.15; letter-spacing: -0.02em; }
+  .section-head p { margin: 6px 0 0; font-size: 12.5px; color: var(--text-muted); }
+  .tag {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 28px; height: 20px; padding: 0 7px; border-radius: 6px;
+    background: var(--accent-soft); color: var(--accent); border: 1px solid var(--accent-soft-border);
+    font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
+  }
+  .state-controls { display: flex; gap: 5px; flex-wrap: wrap; }
+  .state-controls .ctl { height: 26px; padding: 0 9px; font-size: 10.5px; }
+
+  /* ── 工作台框 ── */
+  .workbench {
+    position: relative;
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--bg-surface);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+    transition: max-width var(--dur-base), border-color var(--dur-base);
+  }
+  .workbench.is-narrow { max-width: 900px; }
+  .wb-titlebar {
+    height: 32px; display: flex; align-items: center; gap: 8px;
+    padding: 0 10px; background: var(--bg-muted); border-bottom: 1px solid var(--border);
+    font-size: 11px; color: var(--text-secondary); user-select: none;
+  }
+  .wb-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+  .wb-titlebar strong { font-size: 11px; color: var(--text-primary); font-weight: 600; }
+  .wb-titlebar .muted { color: var(--text-muted); }
+  .wb-window { margin-left: auto; display: flex; gap: 14px; color: var(--text-muted); font-size: 11px; }
+  .wb-body { display: flex; height: 356px; background: var(--bg-app); }
+  .wb-side {
+    width: 184px; flex-shrink: 0; border-right: 1px solid var(--border);
+    background: var(--bg-surface); padding: 14px 10px; display: flex; flex-direction: column; gap: 4px;
+  }
+  .wb-side-label { font-size: 9.5px; color: var(--text-muted); padding: 0 8px 6px; letter-spacing: 0.06em; }
+  .wb-nav {
+    display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: var(--radius-sm);
+    font-size: 11.5px; color: var(--text-secondary);
+  }
+  .wb-nav.is-active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  .wb-nav i { width: 13px; height: 13px; border-radius: 4px; border: 1px solid currentColor; opacity: 0.55; }
+  .wb-content { flex: 1; min-width: 0; padding: 16px 18px; overflow: hidden; }
+  .wb-content-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; }
+  .wb-content-head strong { font-size: 13px; }
+  .wb-content-head span { font-size: 10px; color: var(--text-muted); }
+  .wb-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .wb-card {
+    background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-md);
+    padding: 11px 12px; min-height: 66px;
+  }
+  .wb-card strong { display: block; font-size: 11.5px; font-weight: 600; }
+  .wb-card span { display: block; font-size: 10px; color: var(--text-muted); margin-top: 3px; }
+
+  /* ── R3 遮罩（只盖内容区，标题栏保留） ── */
+  .overlay {
+    position: absolute; left: 0; right: 0; top: 32px; bottom: 0;
+    display: grid; place-items: center; padding: 20px;
+    background: var(--loading-scrim);
+    -webkit-backdrop-filter: blur(var(--loading-scrim-blur));
+    backdrop-filter: blur(var(--loading-scrim-blur));
+    z-index: var(--z-loading);
+    opacity: 1; transition: opacity var(--dur-base) var(--ease);
+  }
+  .overlay.is-hidden { opacity: 0; pointer-events: none; }
+
+  /* ── B 弧形航线面板 ── */
+  .panel {
+    width: min(480px, calc(100vw - 48px));
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    padding: 20px 22px 18px;
+    opacity: 1; transform: translateY(0);
+    transition: opacity var(--dur-base) var(--ease), transform var(--dur-base) var(--ease-out);
+  }
+  .overlay.is-hidden .panel { opacity: 0; transform: translateY(5px); }
+  .panel.is-error { border-color: color-mix(in srgb, var(--warning) 36%, var(--border)); }
+
+  .panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .panel-title { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: -0.01em; }
+  .panel.is-error .panel-title { color: var(--warning); }
+  .count {
+    font-size: 10px; color: var(--text-muted); font-variant-numeric: tabular-nums;
+    letter-spacing: 0.06em; white-space: nowrap; padding-top: 2px;
+  }
+  .stage-full {
+    margin: 5px 0 0; font-size: 12px; line-height: 1.4; font-weight: 600;
+    color: var(--accent); max-width: 100%;
+  }
+  .panel.is-error .stage-full { color: var(--warning); }
+  .stage-full::after {
+    content: ''; display: block; width: 100%; height: 1px; margin-top: 6px;
+    background: currentColor; opacity: 0.35;
+  }
+  .stage-detail {
+    margin: 7px 0 0; font-size: 10px; line-height: 1.5;
+    color: var(--text-secondary); min-height: 15px;
+  }
+
+  .arc-wrap {
+    position: relative; width: 100%; aspect-ratio: 320 / 72; margin-top: 10px;
+  }
+  .arc-wrap svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .arc-track { stroke: var(--loading-track); stroke-width: 1.2; stroke-linecap: round; stroke-dasharray: 2 4; fill: none; }
+  .arc-fill {
+    stroke: var(--loading-accent); stroke-width: 1.6; stroke-linecap: round; fill: none;
+    transition: stroke-dashoffset 0.6s var(--ease);
+  }
+  .arc-node {
+    position: absolute; width: var(--_loading-node-size); height: var(--_loading-node-size);
+    border-radius: 50%; background: var(--bg-surface); border: 1.5px solid var(--border-strong);
+    transform: translate(-50%, -50%); transition: background var(--dur-base), border-color var(--dur-base), width var(--dur-base), height var(--dur-base);
+  }
+  .arc-node.is-active {
+    width: var(--_loading-node-active); height: var(--_loading-node-active);
+    border-color: var(--accent); background: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+  }
+  .arc-node.is-done { background: var(--accent); border-color: var(--accent); }
+  .panel.is-error .arc-node.is-active {
+    border-color: var(--warning); background: var(--warning);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning) 16%, transparent);
+  }
+  .arc-star {
+    position: absolute; width: var(--_loading-head-size); height: var(--_loading-head-size);
+    border-radius: 50%; background: var(--accent); transform: translate(-50%, -50%);
+    box-shadow: 0 0 0 2px var(--bg-surface), 0 0 var(--_loading-head-glow) color-mix(in srgb, var(--accent) 55%, transparent);
+    transition: left 0.6s var(--ease), top 0.6s var(--ease), background var(--dur-base), opacity var(--dur-base), scale var(--dur-base);
+    z-index: 3;
+  }
+  .arc-star::before {
+    content: ''; position: absolute; right: 2px; top: 50%; width: 26px; height: 1px;
+    transform: translateY(-50%) rotate(var(--_loading-trail-angle)); transform-origin: right center;
+    background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 55%, transparent));
+    pointer-events: none;
+  }
+  .panel.is-error .arc-star { background: var(--warning); }
+  .panel.is-error .arc-star::before { background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--warning) 55%, transparent)); }
+  .arc-star.is-done { opacity: 0; scale: 2.6; }
+
+  .arc-labels {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px;
+    margin-top: 2px;
+  }
+  .arc-label {
+    position: relative; padding-top: 8px; text-align: center;
+    font-size: 11px; line-height: 1.25; color: var(--text-secondary);
+    transition: color var(--dur-base), font-weight var(--dur-base);
+  }
+  .arc-label::before {
+    content: ''; position: absolute; top: 0; left: 50%; width: 1px; height: 5px;
+    background: var(--loading-track); transform: translateX(-50%);
+  }
+  .arc-label.is-active { color: var(--accent); font-weight: 600; }
+  .arc-label.is-active::before { background: var(--accent); }
+  .arc-label.is-done { color: var(--text-secondary); }
+  .arc-label.is-done::before { content: '✓'; top: -1px; width: auto; height: auto; background: none; color: var(--accent); font-size: 9px; }
+  .panel.is-error .arc-label.is-active { color: var(--warning); }
+  .panel.is-error .arc-label.is-active::before { background: var(--warning); }
+
+  .panel-foot {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--border);
+    font-size: 9.5px; color: var(--text-muted);
+  }
+  .panel-foot .target { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .panel-actions { display: flex; gap: 6px; }
+  .panel-actions[hidden] { display: none; }
+  .panel-actions button {
+    height: 24px; padding: 0 9px; border-radius: 5px; border: 1px solid var(--border-strong);
+    background: transparent; color: var(--text-secondary); font-size: 10px; cursor: pointer;
+  }
+  .panel-actions button.primary { background: var(--warning); border-color: transparent; color: var(--on-accent); }
+  .panel-actions button:hover { border-color: var(--accent); color: var(--accent); }
+  .panel-actions button.primary:hover { color: var(--on-accent); opacity: 0.9; }
+
+  .caption { margin: 11px 2px 0; font-size: 10.5px; color: var(--text-muted); line-height: 1.7; }
+  .caption code { color: var(--text-secondary); }
+
+  /* ── 说明卡 ── */
+  .notes {
+    display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 12px; margin-top: 40px;
+  }
+  .card {
+    padding: 18px; border: 1px solid var(--border); border-radius: var(--radius-lg);
+    background: var(--bg-surface); box-shadow: var(--shadow-sm);
+  }
+  .card h3 { margin: 0 0 4px; font-size: 14px; }
+  .card > p { margin: 0 0 12px; font-size: 11px; color: var(--text-muted); }
+  .fix-list { display: grid; gap: 8px; }
+  .fix {
+    display: grid; grid-template-columns: 18px 1fr; gap: 7px;
+    font-size: 11.5px; color: var(--text-secondary); line-height: 1.65;
+  }
+  .fix b {
+    width: 18px; height: 18px; border-radius: 5px; display: grid; place-items: center;
+    background: var(--accent-soft); color: var(--accent); font-size: 9px;
+  }
+  .fix strong { color: var(--text-primary); font-weight: 600; }
+  .token-table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+  .token-table th {
+    text-align: left; font-weight: 600; color: var(--text-muted); font-size: 9.5px;
+    letter-spacing: 0.06em; text-transform: uppercase; padding: 0 0 6px;
+    border-bottom: 1px solid var(--border);
+  }
+  .token-table td { padding: 6px 0; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .token-table tr:last-child td { border-bottom: 0; }
+  .token-table code { color: var(--accent); }
+  .token-table .dim { color: var(--text-muted); }
+  .note-line { margin-top: 10px; font-size: 10px; color: var(--text-muted); line-height: 1.7; }
+
+  @media (max-width: 860px) {
+    .notes { grid-template-columns: 1fr; }
+    .wb-side { width: 148px; }
+    .wb-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 620px) {
+    .panel { padding: 16px 15px 14px; }
+    .wb-side { display: none; }
+    .wb-grid { grid-template-columns: 1fr; }
+    .wb-body { height: 300px; }
+    .arc-label { font-size: 10.5px; }
+  }
+
+  /* 减弱动态：减速而不是停止；语义不消失 */
+  [data-motion='off'] *,
+  [data-motion='off'] *::before,
+  [data-motion='off'] *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  [data-motion='off'] .arc-star { transition: none; }
+</style>
+</head>
+<body>
+<div class="page" id="study" data-motion="on">
+
+  <header class="top">
+    <div class="brand">
+      <div class="logo">✦</div>
+      <div>
+        <strong>WorldSea</strong>
+        <span>Refined Loading · Study 04 · R3 B</span>
+      </div>
+    </div>
+    <div class="controls">
+      <button class="ctl" id="themeBtn">深色</button>
+      <button class="ctl" id="motionBtn">减弱动态：关</button>
+      <button class="ctl" id="narrowBtn">900px 窄窗</button>
+      <button class="ctl ctl--primary" id="playBtn">播放切换</button>
+    </div>
+  </header>
+
+  <section class="hero">
+    <p class="kicker">STUDY 04 · R3 B REFINED</p>
+    <h1>B 弧形航线，按生产口径修正。</h1>
+    <p class="lede">
+      保留弧线的「旅程感」，但把可读性和进度语义补齐：4 节点、11px 短标签、完整阶段文案在上；
+      星点停在当前节点，不再显示假的 46%。右上是各种状态，可以直接切换检查。
+    </p>
+    <div class="chips">
+      <span class="chip"><i></i>4 节点上限</span>
+      <span class="chip"><i></i>11px 短标签</span>
+      <span class="chip"><i></i>阶段式进度</span>
+      <span class="chip"><i></i>完成 / 失败态</span>
+      <span class="chip"><i></i>只盖内容区</span>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <div>
+        <span class="tag">R3-G</span>
+        <h2>项目切换 · 全局内容区</h2>
+        <p>标题栏保留；遮罩只盖工作台内容区；内容区 inert。</p>
+      </div>
+      <div class="state-controls" id="stateControls">
+        <button class="ctl" data-state="0">1/4</button>
+        <button class="ctl is-active" data-state="1">2/4</button>
+        <button class="ctl" data-state="2">3/4</button>
+        <button class="ctl" data-state="3">完成</button>
+        <button class="ctl" data-state="error">失败</button>
+      </div>
+    </div>
+
+    <div class="workbench" id="workbench">
+      <div class="wb-titlebar">
+        <span class="wb-dot"></span>
+        <strong>WorldSea</strong>
+        <span class="muted">默认工作区</span>
+        <span class="wb-window"><span>—</span><span>□</span><span>×</span></span>
+      </div>
+      <div class="wb-body" id="wbBody">
+        <aside class="wb-side">
+          <div class="wb-side-label">世界</div>
+          <div class="wb-nav is-active"><i></i>角色</div>
+          <div class="wb-nav"><i></i>地点</div>
+          <div class="wb-nav"><i></i>事件</div>
+          <div class="wb-nav"><i></i>组织</div>
+        </aside>
+        <div class="wb-content">
+          <div class="wb-content-head">
+            <strong>角色</strong>
+            <span>12 个实体 · 按修改时间</span>
+          </div>
+          <div class="wb-grid">
+            <div class="wb-card"><strong>雾港守夜人</strong><span>守望雾港的古老组织</span></div>
+            <div class="wb-card"><strong>潮汐祭司</strong><span>解读潮汐与星象</span></div>
+            <div class="wb-card"><strong>群岛信使</strong><span>往返岛屿之间</span></div>
+            <div class="wb-card"><strong>盐雾匠</strong><span>以盐与雾造物</span></div>
+            <div class="wb-card"><strong>灯塔守望者</strong><span>记录每一次涨潮</span></div>
+            <div class="wb-card"><strong>深潮学者</strong><span>研究海底遗迹</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 遮罩：top 32px，标题栏保留 -->
+      <div class="overlay" id="overlay" role="status" aria-live="polite" aria-label="项目切换进度">
+        <div class="panel" id="panel">
+          <div class="panel-head">
+            <div style="min-width:0">
+              <h3 class="panel-title" id="panelTitle">正在切换项目</h3>
+              <div class="stage-full" id="stageFull">装载实体 / 关系 / 文件…</div>
+            </div>
+            <span class="count" id="count">2 / 4</span>
+          </div>
+          <div class="stage-detail" id="stageDetail">实体 1,284 · 关系 3,106 · 文件 42</div>
+
+          <div class="arc-wrap">
+            <svg viewBox="0 0 320 72" aria-hidden="true">
+              <path class="arc-track" d="M18 64 C 96 12, 224 12, 302 64"></path>
+              <path class="arc-fill" id="arcFill" d="M18 64 C 96 12, 224 12, 302 64"></path>
+            </svg>
+            <span class="arc-node" data-node="0"></span>
+            <span class="arc-node" data-node="1"></span>
+            <span class="arc-node" data-node="2"></span>
+            <span class="arc-node" data-node="3"></span>
+            <span class="arc-star" id="arcStar"></span>
+          </div>
+
+          <div class="arc-labels" id="arcLabels">
+            <span class="arc-label">数据源</span>
+            <span class="arc-label is-active">实体</span>
+            <span class="arc-label">芽</span>
+            <span class="arc-label">关联</span>
+          </div>
+
+          <div class="panel-foot">
+            <span class="target" id="target">目标：群岛档案</span>
+            <div class="panel-actions" id="panelActions" hidden>
+              <button class="primary" id="retryBtn">重试</button>
+              <button id="closeBtn">关闭</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <p class="caption">
+      默认状态 = 2/4：星点停在「实体」节点，已完成航段实线、未完成虚线；完整文案在上，短标签在下。
+      切换上方状态可检查 <code>1/4</code>、<code>3/4</code>、完成、失败；失败时星点停住转 warning，
+      出现「重试 / 关闭」，不会自动消失。
+    </p>
+  </section>
+
+  <section class="notes">
+    <div class="card">
+      <h3>B 的四个修正</h3>
+      <p>只改可读性与进度语义，不改弧线语言。</p>
+      <div class="fix-list">
+        <div class="fix"><b>1</b><span><strong>4 节点上限。</strong> 项目切换固定「数据源 / 实体 / 芽 / 关联」；超过 5 段折叠成阶段组，不滚动。</span></div>
+        <div class="fix"><b>2</b><span><strong>双层文本。</strong> 上方 12px 完整阶段文案，下方 11px 短标签；不再用 9px 承担主信息。</span></div>
+        <div class="fix"><b>3</b><span><strong>阶段式进度。</strong> 星点停在当前节点，显示 <code>2/4</code>；不显示假的 46% 连续填充。</span></div>
+        <div class="fix"><b>4</b><span><strong>完成与失败。</strong> 完成星点放大淡出、航线保留 300ms；失败停住转 warning，显示重试/关闭。</span></div>
+      </div>
+      <div class="note-line">真实进度只在能拿到「已处理 / 总数」时使用（导入、导出、扫描）；项目切换没有真实子进度，所以保持阶段式。</div>
+    </div>
+
+    <div class="card">
+      <h3>Token 两层</h3>
+      <p>全局语义 token 进 <code>theme.css</code>；组件内部参数留在 scoped CSS。</p>
+      <table class="token-table">
+        <thead><tr><th>Token</th><th>值</th><th>层级</th></tr></thead>
+        <tbody>
+          <tr><td><code>--loading-accent</code></td><td>var(--accent)</td><td>全局</td></tr>
+          <tr><td><code>--loading-track</code></td><td>accent 24%</td><td>全局</td></tr>
+          <tr><td><code>--loading-label</code></td><td>var(--text-secondary)</td><td>全局</td></tr>
+          <tr><td><code>--loading-scrim</code></td><td>bg-app 80%</td><td>全局</td></tr>
+          <tr><td><code>--loading-scrim-blur</code></td><td>2px</td><td>全局</td></tr>
+          <tr><td><code>--loading-delay</code></td><td>200ms</td><td>全局</td></tr>
+          <tr><td><code>--loading-min-visible</code></td><td>400ms</td><td>全局</td></tr>
+          <tr><td><code>--z-loading</code></td><td>1500</td><td>全局</td></tr>
+          <tr><td><code>--_loading-head-size</code></td><td>4.5px</td><td class="dim">组件内部</td></tr>
+          <tr><td><code>--_loading-trail-angle</code></td><td>78deg</td><td class="dim">组件内部</td></tr>
+          <tr><td><code>--_loading-node-active</code></td><td>11px</td><td class="dim">组件内部</td></tr>
+          <tr><td><code>--_loading-stage-hold</code></td><td>120ms</td><td class="dim">组件内部</td></tr>
+        </tbody>
+      </table>
+      <div class="note-line">完整 token 表见正式计划 §4；本页只展示与 B 相关的关键项。</div>
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  const root = document.getElementById('study');
+  const path = document.querySelector('.arc-track');
+  const fill = document.getElementById('arcFill');
+  const star = document.getElementById('arcStar');
+  const nodes = [...document.querySelectorAll('.arc-node')];
+  const labels = [...document.querySelectorAll('.arc-label')];
+  const panel = document.getElementById('panel');
+  const title = document.getElementById('panelTitle');
+  const stageFull = document.getElementById('stageFull');
+  const stageDetail = document.getElementById('stageDetail');
+  const count = document.getElementById('count');
+  const target = document.getElementById('target');
+  const actions = document.getElementById('panelActions');
+  const overlay = document.getElementById('overlay');
+  const stateControls = document.getElementById('stateControls');
+
+  const stages = [
+    { short: '数据源', full: '切换数据源…', detail: '绑定工作区指针' },
+    { short: '实体', full: '装载实体 / 关系 / 文件…', detail: '实体 1,284 · 关系 3,106 · 文件 42' },
+    { short: '芽', full: '重装芽与视图…', detail: '27 个芽 · 视图注册' },
+    { short: '关联', full: '恢复文件关联…', detail: '文件监听 / 导图 / 章节迁移' },
+  ];
+  const ratios = [0, 1 / 3, 2 / 3, 1];
+  const total = path.getTotalLength();
+
+  // 节点沿弧线定位
+  ratios.forEach((ratio, i) => {
+    const point = path.getPointAtLength(total * ratio);
+    const node = nodes[i];
+    if (node) {
+      node.style.left = (point.x / 320 * 100) + '%';
+      node.style.top = (point.y / 72 * 100) + '%';
+    }
+  });
+
+  fill.style.strokeDasharray = String(total);
+  fill.style.strokeDashoffset = String(total);
+
+  let current = 1;
+  let mode = 'loading';
+
+  function placeStar(ratio) {
+    const point = path.getPointAtLength(total * ratio);
+    star.style.left = (point.x / 320 * 100) + '%';
+    star.style.top = (point.y / 72 * 100) + '%';
+  }
+
+  function paint(index, nextMode) {
+    current = index;
+    mode = nextMode;
+
+    const isComplete = mode === 'success';
+    const isError = mode === 'error';
+    const ratio = isComplete ? 1 : ratios[index];
+    const stage = stages[index];
+
+    panel.classList.toggle('is-error', isError);
+    panel.classList.remove('is-success');
+    if (isComplete) panel.classList.add('is-success');
+
+    count.textContent = isComplete ? '4 / 4' : `${index + 1} / 4`;
+    title.textContent = isError ? '切换失败' : (isComplete ? '切换完成' : '正在切换项目');
+    stageFull.textContent = isError ? '无法完成项目切换' : (isComplete ? '群岛档案已就绪' : stage.full);
+    stageDetail.textContent = isError
+      ? '数据源已切换，但装载实体失败；可重试或关闭。'
+      : (isComplete ? '可以继续工作' : stage.detail);
+
+    target.textContent = isComplete ? '目标：群岛档案 · 已就绪' : '目标：群岛档案';
+    actions.hidden = !isError;
+
+    fill.style.strokeDashoffset = String(total * (1 - ratio));
+    placeStar(ratio);
+
+    star.classList.toggle('is-done', isComplete);
+    star.style.background = isError ? 'var(--warning)' : '';
+
+    nodes.forEach((node, i) => {
+      node.classList.toggle('is-done', isComplete || i < index);
+      node.classList.toggle('is-active', !isComplete && !isError && i === index);
+      node.classList.toggle('is-error-active', isError && i === index);
+    });
+    // 失败时当前节点也用 warning 色
+    nodes.forEach((node, i) => {
+      if (isError && i === index) {
+        node.style.borderColor = 'var(--warning)';
+        node.style.background = 'var(--warning)';
+      } else {
+        node.style.borderColor = '';
+        node.style.background = '';
+      }
+    });
+
+    labels.forEach((label, i) => {
+      label.classList.toggle('is-done', isComplete || i < index);
+      label.classList.toggle('is-active', !isComplete && i === index);
+    });
+
+    stateControls.querySelectorAll('[data-state]').forEach(btn => {
+      const value = btn.dataset.state;
+      const active = (mode === 'error' && value === 'error')
+        || (mode === 'success' && value === '3')
+        || (mode === 'loading' && value === String(index));
+      btn.classList.toggle('is-active', active);
+    });
+  }
+
+  function show() {
+    overlay.classList.remove('is-hidden');
+  }
+
+  function play() {
+    show();
+    paint(0, 'loading');
+    const timers = [];
+    timers.push(setTimeout(() => paint(1, 'loading'), 700));
+    timers.push(setTimeout(() => paint(2, 'loading'), 1400));
+    timers.push(setTimeout(() => paint(3, 'loading'), 2100));
+    timers.push(setTimeout(() => paint(3, 'success'), 2800));
+    timers.push(setTimeout(() => paint(3, 'success'), 3100));
+  }
+
+  stateControls.addEventListener('click', (event) => {
+    const btn = event.target.closest('button[data-state]');
+    if (!btn) return;
+    const value = btn.dataset.state;
+    show();
+    if (value === 'error') paint(1, 'error');
+    else if (value === '3') paint(3, 'success');
+    else paint(Number(value), 'loading');
+  });
+
+  document.getElementById('retryBtn')?.addEventListener('click', () => {
+    paint(Math.min(current, 3), 'loading');
+  });
+  document.getElementById('closeBtn')?.addEventListener('click', () => {
+    overlay.classList.add('is-hidden');
+  });
+  document.getElementById('playBtn')?.addEventListener('click', play);
+
+  // 主题（挂 html，保证 body 的 --text-primary / --bg-app 跟随）
+  const html = document.documentElement;
+  const themeBtn = document.getElementById('themeBtn');
+  themeBtn.addEventListener('click', () => {
+    const dark = html.dataset.theme === 'dark';
+    html.dataset.theme = dark ? 'light' : 'dark';
+    themeBtn.textContent = dark ? '深色' : '浅色';
+  });
+
+  // 减弱动态
+  const motionBtn = document.getElementById('motionBtn');
+  motionBtn.addEventListener('click', () => {
+    const off = root.dataset.motion === 'off';
+    root.dataset.motion = off ? 'on' : 'off';
+    motionBtn.textContent = off ? '减弱动态：关' : '减弱动态：开';
+  });
+
+  // 900px 窄窗
+  const narrowBtn = document.getElementById('narrowBtn');
+  narrowBtn.addEventListener('click', () => {
+    const narrow = document.getElementById('workbench').classList.toggle('is-narrow');
+    narrowBtn.textContent = narrow ? '恢复全宽' : '900px 窄窗';
+  });
+
+  // 默认展示 2/4；不自动隐藏，方便检查
+  paint(1, 'loading');
+})();
+</script>
+</body>
+</html>

@@ -4,7 +4,8 @@
  *  「当前指针 + 记录镜像」。新建/删除/重命名项目归 dsh 侧管理，本层不再提供。
  *  详细设计见 docs/plans/2026-09-27-D2-Agent操作产品域-重设计批计划.md §1.1。 */
 
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
+import { useAsyncTask } from '@worldsea/ui-kit/composables/useAsyncTask'
 import { getProjectManager, setStorageProjectDir } from '@worldsea/entity-core/core'
 import type { ProjectInfo } from '@worldsea/entity-core/core'
 import { entitySchemaRegistry, relationSchemaRegistry, entitySchemaRegistryV2 } from '@worldsea/entity-core/core'
@@ -14,10 +15,27 @@ import { pluginAPI } from '@worldsea/entity-core'
 import { bootstrapShell } from '@/plugins/boot'
 import { isTauri, hasTauriInvoke } from '@worldsea/entity-core/core'
 import { useFsWatcher } from './useFsWatcher'
+import { setSpaceSwitchBlocked } from './shellSwitch'
+
+/** 项目切换的 4 个用户可见阶段（实现步骤归并，避免面板过长）。 */
+export const PROJECT_SWITCH_STAGES = [
+  { short: '数据源', full: '切换数据源…', detail: '绑定工作区指针' },
+  { short: '实体', full: '装载实体 / 关系 / 文件…', detail: '正在读取工作区数据' },
+  { short: '芽', full: '重装芽与视图…', detail: '卸载 / 重装视图' },
+  { short: '关联', full: '恢复文件关联…', detail: '文件监听 / 导图 / 章节迁移' },
+]
 
 const switching = ref(false)
 const currentProject = ref<ProjectInfo | null>(null)
 const projectList = ref<ProjectInfo[]>([])
+const switchTask = useAsyncTask({ delay: 200, minVisible: 400, successHold: 300 })
+const switchStage = ref(0)
+const switchTargetId = ref('')
+const switchTargetName = ref('')
+const switchStatus = computed<'loading' | 'success' | 'error'>(() => {
+  const status = switchTask.status.value
+  return status === 'success' ? 'success' : status === 'error' ? 'error' : 'loading'
+})
 
 /** dsh 工作区清单条目（`cmd_dsh_workspace_list` 的返回形状）。 */
 interface DshWorkspaceInfo {
@@ -133,61 +151,70 @@ export function useProjectSwitcher() {
     return current?.id ?? ''
   }
 
-  /**
-   * 切换到指定项目（id = workspace id）。
-   * @returns true 表示切换成功
-   */
-  async function switchProject(targetProjectId: string): Promise<boolean> {
+  async function resolveProjectName(targetId: string): Promise<string> {
+    const known = projectList.value.find(p => p.id === targetId)
+    if (known) return known.name
+    try {
+      const record = await pm.getProject(targetId)
+      return record?.name ?? targetId
+    } catch {
+      return targetId
+    }
+  }
+
+  async function performSwitch(targetId: string, allowSame = false): Promise<boolean> {
     if (switching.value) {
       console.warn('[ProjectSwitcher] 正在切换中，忽略重复请求')
       return false
     }
 
-    if (targetProjectId === pm.getCurrentProjectId()) {
+    if (!allowSame && targetId === pm.getCurrentProjectId()) {
       return false
     }
 
     switching.value = true
+    setSpaceSwitchBlocked(true)
+    switchTargetId.value = targetId
+    switchStage.value = 0
+    switchTargetName.value = projectList.value.find(p => p.id === targetId)?.name ?? targetId
 
     try {
-      console.log(`[ProjectSwitcher] 开始切换项目: ${targetProjectId}`)
+      switchTargetName.value = await resolveProjectName(targetId)
+      console.log(`[ProjectSwitcher] 开始切换项目: ${targetId}`)
 
-      // 1. 切换 ProjectManager 的当前项目（记录由 syncWorkspaces 保证存在）
-      const switched = await pm.switchProject(targetProjectId)
-      if (!switched) {
-        console.warn('[ProjectSwitcher] ProjectManager 拒绝切换')
-        return false
-      }
+      await switchTask.run(async () => {
+        // 0 数据源：切指针 + 绑定存储根（重试时指针可能已是目标）
+        if (targetId !== pm.getCurrentProjectId()) {
+          const switched = await pm.switchProject(targetId)
+          if (!switched) throw new Error('项目切换被拒绝')
+        }
+        const dirPath = await pm.getProjectDir(targetId)
+        await setStorageProjectDir(entityDirOf(dirPath))
 
-      // 2. 实体存储根绑定（统一 <dirPath>/worlddata）
-      const dirPath = await pm.getProjectDir(targetProjectId)
-      await setStorageProjectDir(entityDirOf(dirPath))
+        // 1 实体：停旧监听 → 启新监听 → 重载三 Store + 项目设置/导图
+        switchStage.value = 1
+        await stopWatching()
+        if (dirPath) {
+          await startWatching()
+        }
+        await reloadStores()
 
-      // 2.5 停止旧监听 + 启动新监听
-      await stopWatching()
-      if (dirPath) {
-        await startWatching()
-      }
+        // 2 芽：卸载/重装 + 壳重装配
+        switchStage.value = 2
+        await reinitializeModules()
 
-      // 3. 重新加载所有 Store 数据
-      await reloadStores()
-
-      // 4. 重新初始化模块系统
-      await reinitializeModules()
-
-      // 5. 恢复文件系统关联（P3-W4 续恢复）
-      const { useFileSystemProject } = await import('@/composables/useFileSystemProject')
-      const fsProject = useFileSystemProject()
-      await fsProject.onProjectSwitched()
-
-      // 6. 更新当前项目信息 + 刷新列表（workspace 同源）
-      currentProject.value = (await pm.getCurrentProject()) ?? null
-      await refreshProjectList()
-
-      // 7. 发射全局事件
-      window.dispatchEvent(new CustomEvent('project:switched', {
-        detail: { projectId: targetProjectId },
-      }))
+        // 3 关联：文件系统关联 + 当前项目/列表 + 全局事件
+        switchStage.value = 3
+        const { useFileSystemProject } = await import('@/composables/useFileSystemProject')
+        const fsProject = useFileSystemProject()
+        await fsProject.onProjectSwitched()
+        currentProject.value = (await pm.getCurrentProject()) ?? null
+        await refreshProjectList()
+        window.dispatchEvent(new CustomEvent('project:switched', {
+          detail: { projectId: targetId },
+        }))
+        return true
+      })
 
       console.log(`[ProjectSwitcher] 项目切换完成: ${currentProject.value?.name}`)
       return true
@@ -196,7 +223,31 @@ export function useProjectSwitcher() {
       return false
     } finally {
       switching.value = false
+      setSpaceSwitchBlocked(false)
     }
+  }
+
+  /**
+   * 切换到指定项目（id = workspace id）。
+   * @returns true 表示切换成功
+   */
+  async function switchProject(targetProjectId: string): Promise<boolean> {
+    return performSwitch(targetProjectId)
+  }
+
+  /** 错误浮层重试：允许目标已是当前指针（失败可能发生在指针已切换之后） */
+  async function retrySwitch(): Promise<boolean> {
+    if (!switchTargetId.value) return false
+    return performSwitch(switchTargetId.value, true)
+  }
+
+  /** 关闭错误浮层：保留已完成步骤，提示可能处于部分状态 */
+  function dismissSwitchError(): void {
+    if (switchTask.status.value !== 'error') return
+    console.warn('[ProjectSwitcher] 用户关闭切换错误浮层，当前可能处于部分切换状态:', switchTask.error.value)
+    switchTask.reset()
+    switchTargetId.value = ''
+    switchTargetName.value = ''
   }
 
   /**
@@ -293,5 +344,14 @@ export function useProjectSwitcher() {
     switchProject,
     listProjects,
     refreshProjectList,
+    switchVisible: switchTask.visible,
+    switchStatus,
+    switchError: switchTask.error,
+    switchStage,
+    switchTargetId,
+    switchTargetName,
+    switchStages: PROJECT_SWITCH_STAGES,
+    retrySwitch,
+    dismissSwitchError,
   }
 }

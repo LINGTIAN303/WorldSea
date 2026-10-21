@@ -9,8 +9,9 @@
     <div class="titlebar-shell-left">
       <button
         class="titlebar-shell-toggle"
-        title="进入 Agent 空间"
-        aria-label="进入 Agent 空间"
+        :title="switching ? '正在切换项目' : '进入 Agent 空间'"
+        :aria-label="switching ? '正在切换项目' : '进入 Agent 空间'"
+        :disabled="switching"
         data-ws-tip-keys="Ctrl+Tab"
         @click="switchShell('space')"
       >
@@ -60,6 +61,7 @@ import { usePluginStore } from '@worldsea/entity-core'
 import { WsIcon } from '@worldsea/ui-kit'
 import ProjectSwitcher from '@/ui/project/ProjectSwitcher.vue'
 import { switchShell } from '@/composables/shellSwitch'
+import { useProjectSwitcher } from '@/composables/useProjectSwitcher'
 
 // 窗口控制仅在 Tauri 环境可用（浏览器预览 5175 时降级为 noop，避免顶层抛错）
 let appWindow: Window | null = null
@@ -70,6 +72,7 @@ try {
 }
 const uiStore = useUIStore()
 const pluginStore = usePluginStore()
+const { switching } = useProjectSwitcher()
 
 const currentViewLabel = computed(() => {
   const view = pluginStore.views.find((v) => v.id === uiStore.currentView)
@@ -247,6 +250,14 @@ function close() {
 }
 .titlebar-shell-toggle:hover {
   color: var(--switch-bg);
+}
+.titlebar-shell-toggle:disabled {
+  opacity: var(--disabled-opacity, 0.5);
+  cursor: not-allowed;
+}
+.titlebar-shell-toggle:disabled:hover::after {
+  transform: translate(-50%, -50%) scale(1);
+  opacity: 1;
 }
 .shell-toggle-label,
 .titlebar-shell-toggle :deep(.shell-toggle-icon) {

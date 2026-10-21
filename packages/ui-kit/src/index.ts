@@ -43,6 +43,14 @@ export { default as FloatingPanel } from './components/layout/FloatingPanel.vue'
 export { default as ColorPickerDialog } from './components/editor/ColorPickerDialog.vue'
 export { default as DialogContainer } from './components/layout/DialogContainer.vue'
 export { default as Toast } from './components/feedback/Toast.vue'
+// 加载反馈（R0–R4 产品域；不涉 dsh）
+export { default as WsInlineLoading } from './components/feedback/loading/WsInlineLoading.vue'
+export { default as WsSkeleton } from './components/feedback/loading/WsSkeleton.vue'
+export { default as WsStageRoute } from './components/feedback/loading/WsStageRoute.vue'
+export { default as WsLoadingOverlay } from './components/feedback/loading/WsLoadingOverlay.vue'
+export { default as WsScanRadar } from './components/feedback/loading/WsScanRadar.vue'
+export { default as WsAmbientLine } from './components/feedback/loading/WsAmbientLine.vue'
+export type { LoadingStage, LoadingStatus } from './components/feedback/loading/types'
 export { default as Sidebar } from './components/layout/Sidebar.vue'
 export { default as ViewContainer } from './components/layout/ViewContainer.vue'
 export { default as ViewToolbar } from './components/layout/ViewToolbar.vue'
@@ -129,6 +137,15 @@ export {
   toastWithUndo,
   type ToastType,
 } from './composables/useToast'
+export {
+  useAsyncTask,
+  type AsyncTaskStatus,
+  type UseAsyncTaskOptions,
+  type UseAsyncTaskReturn,
+  LOADING_DELAY_MS,
+  LOADING_MIN_VISIBLE_MS,
+  LOADING_SUCCESS_HOLD_MS,
+} from './composables/useAsyncTask'
 export {
   useFloatingPanel,
   Z_INDEX,

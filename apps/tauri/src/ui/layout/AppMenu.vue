@@ -35,7 +35,10 @@
           </button>
           <!-- 项目=目录（2026-09-03）：打开/切换项目走 ProjectSwitcher（TitleBar/空态/Ctrl+Shift+P）；导出到文件夹保留（L0：useFileSystemProject 逻辑项） -->
           <button class="menu-item" role="menuitem" @click="saveFolder" :disabled="saving">
-            <WsIcon name="save" size="sm" class="menu-item-icon" />
+            <span class="menu-item-icon">
+              <WsInlineLoading v-if="saving" size="sm" label="正在导出项目" />
+              <WsIcon v-else name="save" size="sm" />
+            </span>
             <span class="menu-item-label">{{ saving ? '导出中...' : '导出到文件夹' }}</span>
             <span class="menu-item-shortcut">{{ formatKeysForDisplay(keysOf('project.save', ['ctrl', 's'])) }}</span>
           </button>
@@ -80,7 +83,7 @@ import { computed, ref, watch, nextTick, onMounted } from 'vue'
 import { useShortcuts, formatKeysForDisplay } from '@worldsea/plugin-sdk'
 import { useFileSystemProject } from '@/composables/useFileSystemProject'
 import { useToast } from '@/composables/useToast'
-import { WsIcon } from '@worldsea/ui-kit'
+import { WsIcon, WsInlineLoading } from '@worldsea/ui-kit'
 
 const { register, getRegisteredKeys } = useShortcuts()
 /** 菜单标注读注册表当前键位（用户改键后同步显示），fallback 为默认值 */

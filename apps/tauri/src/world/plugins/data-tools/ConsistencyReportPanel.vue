@@ -5,7 +5,8 @@
         <div class="consistency-header">
           <h3>一致性检查</h3>
           <div class="consistency-hdr-actions">
-            <TuiButton variant="primary" :disabled="checking" @click="onRunCheck">
+            <TuiButton variant="primary" :disabled="checking || fixing" @click="onRunCheck">
+              <WsInlineLoading v-if="checking" size="sm" label="正在检查一致性" />
               {{ checking ? '检查中...' : '运行检查' }}
             </TuiButton>
             <button class="consistency-close" @click="close">✕</button>
@@ -22,7 +23,10 @@
 
         <!-- Toolbar -->
         <div class="consistency-toolbar" v-if="danglingRelations.length > 0">
-          <TuiButton variant="danger-ghost" @click="onFixDangling">一键修复悬空关系（{{ danglingRelations.length }} 项）</TuiButton>
+          <TuiButton variant="danger-ghost" :disabled="fixing || checking" @click="onFixDangling">
+            <WsInlineLoading v-if="fixing" size="sm" label="正在修复悬空关系" />
+            {{ fixing ? '修复中...' : `一键修复悬空关系（${danglingRelations.length} 项）` }}
+          </TuiButton>
         </div>
 
         <!-- Issue list grouped by category -->
@@ -51,10 +55,14 @@
             </div>
           </template>
 
-          <div v-if="hasRun && issues.length === 0" class="consistency-empty">
+          <div v-if="checking" class="consistency-empty">
+            <WsInlineLoading size="lg" label="正在检查一致性" />
+            <p>正在检查实体与关系…</p>
+          </div>
+          <div v-else-if="hasRun && issues.length === 0" class="consistency-empty">
             未发现一致性问题，数据状态良好
           </div>
-          <div v-if="!hasRun" class="consistency-empty">
+          <div v-else-if="!hasRun" class="consistency-empty">
             点击"运行检查"开始检测数据一致性问题
           </div>
         </div>
@@ -65,7 +73,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue'
-import { TuiButton, WsIcon, useModalShortcuts, useConfirm } from '@worldsea/ui-kit'
+import { TuiButton, WsIcon, WsInlineLoading, useModalShortcuts, useConfirm } from '@worldsea/ui-kit'
 import { useConsistencyChecker, type ConsistencyIssue } from '@worldsea/plugin-sdk'
 import { useRelationStore } from '@worldsea/entity-core'
 
@@ -80,6 +88,7 @@ const relationStore = useRelationStore()
 const { confirm } = useConfirm()
 
 const hasRun = ref(false)
+const fixing = ref(false)
 const expandedCategories = reactive<Record<string, boolean>>({
   dangling_relation: true,
   missing_required: true,
@@ -147,12 +156,17 @@ async function onFixDangling() {
   if (!ok) return
 
   const relationIds = new Set(dangling.map(i => i.relationId!))
-  for (const relId of relationIds) {
-    await relationStore.remove(relId)
+  fixing.value = true
+  try {
+    for (const relId of relationIds) {
+      await relationStore.remove(relId)
+    }
+    // Re-run check after fix
+    await runFullCheck()
+    hasRun.value = true
+  } finally {
+    fixing.value = false
   }
-
-  // Re-run check after fix
-  await runFullCheck()
 }
 
 function navigateToEntity(entityId: string) {
