@@ -8,7 +8,9 @@
     <div v-if="editor" class="editor-wrap">
       <EditorContent :editor="editor" />
     </div>
-    <div v-else class="editor-loading">编辑器加载中...</div>
+    <div v-else class="editor-loading">
+      <WsSkeleton variant="text" :lines="8" label="正在初始化编辑器" />
+    </div>
     <MentionPopover ref="mentionPopoverRef" @select="onMentionSelect" @close="() => {}" />
     <SlashCommandMenu ref="slashCommandMenuRef" @select="onSlashCommandSelect" @close="() => {}" />
   </div>
@@ -18,6 +20,7 @@
 import { onMounted, ref } from 'vue'
 import type { Editor } from '@tiptap/vue-3'
 import { EditorContent } from '@tiptap/vue-3'
+import { WsSkeleton } from '@worldsea/ui-kit'
 import EditorToolbar from './EditorToolbar.vue'
 import MentionPopover from './MentionPopover.vue'
 import SlashCommandMenu from './SlashCommandMenu.vue'
@@ -69,10 +72,10 @@ onMounted(() => {
 .editor-loading {
   flex: 1;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-tertiary);
+  flex-direction: column;
+  padding: 16px 20px;
 }
+.editor-loading .ws-skeleton { width: 100%; }
 .editor-wrap :deep(.tiptap) {
   outline: none;
   min-height: 300px;

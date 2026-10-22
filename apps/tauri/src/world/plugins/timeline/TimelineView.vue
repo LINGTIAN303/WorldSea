@@ -26,7 +26,14 @@
       <CreateButton label="新建事件" @click="openNewForm" />
     </Teleport>
 
+    <div v-if="timelineError" class="timeline-error" role="alert">
+      <WsEmpty title="时间线载入失败" :description="timelineError">
+        <template #action><TuiButton variant="primary" size="sm" @click="retryTimeline">重试</TuiButton></template>
+      </WsEmpty>
+    </div>
+
     <TimelineChart
+      v-else
       :events="filteredEvents"
       :paged-events="pagedEvents"
       :parsed-dates="parsedDates"
@@ -34,7 +41,8 @@
       :selected-event-id="selectedEvent?.id ?? null"
       :selected-ids="selectedIds"
       :batch-mode="selecting"
-      :loading="loading"
+      :loading="chartLoading"
+      :loaded="eventsLoaded"
       :eras="detectedEras"
       :layout-mode="layoutMode"
       :compact-mode="compactMode"
@@ -132,9 +140,9 @@ import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useEntityStore, useRelationStore, useUIStore, useDetailLayoutStore } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
 import { AutoLinkSuggestions, CustomDropdown, EntityCoverPanel, EntityFormModal, CreateButton, DynamicFieldsAdder, UniversalRelationPanel, EntityRelationSelector, EntityPager, useDuplicateNameCheck, useSelectedFollow, useShortcuts, useBatchDelete, useConfirm, useEntityEdit, useEntityPaging, useDetailCarrier, resolveDetailTabs, adjacentTabId, type FormFieldDef } from '@worldsea/plugin-sdk'
-import { toastSuccess, toastWithUndo, useUndoRedo } from '@worldsea/ui-kit'
+import { toastSuccess, toastWithUndo, useUndoRedo, useAsyncTask } from '@worldsea/ui-kit'
 import { useSettingsStore } from '@/stores/settingsStore'
-import { TuiButton } from '@worldsea/ui-kit'
+import { TuiButton, WsEmpty } from '@worldsea/ui-kit'
 
 import TimelineChart from './components/TimelineChart.vue'
 import ConflictDetector from './components/ConflictDetector.vue'
@@ -158,7 +166,8 @@ const { undo, redo } = useUndoRedo()
 const settingsStore = useSettingsStore()
 const { selectedIds, selecting, toggleSelect, clearSelection, toggleSelectMode, batchDelete } = useBatchDelete()
 
-const loading = ref(false)
+const { visible: chartLoading, error: timelineError, run: runTimelineLoad } = useAsyncTask({ successHold: 0 })
+const eventsLoaded = ref(false)
 const showForm = ref(false)
 const showConflicts = ref(false)
 const selectedEvent = ref<Entity | null>(null)
@@ -371,17 +380,26 @@ async function deleteEvent(id: string) {
   })
 }
 
-onMounted(async () => {
-  // ws-navigate 跨视图跳转：监听先于数据加载**同步注册**（loadAll 期间到达的事件不能丢）
-  window.addEventListener('ws-select-entity', onWsSelectEntity)
+async function loadTimeline(): Promise<void> {
   try {
-    loading.value = true
-    await entityStore.loadAll()
-    await relationStore.loadAll()
-    loading.value = false
+    await runTimelineLoad(async () => {
+      await entityStore.loadAll()
+      await relationStore.loadAll()
+      eventsLoaded.value = true
+    })
   } catch (err) {
     console.warn('[TimelineView]', err)
   }
+}
+
+function retryTimeline(): void {
+  void loadTimeline()
+}
+
+onMounted(async () => {
+  // ws-navigate 跨视图跳转：监听先于数据加载**同步注册**（loadAll 期间到达的事件不能丢）
+  window.addEventListener('ws-select-entity', onWsSelectEntity)
+  await loadTimeline()
 
   // 原 id=global.undo/redo 会按 id 覆盖 Shell 的同名全局注册（registry 按 id 去重），
   // 导致 Agent 空间下全局撤销失效；改用视图自有 id，与全局键在 scope 优先级下自然共存
@@ -419,6 +437,8 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.timeline-error { flex: 1; display: flex; align-items: center; justify-content: center; }
+
 .timeline-view { position: relative; padding: 20px; height: 100%; display: flex; flex-direction: column; }
 /* 沉浸页：详情盖住整块时间线区域（定位父级就是本件根容器） */
 .timeline-view--immersive { padding: 0; }

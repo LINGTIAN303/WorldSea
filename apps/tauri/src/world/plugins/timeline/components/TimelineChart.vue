@@ -1,6 +1,17 @@
 <template>
   <div class="timeline-chart" ref="chartContainer">
-    <template v-if="layoutMode === 'horizontal'">
+    <div v-if="loading" class="timeline-skeleton" role="status" aria-label="正在载入时间线">
+      <WsSkeleton
+        v-for="n in 8"
+        :key="n"
+        variant="text"
+        :lines="1"
+        :style="{ width: `${70 + (n % 3) * 10}%` }"
+        :aria-hidden="n > 1 || undefined"
+      />
+    </div>
+
+    <template v-else-if="layoutMode === 'horizontal'">
       <TimelineAxis
         :width="containerWidth"
         :major-ticks="scaleMajorTicks"
@@ -63,7 +74,7 @@
     </template>
 
     <template v-else>
-      <div class="vertical-body" :class="{ 'is-empty': events.length === 0 && !loading }">
+      <div class="vertical-body" :class="{ 'is-empty': events.length === 0 && loaded }">
         <div class="timeline-line"></div>
 
         <template v-for="group in eraGroups" :key="group.era">
@@ -107,7 +118,7 @@
           </template>
         </template>
 
-        <WsEmpty v-if="events.length === 0 && !loading" title="暂无事件" description="点击上方按钮创建第一个事件">
+        <WsEmpty v-if="events.length === 0 && loaded" title="暂无事件" description="点击上方按钮创建第一个事件">
           <template #icon><WsIcon name="timeline" size="xl" /></template>
         </WsEmpty>
       </div>
@@ -117,7 +128,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
-import { WsEmpty, WsIcon } from '@worldsea/ui-kit'
+import { WsEmpty, WsIcon, WsSkeleton } from '@worldsea/ui-kit'
 import type { Entity } from '@worldsea/entity-core'
 import type { ParsedDate, EraInfo } from '../composables/useDateParser'
 import type { TreeNode as TreeNodeType } from '../composables/useEventTree'
@@ -145,6 +156,8 @@ const props = defineProps<{
   /** 批量态：点击事件卡路由到选中切换而非打开详情 */
   batchMode?: boolean
   loading: boolean
+  /** 数据已就绪（空态只在就绪后显示，避免首载闪现「暂无事件」） */
+  loaded: boolean
   eras: EraInfo[]
   layoutMode: 'horizontal' | 'vertical'
   compactMode: boolean
@@ -321,6 +334,16 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
   display: flex;
   flex-direction: column;
 }
+
+.timeline-skeleton {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px 20px;
+  overflow: hidden;
+}
+.timeline-skeleton .ws-skeleton { width: 100%; }
 
 .horizontal-body {
   flex: 1;

@@ -3,8 +3,8 @@
     <TitleBar />
     <WelcomeOverlay />
     <div class="shell-content">
-      <!-- 导出到文件夹由菜单触发，菜单会立即收起；用顶部测线保证反馈可见（R4） -->
-      <WsAmbientLine class="shell-ambient" :active="projectSaving" label="正在导出项目到文件夹" />
+      <!-- R4：后台任务（导出到文件夹 / 外部变更同步）统一由注册表驱动，>1s 才出现 -->
+      <WsAmbientLine class="shell-ambient" :active="backgroundActive" :label="backgroundLabel" />
       <div
         id="main-content"
         tabindex="-1"
@@ -51,7 +51,7 @@ import { ref, computed, defineAsyncComponent, onMounted, onUnmounted } from 'vue
 import TitleBar from './TitleBar.vue'
 import Sidebar from './sidebar/SidebarHost.vue'
 import { visibleViewsInSidebarOrder } from './sidebar/viewOrder'
-import { Toast, DialogContainer, ViewContainer, WsLoadingOverlay, WsAmbientLine } from '@worldsea/ui-kit'
+import { Toast, DialogContainer, ViewContainer, WsLoadingOverlay, WsAmbientLine, useBackgroundTask, toastWarn } from '@worldsea/ui-kit'
 import WsConfirmDialog from '../WsConfirmDialog.vue'
 import WsAskDialog from '../WsAskDialog.vue'
 
@@ -82,7 +82,13 @@ const OverlayHost = defineAsyncComponent(() => import('@/shell/OverlayHost.vue')
 const pluginStore = usePluginStore()
 const uiStore = useUIStore()
 const settingsStore = useSettingsStore()
-const { saving: projectSaving } = useFileSystemProject()
+const { active: backgroundActive, label: backgroundLabel } = useBackgroundTask()
+
+/** 后台任务失败：非阻断 toast，不弹模态 */
+function onBackgroundFailed(e: Event) {
+  const detail = (e as CustomEvent).detail ?? {}
+  toastWarn(`${detail.label ?? '后台任务'}失败${detail.message ? `：${detail.message}` : ''}`)
+}
 
 const {
   switchVisible,
@@ -104,6 +110,8 @@ onMounted(() => {
   onUnmounted(() => cleanupBeforeUnload())
   // 加载持久化的自定义关系类型
   relationshipRegistry.loadCustomTypes()
+  window.addEventListener('ws-background-failed', onBackgroundFailed)
+  onUnmounted(() => window.removeEventListener('ws-background-failed', onBackgroundFailed))
 })
 
 function onWsNavigate(e: Event) {

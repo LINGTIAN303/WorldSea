@@ -1,13 +1,34 @@
 ﻿<template>
   <div class="relation-graph">
-    <WsEmpty v-if="noRelations" preset="no-data" title="暂无社交关系数据" />
-    <div v-else ref="containerRef" class="rg-canvas"></div>
+    <div
+      ref="containerRef"
+      class="rg-canvas"
+      :class="{ 'is-hidden': graphLoaded && noRelations }"
+      :inert="relLoading || undefined"
+    ></div>
+    <WsLoadingOverlay
+      :show="relLoading"
+      scope="panel"
+      title="正在载入关系图"
+      success-title="关系图已就绪"
+      error-title="关系图载入失败"
+      :stages="REL_LOAD_STAGES"
+      :current="relStage"
+      :status="relStatus"
+      :error="relError ?? ''"
+      error-text="无法绘制社交关系"
+      :closable="false"
+      @retry="initializeRelationGraph"
+    />
+    <div v-if="graphLoaded && noRelations" class="rg-empty">
+      <WsEmpty preset="no-data" title="暂无社交关系数据" />
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, nextTick, computed, watch } from 'vue'
-import { WsEmpty } from '@worldsea/ui-kit'
+import { WsEmpty, WsLoadingOverlay, useAsyncTask, type LoadingStage, type LoadingStatus } from '@worldsea/ui-kit'
 import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
 import { deduplicateEdges, useSmallCanvasGraph, type SGNode, type SGEdge } from '@worldsea/ui-kit'
 
@@ -17,6 +38,20 @@ const emit = defineEmits<{ navigate: [id: string] }>()
 const entityStore = useEntityStore()
 const relationStore = useRelationStore()
 const containerRef = ref<HTMLDivElement | null>(null)
+
+const REL_LOAD_STAGES: LoadingStage[] = [
+  { short: '关系', full: '读取社交关系' },
+  { short: '关系网', full: '绘制关系网络' },
+]
+const { visible: relLoading, status: relLoadStatus, error: relError, run: runRelLoad } = useAsyncTask({ successHold: 0 })
+const relStage = ref(0)
+const graphLoaded = ref(false)
+const relStatus = computed<LoadingStatus>(() => {
+  if (relLoadStatus.value === 'error') return 'error'
+  if (relLoadStatus.value === 'success' || relLoadStatus.value === 'empty') return 'success'
+  return 'loading'
+})
+let graphInited = false
 
 const CHARACTER_REL_TYPES = ['parent_of', 'knows', 'ally_of', 'rival_of']
 
@@ -50,12 +85,29 @@ const noRelations = computed(() => {
   return rels.length === 0
 })
 
-onMounted(() => {
-  nextTick(() => { graph.init(); buildGraph() })
-})
+async function initializeRelationGraph(): Promise<void> {
+  try {
+    await runRelLoad(async () => {
+      relStage.value = 0
+      await nextTick()
+      relStage.value = 1
+      if (!graphInited) {
+        graph.init()
+        graphInited = true
+      }
+      buildGraph()
+      graphLoaded.value = true
+      await nextTick()
+    })
+  } catch (err) {
+    console.warn('[RelationGraph]', err)
+  }
+}
+
+onMounted(() => { void initializeRelationGraph() })
 
 watch(() => props.characterId, () => {
-  nextTick(() => buildGraph())
+  nextTick(() => { if (graphLoaded.value) buildGraph() })
 })
 
 function buildGraph(): void {
@@ -114,8 +166,9 @@ function buildGraph(): void {
 </script>
 
 <style scoped>
-.relation-graph { height: 320px; }
-.rg-loading { display: flex; align-items: center; justify-content: center; height: 200px; color: var(--text-tertiary); font-size: var(--font-size-sm); }
+.relation-graph { position: relative; height: 320px; }
 .rg-canvas { width: 100%; height: 320px; background: var(--card-bg); border-radius: var(--radius-md); }
+.rg-canvas.is-hidden { visibility: hidden; }
+.rg-empty { position: absolute; inset: 0; display: grid; place-items: center; }
 </style>
 

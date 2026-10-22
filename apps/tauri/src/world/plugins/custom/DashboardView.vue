@@ -55,7 +55,9 @@
               <component :is="getViewComp(panel.viewId)" />
             </PanelWrapper>
           </template>
-          <div v-else class="panel-placeholder">加载中...</div>
+          <div v-else class="panel-placeholder">
+            <WsSkeleton variant="text" :lines="4" label="正在载入面板" />
+          </div>
         </div>
         <div
           v-if="direction !== 'grid' && idx < panels.length - 1"
@@ -102,8 +104,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, shallowRef, watch } from 'vue'
-import { WsIcon } from '@worldsea/ui-kit'
-import { WsEmpty } from '@worldsea/ui-kit'
+import { WsIcon, WsSkeleton, WsEmpty } from '@worldsea/ui-kit'
 import { usePluginStore } from '@worldsea/entity-core'
 import { useUIStore } from '@/stores/uiStore'
 import { toastWarn } from '@worldsea/ui-kit'
@@ -376,7 +377,8 @@ function movePanel(idx: number, dir: number) {
   flex-direction: column;
   height: 100%;
 }
-
+
+
 
 .cv-layout {
   display: flex;
@@ -495,12 +497,11 @@ function movePanel(idx: number, dir: number) {
 
 .panel-placeholder {
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
   height: 100%;
-  color: var(--text-tertiary);
-  font-size: var(--font-size-sm);
+  padding: 12px;
 }
+.panel-placeholder .ws-skeleton { width: 100%; }
 
 /* 面板内嵌套的各类视图统一样式覆盖 */
 .cv-panel-content :deep(.character-view),

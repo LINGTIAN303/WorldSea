@@ -351,7 +351,6 @@ onBeforeUnmount(() => {
 
 .editor-fallback { width: 100%; height: 100%; min-height: 200px; border: 1px solid var(--color-border-subtle); border-radius: var(--radius-sm); padding: 12px; font-family: var(--font-family-content); font-size: var(--font-size-base); line-height: 1.7; color: var(--color-text-primary); background: var(--color-bg-base); resize: vertical; outline: none; }
 .editor-fallback:focus { border-color: var(--color-primary); }
-.editor-loading { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--color-text-tertiary); }
 
 /* 源码视图（块 3）：CM6 撑满 pane（CodeEditor 自带 flex 布局与令牌主题；单 pane 全宽） */
 .nb-split-pane--source { display: flex; flex-direction: column; padding: 8px; }

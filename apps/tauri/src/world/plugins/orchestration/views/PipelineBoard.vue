@@ -7,11 +7,19 @@
     </Teleport>
 
     <!-- Pipeline 列表 -->
-    <div v-if="loading" class="pb-loading">
-      <TuiSpinner />
+    <div v-if="boardError" class="pb-error" role="alert">
+      <WsEmpty title="创作计划载入失败" :description="boardError">
+        <template #action><button class="pb-btn pb-btn--primary" @click="retryBoard">重试</button></template>
+      </WsEmpty>
     </div>
 
-    <div v-else-if="pipelineList.length === 0" class="pb-empty">
+    <div v-else-if="boardLoading" class="pb-skeleton">
+      <div v-for="n in 3" :key="n" class="pb-skeleton-card">
+        <WsSkeleton variant="text" :lines="3" label="正在载入创作计划" :aria-hidden="n > 1 || undefined" />
+      </div>
+    </div>
+
+    <div v-else-if="boardLoaded && pipelineList.length === 0" class="pb-empty">
       <div class="pb-empty__icon"><WsIcon name="lightning" :size="28" /></div>
       <h3>还没有创作计划</h3>
       <p>创建一个创作计划，将复杂的创作目标拆解为有序步骤</p>
@@ -100,8 +108,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { CreateButton } from '@worldsea/plugin-sdk'
-import { WsIcon } from '@worldsea/ui-kit'
-import TuiSpinner from '@/components/ui/TuiSpinner.vue'
+import { WsIcon, WsEmpty, WsSkeleton, useAsyncTask } from '@worldsea/ui-kit'
 import TemplateIcon from '../components/TemplateIcon.vue'
 import { usePipeline } from '../composables/usePipeline'
 import { usePipelineTemplates } from '../composables/usePipelineTemplates'
@@ -121,16 +128,29 @@ const {
 
 const { allTemplates, applyTemplate } = usePipelineTemplates()
 
-const loading = ref(true)
+const { visible: boardLoading, error: boardError, run: runBoardLoad } = useAsyncTask({ successHold: 0 })
+const boardLoaded = ref(false)
 const showCreateDialog = ref(false)
 const showTemplateDialog = ref(false)
 const newName = ref('')
 const newDesc = ref('')
 
-onMounted(async () => {
-  await loadPipelines()
-  loading.value = false
-})
+async function loadBoard(): Promise<void> {
+  try {
+    await runBoardLoad(async () => {
+      await loadPipelines()
+      boardLoaded.value = true
+    })
+  } catch (err) {
+    console.warn('[PipelineBoard] 载入创作计划失败', err)
+  }
+}
+
+function retryBoard(): void {
+  void loadBoard()
+}
+
+onMounted(() => { void loadBoard() })
 
 function statusLabel(s: PipelineStatus): string {
   const map: Record<PipelineStatus, string> = {
@@ -199,7 +219,13 @@ function onSelect(id: string) {
 .pb-btn--primary:hover { opacity: 0.9; }
 .pb-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-.pb-loading { display: flex; justify-content: center; padding: 48px; }
+.pb-skeleton { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.pb-error { flex: 1; display: flex; align-items: center; justify-content: center; }
+.pb-skeleton-card {
+  min-height: 118px; padding: 14px;
+  border: 1px solid var(--border, #e4e4e7); border-radius: var(--radius-mid);
+  background: var(--bg-secondary, #f4f4f5);
+}
 
 .pb-empty {
   display: flex; flex-direction: column; align-items: center;

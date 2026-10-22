@@ -19,7 +19,7 @@
 ## 设计决策
 - **变体体系**：primary（主操作）/ secondary（次操作描边）/ ghost（弱操作）/ danger（危险实心）/ danger-ghost（危险描边）。危险操作默认用描边（弱化强提示），hover 才转实心。
 - **按压回弹**：`:active` 用 `--ease-spring` 缩放到 0.97，给点击一个克制的"手感"，非生硬变色。
-- **尺寸档位** sm（28px，工具栏）/ md（34px，表单）；`loading` 态显示旋转 dots 并禁用。
+- **尺寸档位** sm（28px，工具栏）/ md（34px，表单）；`loading` 态显示 14px `WsInlineLoading` 星轨并禁用（2026-10-22 批 5 统一，替代旋转 dots）。
 - 图标经 `icon` prop 前置（内部用 WsIcon），文字用默认插槽。
 
 ## 约束

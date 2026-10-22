@@ -15,7 +15,8 @@
         <p>选择一个视图开始管理你的世界观</p>
       </div>
       <div v-else-if="!viewComp" class="view-empty">
-        <p>视图加载中...</p>
+        <WsInlineLoading size="lg" label="正在装配视图" />
+        <p>正在装配视图</p>
       </div>
       <component v-else :is="viewComp" :key="uiStore.currentView + ':' + uiStore.viewRefreshKey" />
 
@@ -34,6 +35,7 @@
 import { computed, provide, toRef, reactive, onBeforeUnmount, watch } from 'vue'
 import { useUIStore, useSettingsStore, usePluginStore } from '@worldsea/entity-core'
 import WsIcon from '../WsIcon.vue'
+import WsInlineLoading from '../feedback/loading/WsInlineLoading.vue'
 import ViewToolbar from './ViewToolbar.vue'
 
 const uiStore = useUIStore()
@@ -163,6 +165,7 @@ onBeforeUnmount(() => {
   justify-content: center;
   height: 100%;
   color: var(--text-secondary);
+  gap: 10px;
   /* 防止空状态→视图切换时的布局偏移 */
   min-height: 300px;
 }

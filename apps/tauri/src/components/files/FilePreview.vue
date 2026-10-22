@@ -22,6 +22,7 @@
         :aria-pressed="htmlCentered"
         @click="htmlCentered = !htmlCentered"
       ><WsIcon name="grid" size="xs" /></button>
+      <WsInlineLoading v-if="saving" size="sm" label="正在保存" />
       <span class="fpv-size">{{ formatSize(size) }}</span>
     </div>
 
@@ -39,10 +40,19 @@
       <p class="fpv-binary-text">非文本二进制文件，暂不支持预览。</p>
     </div>
 
+    <!-- 预览首载骨架（图片/文档/文本共用；<200ms 不出现） -->
+    <div v-else-if="previewLoading" class="fpv-preview-skeleton">
+      <WsSkeleton
+        :variant="isImage() ? 'image' : 'text'"
+        :lines="isImage() ? 1 : 10"
+        aspect="16 / 9"
+        label="正在载入预览"
+      />
+    </div>
+
     <!-- 图片预览 -->
     <div v-else-if="kind === 'image'" class="fpv-image-wrap">
       <img v-if="imgSrc" :src="imgSrc" class="fpv-image" alt="预览" @error="binary = true; imgSrc = null" />
-      <div v-else class="fpv-loading">加载中…</div>
     </div>
 
     <!-- Word 预览（2026-09-14 文档格式一期）：docx-preview 保真渲染，只读 -->
@@ -135,13 +145,13 @@
     <CodeEditor v-else-if="kind === 'code'" minimal :model-value="previewCode" :lang="ext()" class="fpv-code-cm" />
 
     <!-- 纯文本预览（txt/log/yaml 等兜底） -->
-    <pre v-else class="fpv-text">{{ text ?? '加载中…' }}</pre>
+    <pre v-else class="fpv-text">{{ text ?? '' }}</pre>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import { FileIcon, WsIcon, toastInfo, toastWarn } from '@worldsea/ui-kit'
+import { FileIcon, WsIcon, WsSkeleton, WsInlineLoading, useAsyncTask, toastInfo, toastWarn } from '@worldsea/ui-kit'
 import { useConfirm } from '@worldsea/plugin-sdk'
 import { invoke } from '@/composables/transport'
 import { renderMarkdownHtml, handleCodeCopyClick } from '@worldsea/shared-ui/markdown'
@@ -224,6 +234,7 @@ const text = ref<string | null>(null)
 /** 二进制文档（docx/xlsx/pdf）原始字节：本组件读取后交给子渲染器（子组件保持纯渲染、无 IO） */
 const fileBytes = ref<ArrayBuffer | null>(null)
 const imgSrc = ref<string | null>(null)
+const { visible: previewLoading, run: runPreviewLoad, reset: resetPreviewLoad } = useAsyncTask({ successHold: 0 })
 /** Markdown 渲染产物（v-html） */
 const mdHtml = ref('')
 /** HTML 预览视图：渲染（iframe）/ 源码 */
@@ -514,9 +525,13 @@ function onMdClick(e: MouseEvent): void {
 /** 当前读取任务（enterEdit 秒点竞态等待用） */
 let loadingPromise: Promise<void> | null = null
 
-/** 读取并按类别渲染（包装 doLoad 以留存进行中任务，供 enterEdit 等待） */
+/** 读取并按类别渲染（包装 doLoad 以留存进行中任务，供 enterEdit 等待）；R2 骨架走统一延迟/最短可见 */
 function load(): Promise<void> {
-  loadingPromise = doLoad()
+  loadingPromise = runPreviewLoad(doLoad).catch((err) => {
+    console.warn('[FilePreview] 预览载入失败:', err)
+    binary.value = true
+    resetPreviewLoad()
+  })
   return loadingPromise
 }
 
@@ -761,10 +776,8 @@ watch(
   object-fit: contain;
   border-radius: var(--radius-sm);
 }
-.fpv-loading {
-  font-size: var(--font-size-xs);
-  color: var(--color-text-tertiary);
-}
+.fpv-preview-skeleton { flex: 1; min-height: 0; overflow: auto; padding: 12px; }
+.fpv-preview-skeleton .ws-skeleton { width: 100%; }
 
 /* Markdown 渲染：stage 左右各留 10% 边距（右 10% 由 ::after 占位），左空白放标题目录树 */
 .fpv-md-stage {

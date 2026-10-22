@@ -14,7 +14,8 @@
             <span class="exp-sub">worlddata/.worldsea/plugins/</span>
           </div>
           <button type="button" class="set-btn" :disabled="busy" title="重新扫描插件目录并对比重装" @click="onReload">
-            <WsIcon name="refresh" size="xs" /><span>{{ busy ? '重载中…' : '重载' }}</span>
+            <WsInlineLoading v-if="busy" size="sm" label="正在重载插件" />
+            <WsIcon v-else name="refresh" size="xs" /><span>{{ busy ? '重载中' : '重载' }}</span>
           </button>
         </div>
 
@@ -113,7 +114,7 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { getFileStorageBackend, pluginAPI, useSettingsStore } from '@worldsea/entity-core'
-import { toastSuccess, toastWarn, WsIcon, CardDeck, matchKeywords } from '@worldsea/ui-kit'
+import { toastSuccess, toastWarn, WsIcon, WsInlineLoading, CardDeck, matchKeywords } from '@worldsea/ui-kit'
 import SproutsCardContent from '@worldsea/ui-kit/components/settings/panels/SproutsCardContent.vue'
 import SproutGroupsCardContent from '@worldsea/ui-kit/components/settings/panels/SproutGroupsCardContent.vue'
 import TuiModal from '@/components/ui/TuiModal.vue'

@@ -18,7 +18,10 @@
         <WsIcon name="arrow-left" size="xs" />
       </button>
       <span class="bv-tb-title">{{ currentBoard?.name || '白板' }}</span>
-      <span class="bv-save" :class="saveClass">{{ saveText }}</span>
+      <span class="bv-save" :class="saveClass">
+        <WsInlineLoading v-if="saveState === 'saving'" size="sm" label="正在保存大纲" />
+        {{ saveText }}
+      </span>
       <span class="bv-sep" />
       <button class="bv-tb" type="button" :disabled="!canUndo" title="撤销 (Ctrl+Z)" @click="onUndo">撤销</button>
       <button class="bv-tb" type="button" :disabled="!canRedo" title="重做 (Ctrl+Shift+Z)" @click="onRedo">重做</button>
@@ -174,7 +177,7 @@ import { useEntityStore, useRelationStore, type Entity } from '@worldsea/entity-
 // 芽视图里的 UI 组件必须显式导入：它们**不是全局组件**，未导入时 vue-tsc 不报错、
 // 只在渲染时静默变成空节点（2026-09-16 真机走查踩坑）
 import { CreateButton } from '@worldsea/plugin-sdk'
-import { WsIcon, useShortcuts, toastWarn, toastInfo } from '@worldsea/ui-kit'
+import { WsIcon, WsInlineLoading, useShortcuts, toastWarn, toastInfo } from '@worldsea/ui-kit'
 import BoardCanvas from './components/BoardCanvas.vue'
 import BoardCanvasToolbar from './components/BoardCanvasToolbar.vue'
 import BoardInspector from './components/BoardInspector.vue'
@@ -1153,7 +1156,7 @@ watch(() => selection.selectedId.value, () => {
   font-weight: var(--font-weight-medium);
   color: var(--text-color);
 }
-.bv-save { font-size: var(--font-size-2xs); color: var(--text-tertiary); }
+.bv-save { display: inline-flex; align-items: center; gap: 4px; font-size: var(--font-size-2xs); color: var(--text-tertiary); }
 .bv-save--saved { color: var(--success, #059669); }
 .bv-save--error { color: var(--error, #dc2626); }
 .bv-sep { width: 1px; height: 14px; background: var(--border-light); }

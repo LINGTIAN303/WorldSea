@@ -38,9 +38,10 @@
         <template v-else-if="idx === 2">
           <div class="sc-head">字体库</div>
           <div class="sf-library-header">
-            <label class="sf-import-btn">
-              导入字体
-              <input type="file" accept=".wsfont,.ttf,.otf,.woff,.woff2,.zip" @change="onFontImport" style="display:none" />
+            <label class="sf-import-btn" :class="{ 'is-busy': importingFont }">
+              <WsInlineLoading v-if="importingFont" size="sm" label="正在安装字体" />
+              <span>{{ importingFont ? '安装中' : '导入字体' }}</span>
+              <input type="file" accept=".wsfont,.ttf,.otf,.woff,.woff2,.zip" :disabled="importingFont" @change="onFontImport" style="display:none" />
             </label>
             <span class="sf-storage-hint">{{ fontStorageHint }}</span>
           </div>
@@ -108,11 +109,14 @@ import { useSettingsStore, useTheme, useFontStore, ACCENT_PRESETS, type FontLaye
 import { useFontPresets, useFontLibraryStore, type FontLibraryEntry, type FontVariantEntry } from '@worldsea/font-kit'
 import { installFromWsfont, installFromRawFont, installFromZip } from '@worldsea/font-kit'
 import WsIcon from '../../WsIcon.vue'
-import { toastSuccess, CardDeck } from '@worldsea/ui-kit'
+import WsInlineLoading from '../../feedback/loading/WsInlineLoading.vue'
+import { toastSuccess, toastWarn, CardDeck } from '@worldsea/ui-kit'
 import { matchKeywords, FONT_LAYERS, weightLabel, sourceLabel, formatSize } from '../utils'
 
 const props = defineProps<{ searchQuery?: string }>()
 const emit = defineEmits<{ dirty: []; 'card-change': [index: number] }>()
+
+const importingFont = ref(false)
 
 // ── 叠放翻卡：复用通用 CardDeck（翻卡逻辑/样式已下沉 ui-kit useCardDeck + CardDeck.vue） ──
 const deckRef = ref<InstanceType<typeof CardDeck> | null>(null)
@@ -252,12 +256,17 @@ function onFontImport(e: Event) {
   const input = e.target as HTMLInputElement
   const file = input.files?.[0]
   if (!file) return
+  if (importingFont.value) {
+    input.value = ''
+    return
+  }
   if (file.size > 200 * 1024 * 1024) {
-    toastSuccess(`文件过大 (${(file.size / 1024 / 1024).toFixed(1)} MB)，上限 200 MB`)
+    toastWarn(`文件过大 (${(file.size / 1024 / 1024).toFixed(1)} MB)，上限 200 MB`)
     input.value = ''
     return
   }
   const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
+  importingFont.value = true
 
   ;(async () => {
     try {
@@ -287,15 +296,17 @@ function onFontImport(e: Event) {
           if (result.ok) {
             toastSuccess(`已安装字体: ${entry.displayName}`)
           } else {
-            toastSuccess(result.reason || '安装失败')
+            toastWarn(result.reason || '安装失败')
           }
         } else {
-          toastSuccess('不支持的字体格式')
+          toastWarn('不支持的字体格式')
         }
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : '字体安装失败，请确认文件格式正确'
-      toastSuccess(msg)
+      toastWarn(msg)
+    } finally {
+      importingFont.value = false
     }
   })()
   input.value = ''
@@ -357,11 +368,12 @@ function onFontImport(e: Event) {
 .sf-layer-variants { padding-left: 120px; }
 
 .sf-import-btn {
-  display: inline-block; padding: 6px 14px; border: 1px dashed var(--border-color);
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border: 1px dashed var(--border-color);
   border-radius: var(--radius-sm); cursor: pointer; font-size: var(--font-size-sm); color: var(--text-secondary);
   transition: border-color 0.15s, color 0.15s;
 }
 .sf-import-btn:hover { border-color: var(--primary); color: var(--primary); }
+.sf-import-btn.is-busy { cursor: progress; color: var(--text-tertiary); }
 
 .sf-library-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .sf-storage-hint { font-size: var(--fs-sm); color: var(--color-text-muted); }

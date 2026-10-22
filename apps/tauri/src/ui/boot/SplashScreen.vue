@@ -8,7 +8,7 @@
   生命周期：
     1. mount 时移除 index.html 里的 #ws-splash-static 静态占位
     2. 启动 Canvas 引擎
-    3. watch uiStore.bootState === 'ready' 后淡出 600ms 再卸载
+    3. watch uiStore.bootState === 'ready' 后淡出 600ms；App.vue 的 splashVisible 保留 750ms 再卸载
 -->
 <template>
   <div class="ws-splash" :class="{ 'ws-splash--leaving': leaving }">
@@ -44,8 +44,27 @@
       </div>
       <p class="ws-splash__tagline">Build Worlds. Shape Realities.</p>
       <div class="ws-splash__loader">
-        <p class="ws-splash__status">{{ statusText }}<span class="ws-splash__dots">{{ dots }}</span></p>
-        <div class="ws-splash__bar-track"><div class="ws-splash__bar-fill" :style="{ width: progress + '%' }"></div></div>
+        <p class="ws-splash__status" aria-live="polite">{{ statusText }}</p>
+        <div class="ws-splash__route" aria-hidden="true">
+          <div class="ws-splash__route-track">
+            <div class="ws-splash__route-fill" :style="{ width: progressPct + '%' }"></div>
+            <span
+              v-for="(s, i) in BOOT_STAGES"
+              :key="s.key"
+              class="ws-splash__route-node"
+              :class="{ done: isStageDone(i), active: isStageActive(i) }"
+              :style="{ left: `${stageLeft(i)}%` }"
+            ></span>
+            <span class="ws-splash__route-star" :style="{ left: progressPct + '%' }"></span>
+          </div>
+          <div class="ws-splash__route-labels">
+            <span
+              v-for="(s, i) in BOOT_STAGES"
+              :key="s.key"
+              :class="{ done: isStageDone(i), active: isStageActive(i) }"
+            >{{ s.short }}</span>
+          </div>
+        </div>
         <p class="ws-splash__version">v0.1.0-alpha</p>
       </div>
     </div>
@@ -60,7 +79,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { createSplashEngine, type SplashEngine } from './splash-canvas'
 import { useUIStore } from '../../stores/uiStore'
 import WorldSeaLogo from '../../components/brand/WorldSeaLogo.vue'
@@ -73,42 +92,44 @@ const uiStore = useUIStore()
 const leaving = ref(false)
 
 let engine: SplashEngine | null = null
-let progressTimer: ReturnType<typeof setTimeout> | null = null
-let dotTimer: ReturnType<typeof setInterval> | null = null
 let leaveTimer: ReturnType<typeof setTimeout> | null = null
 let cursorMoveHandler: ((e: MouseEvent) => void) | null = null
 
-// 加载进度模拟
-const progress = ref(0)
-const dots = ref('')
-const statuses = [
-  'Initializing core systems',
-  'Loading layout engine',
-  'Mounting WASM runtime',
-  'Connecting entity store',
-  'Preparing canvas renderer',
-  'Almost ready',
-]
-const statusText = ref(statuses[0])
-let statusIdx = 0
+/** 真实启动阶段（与 uiStore.bootStage 一一对应；ready 不在其中） */
+const BOOT_STAGES = [
+  { key: 'backend', short: '核心', full: '初始化核心' },
+  { key: 'project', short: '项目', full: '恢复项目' },
+  { key: 'shell', short: '界面', full: '装配界面' },
+  { key: 'bridge', short: '桥接', full: '系统桥接' },
+] as const
 
-function tickProgress() {
-  progress.value = Math.min(100, progress.value + Math.random() * 2.5)
-  const newIdx = Math.min(statuses.length - 1, Math.floor(progress.value / (100 / statuses.length)))
-  if (newIdx !== statusIdx) {
-    statusIdx = newIdx
-    statusText.value = statuses[statusIdx]
-  }
-  if (progress.value < 100) {
-    progressTimer = setTimeout(tickProgress, 150 + Math.random() * 200)
-  } else {
-    statusText.value = 'Ready'
-  }
+const activeIndex = computed(() => {
+  const i = BOOT_STAGES.findIndex(s => s.key === uiStore.bootStage)
+  if (i >= 0) return i
+  return uiStore.bootState === 'ready' ? BOOT_STAGES.length - 1 : 0
+})
+
+const progressPct = computed(() => {
+  if (uiStore.bootState === 'ready') return 100
+  const max = Math.max(1, BOOT_STAGES.length - 1)
+  return (Math.min(activeIndex.value, BOOT_STAGES.length - 1) / max) * 100
+})
+
+const statusText = computed(() => {
+  if (uiStore.bootState === 'ready') return '就绪'
+  return BOOT_STAGES[activeIndex.value]?.full ?? BOOT_STAGES[0].full
+})
+
+function isStageDone(i: number): boolean {
+  return uiStore.bootState === 'ready' || i < activeIndex.value
 }
 
-function tickDots() {
-  const n = (dots.value.length + 1) % 4
-  dots.value = '.'.repeat(n)
+function isStageActive(i: number): boolean {
+  return uiStore.bootState !== 'ready' && i === activeIndex.value
+}
+
+function stageLeft(i: number): number {
+  return (i / Math.max(1, BOOT_STAGES.length - 1)) * 100
 }
 
 // 移除 index.html 静态 splash
@@ -136,18 +157,13 @@ onMounted(() => {
     engine = createSplashEngine(constellationRef.value, interactionRef.value)
   }
 
-  progressTimer = setTimeout(tickProgress, 800)
-  dotTimer = setInterval(tickDots, 500)
-
   // 监听 bootState 就绪 → 淡出
   watch(
     () => uiStore.bootState,
     (state) => {
       if (state === 'ready') {
-        progress.value = 100
-        statusText.value = 'Ready'
         leaving.value = true
-        // 淡出动画 600ms 后由父级 v-if 卸载，这里延时清理引擎
+        // 淡出 600ms；父级 splashVisible 保留 750ms 后卸载，这里延时清理引擎
         leaveTimer = setTimeout(() => {
           engine?.destroy()
           engine = null
@@ -161,8 +177,6 @@ onMounted(() => {
 onUnmounted(() => {
   engine?.destroy()
   engine = null
-  if (progressTimer) clearTimeout(progressTimer)
-  if (dotTimer) clearInterval(dotTimer)
   if (leaveTimer) clearTimeout(leaveTimer)
   if (cursorMoveHandler) window.removeEventListener('mousemove', cursorMoveHandler)
 })
@@ -325,32 +339,73 @@ onUnmounted(() => {
   letter-spacing: 0.12em;
   color: var(--color-text-secondary, #94A3B8);
   text-transform: uppercase;
-  opacity: 0.7;
-  animation: ws-splash-fade 2s ease-in-out infinite;
   margin: 0;
-}
-@keyframes ws-splash-fade {
-  0%, 100% { opacity: 0.5; }
-  50%      { opacity: 0.9; }
+  min-height: 1.4em;
 }
 
-.ws-splash__bar-track {
-  position: relative;
-  width: 260px;
-  height: 3px;
-  background: rgba(255, 255, 255, 0.06);
-  border-radius: 2px;
-  overflow: hidden;
+/* 四段真实航线：1px 线程 + 星头，不显示假百分比 */
+.ws-splash__route {
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
 }
-.ws-splash__bar-fill {
+.ws-splash__route-track {
+  position: relative;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.14);
+}
+.ws-splash__route-fill {
   position: absolute;
-  top: 0;
   left: 0;
-  height: 100%;
+  top: 0;
+  height: 1px;
   background: linear-gradient(90deg, var(--color-primary, #7C3AED), var(--color-accent, #0891B2));
-  border-radius: 2px;
-  box-shadow: 0 0 12px color-mix(in srgb, var(--color-primary, #7C3AED) 60%, transparent);
-  transition: width 0.3s ease;
+  transition: width 0.5s var(--ease, cubic-bezier(0.4, 0, 0.2, 1));
+}
+.ws-splash__route-node {
+  position: absolute;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.25);
+  transform: translate(-50%, -50%);
+  transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+.ws-splash__route-node.done { background: var(--color-primary, #7C3AED); }
+.ws-splash__route-node.active {
+  width: 7px;
+  height: 7px;
+  background: var(--color-accent, #0891B2);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--color-accent, #0891B2) 65%, transparent);
+}
+.ws-splash__route-star {
+  position: absolute;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--color-accent, #0891B2);
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 7px color-mix(in srgb, var(--color-accent, #0891B2) 80%, transparent);
+  transition: left 0.5s var(--ease, cubic-bezier(0.4, 0, 0.2, 1));
+}
+.ws-splash__route-labels {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  font-family: var(--font-family-base, 'DM Sans'), sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--color-text-secondary, #94A3B8);
+  text-transform: uppercase;
+}
+.ws-splash__route-labels span { text-align: center; opacity: 0.55; transition: color 0.3s ease, opacity 0.3s ease; }
+.ws-splash__route-labels span.done { opacity: 0.85; }
+.ws-splash__route-labels span.active {
+  color: var(--color-accent, #0891B2);
+  opacity: 1;
 }
 
 .ws-splash__version {
@@ -423,13 +478,19 @@ onUnmounted(() => {
 
 @media (max-width: 600px) {
   .ws-splash__title { font-size: 42px; letter-spacing: 0.05em; }
-  .ws-splash__bar-track { width: 200px; }
+  .ws-splash__route { width: 220px; }
   .ws-splash__label { left: 28px; }
   .ws-splash__label--mouse { bottom: 52px; }
   .ws-splash__label--fixed { bottom: 30px; }
 }
 
 :root[data-anim-splash='off'] .ws-splash__title,
-:root[data-anim-splash='off'] .ws-splash__status,
 :root[data-anim-splash='off'] .ws-splash__dot { animation: none !important; }
+
+:root[data-anim-splash='off'] .ws-splash__route-fill,
+:root[data-anim-splash='off'] .ws-splash__route-star,
+:root[data-anim-splash='off'] .ws-splash__route-node,
+:root[data-anim-splash='off'] .ws-splash__route-labels span {
+  transition: none;
+}
 </style>

@@ -6,8 +6,15 @@
       <Teleport to="#view-toolbar-create">
         <CreateButton label="新建画板" @click="showCreateDialog = true" />
       </Teleport>
-      <div v-if="loading" class="dv-board-loading"><WsSpinner /></div>
-      <div v-else-if="drawingEntities.length === 0" class="dv-board-empty">
+      <div v-if="boardsError" class="dv-board-error" role="alert">
+        <WsEmpty title="画板载入失败" :description="boardsError">
+          <template #action><button class="dv-btn dv-btn--primary" @click="retryBoards">重试</button></template>
+        </WsEmpty>
+      </div>
+      <div v-else-if="boardsLoading" class="dv-board-skeleton">
+        <WsSkeleton v-for="n in 4" :key="n" variant="card" label="正在载入画板" :aria-hidden="n > 1 || undefined" />
+      </div>
+      <div v-else-if="boardsLoaded && drawingEntities.length === 0" class="dv-board-empty">
         <div class="dv-be-icon"><WsIcon name="palette" :size="48" /></div>
         <h3>还没有画板</h3>
         <p>创建一个画板，开始自由绘画</p>
@@ -158,8 +165,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { useShortcuts, CreateButton } from '@worldsea/plugin-sdk'
 import { useCanvas } from '@worldsea/ui-kit'
-import { WsIcon } from '@worldsea/ui-kit'
-import { WsSpinner } from '@worldsea/ui-kit'
+import { WsIcon, WsEmpty, WsSkeleton, useAsyncTask } from '@worldsea/ui-kit'
 import ToolbarOverflow from '@/components/ui/ToolbarOverflow.vue'
 import { useDrawingPersistence } from './composables/useDrawingPersistence'
 import { useDrawingLayers } from './composables/useDrawingLayers'
@@ -222,7 +228,8 @@ const {
 } = useDrawingLayers(canvasRef)
 
 // ─── 状态 ────────────────────────────────────────────────────────
-const loading = ref(true)
+const { visible: boardsLoading, error: boardsError, run: runBoardsLoad } = useAsyncTask({ successHold: 0 })
+const boardsLoaded = ref(false)
 const showCreateDialog = ref(false)
 const newName = ref('')
 const newWidth = ref(800)
@@ -648,9 +655,23 @@ function flushCurrentDrawing() {
 
 // ─── Agent 桥接 ──────────────────────────────────────────────────
 // ─── 生命周期 ────────────────────────────────────────────────────
+async function loadBoards(): Promise<void> {
+  try {
+    await runBoardsLoad(async () => {
+      await loadDrawings()
+      boardsLoaded.value = true
+    })
+  } catch (err) {
+    console.warn('[DrawingView] 载入画板失败', err)
+  }
+}
+
+function retryBoards(): void {
+  void loadBoards()
+}
+
 onMounted(async () => {
-  await loadDrawings()
-  loading.value = false
+  await loadBoards()
 
   setupKeyboard()
   register({ id: 'drawing.undo', keys: ['ctrl', 'z'], scope: 'view', description: '画板：撤销', handler: () => undo() })
@@ -685,7 +706,8 @@ watch([layers, activeLayerIndex], () => {
 
 /* ─── 画板列表 ─── */
 .dv-board { display: flex; flex-direction: column; height: 100%; padding: 16px; gap: 16px; overflow: auto; }
-.dv-board-loading { display: flex; justify-content: center; padding: 48px; }
+.dv-board-skeleton { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.dv-board-error { flex: 1; display: flex; align-items: center; justify-content: center; }
 /* 上移 R3：包裹新建按钮，避免撑满 .vt-controls（flex:1） */
 .dv-actions { display: flex; align-items: center; gap: 8px; }
 .dv-board-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; gap: 8px; opacity: 0.7; }

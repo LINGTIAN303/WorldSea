@@ -19,7 +19,7 @@
 <template>
   <div class="pptx-host">
     <div v-if="state === 'checking' || state === 'converting'" class="pptx-msg">
-      <WsIcon name="loader" size="sm" class="pptx-spin" />
+      <WsInlineLoading size="sm" :label="state === 'checking' ? '正在检查转换能力' : '正在转换演示文稿'" />
       <span>{{ state === 'checking' ? '正在检查本机转换能力…' : '正在转换（首次打开可能需数秒）…' }}</span>
     </div>
 
@@ -52,7 +52,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
-import { WsIcon, toastWarn } from '@worldsea/ui-kit'
+import { WsIcon, WsInlineLoading, toastWarn } from '@worldsea/ui-kit'
 import { invoke } from '@/composables/transport'
 import PdfPreview from './PdfPreview.vue'
 
@@ -185,8 +185,5 @@ onBeforeUnmount(() => {
 }
 .pptx-btn.primary:hover {
   background: var(--color-primary-muted);
-}
-.pptx-spin {
-  animation: pulse var(--dur-pulse) infinite;
 }
 </style>

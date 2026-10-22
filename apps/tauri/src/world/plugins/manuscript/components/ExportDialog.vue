@@ -38,8 +38,9 @@
 
       <div class="export-actions">
         <button class="btn-secondary" @click="$emit('close')">取消</button>
-        <button class="btn-primary" @click="doExport" :disabled="exporting">
-          {{ exporting ? '导出中...' : '导出' }}
+        <button class="btn-primary export-submit" @click="doExport" :disabled="exporting">
+          <WsInlineLoading v-if="exporting" size="sm" label="正在导出" />
+          {{ exporting ? '导出中' : '导出' }}
         </button>
       </div>
     </div>
@@ -48,7 +49,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick } from 'vue'
-import { WsIcon } from '@worldsea/ui-kit'
+import { WsIcon, WsInlineLoading } from '@worldsea/ui-kit'
 import { useManuscriptExport } from '../composables/useManuscriptExport'
 import type { Entity } from '@worldsea/entity-core'
 import { useFocusTrap } from '@/composables/useFocusTrap'
@@ -146,4 +147,5 @@ async function doExport() {
   display: flex; align-items: center; gap: 6px; font-size: var(--font-size-sm); cursor: pointer;
 }
 .export-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.export-submit { display: inline-flex; align-items: center; gap: 6px; }
 </style>

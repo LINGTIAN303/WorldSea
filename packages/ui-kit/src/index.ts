@@ -3,7 +3,6 @@
 export { default as WsIcon } from './components/WsIcon.vue'
 export { default as TuiButton } from './components/TuiButton.vue'
 export { default as WsEmpty } from './components/WsEmpty.vue'
-export { default as WsSpinner } from './components/WsSpinner.vue'
 // 文件类型图标（vscode-great-icons 资产下沉——apps 文件树/tab/预览头与对话区行段两端共用）
 export { default as FileIcon } from './components/FileIcon.vue'
 export { fileIconDataOf } from './assets/fileIcons'
@@ -62,7 +61,6 @@ export { default as CardDeck } from './components/settings/CardDeck.vue'
 export { default as VersionHistory } from './components/data/VersionHistory.vue'
 export { default as UndoHistoryPanel } from './components/data/UndoHistoryPanel.vue'
 export { default as DocExport } from './components/data/DocExport.vue'
-export { default as ExportImportDialog } from './components/data/ExportImportDialog.vue'
 export { default as ImportExportModal } from './components/data/ImportExportModal.vue'
 export { default as DataTable } from './components/data/DataTable.vue'
 export type { DataTableColumn, DataTableEditPayload } from './components/data/DataTable.vue'
@@ -74,7 +72,6 @@ export type { TreeNodeData } from './components/entity/GenericTreeView.vue'
 export { default as FontSelector } from './components/font/FontSelector.vue'
 export { default as TextRenderPreview } from './components/font/TextRenderPreview.vue'
 export { default as FontPreviewPanel } from './components/font/FontPreviewPanel.vue'
-export { default as AnimatedFontExportPanel } from './components/font/AnimatedFontExportPanel.vue'
 
 // ----------------------------------------------------------------------------
 // 数据类 composables — 委托自 @worldsea/entity-core
@@ -91,6 +88,10 @@ export {
   isUndoing,
   setUndoHistoryProvider,
   useEntityImage,
+  useBackgroundTask,
+  startBackgroundTask,
+  BACKGROUND_TASK_DELAY_MS,
+  type BackgroundTaskHandle,
 } from '@worldsea/entity-core/composables'
 
 // ----------------------------------------------------------------------------

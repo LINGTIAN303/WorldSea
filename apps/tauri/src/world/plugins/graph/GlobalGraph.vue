@@ -20,9 +20,25 @@
       @zoom-out="zoomOut"
       @fit="fitView"
     />
-    <div ref="containerRef" class="g-canvas"></div>
+    <div class="g-canvas-wrap">
+      <div ref="containerRef" class="g-canvas" :inert="graphLoading || undefined"></div>
+      <WsLoadingOverlay
+        :show="graphLoading"
+        scope="panel"
+        title="正在载入图谱"
+        success-title="图谱已就绪"
+        error-title="图谱载入失败"
+        :stages="GRAPH_LOAD_STAGES"
+        :current="graphStage"
+        :status="graphStatus"
+        :error="graphError ?? ''"
+        error-text="无法载入图谱数据"
+        :closable="false"
+        @retry="initializeGraph"
+      />
+    </div>
 
-    <div v-if="entityStore.entities.length === 0" class="g-empty">
+    <div v-if="graphLoaded && entityStore.entities.length === 0" class="g-empty">
       <WsEmpty preset="no-data" title="图谱为空" description="创建实体后会自动显示在这里">
         <template #icon><WsIcon name="graph" size="xl" /></template>
       </WsEmpty>
@@ -93,7 +109,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
-import { WsIcon, WsEmpty } from '@worldsea/ui-kit'
+import { WsIcon, WsEmpty, WsLoadingOverlay, useAsyncTask, type LoadingStage, type LoadingStatus } from '@worldsea/ui-kit'
 import Graph from 'graphology'
 import { useEntityStore, useRelationStore, useSettingsStore, entitySchemaRegistry, getNodeTypeInfo } from '@worldsea/entity-core'
 import { useGraphData, type GraphNode, useTypeMapping, useGraphFilter, useGraphAlgorithms } from '@worldsea/ui-kit'
@@ -123,6 +139,21 @@ void useGraphFilter(() => graphNodes.value, () => graphEdges.value)
 
 /** 底色双档（批 D）：`dark`＝深色星图（默认）；`theme`＝跟随主题（画布/浮层走令牌） */
 const graphThemeMode = computed(() => settingsStore.graphBackgroundMode === 'theme')
+
+/** 首载两段：数据与布局；overlay 只在画布区域，不盖视图工具条 */
+const GRAPH_LOAD_STAGES: LoadingStage[] = [
+  { short: '数据', full: '载入实体与关系' },
+  { short: '布局', full: '计算布局并渲染' },
+]
+const { visible: graphLoading, status: graphLoadStatus, error: graphError, run: runGraphLoad } = useAsyncTask({ successHold: 0 })
+const graphStage = ref(0)
+const graphLoaded = ref(false)
+/** useAsyncTask 的 idle/empty 归一到 Overlay 的三态 */
+const graphStatus = computed<LoadingStatus>(() => {
+  if (graphLoadStatus.value === 'error') return 'error'
+  if (graphLoadStatus.value === 'success' || graphLoadStatus.value === 'empty') return 'success'
+  return 'loading'
+})
 
 const containerRef = ref<HTMLElement | null>(null)
 const graph = new Graph({ multi: false })
@@ -450,20 +481,33 @@ function goTo(node: GraphNode): void {
 /** 应用主题观察器（批 D）：data-theme 翻转时重取 sigma 标签色（生命周期见 onMounted/onBeforeUnmount） */
 let themeObserver: MutationObserver | null = null
 
-onMounted(async () => {
+/** 首载/重试：清理旧渲染与布局后重建，避免重试叠出第二套画布 */
+async function initializeGraph(): Promise<void> {
+  try {
+    await runGraphLoad(async () => {
+      graphStage.value = 0
+      await entityStore.loadAll()
+      await relationStore.loadAll()
+      for (const t of allTypes.value) shownTypes.value.add(t.typeKey)
+      await nextTick()
+      graphStage.value = 1
+      // 仅清本实例的粒子/渲染器；共享 layout worker 不能在此 terminate（并发图谱会互相打断）
+      pathParticles.destroy()
+      initGraph()
+      graphLoaded.value = true
+      await nextTick()
+    })
+  } catch (err) {
+    console.warn('[GlobalGraph]', err)
+  }
+}
+
+onMounted(() => {
   window.addEventListener('keydown', onKeydown)
   // 应用主题翻转（data-theme/class）→ sigma 标签色重取（CSS 令牌自动、sigma 不自动；批 D）
   themeObserver = new MutationObserver(() => applySigmaPalette())
   themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class'] })
-  try {
-    await entityStore.loadAll()
-    await relationStore.loadAll()
-    for (const t of allTypes.value) shownTypes.value.add(t.typeKey)
-    await nextTick()
-    initGraph()
-  } catch (err) {
-    console.warn('[GlobalGraph]', err)
-  }
+  void initializeGraph()
 })
 
 onBeforeUnmount(() => {
@@ -513,7 +557,8 @@ watch([graphNodes, graphEdges], () => {
   --g-label: var(--color-text-primary, #333);
   --g-edge-label: var(--color-text-secondary, #666);
 }
-.g-canvas { flex: 1; background: var(--g-canvas); }
+.g-canvas-wrap { flex: 1; min-width: 0; min-height: 0; position: relative; }
+.g-canvas { position: absolute; inset: 0; background: var(--g-canvas); }
 .g-empty {
   position: absolute;
   inset: 0;

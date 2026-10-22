@@ -15,6 +15,15 @@
     <!-- 层1：书籍列表（2026-09-14 书籍实体——先建书，点击书籍才进入章节编辑器）；
          书籍排序 = 网格拖拽（vuedraggable，sortOrder 落 book.properties） -->
     <div v-if="!inBook" class="ms-books">
+      <div v-if="booksError" class="ms-books-error" role="alert">
+        <WsEmpty title="书籍载入失败" :description="booksError">
+          <template #action><TuiButton variant="primary" size="sm" @click="retryBooks">重试</TuiButton></template>
+        </WsEmpty>
+      </div>
+      <div v-else-if="booksLoading" class="ms-books-skeleton">
+        <WsSkeleton v-for="n in 6" :key="n" variant="card" label="正在载入书籍" :aria-hidden="n > 1 || undefined" />
+      </div>
+      <template v-else>
       <draggable
         :list="books"
         item-key="id"
@@ -73,7 +82,8 @@
           </article>
         </template>
       </draggable>
-      <WsEmpty v-if="books.length === 0 && unfiledChapters.length === 0" preset="no-data" title="还没有书籍——新建一本开始写作" />
+      <WsEmpty v-if="booksLoaded && books.length === 0 && unfiledChapters.length === 0" preset="no-data" title="还没有书籍——新建一本开始写作" />
+      </template>
     </div>
 
     <!-- 层2：书籍工作区（侧边栏章节列表 + 编辑器） -->
@@ -186,7 +196,7 @@ import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import draggable from 'vuedraggable'
 import { useEntityStore, useRelationStore, useSettingsStore } from '@worldsea/entity-core'
 import { useDuplicateNameCheck, CustomDropdown, CreateButton } from '@worldsea/plugin-sdk'
-import { TuiButton, WsIcon, WsEmpty, useConfirm  } from '@worldsea/ui-kit'
+import { TuiButton, WsIcon, WsEmpty, WsSkeleton, useAsyncTask, useConfirm  } from '@worldsea/ui-kit'
 import ChapterEditor from './components/ChapterEditor.vue'
 import ChapterList from './components/ChapterList.vue'
 import PhonePreview from './components/PhonePreview.vue'
@@ -206,6 +216,8 @@ const settingsStore = useSettingsStore()
 const { checkAndConfirmName } = useDuplicateNameCheck()
 const { confirm } = useConfirm()
 
+const { visible: booksLoading, error: booksError, run: runBooksLoad } = useAsyncTask({ successHold: 0 })
+const booksLoaded = ref(false)
 const current = ref<Entity | null>(null)
 const titleInputRef = ref<HTMLInputElement | null>(null)
 const editTitle = ref('')
@@ -454,14 +466,23 @@ async function deleteSnap(idx: number) {
 
 function formatTime(iso: string): string { return new Date(iso).toLocaleString() }
 
-onMounted(async () => {
+async function loadBooks(): Promise<void> {
   try {
-    await es.loadAll()
-    await rs.loadAll()
+    await runBooksLoad(async () => {
+      await es.loadAll()
+      await rs.loadAll()
+      booksLoaded.value = true
+    })
   } catch (err) {
     console.warn('[ManuscriptView]', err)
   }
-})
+}
+
+function retryBooks(): void {
+  void loadBooks()
+}
+
+onMounted(() => { void loadBooks() })
 
 watch(current, (val, old) => {
   if (!val && old) {
@@ -489,6 +510,13 @@ watch(current, (val, old) => {
 
 /* ── 层1：书籍列表（2026-09-14 书籍实体）── */
 .ms-books { flex: 1; overflow-y: auto; padding: 8px 4px; }
+.ms-books-skeleton {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+  align-content: start;
+}
+.ms-books-error { display: flex; align-items: center; justify-content: center; min-height: 240px; }
 .ms-books-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));

@@ -85,6 +85,15 @@ describe('加载反馈组件', () => {
     expect(wrapper.emitted('close')).toHaveLength(1)
   })
 
+  it('WsLoadingOverlay：closable=false 时失败态只留重试', () => {
+    const wrapper = mount(WsLoadingOverlay, {
+      props: { show: true, stages, current: 0, status: 'error', error: '载入失败', closable: false },
+    })
+    const buttons = wrapper.findAll('.ws-loading-panel__actions button')
+    expect(buttons.length).toBe(1)
+    expect(buttons[0].text()).toBe('重试')
+  })
+
   it('WsLoadingOverlay：完成态 4/4 且无操作按钮', () => {
     const wrapper = mount(WsLoadingOverlay, {
       props: {

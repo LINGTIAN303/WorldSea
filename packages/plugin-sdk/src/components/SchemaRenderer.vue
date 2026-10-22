@@ -1,5 +1,14 @@
 <template>
-  <div v-if="loading" class="schema-loading">加载中...</div>
+  <div v-if="loading" class="schema-loading">
+    <WsSkeleton
+      v-for="n in 5"
+      :key="n"
+      variant="row"
+      :lines="1"
+      label="正在载入实体视图"
+      :aria-hidden="n > 1 || undefined"
+    />
+  </div>
   <div v-else-if="error" class="schema-error">{{ error }}</div>
   <div v-else-if="!schema" class="schema-empty">
     <span>未找到「{{ typeKey }}」的实体类型定义</span>
@@ -62,6 +71,7 @@ import { ref, computed, onMounted, watch, useSlots } from 'vue'
 import { entitySchemaRegistry } from '@worldsea/entity-core'
 import type { EntityTypeSchema } from '@worldsea/core-api-types'
 import GenericEntityView from './GenericEntityView.vue'
+import { WsSkeleton } from '@worldsea/ui-kit'
 import type { FormFieldDef, RelationTabDef, CardFieldDef, CustomTabDef, FilterDef } from './types'
 import type { LayoutSource } from '../detail/detailLayout'
 
@@ -215,7 +225,14 @@ function mapFieldType(ft: string): string {
 </script>
 
 <style scoped>
-.schema-loading,
+.schema-loading {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 200px;
+  padding: 16px;
+}
+.schema-loading .ws-skeleton { width: 100%; }
 .schema-error,
 .schema-empty {
   display: flex;

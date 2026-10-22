@@ -1,5 +1,9 @@
 <template>
   <div class="ftb">
+    <!-- 后续目录导航：保留旧行，右下角 R1 角标（首载走骨架） -->
+    <div v-if="treeLoading && treeLoaded" class="ftb-dir-indicator">
+      <WsInlineLoading size="sm" label="正在载入目录" />
+    </div>
     <!-- 头部：经典模式=标题行+面包屑（左栏/浮层，含资源管理器/刷新）；合并模式=面包屑+工具同一行（右栏两层头，2026-09-03 UI 改造，资源管理器/刷新上移面板头） -->
     <div class="ftb-header" :class="{ 'ftb-header--merged': mergedHeader }">
       <div v-if="!mergedHeader" class="ftb-title-row">
@@ -68,8 +72,19 @@
 
     <!-- 目录树 -->
     <div v-else class="ftb-body">
-      <div v-if="loading" class="ftb-empty">加载中…</div>
-      <div v-else-if="flatNodes.length === 0" class="ftb-empty">工作区为空</div>
+      <div v-if="treeLoading && !treeLoaded" class="ftb-skeleton">
+        <WsSkeleton
+          v-for="n in 6"
+          :key="n"
+          variant="text"
+          :lines="1"
+          label="正在载入目录"
+          :style="{ width: `${58 + (n % 4) * 10}%` }"
+          :aria-hidden="n > 1 || undefined"
+        />
+      </div>
+      <div v-else-if="treeLoaded && !treeLoading && flatNodes.length === 0" class="ftb-empty">工作区为空</div>
+      <template v-else-if="treeLoaded">
       <div
         v-for="fn in flatNodes"
         :key="fn.node.path"
@@ -107,6 +122,7 @@
           :class="fn.partition === 'tmp' ? 'p-tmp' : 'p-out'"
           :title="fn.partition === 'tmp' ? '临时区：Agent 全权，可自由创建与清理' : '成果区：收官产物'"
         >{{ fn.partition === 'tmp' ? '临时区' : '成果区' }}</span>
+        <WsInlineLoading v-if="fn.node.loading" size="sm" label="正在载入目录" class="ftb-node-loading" />
         <span v-if="!fn.node.isDir" class="ftb-size">{{ formatSize(fn.node.size) }}</span>
         <div class="ftb-row-actions">
           <button v-if="fn.node.isDir" class="ftb-row-btn" title="在此新建文件" @click.stop="openInput('newFile', fn.node.path)"><WsIcon name="file" size="xs" /></button>
@@ -114,6 +130,7 @@
           <button class="ftb-row-btn danger" title="删除" @click.stop="onDelete(fn.node)"><WsIcon name="trash" size="xs" /></button>
         </div>
       </div>
+      </template>
     </div>
 
     <!-- 输入弹窗（新建文件/文件夹/重命名）：统一 TuiModal 基座（2026-09-03 UI 改造，替换自绘模态） -->
@@ -132,7 +149,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { FileIcon, TuiButton, WsIcon, useConfirm } from '@worldsea/ui-kit'
+import { FileIcon, TuiButton, WsIcon, WsSkeleton, WsInlineLoading, useAsyncTask, useConfirm } from '@worldsea/ui-kit'
 import TuiModal from '../../components/ui/TuiModal.vue'
 import { invoke } from '@/composables/transport'
 import { resolveWorkspaceDir, ensureWorkspaceDir } from '@/composables/workspace'
@@ -196,7 +213,8 @@ const { confirm } = useConfirm()
 
 const currentPath = ref<string | null>(null)
 const rootChildren = ref<FsNode[]>([])
-const loading = ref(false)
+const { visible: treeLoading, run: runTreeLoad } = useAsyncTask({ successHold: 0 })
+const treeLoaded = ref(false)
 const fileInput = ref<HTMLInputElement>()
 const inputDialog = ref<InputDialog | null>(null)
 const resolvedRoot = ref<string | null>(props.rootPath)
@@ -338,12 +356,17 @@ async function loadDir(path: string): Promise<FsNode[]> {
   }
 }
 
-/** 打开目录（更新 currentPath 并加载其条目） */
+/** 打开目录（更新 currentPath 并加载其条目）；首载走 R2 骨架，后续导航保留旧行避免跳动 */
 async function openDir(path: string): Promise<void> {
   currentPath.value = norm(path)
-  loading.value = true
-  rootChildren.value = await loadDir(norm(path))
-  loading.value = false
+  try {
+    await runTreeLoad(async () => {
+      rootChildren.value = await loadDir(norm(path))
+      treeLoaded.value = true
+    })
+  } catch {
+    /* loadDir 已兜底错误 */
+  }
 }
 
 /** 展开/折叠目录节点（懒加载子条目）；展开状态按根路径持久化（面板折叠/重挂不丢，2026-09-07） */
@@ -639,7 +662,16 @@ watch(
   height: 100%;
   min-width: 0;
   background: var(--color-surface-elevated);
+  position: relative;
 }
+.ftb-dir-indicator {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 3;
+  pointer-events: none;
+}
+.ftb-node-loading { margin-left: 2px; }
 
 .ftb-header {
   display: flex;
@@ -803,6 +835,8 @@ watch(
   overflow-y: auto;
   padding: 4px 6px 8px;
 }
+.ftb-skeleton { display: flex; flex-direction: column; gap: 8px; padding: 8px; }
+.ftb-skeleton .ws-skeleton { width: 100%; }
 .ftb-empty {
   padding: 16px 8px;
   text-align: center;

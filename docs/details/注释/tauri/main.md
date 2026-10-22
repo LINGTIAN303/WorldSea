@@ -13,5 +13,8 @@ Tauri 端入口（Phase 3 — 端入口硬编码后端）
 - 不需要 /api/* 代理（IPC 直连系统能力）
 
 当前状态：业务 UI 已在 `apps/tauri/src/`（App.vue），本入口为完整应用入口
-（createApp + initializeBackend 注册 registerBackend/registerValidationApi/
-registerAllManifests/injectAllKeyframes 等），不再区分 Phase 3/4。
+（createApp + `startBackendBoot()`），不再区分 Phase 3/4。
+
+**2026-10-22 批 4 变更**：后端装配从 main.ts 移到 `boot/backendBoot.ts`，返回可等待、幂等的 Promise；
+main 在 mount 后启动，App 启动链 `await` 同一 Promise，避免项目初始化先于后端注册。
+启动阶段与错误恢复详见 [启动链](boot/启动链.md)。

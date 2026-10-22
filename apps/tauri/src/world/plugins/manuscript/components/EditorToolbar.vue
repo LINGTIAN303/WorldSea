@@ -44,7 +44,10 @@
       <button class="tb-btn" @click="editor?.chain().focus().redo().run()" :disabled="!editor?.can().redo()" title="重做" aria-label="重做"><WsIcon name="redo" size="xs" /></button>
     </div>
     <div class="toolbar-spacer"></div>
-    <span class="save-status" :class="saveStatus">{{ saveLabel }}</span>
+    <span class="save-status" :class="saveStatus">
+      <WsInlineLoading v-if="saveStatus === 'saving'" size="sm" label="正在保存章节" />
+      {{ saveLabel }}
+    </span>
     <span class="word-count">{{ wordCount }} 字</span>
   </div>
 </template>
@@ -52,7 +55,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { Editor } from '@tiptap/vue-3'
-import { WsIcon } from '@worldsea/ui-kit'
+import { WsIcon, WsInlineLoading } from '@worldsea/ui-kit'
 import { insertImageFilesInto } from '@/composables/imageInsert'
 import { toastSuccess } from '@/composables/useToast'
 
@@ -133,7 +136,7 @@ function setHeading(e: Event) {
   padding: 2px 6px; border: 1px solid var(--border-color); border-radius: var(--radius-xs);
   font-size: var(--font-size-sm); background: var(--input-bg); color: var(--text-color);
 }
-.save-status { font-size: var(--font-size-xs); margin-right: 8px; }
+.save-status { display: inline-flex; align-items: center; gap: 4px; font-size: var(--font-size-xs); margin-right: 8px; }
 .save-status.saved { color: var(--text-tertiary); }
 .save-status.saving { color: var(--primary); }
 .save-status.unsaved { color: var(--warning); }

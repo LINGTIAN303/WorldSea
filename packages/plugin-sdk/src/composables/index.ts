@@ -11,7 +11,6 @@ export { useShortcuts, currentSequence, formatKeysForDisplay, formatKeyForDispla
 // ----------------------------------------------------------------------------
 // plugin-sdk 原生（业务逻辑层 composables）
 // ----------------------------------------------------------------------------
-export { useLoading } from './useLoading'
 export { useEntityEdit, type EditFormValues } from './useEntityEdit'
 export { useBatchDelete } from './useBatchDelete'
 export { useEntityPaging } from './useEntityPaging'

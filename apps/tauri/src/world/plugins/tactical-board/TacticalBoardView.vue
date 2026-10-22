@@ -44,9 +44,24 @@
           @cellRightClick="onCellRightClick"
           @cellHover="onCellHover"
         />
-        <div v-else class="tb-loading">
-          <div class="tb-spinner"></div>
-          <span>{{ engineError || '正在初始化...' }}</span>
+        <WsLoadingOverlay
+          :show="engineLoading && !engineNoticeDismissed"
+          scope="panel"
+          title="正在准备战术棋盘"
+          success-title="棋盘已就绪"
+          error-title="棋盘初始化失败"
+          :stages="ENGINE_LOAD_STAGES"
+          :current="engineStage"
+          :status="engineStatus"
+          :error="engineError ?? engineTaskError ?? ''"
+          error-text="无法创建战术引擎"
+          @retry="rebuildBoard"
+          @close="engineNoticeDismissed = true"
+        />
+        <div v-if="engineNoticeDismissed && !engineReady" class="tb-loading">
+          <WsIcon name="warning" size="sm" />
+          <span>{{ engineError || '棋盘未初始化' }}</span>
+          <button class="tb-btn tb-btn-sm" @click="rebuildBoard">重试</button>
         </div>
       </div>
 
@@ -138,7 +153,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useEntityStore } from '@worldsea/entity-core'
-import { WsEmpty } from '@worldsea/ui-kit'
+import { WsEmpty, WsIcon, WsLoadingOverlay, useAsyncTask, type LoadingStage, type LoadingStatus } from '@worldsea/ui-kit'
 import BoardCanvas from './components/BoardCanvas.vue'
 import UnitDetailDock from './components/UnitDetailDock.vue'
 import BattleLog from './components/BattleLog.vue'
@@ -158,6 +173,19 @@ import { useKeyboardShortcuts } from './composables/useKeyboardShortcuts'
 
 const es = useEntityStore()
 const { engine, loading, error: engineError, createEngine } = useTacticalEngine()
+
+const ENGINE_LOAD_STAGES: LoadingStage[] = [
+  { short: '引擎', full: '载入战术引擎' },
+  { short: '棋盘', full: '布置棋盘与地形' },
+]
+const { visible: engineLoading, status: engineLoadStatus, error: engineTaskError, run: runEngineLoad } = useAsyncTask({ successHold: 0 })
+const engineStage = ref(0)
+const engineNoticeDismissed = ref(false)
+const engineStatus = computed<LoadingStatus>(() => {
+  if (engineLoadStatus.value === 'error') return 'error'
+  if (engineLoadStatus.value === 'success' || engineLoadStatus.value === 'empty') return 'success'
+  return 'loading'
+})
 
 const gridType = ref('square')
 const gridTypeOptions = [
@@ -335,10 +363,16 @@ async function rebuildBoard() {
   units.value = []
   selectedCell.value = null
   battle.resetBattle()
+  engineNoticeDismissed.value = false
 
   try {
-    await createEngine(gridType.value, size, size)
-    syncTerrainToEngine()
+    await runEngineLoad(async () => {
+      engineStage.value = 0
+      await createEngine(gridType.value, size, size)
+      engineStage.value = 1
+      syncTerrainToEngine()
+      if (!engine.value) throw new Error(engineError.value || '引擎创建失败')
+    })
   } catch (e) {
     console.error('[TacticalBoard] rebuild failed', e)
   }
@@ -621,15 +655,6 @@ onMounted(async () => {
   gap: 12px;
   color: var(--color-text-secondary);
   font-size: var(--font-size-sm);
-}
-
-.tb-spinner {
-  width: 28px;
-  height: 28px;
-  border: 3px solid var(--color-border);
-  border-top-color: var(--color-primary);
-  border-radius: 50%;
-  animation: ws-spin 0.8s linear infinite;
 }
 
 .tb-sidebar {

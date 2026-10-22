@@ -7,7 +7,7 @@
  */
 import { ref, watch } from 'vue'
 import TuiModal from '@/components/ui/TuiModal.vue'
-import { WsIcon, TuiButton } from '@worldsea/ui-kit'
+import { WsIcon, TuiButton, WsSkeleton } from '@worldsea/ui-kit'
 import { storage } from '@worldsea/entity-core'
 import { kvValueBytes, prettyKvValue, formatKvBytes } from './kvViewerFormat'
 
@@ -71,7 +71,16 @@ function toggle(key: string): void {
         数据源：&lt;项目&gt;/.worldsea/kv_store.json。键值存储为功能层预留接口（kvSet/kvGet），无写入方时为空，属正常现象。
       </div>
 
-      <div v-if="loading" class="kvv-empty">读取中…</div>
+      <div v-if="loading" class="kvv-skeleton">
+        <WsSkeleton
+          v-for="n in 5"
+          :key="n"
+          variant="row"
+          :lines="1"
+          label="正在读取键值存储"
+          :aria-hidden="n > 1 || undefined"
+        />
+      </div>
       <div v-else-if="loadError" class="kvv-err">读取失败：{{ loadError }}</div>
       <div v-else-if="!entries.length" class="kvv-empty">
         当前项目没有键值条目。统计面板中「键值项」为 0 即由此而来，非数据丢失。
@@ -103,6 +112,8 @@ function toggle(key: string): void {
   color: var(--color-text-tertiary);
   margin-bottom: 10px;
 }
+.kvv-skeleton { display: flex; flex-direction: column; gap: 8px; padding: 8px 0; }
+.kvv-skeleton .ws-skeleton { width: 100%; }
 .kvv-empty {
   font-size: var(--text-body-sm-font-size);
   color: var(--color-text-tertiary);

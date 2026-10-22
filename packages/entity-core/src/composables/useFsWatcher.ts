@@ -2,6 +2,7 @@
 
 import { getFileStorageBackend, isTauri } from '../core'
 import { useEntityStore, useRelationStore, useFileStore } from '../stores'
+import { startBackgroundTask } from './useBackgroundTask'
 
 /** 防抖间隔（ms） */
 const DEBOUNCE_MS = 1000
@@ -238,33 +239,52 @@ function processChanges() {
     }
   }
 
-  // 增量更新受影响的 Store
+  // 增量更新受影响的 Store；R4 只在同步 >1s 时出现顶线，不打断操作
+  const syncs: Promise<void>[] = []
+
   if (entitiesChanged) {
-    const entityStore = useEntityStore()
-    fsb.reloadPaths(entityPaths).then(() => {
-      return entityStore.loadAll()
-    }).then(() => {
-      console.log('[FsWatcher] 实体已同步')
-    }).catch(err => {
-      console.warn('[FsWatcher] 实体同步失败:', err)
-    })
+    syncs.push((async () => {
+      try {
+        const entityStore = useEntityStore()
+        await fsb.reloadPaths(entityPaths)
+        await entityStore.loadAll()
+        console.log('[FsWatcher] 实体已同步')
+      } catch (err) {
+        console.warn('[FsWatcher] 实体同步失败:', err)
+        throw err
+      }
+    })())
   }
 
   if (relationsChanged) {
-    const relationStore = useRelationStore()
-    relationStore.loadAll().then(() => {
-      console.log('[FsWatcher] 关系已同步')
-    }).catch(err => {
-      console.warn('[FsWatcher] 关系同步失败:', err)
-    })
+    syncs.push((async () => {
+      try {
+        await useRelationStore().loadAll()
+        console.log('[FsWatcher] 关系已同步')
+      } catch (err) {
+        console.warn('[FsWatcher] 关系同步失败:', err)
+        throw err
+      }
+    })())
   }
 
   if (filesChanged) {
-    const fileStore = useFileStore()
-    fileStore.loadAll().then(() => {
-      console.log('[FsWatcher] 文件已同步')
-    }).catch(err => {
-      console.warn('[FsWatcher] 文件同步失败:', err)
+    syncs.push((async () => {
+      try {
+        await useFileStore().loadAll()
+        console.log('[FsWatcher] 文件已同步')
+      } catch (err) {
+        console.warn('[FsWatcher] 文件同步失败:', err)
+        throw err
+      }
+    })())
+  }
+
+  if (syncs.length > 0) {
+    const task = startBackgroundTask('正在同步外部变更')
+    void Promise.allSettled(syncs).then((results) => {
+      if (results.every(r => r.status === 'fulfilled')) task.done()
+      else task.fail('部分外部变更同步失败')
     })
   }
 }

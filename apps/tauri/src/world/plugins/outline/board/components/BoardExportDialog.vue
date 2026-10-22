@@ -32,7 +32,8 @@
       <div class="bed-actions">
         <button class="bed-btn" type="button" :disabled="exporting" @click="$emit('close')">取消</button>
         <button class="bed-btn bed-btn--primary" type="button" :disabled="exporting" @click="onConfirm">
-          {{ exporting ? '导出中…' : '导出' }}
+          <WsInlineLoading v-if="exporting" size="sm" label="正在导出大纲" />
+          {{ exporting ? '导出中' : '导出' }}
         </button>
       </div>
     </div>
@@ -44,6 +45,7 @@
  * 导出弹层：只负责收集格式选择并上报，**不做导出逻辑**（在 BoardView → exportRunner）。
  */
 import { ref } from 'vue'
+import { WsInlineLoading } from '@worldsea/ui-kit'
 import type { ExportFormat } from '../export/exportRunner'
 
 defineProps<{
@@ -114,6 +116,10 @@ function onConfirm(): void {
 .bed-format-hint { font-size: var(--font-size-2xs); color: var(--text-tertiary); }
 .bed-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .bed-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
   height: 26px;
   padding: 0 12px;
   border: 1px solid var(--border-color);

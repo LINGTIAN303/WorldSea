@@ -20,6 +20,12 @@ export { useEntityImage } from './useEntityImage'
 export { useImageResolver, type ImagePersistedEvent, type UseImageResolverOptions, type UseImageResolverReturn } from './useImageResolver'
 export { useCascadeDelete } from './useCascadeDelete'
 export { useDirtyTracker } from './useDirtyTracker'
+export {
+  useBackgroundTask,
+  startBackgroundTask,
+  BACKGROUND_TASK_DELAY_MS,
+  type BackgroundTaskHandle,
+} from './useBackgroundTask'
 export { useTrash } from './useTrash'
 export { useArtifacts } from './useArtifacts'
 export { useEntityTemplates } from './useEntityTemplates'

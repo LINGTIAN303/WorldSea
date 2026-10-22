@@ -33,7 +33,9 @@
 | src-tauri/src/channel_order.rs | [channel-order.md](tauri/channel-order.md) | Channel 投递全序修复：Tauri Channel 双路径乱序的取证链与根治方案（2026-10-13 注释整改迁入） |
 | src-tauri/src/proc_quiet.rs | [proc-quiet.md](proc-quiet.md) | GUI 模式隐藏子进程控制台窗口：CREATE_NO_WINDOW 方案与 6 处接入点（2026-10-13 注释整改迁入） |
 | src/core/coreBackend.ts | [coreBackend.md](tauri/coreBackend.md) | coreBackend Phase 3 端分离：移除 WASM、纯 invoke 路径、签名兼容；2026-08-06 收敛为 api/ 领域拆分聚合（re-export） |
-| src/main.ts | [main.md](tauri/main.md) | Tauri 端入口：端分离策略、Phase 3/4 演进说明 |
+| src/main.ts | [main.md](tauri/main.md) | Tauri 端入口：端分离策略、Phase 3/4 演进说明；批 4 起后端装配移至 boot/backendBoot.ts |
+| src/boot/backendBoot.ts + src/ui/boot/SplashScreen.vue + src/App.vue | [启动链.md](tauri/boot/启动链.md) | 四阶段真实启动（核心→项目→界面→桥接→就绪）+ 超时 + BootError 重试/继续；Splash 去假进度、阶段式航线、显式 750ms 离场窗口（2026-10-22 批 4） |
+| packages/ui-kit/src/components/feedback/loading/ + packages/entity-core/src/composables/useBackgroundTask.ts | [加载反馈.md](tauri/components/加载反馈.md) | 产品域 R0–R4 五类加载：R3 B 弧形航线、useAsyncTask 延迟/最短可见、R4 后台任务注册表、批 3 视图首载与批 4 启动/行内落点（2026-10-22） |
 | vite.config.ts | [vite-config.md](tauri/vite-config.md) | Tauri 端 Vite 配置：IPC 直连设计原则、WASM 算法降级、端口与构建触发 |
 | src/memory-archive/adapters/TauriFsOperations.ts | [TauriFsOperations.md](tauri/TauriFsOperations.md) | FsOperations 的 Tauri 实现：cmd_fs_* 命令映射 |
 | src/ui/layout/sidebar/viewOrder.ts | — | 侧栏可见视图**唯一顺序口径**（`isViewVisible` 过滤 + `sidebarOrder` 排序）：渲染（SidebarV2）与 `Ctrl+↑/↓` 切换（Shell）共用，修「切得太多/乱跳」（2026-10-01；短注释未立文档）；`resolveDefaultViewId`＝首屏默认挑选单点（boot 冷启动：恢复上次视图 `worldsea_last_view`，否则侧栏首项——修「首屏总是服饰/装备」，2026-10-09） |

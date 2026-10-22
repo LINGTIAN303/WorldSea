@@ -6,6 +6,7 @@
  */
 import { computed } from 'vue'
 import WsIcon from './WsIcon.vue'
+import WsInlineLoading from './feedback/loading/WsInlineLoading.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -38,7 +39,7 @@ const cls = computed(() => [`is-${props.variant}`, `is-${props.size}`, { 'is-loa
     :aria-pressed="active || undefined"
     @click="emit('click', $event)"
   >
-    <WsIcon v-if="loading" name="dots" :size="size === 'sm' ? 12 : 14" class="tui-btn__spin" :stroke-width="1.7" />
+    <WsInlineLoading v-if="loading" size="sm" label="处理中" />
     <WsIcon v-else-if="icon" :name="icon" :size="size === 'sm' ? 13 : 15" :stroke-width="1.7" />
     <span v-if="$slots.default" class="tui-btn__label"><slot /></span>
   </button>
@@ -79,16 +80,10 @@ const cls = computed(() => [`is-${props.variant}`, `is-${props.size}`, { 'is-loa
   opacity: 1;
   cursor: progress;
 }
-.tui-btn__spin {
-  animation: tui-btn-spin 1s linear infinite;
-}
 .tui-btn__label {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-}
-@keyframes tui-btn-spin {
-  to { transform: rotate(360deg); }
 }
 
 /* 变体 */

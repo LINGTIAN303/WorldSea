@@ -1,8 +1,21 @@
 ﻿<template>
   <div class="family-tree" ref="treeContainer">
-    <div v-if="loading" class="ft-loading">加载中...</div>
-    <div v-else ref="containerRef" class="ft-canvas" @contextmenu.prevent></div>
-    <WsEmpty v-if="!loading && noRelations" preset="no-data" description="暂无家族关系数据，右键空白处添加家族成员" />
+    <div ref="containerRef" class="ft-canvas" :inert="treeLoading || undefined" @contextmenu.prevent></div>
+    <WsLoadingOverlay
+      :show="treeLoading"
+      scope="panel"
+      title="正在载入族谱"
+      success-title="族谱已就绪"
+      error-title="族谱载入失败"
+      :stages="FAMILY_LOAD_STAGES"
+      :current="treeStage"
+      :status="treeStatus"
+      :error="treeError ?? ''"
+      error-text="无法载入家族关系"
+      :closable="false"
+      @retry="initializeTree"
+    />
+    <WsEmpty v-if="treeLoaded && noRelations" preset="no-data" description="暂无家族关系数据，右键空白处添加家族成员" />
     <FamilyNodeCard
       :visible="cardVisible"
       :character-id="cardCharId"
@@ -31,7 +44,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, nextTick, computed } from 'vue'
-import { WsEmpty } from '@worldsea/ui-kit'
+import { WsEmpty, WsLoadingOverlay, useAsyncTask, type LoadingStage, type LoadingStatus } from '@worldsea/ui-kit'
 import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
 import { useBidirectional, deduplicateEdges, useSmallCanvasGraph, type SGNode, type SGEdge } from '@worldsea/ui-kit'
 import FamilyNodeCard from './FamilyNodeCard.vue'
@@ -59,7 +72,19 @@ const relationStore = useRelationStore()
 const { createBidirectional, deleteWithConfirm } = useBidirectional()
 
 const containerRef = ref<HTMLDivElement>()
-const loading = ref(true)
+const FAMILY_LOAD_STAGES: LoadingStage[] = [
+  { short: '关系', full: '载入家族关系' },
+  { short: '族谱', full: '绘制族谱节点' },
+]
+const { visible: treeLoading, status: treeLoadStatus, error: treeError, run: runTreeLoad } = useAsyncTask({ successHold: 0 })
+const treeStage = ref(0)
+const treeLoaded = ref(false)
+const treeStatus = computed<LoadingStatus>(() => {
+  if (treeLoadStatus.value === 'error') return 'error'
+  if (treeLoadStatus.value === 'success' || treeLoadStatus.value === 'empty') return 'success'
+  return 'loading'
+})
+let graphInited = false
 
 const graph = useSmallCanvasGraph(containerRef as any, {
   onNodeClick(node, sx, sy) {
@@ -138,18 +163,28 @@ const noRelations = computed(() => {
   return !familyRels.value.some(r => r.sourceId === props.characterId || r.targetId === props.characterId)
 })
 
-onMounted(async () => {
+async function initializeTree(): Promise<void> {
   try {
-    await entityStore.loadAll()
-    await relationStore.loadAll()
-    loading.value = false
-    await nextTick()
-    graph.init()
-    buildGraph()
+    await runTreeLoad(async () => {
+      treeStage.value = 0
+      await entityStore.loadAll()
+      await relationStore.loadAll()
+      treeStage.value = 1
+      await nextTick()
+      if (!graphInited) {
+        graph.init()
+        graphInited = true
+      }
+      buildGraph()
+      treeLoaded.value = true
+      await nextTick()
+    })
   } catch (err) {
     console.warn('[FamilyTree]', err)
   }
-})
+}
+
+onMounted(() => { void initializeTree() })
 
 function buildGraph(): void {
   const visited = new Set<string>()
@@ -292,7 +327,6 @@ async function onAddConfirm(payload: { entityId: string; isNew: boolean; name?: 
 
 <style scoped>
 .family-tree { position: relative; height: 300px; }
-.ft-loading { display: flex; align-items: center; justify-content: center; height: 200px; color: var(--text-tertiary); font-size: var(--font-size-sm); }
 .ft-canvas { width: 100%; height: 300px; background: var(--card-bg); border-radius: var(--radius-md); }
 </style>
 

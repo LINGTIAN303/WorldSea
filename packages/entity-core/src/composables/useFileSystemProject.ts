@@ -2,6 +2,7 @@
 
 import { ref, computed } from 'vue'
 import { getProjectManager, isTauri } from '../core'
+import { startBackgroundTask } from './useBackgroundTask'
 
 /** 当前项目目录路径 */
 const boundDir = ref<string | null>(null)
@@ -31,6 +32,7 @@ export function useFileSystemProject() {
     }
     saving.value = true
     lastError.value = ''
+    const task = startBackgroundTask('正在导出项目到文件夹')
     try {
       const { exportProjectToDir } = await import('../core/ProjectFS')
       const result = await exportProjectToDir()
@@ -43,6 +45,7 @@ export function useFileSystemProject() {
       lastError.value = err.message ?? '导出失败'
       return false
     } finally {
+      task.done()
       saving.value = false
     }
   }

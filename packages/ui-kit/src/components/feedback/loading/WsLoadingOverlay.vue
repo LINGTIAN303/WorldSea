@@ -25,6 +25,8 @@ const props = withDefaults(
     successDetail?: string
     errorText?: string
     cancellable?: boolean
+    /** 错误态是否提供「关闭」；局部画布失败时关闭会留下空白，故只留重试 */
+    closable?: boolean
   }>(),
   {
     scope: 'content',
@@ -38,6 +40,7 @@ const props = withDefaults(
     successDetail: '',
     errorText: '无法完成操作',
     cancellable: false,
+    closable: true,
   },
 )
 
@@ -116,7 +119,7 @@ watch(() => props.status, () => { void focusForState() }, { flush: 'post' })
           <div v-if="isError || cancellable" class="ws-loading-panel__actions">
             <template v-if="isError">
               <button ref="retryEl" type="button" class="is-primary" @click="emit('retry')">重试</button>
-              <button type="button" @click="emit('close')">关闭</button>
+              <button v-if="closable" type="button" @click="emit('close')">关闭</button>
             </template>
             <button v-else type="button" @click="emit('cancel')">取消</button>
           </div>

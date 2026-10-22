@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { onMounted, watch } from 'vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
 import Shell from './ui/layout/Shell.vue'
 import { useUIStore } from './stores/uiStore'
 import { useTheme } from './components/ui/useTheme'
 import { useTheme as useEntityTheme, useSettingsStore } from '@worldsea/entity-core'
 import { useGlobalEvents, setActiveViewId, enableGlobalTooltips } from '@worldsea/ui-kit'
 import { bootstrapShell } from './plugins/boot'
+import { startBackendBoot } from './boot/backendBoot'
 import { useProjectSwitcher } from './composables/useProjectSwitcher'
 import { useSystemBridge } from './composables/useSystemBridge'
 import SplashScreen from './ui/boot/SplashScreen.vue'
@@ -37,6 +38,28 @@ const { setup: setupSystemBridge } = useSystemBridge()
 
 const uiStore = useUIStore()
 const projectSwitcher = useProjectSwitcher()
+/** Splash 显式离场窗口：ready 后保留 750ms 让 600ms 淡出真正播放 */
+const splashVisible = ref(true)
+let splashHideTimer: ReturnType<typeof setTimeout> | null = null
+
+watch(
+  () => uiStore.bootState,
+  (state) => {
+    if (state === 'ready' && splashVisible.value) {
+      splashHideTimer = setTimeout(() => { splashVisible.value = false }, 750)
+    } else if (state === 'error') {
+      if (splashHideTimer) {
+        clearTimeout(splashHideTimer)
+        splashHideTimer = null
+      }
+      splashVisible.value = false
+    }
+  },
+)
+
+onUnmounted(() => {
+  if (splashHideTimer) clearTimeout(splashHideTimer)
+})
 // entity-core 主题引擎（强调色轴）：模块加载时已完成旧主题 id → accent id 迁移
 const { setAccent, restorePersistedTheme } = useEntityTheme()
 
@@ -74,7 +97,54 @@ watch(
   { immediate: true },
 )
 
-onMounted(async () => {
+/** 启动步骤超时：避免 Splash 因底层 Promise 悬挂而永久停留 */
+async function withBootTimeout<T>(task: Promise<T>, label: string, ms = 30_000): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | null = null
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label}超时（${Math.round(ms / 1000)}s）`)), ms)
+  })
+  try {
+    return await Promise.race([task, timeout])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
+/**
+ * 启动链（真实阶段）：
+ * backend → project → shell → bridge → ready；任何关键步骤失败进入 BootErrorScreen。
+ * 系统桥是非关键步骤，失败只记录，不阻塞进入工作台。
+ */
+async function runBoot(): Promise<void> {
+  try {
+    uiStore.setBootStage('backend')
+    await withBootTimeout(startBackendBoot(), '初始化核心')
+
+    uiStore.setBootStage('project')
+    await withBootTimeout(projectSwitcher.initialize(), '恢复项目')
+
+    uiStore.setBootStage('shell')
+    await withBootTimeout(bootstrapShell(), '装配界面')
+
+    uiStore.setBootStage('bridge')
+    try {
+      await withBootTimeout(setupSystemBridge(), '系统桥接', 10_000)
+    } catch (err) {
+      console.warn('[App] 系统桥初始化失败（不阻塞启动）:', err)
+    }
+
+    uiStore.markReady()
+  } catch (err) {
+    console.error('[App] 启动失败:', err)
+    uiStore.markBootError([{
+      id: 'boot',
+      name: '启动',
+      error: err instanceof Error ? err.message : String(err),
+    }])
+  }
+}
+
+onMounted(() => {
   // 全局 Tooltip 接管：摘除全站原生 title，统一为自定义浮层（2026-09-06 方案A）
   enableGlobalTooltips()
   // 全局拦截浏览器原生右键菜单（2026-09-06 桌面应用惯例）：事件仍正常传播，
@@ -89,20 +159,7 @@ onMounted(async () => {
   } catch (err) {
     console.error('[App] 主题恢复失败:', err)
   }
-  // 项目系统初始化 + projectDir 绑定（必须在 bootstrapShell 之前：
-  // 芽初始化 / Store loadAll 依赖 FileStorageBackend 已就绪，否则 isReady=false
-  // 会降级到不可用的 TauriStorageBackend，导致 cmd_get_all_entities 等 IPC 失败）
-  try {
-    await projectSwitcher.initialize()
-  } catch (err) {
-    console.error('[App] 项目系统初始化失败:', err)
-  }
-  // 产品壳装配：视图同步单点 + 首屏默认视图（芽视图由第二棵树注册，见 src/world/）
-  await bootstrapShell()
-  // 系统层桥初始化：托盘事件监听 + 最近项目同步（异步，不阻塞启动）
-  void setupSystemBridge()
-  // 核心启动完成 → 通知 SplashScreen 淡出（bootState: 'booting' → 'ready'）
-  uiStore.markReady()
+  void runBoot()
 })
 </script>
 
@@ -116,8 +173,8 @@ onMounted(async () => {
        非输入元素的右键由 onMounted 的全局 contextmenu 拦截 -->
   <GlobalEditMenu />
 
-  <!-- 启动流程：bootState 驱动 Splash（booting）/ 错误页（error）。ready 后均卸载。 -->
-  <SplashScreen v-if="uiStore.bootState === 'booting'" />
+  <!-- 启动流程：Splash 保留到淡出结束；错误态立即让位给 BootErrorScreen。 -->
+  <SplashScreen v-if="splashVisible" />
   <BootErrorScreen v-if="uiStore.bootState === 'error'" />
 </template>
 

@@ -77,7 +77,10 @@
       <button class="nb-vs-btn" :class="{ active: viewMode === 'preview' }" title="预览模式" @click="viewMode = 'preview'">预览</button>
       <button class="nb-vs-btn" :class="{ active: viewMode === 'source' }" title="源码模式（md 真相源直读直写）" @click="viewMode = 'source'">源码</button>
     </div>
-    <span class="save-status" :class="saveStatus">{{ saveLabel }}</span>
+    <span class="save-status" :class="saveStatus">
+      <WsInlineLoading v-if="saveStatus === 'saving'" size="sm" label="正在保存笔记" />
+      {{ saveLabel }}
+    </span>
     <span class="word-count">{{ wordCount }} 字</span>
   </div>
 </template>
@@ -88,7 +91,7 @@
 // 四态视图切换 / 保存状态与字数。编辑器实例、视图态、保存态均由父组件以 props 注入。
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import type { Editor } from '@tiptap/vue-3'
-import { WsIcon } from '@worldsea/ui-kit'
+import { WsIcon, WsInlineLoading } from '@worldsea/ui-kit'
 import { insertImageFilesInto } from '@/composables/imageInsert'
 import { toastSuccess } from '@/composables/useToast'
 import type { EditorViewMode } from './notebookEditorTypes'
@@ -250,7 +253,7 @@ const saveLabel = computed(() => {
 .nb-vs-btn + .nb-vs-btn { border-left: 1px solid var(--color-border); }
 .nb-vs-btn:hover { background: var(--color-bg-hover); }
 .nb-vs-btn.active { background: color-mix(in srgb, var(--color-primary) 15%, transparent); color: var(--color-primary); }
-.save-status { font-size: var(--font-size-xs); margin-right: 8px; }
+.save-status { display: inline-flex; align-items: center; gap: 4px; font-size: var(--font-size-xs); margin-right: 8px; }
 .save-status.saved { color: var(--color-text-tertiary); }
 .save-status.saving { color: var(--color-primary); }
 .save-status.unsaved { color: var(--color-warning); }

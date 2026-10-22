@@ -56,14 +56,31 @@
             </template>
           </li>
         </ul>
-        <div class="mmv-side-foot">{{ saveStateText }}</div>
+        <div class="mmv-side-foot">
+          <WsInlineLoading v-if="store.saveState === 'saving'" size="sm" label="正在保存导图" />
+          <span>{{ saveStateText }}</span>
+        </div>
       </template>
     </aside>
 
     <!-- 主区：mind-elixir 画布 -->
     <div ref="mainEl" class="mmv-main">
-      <div ref="mapEl" class="mmv-map"></div>
-      <WsEmpty v-if="store.currentId === null" title="没有导图" description="点击左侧「新建」创建第一张导图">
+      <div ref="mapEl" class="mmv-map" :inert="mindLoading || undefined"></div>
+      <WsLoadingOverlay
+        :show="mindLoading"
+        scope="panel"
+        title="正在打开导图"
+        success-title="导图已就绪"
+        error-title="导图载入失败"
+        :stages="MINDMAP_LOAD_STAGES"
+        :current="mindStage"
+        :status="mindStatus"
+        :error="mindError ?? ''"
+        error-text="无法载入导图数据"
+        :closable="false"
+        @retry="initializeMindmap"
+      />
+      <WsEmpty v-if="mindLoaded && store.currentId === null" title="没有导图" description="点击左侧「新建」创建第一张导图">
         <template #icon><WsIcon name="mindmap" size="xl" /></template>
       </WsEmpty>
 
@@ -154,7 +171,7 @@ import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import MindElixir from 'mind-elixir'
 import 'mind-elixir/style'
 import type { NodeObj, MindElixirData, MindElixirInstance } from 'mind-elixir'
-import { WsIcon, WsEmpty, toastSuccess, toastWarn } from '@worldsea/ui-kit'
+import { WsIcon, WsEmpty, WsInlineLoading, WsLoadingOverlay, useAsyncTask, toastSuccess, toastWarn, type LoadingStage, type LoadingStatus } from '@worldsea/ui-kit'
 import { useEntityStore, useUIStore, type Entity } from '@worldsea/entity-core'
 import { CustomDropdown, useConfirm } from '@worldsea/plugin-sdk'
 import { useMindmapDocStore } from './mindmapStore'
@@ -191,6 +208,20 @@ const { confirm } = useConfirm()
 
 const mapEl = ref<HTMLElement | null>(null)
 let mind: MindElixirInstance | null = null
+
+/** 首载两段：文档索引与画布；overlay 只盖主区，侧栏文档列表保持可见 */
+const MINDMAP_LOAD_STAGES: LoadingStage[] = [
+  { short: '索引', full: '载入导图索引' },
+  { short: '画布', full: '展开导图画布' },
+]
+const { visible: mindLoading, status: mindLoadStatus, error: mindError, run: runMindmapLoad } = useAsyncTask({ successHold: 0 })
+const mindStage = ref(0)
+const mindLoaded = ref(false)
+const mindStatus = computed<LoadingStatus>(() => {
+  if (mindLoadStatus.value === 'error') return 'error'
+  if (mindLoadStatus.value === 'success' || mindLoadStatus.value === 'empty') return 'success'
+  return 'loading'
+})
 
 /** 当前选中的节点对象（单选；多选场景取第一个） */
 const selectedObj = ref<NodeObj | null>(null)
@@ -869,13 +900,27 @@ function onDocsChanged(e: Event) {
   }
 }
 
-onMounted(async () => {
+async function initializeMindmap(): Promise<void> {
+  try {
+    await runMindmapLoad(async () => {
+      mindStage.value = 0
+      await entityStore.loadAll()
+      await store.loadAll()
+      mindStage.value = 1
+      if (store.currentId) openDoc(store.currentId)
+      mindLoaded.value = true
+      await nextTick()
+    })
+  } catch (err) {
+    console.warn('[MindmapView]', err)
+  }
+}
+
+onMounted(() => {
   window.addEventListener('ws-mindmap-docs-changed', onDocsChanged)
   window.addEventListener('ws-set-theme', onThemeChanged)
   mapEl.value?.addEventListener('mousemove', onMapMove)
-  await entityStore.loadAll()
-  await store.loadAll()
-  if (store.currentId) openDoc(store.currentId)
+  void initializeMindmap()
 })
 
 onBeforeUnmount(() => {
@@ -961,6 +1006,7 @@ defineExpose({ getMindmapInstance: () => mind })
   background: var(--bg-surface, var(--card-bg)); color: var(--text-primary, var(--text-color)); outline: none;
 }
 .mmv-side-foot {
+  display: flex; align-items: center; gap: 4px;
   padding: 8px 12px; font-size: var(--text-micro-font-size, 10px);
   color: var(--text-muted, var(--text-tertiary));
   border-top: 1px solid var(--border, var(--border-color));

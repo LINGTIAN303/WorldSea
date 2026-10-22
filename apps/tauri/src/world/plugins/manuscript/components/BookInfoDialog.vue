@@ -49,7 +49,10 @@
 
       <div class="binfo-actions">
         <TuiButton variant="secondary" @click="$emit('close')">取消</TuiButton>
-        <TuiButton variant="primary" :disabled="saving" @click="save">{{ saving ? (isCreate ? '创建中...' : '保存中...') : (isCreate ? '创建' : '保存') }}</TuiButton>
+        <TuiButton variant="primary" :disabled="saving" @click="save">
+          <WsInlineLoading v-if="saving" size="sm" label="正在保存书籍信息" />
+          {{ saving ? (isCreate ? '创建中' : '保存中') : (isCreate ? '创建' : '保存') }}
+        </TuiButton>
       </div>
     </div>
   </div>
@@ -57,7 +60,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import { TuiButton, WsIcon  } from '@worldsea/ui-kit'
+import { TuiButton, WsIcon, WsInlineLoading } from '@worldsea/ui-kit'
 import { useEntityStore } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
 import { writeImageAsset, ASSET_MAX_BYTES } from '@/composables/imageAssets'

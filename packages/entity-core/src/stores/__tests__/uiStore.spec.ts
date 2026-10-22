@@ -32,6 +32,26 @@ describe('uiStore / 上次视图记忆', () => {
   })
 })
 
+describe('uiStore / 启动阶段', () => {
+  it('阶段推进与 ready 同步；错误/恢复同步 bootStage', () => {
+    const ui = useUIStore()
+    expect(ui.bootStage).toBe('backend')
+    ui.setBootStage('project')
+    expect(ui.bootStage).toBe('project')
+    ui.markReady()
+    expect(ui.bootState).toBe('ready')
+    expect(ui.bootStage).toBe('ready')
+    ui.markBootError([{ id: 'boot', name: '启动', error: 'x' }])
+    expect(ui.bootState).toBe('error')
+    expect(ui.bootStage).toBe('error')
+    expect(ui.bootError?.failedModules).toHaveLength(1)
+    ui.recoverFromError()
+    expect(ui.bootState).toBe('ready')
+    expect(ui.bootStage).toBe('ready')
+    expect(ui.bootError).toBeNull()
+  })
+})
+
 describe('uiStore / R3-c 侧栏偏好', () => {
   it('默认：域左芽右、独立收起、轮盘与徽章开启', () => {
     const ui = useUIStore()
