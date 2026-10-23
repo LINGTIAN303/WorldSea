@@ -128,7 +128,6 @@ const deckRef = ref<InstanceType<typeof CardDeck> | null>(null)
 defineExpose({ goToCard: (i: number) => deckRef.value?.goToCard(i) })
 
 const store = useSettingsStore()
-const { currentThemeId } = useTheme()
 const fontStore = useFontStore()
 const { getPresetByFamily, markInstalled } = useFontPresets()
 const libraryStore = useFontLibraryStore()
@@ -197,7 +196,7 @@ function onModeChange(m: ModePreference) {
 
 // 轴 2 强调色：六色预设 + 自定义（entity-core ACCENT_PRESETS / setCustomAccent，深浅双段规则注入）。
 // currentThemeId（entity-core）收束后即当前强调色 id（'custom' = 自定义轴），驱动色板高亮。
-const { currentThemeId, customAccentColor, setCustomAccent } = useTheme()
+const { currentThemeId, customAccentColor } = useTheme()
 const currentAccentLabel = computed(() => {
   if (currentThemeId.value === CUSTOM_ACCENT_ID) {
     return customAccentColor.value ? `自定义 · ${customAccentColor.value}` : '自定义'
