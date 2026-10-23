@@ -1,47 +1,51 @@
 <template>
-  <div v-if="show" class="cp-overlay" @click.self="cancel">
-    <div class="cp-dialog" ref="boxRef" role="dialog" aria-modal="true" aria-label="选择颜色" tabindex="-1" :style="{ width: modalResizable.width.value + 'px' }">
-      <div class="cp-header">
-        <h3><WsIcon name="palette" size="sm" /> 选择颜色</h3>
-        <button class="cp-close" @click="cancel">✕</button>
-      </div>
-      <div class="cp-body">
-        <div class="cp-wheel-area" ref="wheelRef" @mousedown="onWheelDown" @touchstart.prevent="onWheelTouchStart">
-          <canvas ref="canvasRef" :width="220" :height="220" class="cp-wheel-canvas"></canvas>
-          <div class="cp-cursor" :style="cursorStyle"></div>
+  <!-- Teleport 到 body：本弹窗可能被渲染在 transform/perspective 祖先（如设置面板翻卡 CardDeck）内，
+       那会成为 fixed 的包含块，遮罩与居中将相对卡片而非视口（2026-10-24 层级冲突修复） -->
+  <Teleport to="body">
+    <div v-if="show" class="cp-overlay" @click.self="cancel">
+      <div class="cp-dialog" ref="boxRef" role="dialog" aria-modal="true" aria-label="选择颜色" tabindex="-1" :style="{ width: modalResizable.width.value + 'px' }">
+        <div class="cp-header">
+          <h3><WsIcon name="palette" size="sm" /> 选择颜色</h3>
+          <button class="cp-close" @click="cancel">✕</button>
         </div>
-        <div class="cp-slider-area">
-          <div class="cp-slider-row">
-            <span class="cp-slider-label">H</span>
-            <input type="range" min="0" max="360" v-model.number="hue" class="cp-slider cp-slider-hue" />
-            <span class="cp-slider-val">{{ hue }}°</span>
+        <div class="cp-body">
+          <div class="cp-wheel-area" ref="wheelRef" @mousedown="onWheelDown" @touchstart.prevent="onWheelTouchStart">
+            <canvas ref="canvasRef" :width="220" :height="220" class="cp-wheel-canvas"></canvas>
+            <div class="cp-cursor" :style="cursorStyle"></div>
           </div>
-          <div class="cp-slider-row">
-            <span class="cp-slider-label">S</span>
-            <input type="range" min="0" max="100" v-model.number="sat" class="cp-slider" />
-            <span class="cp-slider-val">{{ sat }}%</span>
+          <div class="cp-slider-area">
+            <div class="cp-slider-row">
+              <span class="cp-slider-label">H</span>
+              <input type="range" min="0" max="360" v-model.number="hue" class="cp-slider cp-slider-hue" />
+              <span class="cp-slider-val">{{ hue }}°</span>
+            </div>
+            <div class="cp-slider-row">
+              <span class="cp-slider-label">S</span>
+              <input type="range" min="0" max="100" v-model.number="sat" class="cp-slider" />
+              <span class="cp-slider-val">{{ sat }}%</span>
+            </div>
+            <div class="cp-slider-row">
+              <span class="cp-slider-label">L</span>
+              <input type="range" min="0" max="100" v-model.number="light" class="cp-slider" />
+              <span class="cp-slider-val">{{ light }}%</span>
+            </div>
           </div>
-          <div class="cp-slider-row">
-            <span class="cp-slider-label">L</span>
-            <input type="range" min="0" max="100" v-model.number="light" class="cp-slider" />
-            <span class="cp-slider-val">{{ light }}%</span>
+          <div class="cp-preview-row">
+            <div class="cp-swatch" :style="{ background: currentColor }"></div>
+            <input v-model="hexInput" class="cp-hex-input" @change="onHexInput" />
+          </div>
+          <div class="cp-presets">
+            <button v-for="c in presetColors" :key="c" class="cp-preset-btn" :style="{ background: c }" @click="applyPreset(c)"></button>
           </div>
         </div>
-        <div class="cp-preview-row">
-          <div class="cp-swatch" :style="{ background: currentColor }"></div>
-          <input v-model="hexInput" class="cp-hex-input" @change="onHexInput" />
+        <div class="cp-footer">
+          <button class="cp-btn cp-btn-secondary" @click="cancel">取消</button>
+          <button class="cp-btn cp-btn-primary" @click="confirm">确定</button>
         </div>
-        <div class="cp-presets">
-          <button v-for="c in presetColors" :key="c" class="cp-preset-btn" :style="{ background: c }" @click="applyPreset(c)"></button>
-        </div>
+        <div class="resize-handle-right" @mousedown="modalResizable.onResizeStart"></div>
       </div>
-      <div class="cp-footer">
-        <button class="cp-btn cp-btn-secondary" @click="cancel">取消</button>
-        <button class="cp-btn cp-btn-primary" @click="confirm">确定</button>
-      </div>
-      <div class="resize-handle-right" @mousedown="modalResizable.onResizeStart"></div>
     </div>
-  </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
