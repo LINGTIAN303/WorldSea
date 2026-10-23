@@ -131,6 +131,7 @@
     <ConflictDetector
       :show="showConflicts"
       :conflicts="conflicts"
+      :stats="scanStats"
       @close="showConflicts = false"
       @focus="focusConflict"
     />
@@ -233,7 +234,7 @@ const { flatOrder, expandTo } = tree
 /* ── 时间数据层：按事件所属历法解析 → 标量区间 / 期段色带 ── */
 const { points, runtime, periods, axisBands, foreignCount } = useTimelinePoints({ events: eventList, calendars, activeCalendar })
 const { sortMode, sortedEvents, toggleSortMode } = useTimelineSort(eventList, flatOrder, points)
-const { conflicts, hasConflicts } = useConflictDetection(
+const { conflicts, hasConflicts, scanStats } = useConflictDetection(
   computed(() => relationStore.relations), computed(() => entityStore.entityMap), points, runtime)
 
 const chartRef = ref<{ zoomIn: () => void; zoomOut: () => void; fitAll: () => void; focusEvent: (id: string) => void } | null>(null)

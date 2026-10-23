@@ -21,6 +21,16 @@ export interface Conflict {
   fuzzy: boolean
 }
 
+/** 检测范围（面板展示口径，避免「无冲突」被误读为检测失效） */
+export interface ConflictScanStats {
+  /** 参与检测的角色数 */
+  characters: number
+  /** 角色关联的事件数 */
+  events: number
+  /** 其中时间可解析、可比较的事件数 */
+  scannable: number
+}
+
 export function useConflictDetection(
   relations: ComputedRef<Relation[]>,
   entityMap: ComputedRef<Map<string, Entity>>,
@@ -91,5 +101,21 @@ export function useConflictDetection(
 
   const hasConflicts = computed(() => conflicts.value.length > 0)
 
-  return { conflicts, hasConflicts }
+  const scanStats = computed<ConflictScanStats>(() => {
+    const characters = new Set<string>()
+    const events = new Set<string>()
+    for (const rel of relations.value) {
+      if (rel.type !== 'involves' || !entityMap.value.has(rel.sourceId)) continue
+      characters.add(rel.targetId)
+      events.add(rel.sourceId)
+    }
+    let scannable = 0
+    for (const id of events) {
+      const point = points.value.get(id)
+      if (point && !point.foreign && !point.unresolved) scannable++
+    }
+    return { characters: characters.size, events: events.size, scannable }
+  })
+
+  return { conflicts, hasConflicts, scanStats }
 }

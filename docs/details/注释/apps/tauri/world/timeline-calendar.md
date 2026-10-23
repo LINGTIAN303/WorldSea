@@ -47,7 +47,7 @@
 
 ### 3.6 模糊日期不混入精确冲突
 
-`calendar/fuzzy.ts` 的 `scalarRange` 负责区间；`useConflictDetection` 给每条冲突打 `fuzzy` 标，精确冲突排前、模糊冲突排后并单独标注。
+`calendar/fuzzy.ts` 的 `scalarRange` 负责区间；`useConflictDetection` 给每条冲突打 `fuzzy` 标，精确冲突排前、模糊冲突排后并单独标注。冲突面板是**弹窗**（TuiModal lg）：头部展示检测范围（角色数 / 可比较事件数）与精确/模糊计数，空态说明「只比较角色关联事件」的口径；点击条目或实体 chip 可定位。
 
 ### 3.7 期段取最深包含区间
 
@@ -78,6 +78,8 @@
 - **properties 整体替换**：表单/拖拽保存必须合并旧属性，否则 `era` 等历史字段会被抹掉。
 - **拖拽后的 click**：拖拽结束会补发 click，必须吞掉，否则误开详情（`clickSuppressed`）。
 - **周期 occurrence 是派生标记**：不落库、不可拖拽；点击打开基础事件。
+- **只读枚举必须映射 options 标签**：`FieldControl` 只读态直接把内部值（如 `exact`）抛出来会是原始枚举；`optionDisplayText` 统一映射，空值显示「—」。
+- **周期规则只读走摘要**：详情不展示 JSON 原文，`formatRecurrenceSummary` 输出「每 2 年，至 …」。
 - **泳道宽度**：标尺与缩略图必须扣除 160px 泳道栏，否则与泳道内容错位。
 - **滚轮**：普通滚轮归还纵向滚动，只有 Ctrl/⌘ + 滚轮才缩放。
 - **尺寸基线**：`TimelineView` / `TimelineChart` 曾冻结；新逻辑一律外移，新文件 ≤ 400 行。

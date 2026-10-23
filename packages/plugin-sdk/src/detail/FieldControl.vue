@@ -19,7 +19,7 @@
       :ref-type="refType"
     />
     <div v-else-if="kind === 'tags' || kind === 'multiSelect'" class="fc-chips">
-      <span v-for="item in arrayValue" :key="item" class="fc-chip">{{ item }}</span>
+      <span v-for="item in arrayValue" :key="item" class="fc-chip">{{ optionLabel(item) }}</span>
       <span v-if="!arrayValue.length" class="fc-empty">—</span>
     </div>
     <span v-else-if="kind === 'checkbox'" class="fc-text">{{ boolText }}</span>
@@ -123,7 +123,7 @@ import ImageField from '../components/ImageField.vue'
 import EntityRefControl from './EntityRefControl.vue'
 import { controlSpecFor, nativeInputType } from './fieldControlMap'
 import { normalizeFieldType } from './fieldType'
-import { toArrayValue, toDisplayText, toInputText } from './fieldValue'
+import { toArrayValue, toDisplayText, toInputText, normalizeFieldOptions, optionDisplayText } from './fieldValue'
 
 const props = withDefaults(defineProps<{
   value: unknown
@@ -157,16 +157,21 @@ const emit = defineEmits<{
 const type = computed(() => normalizeFieldType(props.rawType))
 const kind = computed(() => controlSpecFor(type.value).kind)
 const nativeType = computed(() => nativeInputType(type.value))
-const display = computed(() => toDisplayText(props.value, type.value))
+/** 只读展示：select 枚举要显示中文标签，不能把内部值（如 exact）直接抛给用户 */
+const display = computed(() => kind.value === 'select'
+  ? optionDisplayText(props.value, props.options)
+  : toDisplayText(props.value, type.value))
 const stringValue = computed(() => toInputText(props.value))
 const arrayValue = computed(() => toArrayValue(props.value))
 const boolText = computed(() => (props.value ? '是' : '否'))
 
 /** 选项两来源形态（schema 是对象数组，历史代码有写字符串数组的） */
-const optionList = computed(() => {
-  const raw = props.options ?? []
-  return raw.map(o => (typeof o === 'string' ? { value: o, label: o } : { value: o.value, label: o.label ?? o.value }))
-})
+const optionList = computed(() => normalizeFieldOptions(props.options))
+
+/** 枚举值 → 显示标签（未知值原样返回） */
+function optionLabel(value: string): string {
+  return optionDisplayText(value, props.options)
+}
 
 const tagDraft = ref('')
 

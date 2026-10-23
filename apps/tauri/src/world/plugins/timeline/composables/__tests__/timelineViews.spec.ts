@@ -166,12 +166,14 @@ describe('冲突检测', () => {
       ['c1', makeEvent('c1', '角色', {})],
       ['e1', events[0]], ['e2', events[1]], ['e3', events[2]], ['e4', events[3]],
     ]))
-    const { conflicts } = useConflictDetection(relations, entityMap, points, runtime)
+    const { conflicts, scanStats } = useConflictDetection(relations, entityMap, points, runtime)
     const sameDate = conflicts.value.find(item => item.type === 'same_date')
     const overlap = conflicts.value.find(item => item.type === 'overlap')
     expect(sameDate?.entities).toEqual(['甲', '乙'])
     expect(sameDate?.fuzzy).toBe(false)
     expect(overlap?.entities).toEqual(['甲', '丙'])
+    // 检测范围：1 个角色 / 4 个关联事件，全部可比较
+    expect(scanStats.value).toEqual({ characters: 1, events: 4, scannable: 4 })
   })
 
   it('模糊日期冲突带 fuzzy 标记并排在精确冲突之后', () => {

@@ -10,7 +10,7 @@ import { validateCalendar } from '../validate'
 import { parseTimePoint, parseUnitValue } from '../parse'
 import { formatTimePoint } from '../format'
 import { scalarRange } from '../fuzzy'
-import { expandRecurrence } from '../recurrence'
+import { expandRecurrence, formatRecurrenceSummary } from '../recurrence'
 import { migrateEventDates } from '../migrate'
 import { parseDate, parseDateRange, detectEras } from '../legacy'
 import {
@@ -308,5 +308,22 @@ describe('历法持久化（localStorage 回退）', () => {
     const renamed = { ...createThreeEraCalendar(), name: '三纪元（改名）' }
     expect(await importTimelineSettings({ ...bundle, calendars: [renamed] }, 'overwrite')).toBe(1)
     expect((await loadCalendars()).find(item => item.id === 'three-era')?.name).toBe('三纪元（改名）')
+  })
+})
+
+describe('周期摘要（详情只读）', () => {
+  const calendar = createSimpleCalendar()
+
+  it('规则转中文摘要，含结束与跳过次数', () => {
+    const raw = JSON.stringify({
+      unit: 'year', every: 2, until: '第三纪元10年', exceptions: ['第三纪元4年'],
+    })
+    expect(formatRecurrenceSummary(raw, calendar)).toBe('每 2 年，至 第三纪元10年，跳过 1 次')
+    expect(formatRecurrenceSummary(JSON.stringify({ unit: 'year', every: 1 }), calendar)).toBe('每年')
+  })
+
+  it('空值与非法 JSON 原样兜底', () => {
+    expect(formatRecurrenceSummary('', calendar)).toBe('—')
+    expect(formatRecurrenceSummary('not-json', calendar)).toBe('not-json')
   })
 })

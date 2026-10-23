@@ -49,7 +49,7 @@
         :calendar="draftCalendar"
         @update:model-value="v => emit('update:field', 'recurrence', v)"
       />
-      <code v-else-if="key === 'recurrence'" class="edf-json">{{ val || '—' }}</code>
+      <span v-else-if="key === 'recurrence'" class="edf-calendar">{{ recurrenceText(String(val ?? '')) }}</span>
       <FieldControl
         v-else
         :value="val"
@@ -83,6 +83,7 @@ import type { Entity } from '@worldsea/entity-core'
 import { FieldControl, controlSpecFor, normalizeFieldType } from '@worldsea/plugin-sdk'
 import type { Calendar, Certainty } from '../calendar/types'
 import { createSimpleCalendar } from '../calendar/defaults'
+import { formatRecurrenceSummary } from '../calendar/recurrence'
 import TimePointInput from '../calendar/components/TimePointInput.vue'
 import RecurrenceEditor from '../calendar/components/RecurrenceEditor.vue'
 
@@ -163,7 +164,13 @@ function optionsOf(key: string) {
   return fieldOf(key)?.options
 }
 
+function recurrenceText(raw: string): string {
+  return formatRecurrenceSummary(raw, draftCalendar.value)
+}
+
 function isFullWidth(key: string): boolean {
+  // 周期规则与父级事件当前没有成对字段：占满整行，避免右侧留半格空白
+  if (key === 'recurrence' || key === 'parentId') return true
   return controlSpecFor(normalizeFieldType(typeOf(key))).fullWidth
 }
 </script>
@@ -181,5 +188,4 @@ function isFullWidth(key: string): boolean {
   background: var(--input-bg); color: var(--text-color); font-size: var(--font-size-sm); outline: none;
 }
 .edf-calendar { font-size: var(--font-size-sm); color: var(--text-secondary); }
-.edf-json { font-size: var(--font-size-xs); color: var(--text-tertiary); word-break: break-all; }
 </style>

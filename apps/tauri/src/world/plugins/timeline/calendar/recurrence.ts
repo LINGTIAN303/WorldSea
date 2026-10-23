@@ -1,7 +1,7 @@
 /** 周期事件展开：按可见标量窗口生成虚拟 occurrence，不落库。 */
 import type { CalendarRuntime } from './math'
 import { parseTimePoint } from './parse'
-import type { RecurrenceRule, TimePoint } from './types'
+import type { Calendar, RecurrenceRule, TimePoint } from './types'
 
 export interface RecurrenceWindow {
   start: number
@@ -68,4 +68,22 @@ export function previewRecurrence(
   const start = runtime.toScalar(base)
   const window: RecurrenceWindow = { start, end: Number.MAX_SAFE_INTEGER }
   return expandRecurrence(base, rule, runtime, window, count)
+}
+
+/** 周期规则的人类可读摘要（详情只读用；非法 JSON 原样返回）。 */
+export function formatRecurrenceSummary(raw: string, calendar: Calendar): string {
+  if (!raw) return '—'
+  let rule: RecurrenceRule
+  try {
+    rule = JSON.parse(raw) as RecurrenceRule
+  } catch {
+    return raw
+  }
+  if (!rule || typeof rule !== 'object' || !rule.unit) return raw
+  const name = calendar.units.find(unit => unit.id === rule.unit)?.name ?? rule.unit
+  const every = Math.max(1, Number(rule.every) || 1)
+  let text = every === 1 ? `每${name}` : `每 ${every} ${name}`
+  if (rule.until) text += `，至 ${rule.until}`
+  if (rule.exceptions?.length) text += `，跳过 ${rule.exceptions.length} 次`
+  return text
 }

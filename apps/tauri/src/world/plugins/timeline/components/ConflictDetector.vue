@@ -1,133 +1,163 @@
 <template>
-  <Transition name="ws-detail-backdrop">
-    <div v-if="show" class="detail-backdrop"></div>
-  </Transition>
-  <Transition name="ws-detail-slide">
-    <div v-if="show" class="conflict-panel">
-      <button class="detail-close" @click="$emit('close')" aria-label="关闭"><WsIcon name="close" size="xs" /></button>
-      <h3><WsIcon name="warning" size="sm" /> 时间冲突检测</h3>
-      <p class="conflict-subtitle">{{ conflicts.length === 0 ? '未检测到时间冲突' : `发现 ${conflicts.length} 个潜在冲突` }}</p>
-
-      <div v-if="conflicts.length === 0" class="conflict-clean">
-        <WsIcon name="check" size="lg" />
-        <p>所有事件时间线无冲突</p>
+  <TuiModal :show="show" size="lg" @close="$emit('close')">
+    <template #header>
+      <div class="cf-head">
+        <h2 class="cf-title"><WsIcon name="warning" size="sm" /> 时间冲突检测</h2>
+        <div class="cf-summary">
+          <span class="cf-chip cf-chip--precise">精确 {{ preciseCount }}</span>
+          <span v-if="fuzzyCount" class="cf-chip cf-chip--fuzzy">模糊 {{ fuzzyCount }}</span>
+          <span class="cf-chip cf-chip--scope">检查范围：{{ stats.characters }} 个角色 / {{ stats.scannable }} 个事件</span>
+        </div>
       </div>
+    </template>
 
+    <div v-if="conflicts.length === 0" class="cf-empty">
+      <WsIcon name="check" size="lg" />
+      <p>未发现时间冲突</p>
+      <span>仅比较与角色关联的事件；未关联角色或时间无法解析的事件不参与检测。</span>
+    </div>
+
+    <div v-else class="cf-list">
       <div
         v-for="(c, i) in conflicts"
         :key="i"
-        class="conflict-item"
+        class="cf-item"
         :class="[c.type, { fuzzy: c.fuzzy }]"
-        role="button"
-        tabindex="0"
         :title="`点击定位到「${c.entities[0]}」`"
         @click="$emit('focus', c.eventIds[0])"
-        @keydown.enter="$emit('focus', c.eventIds[0])"
-        @keydown.space.prevent="$emit('focus', c.eventIds[0])"
       >
-        <div class="conflict-type-badge">
-          {{ c.type === 'same_date' ? '同日期' : c.type === 'overlap' ? '时间重叠' : '同地点' }}
-          <span v-if="c.fuzzy" class="fuzzy-tag">模糊</span>
+        <div class="cf-item-head">
+          <span class="cf-type">{{ typeLabel(c.type) }}</span>
+          <span v-if="c.fuzzy" class="cf-fuzzy">模糊</span>
+          <span class="cf-date">{{ c.date }}</span>
         </div>
-        <p class="conflict-desc">{{ c.description }}</p>
-        <div class="conflict-entities">
-          <span v-for="name in c.entities" :key="name" class="conflict-entity">{{ name }}</span>
+        <p class="cf-desc">{{ c.description }}</p>
+        <div class="cf-entities">
+          <button
+            v-for="(name, idx) in c.entities"
+            :key="`${name}-${idx}`"
+            type="button"
+            class="cf-entity"
+            :title="`定位到「${name}」`"
+            @click.stop="$emit('focus', c.eventIds[idx])"
+          >{{ name }}</button>
         </div>
-        <p class="conflict-date">{{ c.date }}</p>
       </div>
     </div>
-  </Transition>
+  </TuiModal>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { WsIcon } from '@worldsea/ui-kit'
-import type { Conflict } from '../composables/useConflictDetection'
+import TuiModal from '@/components/ui/TuiModal.vue'
+import type { Conflict, ConflictScanStats } from '../composables/useConflictDetection'
 
-defineProps<{
+const props = withDefaults(defineProps<{
   show: boolean
   conflicts: Conflict[]
-}>()
+  stats?: ConflictScanStats
+}>(), {
+  stats: () => ({ characters: 0, events: 0, scannable: 0 }),
+})
 
 defineEmits<{
   close: []
   focus: [eventId: string]
 }>()
+
+const preciseCount = computed(() => props.conflicts.filter(item => !item.fuzzy).length)
+const fuzzyCount = computed(() => props.conflicts.filter(item => item.fuzzy).length)
+
+function typeLabel(type: Conflict['type']): string {
+  return type === 'same_date' ? '同日期' : type === 'overlap' ? '时间重叠' : '同地点'
+}
 </script>
 
 <style scoped>
-.conflict-panel {
-  position: fixed;
-  right: 0;
-  top: var(--layout-menubar-height);
-  bottom: 0;
-  width: 400px;
-  background: var(--glass-bg, var(--panel-bg, var(--content-bg)));
-  border-left: 1px solid var(--glass-border, var(--border-color));
-  padding: 20px;
-  overflow-y: auto;
-  z-index: var(--z-detail-backdrop);
-  backdrop-filter: blur(var(--glass-blur));
-  box-shadow: var(--shadow-xl);
+.cf-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
 }
-.conflict-panel h3 {
+.cf-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
   font-size: var(--font-size-lg);
-  margin-bottom: 4px;
+  color: var(--text-color);
 }
-.conflict-subtitle {
-  font-size: var(--font-size-sm);
+.cf-summary { display: flex; flex-wrap: wrap; gap: 6px; }
+.cf-chip {
+  padding: 1px 8px;
+  font-size: var(--font-size-xs);
+  border-radius: var(--radius-xs);
+  background: var(--hover-bg);
   color: var(--text-secondary);
-  margin-bottom: 16px;
 }
-.conflict-clean {
+.cf-chip--precise { background: color-mix(in srgb, var(--primary) 14%, transparent); color: var(--primary); }
+.cf-chip--fuzzy { background: color-mix(in srgb, var(--warning) 16%, transparent); color: var(--warning); }
+.cf-chip--scope { color: var(--text-tertiary); }
+
+.cf-empty {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 40px 0;
+  gap: 6px;
+  padding: 28px 12px;
+  text-align: center;
   color: var(--success);
 }
-.conflict-item {
+.cf-empty p { margin: 0; font-size: var(--font-size-md); font-weight: var(--font-weight-semibold); }
+.cf-empty span { color: var(--text-tertiary); font-size: var(--font-size-xs); max-width: 380px; }
+
+.cf-list { display: flex; flex-direction: column; gap: 10px; }
+.cf-item {
   padding: 12px;
-  border-radius: var(--radius-md);
-  margin-bottom: 10px;
   border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
   cursor: pointer;
   transition: background var(--transition-fast), border-color var(--transition-fast);
 }
-.conflict-item:hover,
-.conflict-item:focus-visible {
-  background: var(--hover-bg);
-  outline: none;
-}
-.conflict-item.same_date { border-left: 3px solid var(--warning, #f59e0b); }
-.conflict-item.overlap { border-left: 3px solid var(--danger, #ef4444); }
-.conflict-item.same_location { border-left: 3px solid var(--primary, #4f46e5); }
+.cf-item:hover { background: var(--hover-bg); }
+.cf-item.same_date { border-left: 3px solid var(--warning); }
+.cf-item.overlap { border-left: 3px solid var(--danger); }
+.cf-item.same_location { border-left: 3px solid var(--primary); }
 /* 模糊日期冲突：虚线左栏 + 徽标，提醒仅供参考 */
-.conflict-item.fuzzy { border-left-style: dashed; }
-.fuzzy-tag {
-  margin-left: 6px;
-  padding: 0 4px;
-  font-size: var(--fs-2xs);
-  border: 1px dashed currentColor;
-  border-radius: var(--radius-xs);
-}
-.conflict-type-badge {
-  display: inline-block;
+.cf-item.fuzzy { border-left-style: dashed; }
+
+.cf-item-head { display: flex; align-items: center; gap: 8px; }
+.cf-type {
+  padding: 2px 8px;
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
-  padding: 2px 8px;
   border-radius: var(--radius-xs);
-  margin-bottom: 6px;
 }
-.same_date .conflict-type-badge { background: color-mix(in srgb, var(--color-warning) 20%, transparent); color: var(--color-warning); }
-.overlap .conflict-type-badge { background: color-mix(in srgb, var(--color-danger) 15%, transparent); color: var(--color-danger); }
-.same_location .conflict-type-badge { background: color-mix(in srgb, var(--color-primary) 15%, transparent); color: var(--color-primary); }
-.conflict-desc { font-size: var(--font-size-sm); margin: 4px 0; }
-.conflict-entities { display: flex; gap: 4px; flex-wrap: wrap; margin: 6px 0; }
-.conflict-entity { font-size: var(--font-size-sm); padding: 2px 8px; background: var(--hover-bg); border-radius: var(--radius-xs); }
-.conflict-date { font-size: var(--font-size-xs); color: var(--text-tertiary); margin-top: 4px; }
-.detail-close { position: absolute; top: 12px; right: 12px; width: 28px; height: 28px; border: none; background: transparent; border-radius: var(--radius-sm); cursor: pointer; font-size: var(--font-size-lg); color: var(--text-tertiary); display: flex; align-items: center; justify-content: center; }
-.detail-close:hover { background: var(--hover-bg); color: var(--text-color); }
+.same_date .cf-type { background: color-mix(in srgb, var(--warning) 20%, transparent); color: var(--warning); }
+.overlap .cf-type { background: color-mix(in srgb, var(--danger) 15%, transparent); color: var(--danger); }
+.same_location .cf-type { background: color-mix(in srgb, var(--primary) 15%, transparent); color: var(--primary); }
+.cf-fuzzy {
+  padding: 0 5px;
+  font-size: var(--fs-2xs);
+  border: 1px dashed var(--warning);
+  border-radius: var(--radius-xs);
+  color: var(--warning);
+}
+.cf-date { margin-left: auto; font-size: var(--font-size-xs); color: var(--text-tertiary); }
 
-.detail-backdrop { position: fixed; inset: var(--titlebar-height, 32px) 0 0 0; z-index: var(--z-detail-backdrop); background: rgba(0,0,0,0.2); pointer-events: none; }
-
+.cf-desc { margin: 8px 0 6px; font-size: var(--font-size-sm); color: var(--text-color); }
+.cf-entities { display: flex; flex-wrap: wrap; gap: 6px; }
+.cf-entity {
+  padding: 2px 8px;
+  font-size: var(--font-size-sm);
+  color: var(--text-color);
+  background: var(--hover-bg);
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+}
+.cf-entity:hover,
+.cf-entity:focus-visible { border-color: var(--primary); color: var(--primary); outline: none; }
 </style>

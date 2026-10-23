@@ -71,6 +71,29 @@ export function toDisplayText(value: unknown, type: NormalizedFieldType): string
   return toPlainText(String(value))
 }
 
+export interface FieldOption { value: string; label: string }
+
+/** 选项归一：schema 对象数组 + 历史字符串数组两种来源 */
+export function normalizeFieldOptions(
+  raw?: { value: string; label?: string }[] | string[],
+): FieldOption[] {
+  return (raw ?? []).map(option => (
+    typeof option === 'string'
+      ? { value: option, label: option }
+      : { value: option.value, label: option.label ?? option.value }
+  ))
+}
+
+/** 只读枚举值 → 显示标签（空值破折号，未知值原样返回） */
+export function optionDisplayText(
+  value: unknown,
+  raw?: { value: string; label?: string }[] | string[],
+): string {
+  const text = value === null || value === undefined ? '' : String(value)
+  if (!text) return '—'
+  return normalizeFieldOptions(raw).find(option => option.value === text)?.label ?? text
+}
+
 /** 新增自定义字段时的落库默认值（裁定 ⑪：数组型字段落数组） */
 export function emptyValueFor(type: NormalizedFieldType): unknown {
   if (isArrayValueField(type)) return []

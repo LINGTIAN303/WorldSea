@@ -112,7 +112,9 @@ onBeforeUnmount(() => {
   gap: var(--region-gap, 8px);
   display: flex;
   flex-direction: column;
-  contain: layout style;
+  /* 只做 style containment：layout containment 会把 position:fixed 的详情抽屉/弹层
+     变成相对本容器的定位块，导致面板从工具条下方才开始（所有芽的详情都会中招）。 */
+  contain: style;
   /* 固定最小高度防止空状态→内容切换时的布局偏移 */
   min-height: 0;
   /* 性能优化:Sidebar 脱离 flex 文档流后,用 margin-left 占位 */
