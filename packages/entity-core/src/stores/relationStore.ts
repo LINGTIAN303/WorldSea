@@ -11,10 +11,14 @@ export const useRelationStore = defineStore('relation', () => {
   const loading = ref(false)
   const { record } = useUndoRedo()
 
+  /** 全量装载关系。失败时 loading 仍必须回落（下游用 loading 判定"装载结束"，见 __tests__/relationStore.spec.ts）。 */
   async function loadAll() {
     loading.value = true
-    setAll(await storage.getAllRelations())
-    loading.value = false
+    try {
+      setAll(await storage.getAllRelations())
+    } finally {
+      loading.value = false
+    }
   }
 
   /**

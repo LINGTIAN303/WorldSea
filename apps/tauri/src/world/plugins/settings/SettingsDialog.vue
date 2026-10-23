@@ -39,6 +39,7 @@
         <template v-if="searchQuery">
           <template v-for="cat in matchedCategories" :key="cat.id">
             <AppearancePanel v-if="cat.id === 'appearance'" :search-query="searchQuery" @dirty="onDirty" />
+            <HomePanel v-if="cat.id === 'home'" :search-query="searchQuery" @card-change="onPanelCardChange" />
             <PluginsPanel v-if="cat.id === 'plugins'" :search-query="searchQuery" @dirty="onDirty" />
             <EditorPanel v-if="cat.id === 'editor'" :search-query="searchQuery" @dirty="onDirty" />
             <LayoutPanel v-if="cat.id === 'layout'" :search-query="searchQuery" @dirty="onDirty" />
@@ -56,6 +57,7 @@
         <!-- 正常模式：只渲染当前激活的分类（均接入 CardDeck 叠放翻卡，左列标题点击翻卡） -->
         <template v-else>
           <AppearancePanel v-if="activeSection === 'appearance'" ref="appearanceRef" @dirty="onDirty" @card-change="onPanelCardChange" />
+          <HomePanel v-else-if="activeSection === 'home'" ref="homeRef" @card-change="onPanelCardChange" />
           <PluginsPanel v-else-if="activeSection === 'plugins'" ref="pluginsRef" :search-query="searchQuery" @dirty="onDirty" @card-change="onPanelCardChange" />
           <EditorPanel v-else-if="activeSection === 'editor'" ref="editorRef" @dirty="onDirty" @card-change="onPanelCardChange" />
           <LayoutPanel v-else-if="activeSection === 'layout'" ref="layoutRef" @dirty="onDirty" @card-change="onPanelCardChange" />
@@ -97,6 +99,9 @@ import AccessibilityPanel from './panels/AccessibilityPanel.vue'
 // Agent 设置面板（embedded 封装，2026-08-09 迁入主设置）
 // 关于面板（2026-09-05 自左栏底部更多菜单迁入为独立 Tab）
 import AboutPanel from './panels/AboutPanel.vue'
+// 首页分区（2026-10-23）：分类与搜索词已抽到 settingsCategories，面板编辑产品域首页简介/封面
+import HomePanel from './panels/HomePanel.vue'
+import { SETTINGS_CATEGORIES, SETTINGS_CATEGORY_KEYWORDS } from './settingsCategories'
 
 const props = defineProps<{ show: boolean }>()
 const emit = defineEmits<{ close: [] }>()
@@ -141,19 +146,7 @@ watch(() => props.show, (val) => {
   }
 })
 
-const categories = [
-  { id: 'appearance', icon: 'cat-appearance', label: '外观' },
-  { id: 'plugins', icon: 'cat-plugins', label: '插件' },
-  { id: 'editor', icon: 'cat-editor', label: '编辑' },
-  { id: 'layout', icon: 'cat-layout', label: '布局' },
-  { id: 'outline', icon: 'outline', label: '大纲' },
-  { id: 'detail', icon: 'data-entity', label: '实体详情' },
-  { id: 'relations', icon: 'cat-relations', label: '关系' },
-  { id: 'shortcuts', icon: 'cat-shortcuts', label: '快捷键' },
-  { id: 'storage', icon: 'cat-storage', label: '存储' },
-  { id: 'accessibility', icon: 'motion', label: '无障碍' },
-  { id: 'about', icon: 'info', label: '关于' },
-]
+const categories = SETTINGS_CATEGORIES
 
 const activeSection = ref<string | null>(null)
 const searchQuery = ref('')
@@ -233,6 +226,7 @@ const activeRail = ref(-1)
 const railVisible = computed(() => !searchQuery.value && activeSection.value !== null && railItems.value.length > 0)
 /** 各分类面板实例（均暴露 goToCard，供左列标题点击翻卡；@card-change 上报左列高亮） */
 const appearanceRef = ref<InstanceType<typeof AppearancePanel> | null>(null)
+const homeRef = ref<InstanceType<typeof HomePanel> | null>(null)
 const pluginsRef = ref<InstanceType<typeof PluginsPanel> | null>(null)
 const editorRef = ref<InstanceType<typeof EditorPanel> | null>(null)
 const layoutRef = ref<InstanceType<typeof LayoutPanel> | null>(null)
@@ -245,6 +239,7 @@ const accessibilityRef = ref<InstanceType<typeof AccessibilityPanel> | null>(nul
 const aboutRef = ref<InstanceType<typeof AboutPanel> | null>(null)
 const panelRefs: Record<string, { value: any }> = {
   appearance: appearanceRef,
+  home: homeRef,
   plugins: pluginsRef,
   editor: editorRef,
   layout: layoutRef,
@@ -346,24 +341,11 @@ watch(activeSection, () => { if (!searchQuery.value) nextTick(rebuildRail) })
 watch(searchQuery, (q) => { if (!q) nextTick(rebuildRail) })
 onMounted(() => nextTick(() => { if (!props.show) return; rebuildRail() }))
 
-// 各分类的搜索关键词（用于搜索模式下过滤匹配的分类）
-const CATEGORY_KEYWORDS: Record<string, string> = {
-  appearance: '主题 外观 深色 浅色 宇宙 极光 锻造 水墨 棱镜 编辑器 高亮 脉冲 动画 淡化 扩散 透明度 theme highlight 字体 字体库 字体分层 导入 变体',
-  plugins: '插件 外部插件 内置插件 功能插件 常驻 非芽 芽 扩展 模块 启用 禁用 内置 本地 远程 外部 sprout 分组 全选 源码 重载 装载 plugin external puzzle utility',
-  editor: '编辑 撤销 重做 历史 大纲 内嵌 光标 平滑 undo redo outline caret smooth',
-  layout: '布局 面板 思维导图 中心节点 字段 预设 宽度 panel mindmap field 时间线 timeline 拖拽 泳道 甘特图 紧凑 分组 手机预览 phone preview',
-  outline: '大纲 白板 编辑面板 悬浮 定位 跟随 卡片 outline board inspector follow fixed',
-  relations: '关系 自动 创建 实体 引用 图谱 选择器 relation auto create',
-  shortcuts: '快捷键 键盘 快捷 绑定 shortcut keyboard',
-  storage: '存储 清理 孤立 文件 诊断 缓存 空间 配额 storage cleanup orphan diagnostic',
-  accessibility: '动画效果 减弱动态 动画 动效 消息 脉冲 状态 面板 侧边栏 弹窗 控件 启动 眩晕 降低 可访问 reduce motion accessibility',
-  about: '关于 版本 产品 WorldSea about version',
-}
-
+// 各分类的搜索关键词（用于搜索模式下过滤匹配的分类；分类与关键词统一由 settingsCategories 提供）
 const matchedCategories = computed(() => {
   if (!searchQuery.value) return []
   const q = searchQuery.value.toLowerCase()
-  return categories.filter(cat => CATEGORY_KEYWORDS[cat.id]?.toLowerCase().includes(q))
+  return categories.filter(cat => SETTINGS_CATEGORY_KEYWORDS[cat.id]?.toLowerCase().includes(q))
 })
 
 function onTabClick(id: string) {

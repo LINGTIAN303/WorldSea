@@ -8,8 +8,8 @@
       :disabled="switching"
       @click="toggle"
     >
-      <WorldSeaLogo v-if="variant === 'titlebar'" :size="15" :radius="4" class="ps-logo" />
-      <span v-if="variant === 'titlebar'" class="ps-title">WorldSea</span>
+      <WorldSeaLogo v-if="variant === 'titlebar' && showBrand" :size="15" :radius="4" class="ps-logo" />
+      <span v-if="variant === 'titlebar' && showBrand" class="ps-title">WorldSea</span>
       <span class="ps-label">{{ currentLabel }}</span>
       <span class="ps-chevron"><WsIcon name="chevron-down" size="xs" /></span>
     </button>
@@ -56,7 +56,9 @@ import type { ProjectInfo } from '@worldsea/entity-core/core'
 const props = withDefaults(defineProps<{
   /** titlebar=工作台窗口栏内嵌（logo+项目名）；pill=Agent 空态内嵌轻量 */
   variant?: 'titlebar' | 'pill'
-}>(), { variant: 'pill' })
+  /** 品牌位（logo + WorldSea）：titlebar 变体默认渲染；拆件后由 ProjectHomeButton 承担时置 false */
+  showBrand?: boolean
+}>(), { variant: 'pill', showBrand: true })
 
 const { switching, currentProject, projectList, switchProject, refreshProjectList } = useProjectSwitcher()
 
