@@ -72,7 +72,7 @@ function resolveToken(name: string, fallback: string): string {
 
 function buildGraph(): void {
   // 节点色随强调色轴、连线色随次级文字色 —— 换强调色后重建即跟随，不再写死
-  const nodeColor = resolveToken('--accent', '#7c3aed')
+  const nodeColor = resolveToken('--accent', '#4f46e5')
   const edgeColor = resolveToken('--text-secondary', '#9ca3af')
   const nodeMap = new Map<string, SGNode>()
 

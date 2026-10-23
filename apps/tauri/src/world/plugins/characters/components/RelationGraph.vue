@@ -111,6 +111,8 @@ watch(() => props.characterId, () => {
 })
 
 function buildGraph(): void {
+  // canvas 无法用 CSS 变量：绘制前从 computed 令牌取强调色（跟随设置切换，兜底靛蓝基准）
+  const accentColor = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#4f46e5'
   const visited = new Set<string>()
   const nodeMap = new Map<string, SGNode>()
   const sgEdges: SGEdge[] = []
@@ -124,7 +126,7 @@ function buildGraph(): void {
     nodeMap.set(id, {
       id,
       label: char.name,
-      color: isCenter ? '#7c3aed' : '#6b7280',
+      color: isCenter ? accentColor : '#6b7280',
       size: isCenter ? 21 : 16,
       borderColor: isCenter ? '#fff' : '#ddd',
       borderWidth: isCenter ? 3 : 1,

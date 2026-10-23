@@ -1,4 +1,5 @@
 import { ref, computed } from 'vue'
+import { deriveDark, deriveGradTo, pickOnAccent } from './accentColor'
 
 export interface ThemeDefinition {
   name: string
@@ -15,7 +16,8 @@ export interface ThemeDefinition {
 
 // ── 主题模型（2026-09-13 收束）：主题 = 底色 × 强调色 两轴 ──
 // 底色（light/dark/system）：App 壳三态唯一控制（apps/tauri/src/components/ui/useTheme.ts → data-theme）。
-// 强调色：本模块六色预设 ACCENT_PRESETS，深浅各定一个主值；派生令牌（hover/soft/soft-border/grad-to/ring/on-accent）用 color-mix 随主值自动跟随。
+// 强调色：本模块六色预设 ACCENT_PRESETS——浅色锚点手工定（过 AA 白字线），深色主值 / 渐变末端类比色 / accent 面文字由 OKLCH 算法派生；
+// 其余派生令牌（hover/soft/soft-border/ring）用 color-mix 随主值自动跟随。
 // 原六预设主题（aurora-abyss/light/forge-ember/ink-scroll/crystal-prism/cosmic）的 mode+accent 语义由两轴组合承接（旧 id 经 THEME_ID_MIGRATIONS 迁移）。
 // 风格包（纹理/图标/动效）已随 theme-kit 退役删除——2026-09-13 取证：--texture-*、data-interaction-mode 等在仓库内零消费点，从未真实生效。
 const STORAGE_KEY = 'worldsea-theme'
@@ -26,32 +28,37 @@ const OVERRIDES_KEY = 'worldsea-theme-overrides'
 export interface AccentPreset {
   id: string
   label: string
-  /** 浅色底主值 */
+  /** 浅色主值 = 色相锚点（须与 #ffffff 对比 ≥ 4.5:1，保证 accent 面白字达标） */
   light: string
-  /** 深色底主值（提亮保证对比） */
-  dark: string
+  /** 深色主值：缺省由 OKLCH 算法派生（提亮 + 降饱和）；水墨等特殊中性色可手工指定 */
+  dark?: string
+  /** 渐变末端手工覆盖（仅水墨这类近黑锚点需要——色相旋转公式对近黑色无意义） */
+  gradTo?: { light: string; dark: string }
 }
 
+// 2026-10-24 重排：按 OKLCH 色相均匀取锚（靛蓝 277 / 棱镜蓝 262 / 青瓷 210 / 苔绿 150 / 余烬橙 45 / 水墨中性），
+// 旧「三紫扎堆」退场；全部浅色锚点过 AA 白字线（≥4.5:1）。深色值除基准靛蓝与水墨外一律算法派生。
 export const ACCENT_PRESETS: AccentPreset[] = [
   { id: 'indigo', label: '靛蓝', light: '#4f46e5', dark: '#8b87f8' },
-  { id: 'aurora', label: '极光紫', light: '#8b5cf6', dark: '#a78bfa' },
-  { id: 'ember', label: '余烬橙', light: '#c87830', dark: '#e0954e' },
-  { id: 'prism', label: '棱镜蓝', light: '#3b82f6', dark: '#64b4ff' },
-  { id: 'cosmic', label: '宇宙紫', light: '#a855f7', dark: '#c084fc' },
-  { id: 'ink', label: '水墨', light: '#2a2018', dark: '#d6c9b4' },
+  { id: 'prism', label: '棱镜蓝', light: '#2563eb' },
+  { id: 'cyan', label: '青瓷', light: '#0e7490' },
+  { id: 'moss', label: '苔绿', light: '#15803d' },
+  { id: 'ember', label: '余烬橙', light: '#c2410c' },
+  { id: 'ink', label: '水墨', light: '#2a2018', dark: '#d6c9b4', gradTo: { light: '#847c72', dark: '#efe9dd' } },
 ]
 
 export const DEFAULT_ACCENT_ID = 'indigo'
 
-/** 旧预设主题 id → 强调色 id（localStorage 迁移；含更早的 cyberpunk/parchment） */
+/** 旧预设主题 id → 强调色 id（localStorage 迁移；含更早的 cyberpunk/parchment；极光紫/宇宙紫随 2026-10-24 色板重排并入靛蓝） */
 const THEME_ID_MIGRATIONS: Record<string, string> = {
-  'aurora-abyss': 'aurora',
+  'aurora-abyss': 'indigo',
+  'aurora': 'indigo',
+  'cosmic': 'indigo',
   'light': 'indigo',
   'forge-ember': 'ember',
   'ink-scroll': 'ink',
   'crystal-prism': 'prism',
-  'cosmic': 'cosmic',
-  'cyberpunk': 'aurora',
+  'cyberpunk': 'indigo',
   'parchment': 'ink',
 }
 
@@ -142,21 +149,24 @@ const ACCENT_STYLE_ID = 'ws-accent-override'
 const ACCENT_INLINE_KEYS = ['--accent', '--accent-hover', '--accent-soft', '--accent-soft-border']
 
 function accentCssBlock(p: AccentPreset, mode: 'light' | 'dark'): string {
-  const a = mode === 'light' ? p.light : p.dark
+  const a = mode === 'light' ? p.light : (p.dark ?? deriveDark(p.light))
+  // 渐变末端 = 类比色（色相 +25°）；水墨等近黑锚点走手工覆盖。默认靛蓝不注入（theme.css 基准 #7c3aed 与本式同源）
+  const gradTo = mode === 'light' ? (p.gradTo?.light ?? deriveGradTo(a)) : (p.gradTo?.dark ?? deriveGradTo(a))
   const decls = [
     `--accent: ${a}`,
     `--accent-soft: color-mix(in srgb, ${a} ${mode === 'light' ? '12' : '18'}%, transparent)`,
     `--accent-soft-border: color-mix(in srgb, ${a} 35%, transparent)`,
-    // 渐变末端 = 同色系提亮（rail-logo / 助手头像渐变跟随强调色，不再固定紫系）
-    `--accent-grad-to: color-mix(in srgb, ${a} ${mode === 'light' ? '65' : '75'}%, #fff)`,
+    `--accent-grad-to: ${gradTo}`,
     `--ring-color: color-mix(in srgb, ${a} ${mode === 'light' ? '35' : '40'}%, transparent)`,
+    // accent 面文字：锚点已保证浅色白字 ≥4.5:1，此处按实测对比择向（深色提亮主值自动落墨字侧）
+    `--on-accent: ${pickOnAccent(a)}`,
   ]
   if (mode === 'light') {
-    // 浅色底：hover 加深；accent 面文字用白
-    decls.push(`--accent-hover: color-mix(in srgb, ${a} 85%, #000)`, `--on-accent: #ffffff`)
+    // 浅色底：hover 加深
+    decls.push(`--accent-hover: color-mix(in srgb, ${a} 85%, #000)`)
   } else {
-    // 深色底：hover 提亮；accent 已提亮，白字对比不足 → 换深字（对齐 theme.css 基准逻辑）
-    decls.push(`--accent-hover: color-mix(in srgb, ${a} 82%, #fff)`, `--on-accent: #17171b`)
+    // 深色底：hover 提亮
+    decls.push(`--accent-hover: color-mix(in srgb, ${a} 82%, #fff)`)
   }
   return decls.join('; ')
 }

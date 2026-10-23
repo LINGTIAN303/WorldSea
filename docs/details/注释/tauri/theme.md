@@ -29,6 +29,15 @@
 
 **桥接映射**：旧 web 令牌 `--layout-menubar-height`（原硬编码 30px，比真实标题栏矮 2px）在 `web-tokens-bridge.css` 重映射为 `var(--titlebar-height, 32px)`——时间线的 ConflictDetector / CalendarEditorPanel 面板本体由此对齐窗口栏且全屏自动归零（桥接层职责 = 旧 web 设计令牌 → Tauri 现实）。
 
+## 强调色 OKLCH 派生机制（2026-10-24 第一刀）
+
+真源：`packages/entity-core/src/composables/accentColor.ts`（纯函数，规格测试锁定）+ `useTheme.ts` 的 `accentCssBlock` 注入引擎。
+
+- **模型**：主题 = 底色 × 强调色两轴。每预设只定**浅色锚点**（人工选，须过 AA 白字线 ≥4.5:1）；深色主值（亮度抬 0.72~0.80 带 + 饱和 ×0.7）、渐变末端类比色（色相 +16°/亮度 +0.031/饱和 ×1.072，参数从靛蓝基准 `#7c3aed` 精确反推锚定）、accent 面文字色（白/墨对比择向）全部 OKLCH 算法派生。
+- **色板**（2026-10-24 重排，按 OKLCH 色相均匀）：靛蓝（默认，深浅手工对=theme.css 基准）/ 棱镜蓝 `#2563eb` / 青瓷 `#0e7490` / 苔绿 `#15803d` / 余烬橙 `#c2410c` / 水墨（特殊中性，手工深浅 + 手工渐变末端）。极光紫、宇宙紫退役，localStorage 旧 id 经 `THEME_ID_MIGRATIONS` 落靛蓝。
+- **收编口径**：`var(--accent, 兜底)` 写法不算游离（语义正确）；**类别色不算游离**（字段矩阵类型色等多色相区分场景刻意固定）；canvas 绘制用「computed 令牌 + 兜底」模式（绘制时快照，切色后重开视图刷新）；HTML 导出在生成时烘焙当前强调色。
+- **边界**：`--on-accent` 被 danger 面（标题栏关闭钮 hover）复用——正因锚点全部白字安全，其语义（浅色白/深色墨）保持稳定；若未来放开自定义任意色，需先拆分 `--on-danger`。
+
 ## 维护约定
 
 - 组件一律 `var(--token, fallback)` 引用，禁止硬编码色值/尺寸；fallback 与令牌值保持一致（兜底 theme.css 未加载的场景，如包被独立预览）。

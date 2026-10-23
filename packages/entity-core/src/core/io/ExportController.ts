@@ -135,9 +135,13 @@ export const defaultFormatEncoder: FormatEncoder = {
   encodeHTML(pack: WorldSeaPack, opts?: HtmlExportOptions): string {
     const title = opts?.title ?? 'WorldSea 设定文档'
     const includeTimestamps = opts?.includeTimestamps ?? true
+    // 导出文档是独立 HTML（无应用令牌环境）：把当前强调色烘焙进样式，导出物跟随设置
+    const accent = (typeof document !== 'undefined'
+      ? getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()
+      : '') || '#4f46e5'
     let html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(title)}</title>`
       + '<style>body{font-family:system-ui,sans-serif;max-width:900px;margin:40px auto;padding:20px}'
-      + 'h1{color:#4f46e5}h2{border-bottom:2px solid #e5e7eb;padding-bottom:4px}'
+      + `h1{color:${accent}}h2{border-bottom:2px solid #e5e7eb;padding-bottom:4px}`
       + 'table{border-collapse:collapse;width:100%;margin:12px 0}'
       + 'td,th{border:1px solid #e5e7eb;padding:6px 10px;text-align:left;font-size:13px}'
       + 'th{background:#f3f4f6}</style></head><body>'

@@ -48,6 +48,11 @@ const chainCount = computed(() => {
 function buildGraph(): void {
   if (!props.event) return
 
+  // canvas 无法用 CSS 变量：绘制前从 computed 令牌取强调色（跟随设置切换，兜底靛蓝基准）
+  const styles = getComputedStyle(document.documentElement)
+  const accentColor = styles.getPropertyValue('--accent').trim() || '#4f46e5'
+  const accentBorder = styles.getPropertyValue('--accent-soft-border').trim() || '#818cf8'
+
   const visited = new Set<string>()
   const nodeMap = new Map<string, SGNode>()
   const sgEdges: SGEdge[] = []
@@ -63,9 +68,9 @@ function buildGraph(): void {
     nodeMap.set(id, {
       id,
       label: evt.name,
-      color: isCenter ? '#ef4444' : '#4f46e5',
+      color: isCenter ? '#ef4444' : accentColor,
       size: isCenter ? 19 : 15,
-      borderColor: isCenter ? '#fca5a5' : '#818cf8',
+      borderColor: isCenter ? '#fca5a5' : accentBorder,
       borderWidth: isCenter ? 3 : 1,
       date: (evt.properties.date as string) || '',
       isCenter,
