@@ -27,7 +27,7 @@
   --accent-hover: #4338ca;
   --accent-soft: #eef2ff;     /* 强调色弱底 */
   --accent-soft-border: #e0e7ff;
-  --accent-grad-to: #7c3aed;  /* accent 渐变末端（rail-logo / 助手头像），dark 下提亮覆盖 */
+  --accent-grad-to: #7c3aed;  /* accent 渐变末端（--gradient-accent：新建按钮/空态标题/欢迎层；旧「助手头像」已随 Agent 面退役），dark 下提亮覆盖 */
   --on-accent: #ffffff;       /* 强调面文字（accent/danger 底上的白字） */
 
   --success: #16a34a;
