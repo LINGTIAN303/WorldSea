@@ -1,32 +1,28 @@
-import { computed, ref, type ComputedRef } from 'vue'
+/** 时间线排序：时序按历法标量，大纲树按树展开顺序。 */
+import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import type { Entity } from '@worldsea/entity-core'
-import { compareDates, parseDateRange, type ParsedDate } from './useDateParser'
+import type { EventTime } from './useTimelinePoints'
 
 export type SortMode = 'tree' | 'chrono'
 
-export function useTimelineSort(events: ComputedRef<Entity[]>, flatOrder: ComputedRef<Entity[]>) {
+export function useTimelineSort(
+  events: ComputedRef<Entity[]>,
+  flatOrder: ComputedRef<Entity[]>,
+  points: Ref<Map<string, EventTime>>,
+) {
   const sortMode = ref<SortMode>('chrono')
 
-  const parsedDates = computed(() => {
-    const map = new Map<string, ParsedDate | null>()
-    for (const e of events.value) {
-      const dateText = (e.properties.date as string) || ''
-      const dateEndText = (e.properties.dateEnd as string) || ''
-      map.set(e.id, parseDateRange(dateText, dateEndText))
-    }
-    return map
-  })
-
   const sortedEvents = computed(() => {
-    if (sortMode.value === 'tree') {
-      return flatOrder.value
-    }
-
+    if (sortMode.value === 'tree') return flatOrder.value
     const list = [...events.value]
     list.sort((a, b) => {
-      const dateA = parsedDates.value.get(a.id) ?? null
-      const dateB = parsedDates.value.get(b.id) ?? null
-      return compareDates(dateA, dateB)
+      const left = points.value.get(a.id)
+      const right = points.value.get(b.id)
+      const leftInvalid = !left || left.unresolved
+      const rightInvalid = !right || right.unresolved
+      if (leftInvalid || rightInvalid) return Number(leftInvalid) - Number(rightInvalid)
+      if (left!.foreign !== right!.foreign) return left!.foreign ? 1 : -1
+      return left!.startScalar - right!.startScalar
     })
     return list
   })
@@ -35,5 +31,5 @@ export function useTimelineSort(events: ComputedRef<Entity[]>, flatOrder: Comput
     sortMode.value = sortMode.value === 'tree' ? 'chrono' : 'tree'
   }
 
-  return { sortMode, sortedEvents, parsedDates, toggleSortMode }
+  return { sortMode, sortedEvents, toggleSortMode }
 }

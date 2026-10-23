@@ -40,9 +40,8 @@
 | src/memory-archive/adapters/TauriFsOperations.ts | [TauriFsOperations.md](tauri/TauriFsOperations.md) | FsOperations 的 Tauri 实现：cmd_fs_* 命令映射 |
 | src/ui/layout/sidebar/viewOrder.ts | — | 侧栏可见视图**唯一顺序口径**（`isViewVisible` 过滤 + `sidebarOrder` 排序）：渲染（SidebarV2）与 `Ctrl+↑/↓` 切换（Shell）共用，修「切得太多/乱跳」（2026-10-01；短注释未立文档）；`resolveDefaultViewId`＝首屏默认挑选单点（boot 冷启动：恢复上次视图 `worldsea_last_view`，否则侧栏首项——修「首屏总是服饰/装备」，2026-10-09） |
 | src/world/plugins/regions/RegionList.vue | [实体视图分页.md](packages/plugin-sdk/实体视图分页.md) | 区域视图：默认卡片 + 卡片模式分页（页状态由 GEV 经槽属性下放）；插槽自绘卡片/树样式自带、批量态路由、视图切换按钮显式 color（2026-10-01） |
-| src/world/plugins/timeline/TimelineView.vue | [实体视图分页.md](packages/plugin-sdk/实体视图分页.md) | 时序表分页：`pageable`=竖向+时序表（横向画布/大纲树不分页）；`timeline.page-prev/next` 字面量 id 须进快捷键目录；卸载注销全部视图键（2026-10-01） |
-| src/world/plugins/timeline/components/TimelineChart.vue | [实体视图分页.md](packages/plugin-sdk/实体视图分页.md) | `verticalEvents` 决定喂分页子集（时序表）还是全量（树）；`pagedEvents` prop 可选，缺省即不分页（2026-10-01） |
-| src/world/plugins/timeline/composables/eraGroups.ts | — | 纪元分组纯函数（空组剔除 / 未知纪元归尾）；抽出以让「喂全量还是喂当前页」由调用方决定（2026-10-01；短注释未立文档） |
+| src/world/plugins/timeline/TimelineView.vue + composables/ + components/ | [timeline-calendar.md](apps/tauri/world/timeline-calendar.md) | 时间线双态视图与全量交互：标量为唯一可比较量、单位链缩放、分组/筛选/冲突、拖拽/键盘/框选、冲突跳转聚焦；`TimelineChart` 退为壳，两态拆 Canvas/Chronicle（2026-10-24） |
+| src/world/plugins/timeline/calendar/（types/math/parse/format/fuzzy/recurrence/store/migrate/projectExtras） | [timeline-calendar.md](apps/tauri/world/timeline-calendar.md) | 自定义历法内核与持久化：单位链/命名值/闰/周/日以下、规范文本为真源、项目库 KV + localStorage 回退、迁移与随项目导出/导入两条链（2026-10-24） |
 | src/world/plugins/outline/board/BoardView.vue | [实体视图分页.md](packages/plugin-sdk/实体视图分页.md) | 大纲侧核查结论：**三处自有列表都不分页**（白板网格量级个位数 / 节点是树 / 章节是拖拽调色板）；挂账改做虚拟化（2026-10-01） |
 | src/styles/theme.css | — | 全局基座：`*{box-sizing}` + **`button{color:inherit}` 复位**（UA 的 `color:buttontext` 不继承 → 未写 color 的按钮在暗色下黑字；25 处存量同型一次免疫，2026-10-01） |
 | 拆分记录（2026-08-06） | — | coreBackend.ts 按领域拆为 src/core/api/（schema / retrofit / entity / algo / health / runtime + index 聚合），coreBackend.ts 保留 `export * from './api'`，类型统一来自 @worldsea/core-api-types，公共导出签名不变，原 import 处无需改动；各新文件无 ≥ 10 行连续注释块，未生成新文档 |

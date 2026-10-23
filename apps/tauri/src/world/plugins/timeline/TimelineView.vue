@@ -1,20 +1,25 @@
 <template>
-  <div class="timeline-view" :class="{ 'timeline-view--split': splitCarrierOpen, 'timeline-view--immersive': immersiveOpen }">
+  <div ref="viewRoot" class="timeline-view" :class="{ 'timeline-view--split': splitCarrierOpen, 'timeline-view--immersive': immersiveOpen }">
     <!-- 工具栏上移 R3 统一工具条（搜索→标题旁，筛选→收束条，动作→动作区，新建→新建区），套用 BuildingSectionView 模式 -->
     <Teleport to="#view-toolbar-search">
       <input v-model="searchQuery" placeholder="搜索事件..." class="search-input" />
     </Teleport>
     <Teleport to="#view-toolbar-filter-body">
-      <CustomDropdown v-model="eraFilter" :options="eraFilterOptions" />
+      <CustomDropdown v-model="unitFilter" :options="unitFilterOptions" />
+      <CustomDropdown v-if="periods.length > 0" v-model="periodFilter" :options="periodFilterOptions" />
       <CustomDropdown v-model="importanceFilter" :options="importanceFilterOptions" />
-      <CustomDropdown v-model="groupModeValue" :options="groupModeOptions" />
+      <CustomDropdown v-model="groupMode" :options="groupModeOptions" />
     </Teleport>
     <Teleport to="#view-toolbar-actions">
-      <TuiButton variant="secondary" size="sm" :active="sortMode === 'tree'" :icon="sortMode === 'chrono' ? 'timeline' : 'plant'" @click="toggleSortMode" :title="sortMode === 'chrono' ? '切换为大纲视图' : '切换为时间排序'">{{ sortMode === 'chrono' ? '时间序' : '大纲序' }}</TuiButton>
+      <TuiButton v-if="layoutMode === 'vertical'" variant="secondary" size="sm" :active="sortMode === 'tree'" :icon="sortMode === 'chrono' ? 'timeline' : 'plant'" @click="toggleSortMode" :title="sortMode === 'chrono' ? '切换为大纲视图' : '切换为时间排序'">{{ sortMode === 'chrono' ? '时间序' : '大纲序' }}</TuiButton>
       <TuiButton variant="secondary" size="sm" :active="layoutMode === 'horizontal'" :icon="layoutMode === 'vertical' ? 'timeline' : 'graph'" @click="toggleLayoutMode" :title="layoutMode === 'vertical' ? '切换为水平时间线' : '切换为垂直时间线'">{{ layoutMode === 'vertical' ? '垂直' : '水平' }}</TuiButton>
+      <TuiButton v-if="layoutMode === 'horizontal'" variant="secondary" size="sm" title="放大（Ctrl + 滚轮）" @click="chartRef?.zoomIn()">+</TuiButton>
+      <TuiButton v-if="layoutMode === 'horizontal'" variant="secondary" size="sm" title="缩小（Ctrl + 滚轮）" @click="chartRef?.zoomOut()">−</TuiButton>
+      <TuiButton v-if="layoutMode === 'horizontal'" variant="secondary" size="sm" icon="expand" title="适配全部事件" @click="chartRef?.fitAll()">适配</TuiButton>
       <TuiButton v-if="sortMode === 'tree'" variant="secondary" size="sm" icon="expand" title="全部展开" @click="tree.expandAll()">展开</TuiButton>
       <TuiButton v-if="sortMode === 'tree'" variant="secondary" size="sm" icon="collapse" title="全部折叠" @click="tree.collapseAll()">折叠</TuiButton>
       <TuiButton v-if="layoutMode === 'vertical'" variant="secondary" size="sm" :active="compactMode" icon="list" title="紧凑模式" @click="compactMode = !compactMode">{{ compactMode ? '紧凑' : '展开' }}</TuiButton>
+      <TuiButton variant="secondary" size="sm" icon="calendar" :title="`当前历法：${activeCalendar.name}`" @click="showCalendarPanel = true">{{ activeCalendar.name }}</TuiButton>
       <TuiButton variant="secondary" size="sm" icon="warning" :title="hasConflicts ? `${conflicts.length} 个冲突` : '检测时间冲突'" @click="showConflicts = true">冲突{{ hasConflicts ? ` (${conflicts.length})` : '' }}</TuiButton>
       <!-- 分页只在「竖向 + 时序表」出现：横向画布吃全量时间跨度、大纲树分页会丢页外子节点 -->
       <EntityPager v-if="pageable && totalPages > 1" :page="page" :total="totalPages" @prev="pagePrev" @next="pageNext" />
@@ -23,7 +28,7 @@
       <TuiButton v-if="selectedIds.size > 0" variant="secondary" size="sm" @click="clearSelection">取消选择</TuiButton>
     </Teleport>
     <Teleport to="#view-toolbar-create">
-      <CreateButton label="新建事件" @click="openNewForm" />
+      <CreateButton label="新建事件" @click="openNewForm()" />
     </Teleport>
 
     <div v-if="timelineError" class="timeline-error" role="alert">
@@ -34,26 +39,30 @@
 
     <TimelineChart
       v-else
+      ref="chartRef"
       :events="filteredEvents"
-      :paged-events="pagedEvents"
-      :parsed-dates="parsedDates"
-      :depth-map="depthMap"
+      :canvas-events="canvasEvents"
+      :points="points"
+      :runtime="runtime"
+      :calendar="activeCalendar"
+      :canvas-groups="canvasGroups"
+      :chronicle-groups="chronicleGroups"
+      :bands="axisBands"
+      :foreign-count="foreignCount"
       :selected-event-id="selectedEvent?.id ?? null"
       :selected-ids="selectedIds"
       :batch-mode="selecting"
       :loading="chartLoading"
       :loaded="eventsLoaded"
-      :eras="detectedEras"
       :layout-mode="layoutMode"
       :compact-mode="compactMode"
       :sort-mode="sortMode"
       :tree="tree"
-      :drag="dragState"
-      :relations="{ value: computedRelations }"
-      :entity-map="{ value: computedEntityMap }"
-      :group-mode="groupModeValue"
+      :drag-enabled="dragEnabled"
       @select-event="selectEvent"
       @toggle-select="toggleSelect"
+      @select-events="onSelectEvents"
+      @create-event="openNewFormFromCanvas"
     />
 
     <!-- 事件详情：容器走载体注册表（此前直挂 EntityDetailPanel＝时间线拿不到别的载体），
@@ -87,6 +96,8 @@
           :schema-fields="eventSchema?.fields ?? []"
           :editing="isEditing"
           :draft="editForm"
+          :calendar="eventCalendar"
+          :calendars="calendars"
           @update:field="(k, v) => editForm[k] = v"
         />
         <div v-if="involved.length > 0" class="detail-section">
@@ -121,16 +132,31 @@
       :show="showConflicts"
       :conflicts="conflicts"
       @close="showConflicts = false"
+      @focus="focusConflict"
     />
 
-    <EntityFormModal
+    <TimelineEventForm
       ref="formModalRef"
       v-model="showForm"
       :title="editingEvent ? '编辑事件' : '新建事件'"
       :entity="editingEvent"
-      :fields="eventFields"
       :entity-type="'event'"
+      :calendars="calendars"
+      :active-calendar-id="activeCalendarId"
+      :preset="formPreset"
       @save="onFormSave"
+    />
+
+    <CalendarEditorPanel
+      :show="showCalendarPanel"
+      :calendars="calendars"
+      :active-id="activeCalendarId"
+      :migrating="migrating"
+      @close="showCalendarPanel = false"
+      @save="onCalendarSave"
+      @remove="onCalendarRemove"
+      @activate="onCalendarActivate"
+      @migrate="migrateDates"
     />
   </div>
 </template>
@@ -139,7 +165,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useEntityStore, useRelationStore, useUIStore, useDetailLayoutStore } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
-import { AutoLinkSuggestions, CustomDropdown, EntityCoverPanel, EntityFormModal, CreateButton, DynamicFieldsAdder, UniversalRelationPanel, EntityRelationSelector, EntityPager, useDuplicateNameCheck, useSelectedFollow, useShortcuts, useBatchDelete, useConfirm, useEntityEdit, useEntityPaging, useDetailCarrier, resolveDetailTabs, adjacentTabId, type FormFieldDef } from '@worldsea/plugin-sdk'
+import { AutoLinkSuggestions, CustomDropdown, EntityCoverPanel, CreateButton, DynamicFieldsAdder, UniversalRelationPanel, EntityRelationSelector, EntityPager, useDuplicateNameCheck, useSelectedFollow, useBatchDelete, useConfirm, useEntityEdit, useEntityPaging, useDetailCarrier, resolveDetailTabs, adjacentTabId } from '@worldsea/plugin-sdk'
 import { toastSuccess, toastWithUndo, useUndoRedo, useAsyncTask } from '@worldsea/ui-kit'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { TuiButton, WsEmpty } from '@worldsea/ui-kit'
@@ -148,11 +174,17 @@ import TimelineChart from './components/TimelineChart.vue'
 import ConflictDetector from './components/ConflictDetector.vue'
 import CausalGraph from './components/CausalGraph.vue'
 import EventDetailFields from './components/EventDetailFields.vue'
+import TimelineEventForm from './components/TimelineEventForm.vue'
+import CalendarEditorPanel from './calendar/components/CalendarEditorPanel.vue'
+import { useTimelineCalendarActions } from './calendar/useTimelineCalendarActions'
 import { useEventTree } from './composables/useEventTree'
+import { useTimelineEventForm } from './composables/useTimelineEventForm'
 import { useTimelineSort } from './composables/useTimelineSort'
 import { useConflictDetection } from './composables/useConflictDetection'
 import { useTimelineFilters } from './composables/useTimelineFilters'
-import { useTimelineDrag } from './composables/useTimelineDrag'
+import { useTimelinePoints } from './composables/useTimelinePoints'
+import { useTimelineGroups } from './composables/useTimelineGroups'
+import { useTimelineKeyboard } from './composables/useTimelineKeyboard'
 import { DETAIL_TAB_DECLARATIONS } from '../../detailTabDeclarations'
 import { entitySchemaRegistry } from '@worldsea/entity-core'
 
@@ -161,7 +193,6 @@ const relationStore = useRelationStore()
 const uiStore = useUIStore()
 const { checkAndConfirmName } = useDuplicateNameCheck()
 const { confirm } = useConfirm()
-const { register, unregister } = useShortcuts()
 const { undo, redo } = useUndoRedo()
 const settingsStore = useSettingsStore()
 const { selectedIds, selecting, toggleSelect, clearSelection, toggleSelectMode, batchDelete } = useBatchDelete()
@@ -176,7 +207,7 @@ const { carrierDef, detailPanelId, isSplit, isImmersive } = useDetailCarrier(() 
 const splitCarrierOpen = computed(() => isSplit.value && !!selectedEvent.value)
 const immersiveOpen = computed(() => isImmersive.value && !!selectedEvent.value)
 const editingEvent = ref<Entity | null>(null)
-const formModalRef = ref<InstanceType<typeof EntityFormModal> | null>(null)
+const formModalRef = ref<{ syncEntityRefAfterCreate: (id: string) => Promise<void> | void } | null>(null)
 
 // 选中事件跟随 store（updateById 按引用替换后，详情面板不能挂旧对象——封面 Tab 同口径）
 useSelectedFollow(selectedEvent, () => entityStore.entityMap)
@@ -185,65 +216,37 @@ const layoutMode = ref<'horizontal' | 'vertical'>(
   (settingsStore as any).timelineDefaultMode === 'horizontal' ? 'horizontal' : 'vertical'
 )
 const compactMode = ref((settingsStore as any).timelineCompactMode === true)
-const groupModeValue = ref((settingsStore as any).timelineDefaultGroup ?? 'none')
-
-const eventFields: FormFieldDef[] = [
-  { key: 'name', label: '名称', type: 'text', required: true, placeholder: '事件名称' },
-  { key: 'description', label: '描述', type: 'textarea', placeholder: '事件描述' },
-  { key: 'date', label: '日期/纪年', type: 'text', placeholder: '如: 第三纪元147年' },
-  { key: 'dateEnd', label: '结束日期', type: 'text' },
-  { key: 'era', label: '纪元', type: 'text', placeholder: '如: 第三纪元' },
-  { key: 'importance', label: '重要程度', type: 'select', options: [
-    { value: '关键', label: '关键' }, { value: '重要', label: '重要' },
-    { value: '普通', label: '普通' }, { value: '细微', label: '细微' },
-  ] },
-  { key: 'status', label: '状态', type: 'select', options: [
-    { value: '正史', label: '正史' }, { value: '废案', label: '废案' },
-    { value: '备选', label: '备选' },
-  ] },
-  { key: 'location', label: '发生地点', type: 'text' },
-  { key: 'tags', label: '标签', type: 'tags' },
-  { key: 'parentId', label: '父级事件', type: 'entityRef', refType: 'event', placeholder: '搜索事件...' },
-]
+const dragEnabled = computed(() => (settingsStore as any).timelineDragEnabled === true)
+const viewRoot = ref<HTMLElement>()
+const formPreset = ref<Record<string, unknown> | null>(null)
 
 const eventList = computed(() => entityStore.entities.filter(e => e.type === 'event'))
 
+const calendarApi = useTimelineCalendarActions({ events: () => eventList.value, entityStore, loadTimeline, confirm: confirm as any })
+const { calendars, active: activeCalendar, activeId: activeCalendarId, showPanel: showCalendarPanel, migrating, load: loadCalendars, saveCalendar: onCalendarSave, removeCalendar: onCalendarRemove, activateCalendar: onCalendarActivate, migrateDates, byId: calendarById } = calendarApi
+const eventCalendar = computed(() => calendarById(selectedEvent.value?.properties.calendarId as string | undefined))
+const { openNewForm, onFormSave } = useTimelineEventForm({ showForm, editingEvent, activeCalendar, preset: formPreset, entityStore, formModalRef, checkAndConfirmName })
+
 const tree = useEventTree(eventList)
-const { depthMap, flatOrder, expandTo } = tree
-const { sortMode, sortedEvents, parsedDates, toggleSortMode } = useTimelineSort(eventList, flatOrder)
+const { flatOrder, expandTo } = tree
+
+/* ── 时间数据层：按事件所属历法解析 → 标量区间 / 期段色带 ── */
+const { points, runtime, periods, axisBands, foreignCount } = useTimelinePoints({ events: eventList, calendars, activeCalendar })
+const { sortMode, sortedEvents, toggleSortMode } = useTimelineSort(eventList, flatOrder, points)
 const { conflicts, hasConflicts } = useConflictDetection(
-  eventList,
-  computed(() => relationStore.relations),
-  computed(() => entityStore.entityMap)
-)
+  computed(() => relationStore.relations), computed(() => entityStore.entityMap), points, runtime)
 
-const drag = useTimelineDrag({
-  enabled: computed(() => (settingsStore as any).timelineDragEnabled ?? false),
-  entityStore,
-  confirm: confirm as any,
-  pixelsPerYear: computed(() => 30),
-  timeToTimeValue: (pd) => pd.era * 10000 + pd.year,
-})
+const chartRef = ref<{ zoomIn: () => void; zoomOut: () => void; fitAll: () => void; focusEvent: (id: string) => void } | null>(null)
 
-const dragState = { isDragging: drag.isDragging, dragTarget: drag.dragTarget }
-
-const computedRelations = computed(() => relationStore.relations)
-const computedEntityMap = computed(() => entityStore.entityMap)
-
-/* ── 筛选管线（2026-10-07 抽至 composables/useTimelineFilters——文件顶在尺寸基线，守卫"拆分为宜"）── */
+/* ── 筛选管线（搜索 + 顶层单位 + 期段 + 重要度；分组选项按视图形态给出）── */
 const {
-  searchQuery, eraFilter, importanceFilter,
-  detectedEras, eraFilterOptions, importanceFilterOptions,
-  filteredEvents,
-} = useTimelineFilters(sortedEvents)
-
-const groupModeOptions = [
-  { value: 'none', label: '无分组' },
-  { value: 'character', label: '按角色' },
-  { value: 'location', label: '按地点' },
-  { value: 'era', label: '按纪元' },
-  { value: 'tag', label: '按标签' },
-]
+  searchQuery, unitFilter, periodFilter, importanceFilter, groupMode, groupModeOptions,
+  unitFilterOptions, periodFilterOptions, importanceFilterOptions, filteredEvents,
+} = useTimelineFilters(
+  sortedEvents,
+  { points, periods, calendar: activeCalendar, layoutMode },
+  (settingsStore as any).timelineDefaultGroup ?? 'none',
+)
 
 /* ── 分页（2026-10-01，与 GEV 同一口径：只切「渲染哪一段」，filteredEvents 仍全量——
  * 冲突检测、批量删除取名、跨页选中都吃全量，不随翻页变化）── */
@@ -252,61 +255,46 @@ const { page, totalPages, pagedList: pagedEvents, pagePrev, pageNext, resetPage 
 const pageable = computed(() => layoutMode.value === 'vertical' && sortMode.value === 'chrono')
 // 离开可分页形态即回第 1 页：否则切回来时停在上次那页，像是「事件少了」
 watch(pageable, on => { if (!on) resetPage() })
-watch([searchQuery, eraFilter, importanceFilter], resetPage)
+watch([searchQuery, unitFilter, periodFilter, importanceFilter], resetPage)
+
+/* ── 两态分组派生（画布剔除其他历法事件；编年史保留尾组）── */
+const verticalEvents = computed(() => pageable.value ? pagedEvents.value : filteredEvents.value)
+const { canvasEvents, chronicleGroups, canvasGroups } = useTimelineGroups({
+  verticalEvents, filteredEvents, points, calendar: activeCalendar, runtime, periods,
+  relations: computed(() => relationStore.relations), groupMode,
+  entityMap: computed(() => entityStore.entityMap),
+})
 
 function involvedEntities(eventId: string): Entity[] {
   const rels = relationStore.relations.filter(r => r.type === 'involves' && r.sourceId === eventId)
   return rels.map(r => entityStore.entityMap.get(r.targetId)).filter(Boolean) as Entity[]
 }
 
-function openNewForm() { editingEvent.value = null; showForm.value = true }
-
 function toggleLayoutMode() {
   layoutMode.value = layoutMode.value === 'horizontal' ? 'vertical' : 'horizontal'
 }
 
-async function onFormSave(data: { name: string; description: string; properties: Record<string, any>; tags: string[]; _coverPosition?: string; _coverZoom?: number }) {
-  const now = new Date().toISOString()
-  if (editingEvent.value) {
-    const updateData: Record<string, unknown> = {
-      description: data.description,
-      properties: data.properties,
-      tags: data.tags,
-    }
-    // 表单无 name/title 字段时 data.name 为空串——不带 name 键，防止抹掉既有名（方言守卫，2026-10-05）
-    if (data.name) updateData.name = data.name
-    if (data._coverPosition) updateData.coverPosition = data._coverPosition
-    if (data._coverZoom) updateData.coverZoom = data._coverZoom
-    await entityStore.update(editingEvent.value.id, updateData)
-  } else {
-    const checkedName = await checkAndConfirmName(data.name, undefined, 'event')
-    if (!checkedName) return
-    const entity: Entity = {
-      id: `evt-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      type: 'event',
-      name: checkedName,
-      description: data.description,
-      properties: data.properties,
-      tags: data.tags,
-      createdAt: now,
-      updatedAt: now,
-    }
-    await entityStore.add(entity)
-    toastSuccess('已创建')
-    await formModalRef.value?.syncEntityRefAfterCreate(entity.id)
-  }
-  showForm.value = false
-  editingEvent.value = null
-  await entityStore.loadAll()
+/** 跳转聚焦：画布平移事件到视口中心；大纲树展开祖先 */
+function focusEventInView(id: string): void {
+  if (layoutMode.value === 'horizontal') chartRef.value?.focusEvent(id)
+  else expandTo(id)
+}
+function selectEvent(event: Entity) {
+  selectedEvent.value = event
+  if (sortMode.value === 'tree') expandTo(event.id)
 }
 
-function selectEvent(event: Entity) { selectedEvent.value = event }
-
-/** 跨视图跳转专用：按 id 选中事件（类型不符 no-op，与 GEV 的 selectById 同口径） */
+/** 跨视图/冲突跳转：按 id 选中并聚焦（类型不符 no-op，与 GEV 的 selectById 同口径） */
 function selectEventById(id: string): void {
   const entity = entityStore.entityMap.get(id)
-  if (entity && entity.type === 'event') selectedEvent.value = entity
+  if (entity?.type === 'event') { selectedEvent.value = entity; focusEventInView(id) }
 }
+function focusConflict(id: string) { selectEventById(id) }
+/** 画布框选：并入当前选中集 */
+const onSelectEvents = (ids: string[]) => { selectedIds.value = new Set([...selectedIds.value, ...ids]) }
+/** 画布空白拖拽/单击建事件：预填吸附后的起止日期 */
+const openNewFormFromCanvas = (preset: { date: string; dateEnd?: string; calendarId: string }) =>
+  openNewForm({ ...preset, dateCertainty: 'exact' })
 /** 跨视图跳转的即时选中通道（视图已挂载时） */
 function onWsSelectEntity(e: Event) {
   selectEventById(((e as CustomEvent).detail?.entityId as string | undefined) ?? '')
@@ -324,6 +312,16 @@ function switchTabBy(delta: number): void {
 }
 const customFieldDefs = ref<any[]>([])
 
+useTimelineKeyboard({
+  viewRoot, chartRef,
+  actions: {
+    undo: () => undo(entityStore, relationStore), redo: () => redo(entityStore, relationStore),
+    // 详情优先：有详情先关详情，否则退批量态（与 GEV 同规则）
+    close: () => { if (selectedEvent.value) selectedEvent.value = null; else if (selecting.value) toggleSelectMode() },
+    pagePrev, pageNext, switchTabBy,
+  },
+})
+
 /** 详情 Tab：组装走 `resolveDetailTabs` 单点（2026-10-08 Tab 优化批；因果链为自绘芽的附加页）；
  *  用户覆写（排序/隐藏）按 'event' 类型生效；「关联」徽标＝选中事件的关系总数（与 GEV 同口径） */
 const detailPrefs = useDetailLayoutStore()
@@ -335,6 +333,12 @@ const detailTabs = computed(() => {
 })
 
 const { isEditing, editForm, startEdit, cancelEdit, saveEdit } = useEntityEdit(selectedEvent)
+// 详情行内编辑也补齐历法字段，避免旧事件保存后仍缺 calendarId/dateCertainty
+watch(isEditing, on => {
+  if (!on) return
+  if (!editForm.value.calendarId) editForm.value.calendarId = activeCalendar.value.id
+  if (!editForm.value.dateCertainty) editForm.value.dateCertainty = 'exact'
+})
 
 const eventSchema = computed(() => entitySchemaRegistry.get('event'))
 
@@ -399,38 +403,13 @@ function retryTimeline(): void {
 onMounted(async () => {
   // ws-navigate 跨视图跳转：监听先于数据加载**同步注册**（loadAll 期间到达的事件不能丢）
   window.addEventListener('ws-select-entity', onWsSelectEntity)
-  await loadTimeline()
-
-  // 原 id=global.undo/redo 会按 id 覆盖 Shell 的同名全局注册（registry 按 id 去重），
-  // 导致 Agent 空间下全局撤销失效；改用视图自有 id，与全局键在 scope 优先级下自然共存
-  register({ id: 'timeline.undo', keys: ['ctrl', 'z'], scope: 'view', description: '时间轴：撤销', handler: () => undo(entityStore, relationStore) })
-  register({ id: 'timeline.redo', keys: ['ctrl', 'y'], scope: 'view', description: '时间轴：重做', handler: () => redo(entityStore, relationStore) })
-  register({
-    id: 'timeline.close',
-    keys: ['escape'],
-    scope: 'view',
-    description: '关闭详情 / 退出批量选择',
-    // 详情优先：有详情先关详情，否则退批量态（与 GEV 同规则）
-    handler: () => {
-      if (selectedEvent.value) selectedEvent.value = null
-      else if (selecting.value) toggleSelectMode()
-    },
-  })
-  // 分页（Ctrl+←/→，与 GEV 的 `${entityType}.page-*` 同键位、不同 id）
-  register({ id: 'timeline.page-prev', keys: ['ctrl', 'left'], scope: 'view', description: '时间轴：上一页', preventDefault: true, handler: pagePrev })
-  register({ id: 'timeline.page-next', keys: ['ctrl', 'right'], scope: 'view', description: '时间轴：下一页', preventDefault: true, handler: pageNext })
-  // ALT+←/→ 切详情标签页（2026-10-08 Tab 优化批 B；wrap；详情未开 no-op）
-  register({ id: 'timeline.tab-prev', keys: ['alt', 'left'], scope: 'view', description: '时间轴：上一个标签页', preventDefault: true, handler: () => switchTabBy(-1) })
-  register({ id: 'timeline.tab-next', keys: ['alt', 'right'], scope: 'view', description: '时间轴：下一个标签页', preventDefault: true, handler: () => switchTabBy(1) })
+  await Promise.all([loadTimeline(), loadCalendars()])
 
   // 挂起位兜底：数据就绪后读回（跨视图跳转的事件发在本视图挂载前，见 Shell.onWsNavigate）
   selectEventById(uiStore.selectedEntityId ?? '')
 })
 
-/** 本视图注册的快捷键 id：注册表不随组件销毁清理，不注销会叠下指向陈旧闭包的记录 */
-const TIMELINE_SHORTCUT_IDS = ['timeline.undo', 'timeline.redo', 'timeline.close', 'timeline.page-prev', 'timeline.page-next', 'timeline.tab-prev', 'timeline.tab-next']
 onBeforeUnmount(() => {
-  for (const id of TIMELINE_SHORTCUT_IDS) unregister(id)
   window.removeEventListener('ws-select-entity', onWsSelectEntity)
 })
 

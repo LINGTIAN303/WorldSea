@@ -1,17 +1,17 @@
 <template>
-  <div class="swimlane-header" :style="{ borderLeftColor: lane.color }">
+  <div class="swimlane-header" :style="{ borderLeftColor: lane.color }" :title="lane.detail || lane.label">
     <button class="lane-collapse-btn" @click="$emit('toggleCollapse', lane.id)">
       <WsIcon :name="lane.collapsed ? 'chevron-right' : 'chevron-down'" size="xs" />
     </button>
     <span class="lane-color-dot" :style="{ background: lane.color }"></span>
     <span class="lane-label">{{ lane.label }}</span>
-    <span class="lane-count">{{ lane.events.length }}</span>
+    <span class="lane-count">{{ lane.count }}</span>
   </div>
 </template>
 
 <script setup lang="ts">
-import type { Swimlane } from '../composables/useSwimlaneLayout'
 import { WsIcon } from '@worldsea/ui-kit'
+import type { Swimlane } from '../composables/useSwimlaneLayout'
 
 defineProps<{
   lane: Swimlane
@@ -27,7 +27,9 @@ defineEmits<{
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 12px;
+  box-sizing: border-box;
+  height: 32px;
+  padding: 0 8px;
   border-left: 3px solid;
   background: var(--hover-bg);
   border-radius: var(--radius-sm);
@@ -35,9 +37,7 @@ defineEmits<{
   user-select: none;
   transition: background var(--transition-fast);
 }
-.swimlane-header:hover {
-  background: var(--card-bg);
-}
+.swimlane-header:hover { background: var(--card-bg); }
 
 .lane-collapse-btn {
   width: 18px;

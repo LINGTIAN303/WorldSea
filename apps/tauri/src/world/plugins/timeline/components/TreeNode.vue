@@ -18,6 +18,7 @@
 
     <EventCard
       :event="node.entity"
+      :data-event-id="node.entity.id"
       :highlighted="isSelected"
       :batch-selected="isBatchSelected"
       :batch-mode="batchMode"

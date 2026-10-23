@@ -61,12 +61,28 @@ function draw() {
 }
 
 function onMouseDown(e: MouseEvent) {
+  if (e.button !== 0) return
+  e.preventDefault()
+  panToClientX(e.clientX)
+  const move = (event: MouseEvent) => panToClientX(event.clientX)
+  const up = () => {
+    window.removeEventListener('mousemove', move)
+    window.removeEventListener('mouseup', up)
+    document.body.style.removeProperty('cursor')
+  }
+  window.addEventListener('mousemove', move)
+  window.addEventListener('mouseup', up)
+  document.body.style.cursor = 'grabbing'
+}
+
+/** 点击/拖拽：把该横坐标对应的时段中心移到视口（连续拖动可扫动缩略图） */
+function panToClientX(clientX: number) {
   const canvas = minimapCanvas.value
   if (!canvas || props.totalWidth === 0) return
   const rect = canvas.getBoundingClientRect()
-  const clickX = e.clientX - rect.left
-  const s = props.width / props.totalWidth
-  const targetScroll = clickX / s - props.viewportWidth / 2
+  const clickX = clientX - rect.left
+  const scale = props.width / props.totalWidth
+  const targetScroll = clickX / scale - props.viewportWidth / 2
   emit('panTo', Math.max(0, Math.min(props.totalWidth - props.viewportWidth, targetScroll)))
 }
 

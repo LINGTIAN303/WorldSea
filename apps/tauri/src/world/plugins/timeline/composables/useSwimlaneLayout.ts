@@ -1,24 +1,39 @@
+/**
+ * 画布泳道布局：分组 → 泳道 → 行（重叠事件错行）。
+ *
+ * 口径：只关心行号与高度，像素换算留给标尺；周期 occurrence 与基础事件同泳道参与错行。
+ */
 import { computed, ref, type ComputedRef } from 'vue'
-import type { Entity, Relation } from '@worldsea/entity-core'
-import { parseDateRange, type ParsedDate } from './useDateParser'
+import type { Entity } from '@worldsea/entity-core'
+import type { EventTime } from './useTimelinePoints'
+import type { TimelineGroup } from './timelineGroups'
 
-export type GroupMode = 'none' | 'character' | 'location' | 'era' | 'tag'
+export interface OccurrenceMarker {
+  key: string
+  eventId: string
+  scalar: number
+  text: string
+}
+
+export interface LaneItem {
+  key: string
+  event: Entity
+  startScalar: number
+  endScalar: number
+  row: number
+  /** 有值 = 周期展开出的虚拟 occurrence */
+  occurrenceText?: string
+}
 
 export interface Swimlane {
   id: string
   label: string
+  detail?: string
   color: string
-  events: Entity[]
   collapsed: boolean
-  sortOrder: number
-}
-
-export interface RowAssignment {
-  eventId: string
-  row: number
-  pixelX: number
-  pixelWidth: number
-  pixelY: number
+  count: number
+  height: number
+  items: LaneItem[]
 }
 
 const LANE_COLORS = [
@@ -27,199 +42,82 @@ const LANE_COLORS = [
   '#f97316', '#84cc16', '#ec4899', '#14b8a6',
 ]
 
+export const ROW_HEIGHT = 36
+export const LANE_HEADER_HEIGHT = 32
+const LANE_PADDING = 8
+const LANE_MIN_BODY = 40
+
 export interface SwimlaneLayoutOptions {
-  events: ComputedRef<Entity[]>
-  relations: ComputedRef<Relation[]>
-  entityMap: ComputedRef<Map<string, Entity>>
-  pixelsPerYear: ComputedRef<number>
-  timeToPixel: (date: ParsedDate) => number
-  timeToTimeValue: (date: ParsedDate) => number
+  groups: ComputedRef<TimelineGroup[]>
+  points: ComputedRef<Map<string, EventTime>>
+  occurrences: ComputedRef<OccurrenceMarker[]>
 }
 
 export function useSwimlaneLayout(options: SwimlaneLayoutOptions) {
-  const { events, relations, entityMap, timeToPixel, timeToTimeValue } = options
-
-  const groupMode = ref<GroupMode>('none')
+  const { groups, points, occurrences } = options
   const collapsedLanes = ref<Set<string>>(new Set())
 
-  const parsedDateMap = computed(() => {
-    const map = new Map<string, ParsedDate | null>()
-    for (const e of events.value) {
-      const dateText = (e.properties.date as string) || ''
-      const dateEndText = (e.properties.dateEnd as string) || ''
-      map.set(e.id, parseDateRange(dateText, dateEndText))
-    }
-    return map
-  })
-
   const lanes = computed<Swimlane[]>(() => {
-    if (groupMode.value === 'none') {
-      return [{
-        id: '__default__',
-        label: '全部事件',
-        color: LANE_COLORS[0],
-        events: events.value,
-        collapsed: collapsedLanes.value.has('__default__'),
-        sortOrder: 0,
-      }]
+    const occurrenceByEvent = new Map<string, OccurrenceMarker[]>()
+    for (const occurrence of occurrences.value) {
+      if (!occurrenceByEvent.has(occurrence.eventId)) occurrenceByEvent.set(occurrence.eventId, [])
+      occurrenceByEvent.get(occurrence.eventId)!.push(occurrence)
     }
 
-    const groupMap = new Map<string, Entity[]>()
+    return groups.value.map((group, index) => {
+      const isCollapsed = collapsedLanes.value.has(group.id)
+      const items: LaneItem[] = []
+      for (const event of group.events) {
+        const point = points.value.get(event.id)
+        if (!point || point.foreign || point.unresolved || !Number.isFinite(point.startScalar)) continue
+        items.push({ key: event.id, event, startScalar: point.startScalar, endScalar: point.endScalar, row: 0 })
+        for (const occurrence of occurrenceByEvent.get(event.id) ?? []) {
+          items.push({
+            key: occurrence.key, event,
+            startScalar: occurrence.scalar, endScalar: occurrence.scalar + 1,
+            row: 0, occurrenceText: occurrence.text,
+          })
+        }
+      }
 
-    if (groupMode.value === 'character') {
-      const involveRels = relations.value.filter(r => r.type === 'involves')
-      const ungrouped: Entity[] = []
-      const grouped = new Set<string>()
-      for (const e of events.value) {
-        const rels = involveRels.filter(r => r.sourceId === e.id)
-        if (rels.length === 0) {
-          ungrouped.push(e)
+      items.sort((a, b) => a.startScalar - b.startScalar || a.key.localeCompare(b.key))
+      const rowEnds: number[] = []
+      for (const item of items) {
+        item.endScalar = Math.max(item.endScalar, item.startScalar + 1)
+        let row = rowEnds.findIndex(end => end <= item.startScalar)
+        if (row < 0) {
+          row = rowEnds.length
+          rowEnds.push(item.endScalar)
         } else {
-          for (const rel of rels) {
-            const char = entityMap.value.get(rel.targetId)
-            if (!char) continue
-            if (!groupMap.has(char.name)) groupMap.set(char.name, [])
-            groupMap.get(char.name)!.push(e)
-            grouped.add(e.id)
-          }
+          rowEnds[row] = item.endScalar
         }
+        item.row = row
       }
-      for (const e of ungrouped) {
-        if (!grouped.has(e.id)) {
-          if (!groupMap.has('未分配')) groupMap.set('未分配', [])
-          groupMap.get('未分配')!.push(e)
-        }
-      }
-    } else if (groupMode.value === 'location') {
-      for (const e of events.value) {
-        const loc = (e.properties.location as string) || '未知地点'
-        if (!groupMap.has(loc)) groupMap.set(loc, [])
-        groupMap.get(loc)!.push(e)
-      }
-    } else if (groupMode.value === 'era') {
-      for (const e of events.value) {
-        const era = (e.properties.era as string) || '未知纪元'
-        if (!groupMap.has(era)) groupMap.set(era, [])
-        groupMap.get(era)!.push(e)
-      }
-    } else if (groupMode.value === 'tag') {
-      for (const e of events.value) {
-        const tags = (e.tags as string[]) || []
-        if (tags.length === 0) {
-          if (!groupMap.has('无标签')) groupMap.set('无标签', [])
-          groupMap.get('无标签')!.push(e)
-        } else {
-          for (const tag of tags) {
-            if (!groupMap.has(tag)) groupMap.set(tag, [])
-            groupMap.get(tag)!.push(e)
-          }
-        }
-      }
-    }
 
-    const result: Swimlane[] = []
-    let colorIdx = 0
-    const sortedKeys = Array.from(groupMap.keys()).sort()
-    for (const key of sortedKeys) {
-      result.push({
-        id: `lane-${key}`,
-        label: key,
-        color: LANE_COLORS[colorIdx % LANE_COLORS.length],
-        events: groupMap.get(key) || [],
-        collapsed: collapsedLanes.value.has(`lane-${key}`),
-        sortOrder: colorIdx,
-      })
-      colorIdx++
-    }
-    return result
+      const body = isCollapsed ? 0 : Math.max(LANE_MIN_BODY, rowEnds.length * ROW_HEIGHT + LANE_PADDING)
+      return {
+        id: group.id,
+        label: group.label || '全部事件',
+        detail: group.detail,
+        color: LANE_COLORS[index % LANE_COLORS.length],
+        collapsed: isCollapsed,
+        count: group.events.length,
+        height: LANE_HEADER_HEIGHT + body,
+        items,
+      }
+    })
   })
 
-  const rowAssignments = computed<Map<string, RowAssignment>>(() => {
-    const map = new Map<string, RowAssignment>()
-    const ROW_HEIGHT = 32
-    const ROW_GAP = 4
+  function toggleCollapse(laneId: string) {
+    const next = new Set(collapsedLanes.value)
+    if (next.has(laneId)) next.delete(laneId)
+    else next.add(laneId)
+    collapsedLanes.value = next
+  }
 
-    for (const lane of lanes.value) {
-      if (lane.collapsed) continue
-
-      const sorted = [...lane.events].sort((a, b) => {
-        const da = parsedDateMap.value.get(a.id)
-        const db = parsedDateMap.value.get(b.id)
-        if (!da && !db) return 0
-        if (!da) return -1
-        if (!db) return 1
-        return timeToTimeValue(da) - timeToTimeValue(db)
-      })
-
-      const rows: { endTime: number }[] = []
-
-      for (const e of sorted) {
-        const pd = parsedDateMap.value.get(e.id)
-        if (!pd) continue
-
-        const startTime = timeToTimeValue(pd)
-        const isRange = pd.isRange && pd.yearEnd != null
-        const endTime = isRange
-          ? timeToTimeValue({ ...pd, year: pd.yearEnd ?? pd.year, era: pd.eraEnd ?? pd.era })
-          : startTime + 1
-
-        const startX = timeToPixel(pd)
-        const endX = isRange
-          ? timeToPixel({ ...pd, year: pd.yearEnd ?? pd.year, era: pd.eraEnd ?? pd.era })
-          : startX + 24
-
-        const width = Math.max(24, endX - startX)
-
-        let assignedRow = -1
-        for (let r = 0; r < rows.length; r++) {
-          if (rows[r].endTime <= startTime) {
-            assignedRow = r
-            rows[r].endTime = endTime
-            break
-          }
-        }
-        if (assignedRow === -1) {
-          assignedRow = rows.length
-          rows.push({ endTime })
-        }
-
-        map.set(e.id, {
-          eventId: e.id,
-          row: assignedRow,
-          pixelX: startX,
-          pixelWidth: width,
-          pixelY: assignedRow * (ROW_HEIGHT + ROW_GAP),
-        })
-      }
-    }
-
-    return map
-  })
-
-  function setGroupMode(mode: GroupMode) {
-    groupMode.value = mode
+  function resetCollapse() {
     collapsedLanes.value = new Set()
   }
 
-  function toggleLaneCollapse(laneId: string) {
-    const newSet = new Set(collapsedLanes.value)
-    if (newSet.has(laneId)) newSet.delete(laneId)
-    else newSet.add(laneId)
-    collapsedLanes.value = newSet
-  }
-
-  function reorderLanes(fromIndex: number, toIndex: number) {
-    void fromIndex; void toIndex
-  }
-
-  return {
-    lanes,
-    rowAssignments,
-    parsedDateMap,
-    groupMode,
-    collapsedLanes,
-    setGroupMode,
-    toggleLaneCollapse,
-    reorderLanes,
-  }
+  return { lanes, toggleCollapse, resetCollapse }
 }

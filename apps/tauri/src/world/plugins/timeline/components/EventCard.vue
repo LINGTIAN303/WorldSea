@@ -20,7 +20,8 @@
     <p v-if="!compact && event.description" class="ec-desc">{{ event.description.slice(0, 80) }}</p>
     <div v-if="!compact" class="ec-meta">
       <span v-if="event.properties.location" class="ec-tag"><WsIcon name="location" size="xs" /> {{ event.properties.location }}</span>
-      <span v-if="event.properties.era" class="ec-tag"><WsIcon name="manuscript" size="xs" /> {{ event.properties.era }}</span>
+      <span v-if="event.properties.recurrence" class="ec-tag ec-cycle"><WsIcon name="timeline" size="xs" /> 周期</span>
+      <span v-if="fuzzyLabel" class="ec-tag ec-fuzzy">{{ fuzzyLabel }}</span>
       <span class="ec-tag" :class="statusClass">{{ event.properties.status || '正史' }}</span>
       <span v-if="isRange" class="ec-tag ec-range">↔ 持续事件</span>
     </div>
@@ -60,6 +61,12 @@ const isRange = computed(() => {
   return !!dateEnd
 })
 
+/** 模糊日期徽标（精确日期不显示） */
+const fuzzyLabel = computed(() => {
+  const map: Record<string, string> = { approx: '约', before: '早于', after: '晚于', legend: '传说' }
+  return map[String(props.event.properties.dateCertainty ?? '')] ?? ''
+})
+
 const displayDate = computed(() => {
   const date = (props.event.properties.date as string) || '?'
   const dateEnd = props.event.properties.dateEnd as string
@@ -95,6 +102,10 @@ const statusClass = computed(() => {
 .event-card:hover {
   box-shadow: var(--card-shadow-hover);
   border-color: var(--primary);
+}
+.event-card:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 .event-card.highlighted {
   border-color: var(--primary);
@@ -173,6 +184,15 @@ const statusClass = computed(() => {
 .ec-range {
   background: var(--primary-light);
   color: var(--primary);
+}
+.ec-cycle {
+  background: var(--primary-light);
+  color: var(--primary);
+}
+.ec-fuzzy {
+  border: 1px dashed var(--warning);
+  color: var(--warning);
+  background: transparent;
 }
 .status-canon { background: var(--success-light); color: var(--success); }
 .status-abandoned { background: var(--danger-light); color: var(--danger); }

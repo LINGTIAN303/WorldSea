@@ -28,14 +28,18 @@ describe('ALT+←/→ 切页接线', () => {
   })
 
   it('TimelineView：注册 timeline.tab-prev/tab-next 并接 switchTabBy', () => {
-    const src = read('apps/tauri/src/world/plugins/timeline/TimelineView.vue')
+    // 2026-10-24 T4：注册收拢到 useTimelineKeyboard（视图压尺寸基线），接线与注销成对仍锁住
+    const src = read('apps/tauri/src/world/plugins/timeline/composables/useTimelineKeyboard.ts')
     expect(src).toContain('timeline.tab-prev')
     expect(src).toContain('timeline.tab-next')
     expect(src).toMatch(/keys: \['alt', 'left'\]/)
     expect(src).toMatch(/keys: \['alt', 'right'\]/)
-    expect(src).toMatch(/adjacentTabId\(detailTabs\.value/)
+    expect(src).toMatch(/switchTabBy\(-1\)/)
+    expect(src).toMatch(/switchTabBy\(1\)/)
     // 注销成对（注册表不随组件销毁清理——不注销会叠陈闭包）
-    expect(src).toMatch(/TIMELINE_SHORTCUT_IDS[^\]]*'timeline\.tab-prev'/)
+    expect(src).toMatch(/for \(const id of ids\) unregister\(id\)/)
+    const view = read('apps/tauri/src/world/plugins/timeline/TimelineView.vue')
+    expect(view).toMatch(/adjacentTabId\(detailTabs\.value/)
   })
 
   it('目录双登记：SHORTCUT_CATALOG 含 timeline 两键（注册处 ⊆ 目录守卫的凭据）', () => {

@@ -13,9 +13,21 @@
         <p>所有事件时间线无冲突</p>
       </div>
 
-      <div v-for="(c, i) in conflicts" :key="i" class="conflict-item" :class="c.type">
+      <div
+        v-for="(c, i) in conflicts"
+        :key="i"
+        class="conflict-item"
+        :class="[c.type, { fuzzy: c.fuzzy }]"
+        role="button"
+        tabindex="0"
+        :title="`点击定位到「${c.entities[0]}」`"
+        @click="$emit('focus', c.eventIds[0])"
+        @keydown.enter="$emit('focus', c.eventIds[0])"
+        @keydown.space.prevent="$emit('focus', c.eventIds[0])"
+      >
         <div class="conflict-type-badge">
           {{ c.type === 'same_date' ? '同日期' : c.type === 'overlap' ? '时间重叠' : '同地点' }}
+          <span v-if="c.fuzzy" class="fuzzy-tag">模糊</span>
         </div>
         <p class="conflict-desc">{{ c.description }}</p>
         <div class="conflict-entities">
@@ -38,6 +50,7 @@ defineProps<{
 
 defineEmits<{
   close: []
+  focus: [eventId: string]
 }>()
 </script>
 
@@ -77,10 +90,26 @@ defineEmits<{
   border-radius: var(--radius-md);
   margin-bottom: 10px;
   border: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+.conflict-item:hover,
+.conflict-item:focus-visible {
+  background: var(--hover-bg);
+  outline: none;
 }
 .conflict-item.same_date { border-left: 3px solid var(--warning, #f59e0b); }
 .conflict-item.overlap { border-left: 3px solid var(--danger, #ef4444); }
 .conflict-item.same_location { border-left: 3px solid var(--primary, #4f46e5); }
+/* 模糊日期冲突：虚线左栏 + 徽标，提醒仅供参考 */
+.conflict-item.fuzzy { border-left-style: dashed; }
+.fuzzy-tag {
+  margin-left: 6px;
+  padding: 0 4px;
+  font-size: var(--fs-2xs);
+  border: 1px dashed currentColor;
+  border-radius: var(--radius-xs);
+}
 .conflict-type-badge {
   display: inline-block;
   font-size: var(--font-size-xs);
@@ -99,6 +128,6 @@ defineEmits<{
 .detail-close { position: absolute; top: 12px; right: 12px; width: 28px; height: 28px; border: none; background: transparent; border-radius: var(--radius-sm); cursor: pointer; font-size: var(--font-size-lg); color: var(--text-tertiary); display: flex; align-items: center; justify-content: center; }
 .detail-close:hover { background: var(--hover-bg); color: var(--text-color); }
 
-.detail-backdrop { position: fixed; inset: 0; z-index: var(--z-detail-backdrop); background: rgba(0,0,0,0.2); pointer-events: none; }
+.detail-backdrop { position: fixed; inset: var(--titlebar-height, 32px) 0 0 0; z-index: var(--z-detail-backdrop); background: rgba(0,0,0,0.2); pointer-events: none; }
 
 </style>

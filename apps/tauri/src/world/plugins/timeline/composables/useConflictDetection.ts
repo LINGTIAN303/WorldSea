@@ -1,71 +1,92 @@
+/**
+ * 时间冲突检测：角色参与的事件在标量区间上重叠。
+ *
+ * 口径（D5）：模糊日期单独标注（fuzzy=true），不并入精确冲突；
+ * 跨历法的事件不共享标量轴，不参与比较。
+ */
 import { computed, type ComputedRef } from 'vue'
 import type { Entity, Relation } from '@worldsea/entity-core'
-import { parseDateRange, datesOverlap, type ParsedDate } from './useDateParser'
+import { scalarRange, rangesOverlap, type ScalarRange } from '../calendar/fuzzy'
+import type { CalendarRuntime } from '../calendar/math'
+import type { EventTime } from './useTimelinePoints'
 
 export interface Conflict {
   type: 'same_date' | 'overlap' | 'same_location'
   description: string
   entities: string[]
+  /** 两个冲突事件的 id（可点击跳转定位） */
+  eventIds: [string, string]
   date: string
+  /** 任一方为模糊日期：面板单独标注 */
+  fuzzy: boolean
 }
 
 export function useConflictDetection(
-  events: ComputedRef<Entity[]>,
   relations: ComputedRef<Relation[]>,
-  entityMap: ComputedRef<Map<string, Entity>>
+  entityMap: ComputedRef<Map<string, Entity>>,
+  points: ComputedRef<Map<string, EventTime>>,
+  runtime: ComputedRef<CalendarRuntime>,
 ) {
   const conflicts = computed<Conflict[]>(() => {
     const results: Conflict[] = []
-    const parsedDateMap = new Map<string, ParsedDate | null>()
-    for (const e of events.value) {
-      const dateText = (e.properties.date as string) || ''
-      const dateEndText = (e.properties.dateEnd as string) || ''
-      parsedDateMap.set(e.id, parseDateRange(dateText, dateEndText))
+    const byCharacter = new Map<string, Entity[]>()
+    for (const rel of relations.value) {
+      if (rel.type !== 'involves') continue
+      const event = entityMap.value.get(rel.sourceId)
+      if (!event) continue
+      if (!byCharacter.has(rel.targetId)) byCharacter.set(rel.targetId, [])
+      byCharacter.get(rel.targetId)!.push(event)
     }
 
-    const involveRels = relations.value.filter(r => r.type === 'involves')
-    const charEvents = new Map<string, Entity[]>()
-    for (const rel of involveRels) {
-      if (!charEvents.has(rel.targetId)) charEvents.set(rel.targetId, [])
-      const evt = entityMap.value.get(rel.sourceId)
-      if (evt) charEvents.get(rel.targetId)!.push(evt)
+    const rangeOf = (eventId: string): { range: ScalarRange; point: EventTime } | null => {
+      const point = points.value.get(eventId)
+      if (!point || point.foreign || point.unresolved || !point.start) return null
+      try {
+        return { range: scalarRange(runtime.value, point.start, point.end), point }
+      } catch {
+        return null
+      }
     }
 
-    for (const [charId, evts] of charEvents) {
-      const character = entityMap.value.get(charId)
-      if (!character || evts.length < 2) continue
+    for (const [characterId, events] of byCharacter) {
+      const character = entityMap.value.get(characterId)
+      if (!character || events.length < 2) continue
+      for (let i = 0; i < events.length; i++) {
+        for (let j = i + 1; j < events.length; j++) {
+          const a = rangeOf(events[i].id)
+          const b = rangeOf(events[j].id)
+          if (!a || !b || !rangesOverlap(a.range, b.range)) continue
 
-      for (let i = 0; i < evts.length; i++) {
-        for (let j = i + 1; j < evts.length; j++) {
-          const dateA = parsedDateMap.get(evts[i].id) ?? null
-          const dateB = parsedDateMap.get(evts[j].id) ?? null
+          const fuzzy = a.range.fuzzy || b.range.fuzzy
+          const sameDate = a.point.startScalar === b.point.startScalar && !a.point.range && !b.point.range
+          results.push({
+            type: sameDate ? 'same_date' : 'overlap',
+            description: fuzzy
+              ? `${character.name} 参与了时间重叠的事件（含模糊日期，仅供参考）`
+              : `${character.name} 参与了时间重叠的事件`,
+            entities: [events[i].name, events[j].name],
+            eventIds: [events[i].id, events[j].id],
+            date: a.point.text,
+            fuzzy,
+          })
 
-          if (!dateA || !dateB) continue
-
-          if (datesOverlap(dateA, dateB)) {
-            results.push({
-              type: dateA.raw === dateB.raw ? 'same_date' : 'overlap',
-              description: `${character.name} 参与了时间重叠的事件`,
-              entities: [evts[i].name, evts[j].name],
-              date: dateA.raw,
-            })
-          }
-
-          const locA = (evts[i].properties.location as string) || ''
-          const locB = (evts[j].properties.location as string) || ''
-          if (locA && locB && locA === locB && datesOverlap(dateA, dateB)) {
+          const locA = (events[i].properties.location as string) || ''
+          const locB = (events[j].properties.location as string) || ''
+          if (locA && locB && locA === locB) {
             results.push({
               type: 'same_location',
-              description: `${character.name} 在 ${locA} 同时参与了多个事件`,
-              entities: [evts[i].name, evts[j].name],
-              date: dateA.raw,
+              description: `${character.name} 在 ${locA} 同时参与了多个事件${fuzzy ? '（含模糊日期，仅供参考）' : ''}`,
+              entities: [events[i].name, events[j].name],
+              eventIds: [events[i].id, events[j].id],
+              date: a.point.text,
+              fuzzy,
             })
           }
         }
       }
     }
-
-    return results
+    // 精确冲突优先展示，模糊冲突集中排在其后
+    return results.sort((a, b) => Number(a.fuzzy) - Number(b.fuzzy))
   })
 
   const hasConflicts = computed(() => conflicts.value.length > 0)

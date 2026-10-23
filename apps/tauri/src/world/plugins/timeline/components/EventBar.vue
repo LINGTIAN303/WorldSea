@@ -1,7 +1,7 @@
 <template>
   <div
     class="event-bar"
-    :class="[importanceClass, { selected: isSelected, 'is-dragging': isDragging }]"
+    :class="[importanceClass, { selected: isSelected, 'is-dragging': isDragging, fuzzy }]"
     :style="barStyle"
     role="button"
     tabindex="0"
@@ -14,15 +14,15 @@
     @mouseleave="hovered = false"
   >
     <span class="bar-label">{{ event.name }}</span>
+    <span v-if="certaintyLabel" class="bar-badge bar-fuzzy">{{ certaintyLabel }}</span>
+    <span v-if="cycle" class="bar-badge bar-cycle">周期</span>
     <span v-if="childCount > 0" class="bar-badge">+{{ childCount }}</span>
 
-    <Teleport to="body">
-      <div v-if="hovered" class="bar-tooltip" :style="tooltipStyle">
-        <strong>{{ event.name }}</strong>
-        <p>{{ displayDate }}</p>
-        <p v-if="event.description">{{ event.description.slice(0, 100) }}</p>
-      </div>
-    </Teleport>
+    <div v-if="hovered" class="bar-tooltip">
+      <strong>{{ event.name }}</strong>
+      <p>{{ displayDate }}</p>
+      <p v-if="event.description">{{ event.description.slice(0, 100) }}</p>
+    </div>
   </div>
 </template>
 
@@ -38,6 +38,12 @@ const props = defineProps<{
   isSelected: boolean
   isDragging: boolean
   childCount: number
+  /** 精度徽标（约/早于/晚于/传说） */
+  certaintyLabel?: string
+  /** 模糊日期：虚线描边 */
+  fuzzy?: boolean
+  /** 周期事件：显示周期徽标 */
+  cycle?: boolean
 }>()
 
 defineEmits<{
@@ -47,8 +53,10 @@ defineEmits<{
 const hovered = ref(false)
 
 const importanceClass = computed(() => {
-  const imp = props.event.properties.importance as string
-  return imp === '关键' ? 'imp-critical' : imp === '重要' ? 'imp-important' : imp === '细微' ? 'imp-minor' : 'imp-normal'
+  const importance = props.event.properties.importance as string
+  return importance === '关键' ? 'imp-critical'
+    : importance === '重要' ? 'imp-important'
+      : importance === '细微' ? 'imp-minor' : 'imp-normal'
 })
 
 const barStyle = computed(() => ({
@@ -62,13 +70,6 @@ const displayDate = computed(() => {
   const dateEnd = props.event.properties.dateEnd as string
   return dateEnd ? `${date} ~ ${dateEnd}` : date
 })
-
-const tooltipStyle = computed(() => ({
-  position: 'fixed' as const,
-  left: (props.pixelX + props.pixelWidth / 2) + 'px',
-  top: (props.pixelY - 8) + 'px',
-  transform: 'translate(-50%, -100%)',
-}))
 </script>
 
 <style scoped>
@@ -83,9 +84,13 @@ const tooltipStyle = computed(() => ({
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
   transition: box-shadow var(--transition-fast), transform var(--transition-fast);
-  overflow: hidden;
   white-space: nowrap;
   border: 1px solid transparent;
+}
+.event-bar:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  z-index: 5;
 }
 .event-bar:hover {
   transform: translateY(-1px);
@@ -101,6 +106,7 @@ const tooltipStyle = computed(() => ({
   opacity: 0.7;
   z-index: 10;
 }
+.event-bar.fuzzy { border-style: dashed; }
 
 .imp-critical { background: color-mix(in srgb, var(--danger) 20%, var(--card-bg)); color: var(--danger); border-left: 3px solid var(--danger); }
 .imp-important { background: color-mix(in srgb, var(--warning) 20%, var(--card-bg)); color: var(--warning); border-left: 3px solid var(--warning); }
@@ -116,16 +122,24 @@ const tooltipStyle = computed(() => ({
   margin-left: 4px;
   flex-shrink: 0;
 }
+.bar-fuzzy { border: 1px dashed currentColor; background: transparent; }
+.bar-cycle { background: color-mix(in srgb, var(--primary) 18%, transparent); }
 
+/* tooltip 在容器内绝对定位（不再 teleport + fixed，避免整体偏移与裁切） */
 .bar-tooltip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
   background: var(--card-bg);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   padding: 8px 12px;
   box-shadow: var(--shadow-lg);
-  z-index: 9999;
+  z-index: 30;
   max-width: 240px;
   pointer-events: none;
+  white-space: normal;
 }
 .bar-tooltip strong { display: block; margin-bottom: 2px; }
 .bar-tooltip p { margin: 2px 0; font-size: var(--font-size-xs); color: var(--text-secondary); }

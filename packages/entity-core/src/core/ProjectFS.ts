@@ -3,6 +3,7 @@
 import { getProjectManager } from './ProjectManager'
 import { useEntityStore, useRelationStore, useSettingsStore } from '../stores'
 import { getProjectSwitcherApi } from './ProjectSwitcherApi'
+import { getProjectExtraProviders } from './projectExtras'
 import { createBatchIpc } from '@worldsea/perf-kit/io'
 
 /* ════════════════════════════════════════
@@ -199,6 +200,18 @@ export async function exportProjectToDir(
   )
   onProgress?.('settings', 1, 1)
 
+  // 5b. 芽注册的项目级附加文件（时间体系的历法配置等）
+  for (const provider of getProjectExtraProviders()) {
+    try {
+      const extra = await provider.exportFile()
+      if (!extra) continue
+      batchWriter.add(`${projectDir}/${extra.path}`, extra.content)
+      checksums[extra.path] = simpleChecksum(extra.content)
+    } catch (err) {
+      console.warn(`[ProjectFS] 附加文件导出失败：${provider.id}`, err)
+    }
+  }
+
   // 6. 写入缓存信息
   const cache: ProjectCache = {
     formatVersion: 1,
@@ -307,6 +320,16 @@ export async function importProjectFromDir(
     // 设置文件可能不存在
   }
   onProgress?.('settings', 1, 1)
+
+  // 7b. 芽注册的项目级附加文件（文件缺失不阻断导入）
+  for (const provider of getProjectExtraProviders()) {
+    try {
+      const content = await readTextFile(`${sourceDir}/${provider.path}`)
+      await provider.importFile(content)
+    } catch {
+      // 附加文件可能不存在
+    }
+  }
 
   return {
     projectName: manifest.name,

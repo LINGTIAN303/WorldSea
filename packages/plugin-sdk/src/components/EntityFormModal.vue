@@ -23,21 +23,29 @@
           @drop="onDrop(i)"
         >
           <label><WsIcon name="grip" size="xs" class="efm-drag-handle" /> {{ field.label }}<span v-if="field.required" class="efm-required">*</span><button v-if="field.source && field.source !== 'builtin'" class="efm-field-del" @click="removeField(field.key)" title="删除此字段">✕</button></label>
-          <FieldControl
+          <slot
+            name="field"
+            :field="field"
             :value="formData[field.key]"
-            :raw-type="field.type"
-            :label="field.label"
-            :editing="true"
-            :options="field.options"
-            :placeholder="field.placeholder"
-            :ref-type="field.refType"
-            :entity-id="entity?.id"
-            :cover-position="String(formData._coverPosition ?? '')"
-            :cover-zoom="Number(formData._coverZoom) || 1"
-            @update:value="val => { formData[field.key] = val; onFieldInput(field) }"
-            @update:cover-position="val => formData._coverPosition = val"
-            @update:cover-zoom="val => formData._coverZoom = val"
-          />
+            :set="(val: any) => { formData[field.key] = val; onFieldInput(field) }"
+            :form="formData"
+          >
+            <FieldControl
+              :value="formData[field.key]"
+              :raw-type="field.type"
+              :label="field.label"
+              :editing="true"
+              :options="field.options"
+              :placeholder="field.placeholder"
+              :ref-type="field.refType"
+              :entity-id="entity?.id"
+              :cover-position="String(formData._coverPosition ?? '')"
+              :cover-zoom="Number(formData._coverZoom) || 1"
+              @update:value="val => { formData[field.key] = val; onFieldInput(field) }"
+              @update:cover-position="val => formData._coverPosition = val"
+              @update:cover-zoom="val => formData._coverZoom = val"
+            />
+          </slot>
         </div>
         <div class="efm-add-field">
           <button v-if="!showAddField" class="efm-add-btn" @click="showAddField = true">＋ 添加字段</button>
@@ -119,6 +127,8 @@ const props = defineProps<{
   entity: Entity | null
   fields: FormFieldDef[]
   entityType: string
+  /** 新建时的预填属性（仅 entity 为空时生效） */
+  preset?: Record<string, unknown> | null
 }>()
 
 const emit = defineEmits<{
@@ -154,6 +164,7 @@ const form = useDynamicForm({
   entity: () => props.entity,
   sortedFields,
   resolvedEntityType,
+  preset: () => props.preset ?? null,
 })
 const { formData, nameError, initFormData, onFieldInput } = form
 
@@ -201,7 +212,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 <style scoped>
 .efm-overlay {
   position: fixed;
-  inset: 0;
+  inset: var(--titlebar-height, 32px) 0 0 0;
   z-index: 99998;
   background: var(--overlay-bg);
   display: flex;
@@ -253,15 +264,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   border-radius: 6px;
   margin-bottom: 8px;
 }
-.efm-preset-label {
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-  white-space: nowrap;
-}
-.efm-preset-hint {
-  font-size: var(--font-size-xs);
-  color: var(--text-tertiary, var(--color-text-tertiary));
-}
+.efm-preset-label { font-size: var(--font-size-sm); color: var(--text-secondary); white-space: nowrap; }
+.efm-preset-hint { font-size: var(--font-size-xs); color: var(--text-tertiary, var(--color-text-tertiary)); }
 .efm-body {
   display: grid;
   grid-template-columns: 1fr 1fr;

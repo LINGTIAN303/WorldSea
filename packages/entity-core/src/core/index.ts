@@ -91,6 +91,10 @@ export type {
   ImportProgressCallback,
 } from './ProjectFS'
 
+// 项目级附加扩展点（芽注册：目录导出文件 / 打包分区）
+export { registerProjectExtraProvider, registerPackSerializer, getProjectExtraProviders } from './projectExtras'
+export type { ProjectExtraFile, ProjectExtraProvider } from './projectExtras'
+
 export {
   traitRegistry,
   facetRegistry,

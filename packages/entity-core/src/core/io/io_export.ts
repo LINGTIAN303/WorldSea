@@ -15,6 +15,7 @@ import {
   createViewSerializer,
   customFieldSerializer,
 } from '../serializers'
+import { getExtraPackSerializers } from '../projectExtras'
 
 /* ════════════════════════════════════════
    初始化 — 注册所有 Serializer
@@ -34,6 +35,10 @@ function initSerializers(
     serializerRegistry.register(createViewSerializer(
       () => pluginStore.views,
     ))
+  }
+  // 芽注册的打包分区（时间体系历法等）：核心只负责按分区搬运
+  for (const serializer of getExtraPackSerializers()) {
+    serializerRegistry.register(serializer)
   }
 }
 

@@ -1,12 +1,12 @@
 <template>
   <div
     class="event-marker"
-    :class="[importanceClass, { selected: isSelected }]"
+    :class="[importanceClass, { selected: isSelected, fuzzy, occurrence }]"
     :style="markerStyle"
     role="button"
     tabindex="0"
     :aria-pressed="isSelected"
-    :aria-label="`选择事件：${event.name}`"
+    :aria-label="occurrence ? `选择事件：${event.name}（周期）` : `选择事件：${event.name}`"
     @click="$emit('select')"
     @keydown.enter="$emit('select')"
     @keydown.space.prevent="$emit('select')"
@@ -15,12 +15,10 @@
   >
     <span class="marker-dot"></span>
 
-    <Teleport to="body">
-      <div v-if="hovered" class="marker-tooltip" :style="tooltipStyle">
-        <strong>{{ event.name }}</strong>
-        <p>{{ displayDate }}</p>
-      </div>
-    </Teleport>
+    <div v-if="hovered" class="marker-tooltip">
+      <strong>{{ event.name }}<span v-if="occurrence" class="occurrence-tag">周期</span></strong>
+      <p>{{ displayDate }}</p>
+    </div>
   </div>
 </template>
 
@@ -33,6 +31,12 @@ const props = defineProps<{
   pixelX: number
   pixelY: number
   isSelected: boolean
+  /** 覆盖 tooltip 日期（周期 occurrence 用） */
+  displayText?: string
+  /** 模糊日期：虚线圆点 */
+  fuzzy?: boolean
+  /** 周期展开出的虚拟 occurrence：空心小点 */
+  occurrence?: boolean
 }>()
 
 defineEmits<{
@@ -42,8 +46,10 @@ defineEmits<{
 const hovered = ref(false)
 
 const importanceClass = computed(() => {
-  const imp = props.event.properties.importance as string
-  return imp === '关键' ? 'imp-critical' : imp === '重要' ? 'imp-important' : imp === '细微' ? 'imp-minor' : 'imp-normal'
+  const importance = props.event.properties.importance as string
+  return importance === '关键' ? 'imp-critical'
+    : importance === '重要' ? 'imp-important'
+      : importance === '细微' ? 'imp-minor' : 'imp-normal'
 })
 
 const markerStyle = computed(() => ({
@@ -51,14 +57,9 @@ const markerStyle = computed(() => ({
   top: (props.pixelY + 4) + 'px',
 }))
 
-const displayDate = computed(() => (props.event.properties.date as string) || '?')
-
-const tooltipStyle = computed(() => ({
-  position: 'fixed' as const,
-  left: props.pixelX + 'px',
-  top: (props.pixelY - 4) + 'px',
-  transform: 'translate(-50%, -100%)',
-}))
+const displayDate = computed(() =>
+  props.displayText || (props.event.properties.date as string) || '?',
+)
 </script>
 
 <style scoped>
@@ -77,9 +78,13 @@ const tooltipStyle = computed(() => ({
   transform: scale(1.3);
   z-index: 2;
 }
-.event-marker.selected {
-  z-index: 3;
+.event-marker:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 50%;
+  z-index: 5;
 }
+.event-marker.selected { z-index: 3; }
 .event-marker.selected .marker-dot {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary, #4f46e5) 20%, transparent);
 }
@@ -89,7 +94,7 @@ const tooltipStyle = computed(() => ({
   height: 12px;
   border-radius: 50%;
   border: 2px solid;
-  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast), opacity var(--transition-fast), filter var(--transition-fast);
+  transition: background var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast), opacity var(--transition-fast);
 }
 
 .imp-critical .marker-dot { background: var(--danger); border-color: var(--danger); }
@@ -97,16 +102,39 @@ const tooltipStyle = computed(() => ({
 .imp-normal .marker-dot { background: var(--primary); border-color: var(--primary); }
 .imp-minor .marker-dot { background: var(--text-tertiary); border-color: var(--text-tertiary); }
 
+/* 模糊日期：虚线描边，与精确事件区分 */
+.event-marker.fuzzy .marker-dot { border-style: dashed; }
+/* 周期 occurrence：空心小点，点击仍打开基础事件 */
+.event-marker.occurrence .marker-dot {
+  width: 8px;
+  height: 8px;
+  background: transparent;
+  border-color: var(--primary);
+}
+
 .marker-tooltip {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
   background: var(--card-bg);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   padding: 8px 12px;
   box-shadow: var(--shadow-lg);
-  z-index: 9999;
-  max-width: 200px;
+  z-index: 30;
+  max-width: 220px;
   pointer-events: none;
+  white-space: normal;
 }
 .marker-tooltip strong { display: block; margin-bottom: 2px; }
 .marker-tooltip p { margin: 2px 0; font-size: var(--font-size-xs); color: var(--text-secondary); }
+.occurrence-tag {
+  margin-left: 6px;
+  padding: 0 4px;
+  font-size: var(--fs-2xs);
+  color: var(--primary);
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-xs);
+}
 </style>

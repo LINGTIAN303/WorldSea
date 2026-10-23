@@ -9,6 +9,8 @@ export interface UseDynamicFormOptions {
   entity: () => Entity | null
   sortedFields: Ref<FormFieldDef[]>
   resolvedEntityType: Ref<string>
+  /** 新建时的预填值（仅 entity 为空时生效，如画布拖拽建事件预填起止日期） */
+  preset?: () => Record<string, unknown> | null
 }
 
 /** formData 值不再统一收成字符串——数组型字段（tags/multiSelect）要按数组进出 */
@@ -21,6 +23,7 @@ export function useDynamicForm(options: UseDynamicFormOptions) {
 
   function initFormData() {
     const data: FormValues = {}
+    const preset = options.entity() ? null : options.preset?.() ?? null
     for (const field of options.sortedFields.value) {
       if (field.key === 'name' || field.key === 'title') {
         // V2 方言：identifiable 的 title 即实体名（翻译真源 detail/fieldAccessor.ts），读实体顶层 name
@@ -30,9 +33,9 @@ export function useDynamicForm(options: UseDynamicFormOptions) {
       } else if (field.key === 'tags') {
         data[field.key] = [...(options.entity()?.tags ?? [])]
       } else if (field.type === 'multiSelect') {
-        data[field.key] = toArrayValue(options.entity()?.properties?.[field.key])
+        data[field.key] = toArrayValue(options.entity()?.properties?.[field.key] ?? preset?.[field.key])
       } else {
-        data[field.key] = options.entity()?.properties?.[field.key] ?? ''
+        data[field.key] = options.entity()?.properties?.[field.key] ?? preset?.[field.key] ?? ''
       }
     }
     data._coverPosition = options.entity()?.coverPosition || '50% 50%'
