@@ -1,0 +1,3 @@
+# 行尾规范（2026-10-24 风险点治理）：仓库与工作区统一 LF，杜绝混合行尾损伤按字节编辑的工具（sed 等）
+# text=auto：git 自动识别二进制（zip/png/ico 等）不做转换；eol=lf：检出也保持 LF
+* text=auto eol=lf
