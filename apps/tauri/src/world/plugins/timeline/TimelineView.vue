@@ -31,7 +31,6 @@
     <Teleport to="#view-toolbar-create">
       <CreateButton label="新建事件" @click="openNewForm()" />
     </Teleport>
-
     <div v-if="timelineError" class="timeline-error" role="alert">
       <WsEmpty title="时间线载入失败" :description="timelineError">
         <template #action><TuiButton variant="primary" size="sm" @click="retryTimeline">重试</TuiButton></template>
@@ -65,7 +64,6 @@
       @select-events="onSelectEvents"
       @create-event="openNewFormFromCanvas"
     />
-
     <!-- 事件详情：容器走载体注册表（此前直挂 EntityDetailPanel＝时间线拿不到别的载体），
          内容侧仍复用通用件——私有 EventDetailPanel 早在 2026-09-13 收敛过，令牌/结构与全局一致 -->
     <component
@@ -86,6 +84,7 @@
       @tab-change="detailActiveTab = $event"
     >
       <template #info>
+        <EventDetailNav v-if="selectedEvent" :index="nav.index" :total="nav.total" :has-prev="nav.hasPrev" :has-next="nav.hasNext" @prev="step(-1)" @next="step(1)" @focus="focusInCanvas(selectedEvent.id)" />
         <AutoLinkSuggestions
           v-if="selectedEvent && !isEditing"
           :entity-id="selectedEvent.id"
@@ -128,7 +127,6 @@
         <UniversalRelationPanel v-if="selectedEvent?.id" :entity-id="selectedEvent.id" entity-type="event" storage-scope="event" />
       </template>
     </component>
-
     <ConflictDetector
       :show="showConflicts"
       :conflicts="conflicts"
@@ -164,18 +162,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useEntityStore, useRelationStore, useUIStore, useDetailLayoutStore } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
 import { AutoLinkSuggestions, CustomDropdown, EntityCoverPanel, CreateButton, DynamicFieldsAdder, UniversalRelationPanel, EntityRelationSelector, EntityPager, useDuplicateNameCheck, useSelectedFollow, useBatchDelete, useConfirm, useEntityEdit, useEntityPaging, useDetailCarrier, resolveDetailTabs, adjacentTabId } from '@worldsea/plugin-sdk'
 import { toastSuccess, toastWithUndo, useUndoRedo, useAsyncTask } from '@worldsea/ui-kit'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { TuiButton, WsEmpty } from '@worldsea/ui-kit'
-
 import TimelineChart from './components/TimelineChart.vue'
 import ConflictDetector from './components/ConflictDetector.vue'
 import CausalGraph from './components/CausalGraph.vue'
 import EventDetailFields from './components/EventDetailFields.vue'
+import EventDetailNav from './components/EventDetailNav.vue'
 import TimelineEventForm from './components/TimelineEventForm.vue'
 import TimelineFilterFeedback from './components/TimelineFilterFeedback.vue'
 import CalendarEditorPanel from './calendar/components/CalendarEditorPanel.vue'
@@ -185,6 +183,7 @@ import { useTimelineEventForm } from './composables/useTimelineEventForm'
 import { useTimelineSort } from './composables/useTimelineSort'
 import { useConflictDetection } from './composables/useConflictDetection'
 import { useTimelineFilters } from './composables/useTimelineFilters'
+import { useTimelineNeighbors } from './composables/useTimelineNeighbors'
 import { useTimelinePoints } from './composables/useTimelinePoints'
 import { useTimelineGroups } from './composables/useTimelineGroups'
 import { useTimelineKeyboard } from './composables/useTimelineKeyboard'
@@ -199,7 +198,6 @@ const { confirm } = useConfirm()
 const { undo, redo } = useUndoRedo()
 const settingsStore = useSettingsStore()
 const { selectedIds, selecting, toggleSelect, clearSelection, toggleSelectMode, batchDelete } = useBatchDelete()
-
 const { visible: chartLoading, error: timelineError, run: runTimelineLoad } = useAsyncTask({ successHold: 0 })
 const eventsLoaded = ref(false)
 const showForm = ref(false)
@@ -239,7 +237,6 @@ const { sortMode, sortedEvents, toggleSortMode } = useTimelineSort(eventList, fl
 const { conflicts, hasConflicts, scanStats } = useConflictDetection(
   computed(() => relationStore.relations), computed(() => entityStore.entityMap), points, runtime)
 const chartRef = ref<{ zoomIn: () => void; zoomOut: () => void; fitAll: () => void; focusEvent: (id: string) => void } | null>(null)
-
 const {
   searchQuery, unitFilter, periodFilter, importanceFilter, groupMode, groupModeOptions,
   unitFilterOptions, periodFilterOptions, importanceFilterOptions, filteredEvents, hiddenCount, clearFilters,
@@ -248,6 +245,7 @@ const {
   { points, periods, calendar: activeCalendar, layoutMode },
   (settingsStore as any).timelineDefaultGroup ?? 'none',
 )
+const { nav, step } = useTimelineNeighbors(selectedEvent, filteredEvents, selectEvent)
 
 /* ── 分页（2026-10-01，与 GEV 同一口径：只切「渲染哪一段」，filteredEvents 仍全量——
  * 冲突检测、批量删除取名、跨页选中都吃全量，不随翻页变化）── */
@@ -280,6 +278,8 @@ function focusEventInView(id: string): void {
   if (layoutMode.value === 'horizontal') chartRef.value?.focusEvent(id)
   else expandTo(id)
 }
+/** 详情「在画布中查看」：先切横态，等画布挂载后再定位 */
+function focusInCanvas(id: string) { layoutMode.value = 'horizontal'; nextTick(() => chartRef.value?.focusEvent(id)) }
 function selectEvent(event: Entity) {
   selectedEvent.value = event
   if (sortMode.value === 'tree') expandTo(event.id)

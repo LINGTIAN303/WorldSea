@@ -3,13 +3,22 @@
     <div class="timeline-line"></div>
 
     <template v-for="group in groups" :key="group.id">
-      <div v-if="group.label" class="group-header">
+      <div v-if="group.label" class="group-header" :class="{ 'is-collapsed': isCollapsed(group.id) }">
+        <button
+          type="button"
+          class="group-toggle"
+          :aria-expanded="!isCollapsed(group.id)"
+          :title="isCollapsed(group.id) ? '展开分段' : '折叠分段'"
+          @click="toggleGroup(group.id)"
+        >
+          <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+        </button>
         <span class="group-label">{{ group.label }}</span>
         <span v-if="group.detail" class="group-range">{{ group.detail }}</span>
         <span class="group-count">{{ group.events.length }}</span>
       </div>
 
-      <template v-if="sortMode === 'tree'">
+      <template v-if="!isCollapsed(group.id) && sortMode === 'tree'">
         <TreeNode
           v-for="(rootNode, idx) in rootNodesFor(group)"
           :key="rootNode.entity.id"
@@ -28,7 +37,7 @@
         />
       </template>
 
-      <template v-else>
+      <template v-else-if="!isCollapsed(group.id)">
         <div v-for="event in group.events" :key="event.id" class="chrono-item">
           <span class="chrono-dot" :class="importanceClass(event)"></span>
           <EventCard
@@ -48,7 +57,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type { Entity } from '@worldsea/entity-core'
 import type { TreeNode as TreeNodeType } from '../composables/useEventTree'
 import type { TimelineGroup } from '../composables/timelineGroups'
@@ -78,6 +87,16 @@ const treeCollapsedSet = computed<Set<string>>(() => {
   const source = props.tree.collapsedSet
   return source instanceof Set ? source : source.value
 })
+
+/* 分段折叠：按 group.id 记录，分组模式切换后遗留 id 不影响渲染 */
+const collapsedGroups = ref<Set<string>>(new Set())
+function isCollapsed(id: string) { return collapsedGroups.value.has(id) }
+function toggleGroup(id: string) {
+  const next = new Set(collapsedGroups.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  collapsedGroups.value = next
+}
 const treeRoots = computed<TreeNodeType[]>(() => {
   const source = props.tree.roots
   return Array.isArray(source) ? source : source.value
@@ -120,6 +139,23 @@ function importanceClass(event: Entity): string {
   align-items: baseline;
   gap: 12px;
 }
+.group-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  width: 18px;
+  height: 18px;
+  margin-left: -10px;
+  padding: 0;
+  color: var(--text-tertiary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+.group-toggle svg { transition: transform var(--transition-fast); }
+.group-header.is-collapsed .group-toggle svg { transform: rotate(-90deg); }
+.group-toggle:hover { color: var(--text-color); }
 .group-header::before {
   content: '';
   position: absolute;
