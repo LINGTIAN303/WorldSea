@@ -14,6 +14,7 @@ import {
   relationTypeSerializer,
   createViewSerializer,
   customFieldSerializer,
+  homeProfileSerializer,
 } from '../serializers'
 import { getExtraPackSerializers } from '../projectExtras'
 
@@ -30,6 +31,7 @@ function initSerializers(
   serializerRegistry.register(entityTypeSerializer)
   serializerRegistry.register(relationTypeSerializer)
   serializerRegistry.register(customFieldSerializer)
+  serializerRegistry.register(homeProfileSerializer)
 
   if (pluginStore) {
     serializerRegistry.register(createViewSerializer(

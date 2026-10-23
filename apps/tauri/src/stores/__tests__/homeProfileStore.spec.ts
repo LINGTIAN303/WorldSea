@@ -115,6 +115,48 @@ describe('homeProfileStore IO', () => {
     expect(store.profile.tagline).toBe('A 的简介')
   })
 
+  it('并发保存串行落盘：后一次必须等前一次完成', async () => {
+    const store = useHomeProfileStore()
+    invokeMock.mockResolvedValueOnce(JSON.stringify({ version: 1 }))
+    await store.load()
+
+    const writes: string[] = []
+    let releaseFirst!: () => void
+    invokeMock.mockImplementation((cmd: string, args: Record<string, any>) => {
+      if (cmd !== 'cmd_fs_write') return Promise.resolve(undefined)
+      const tagline = JSON.parse(args.content).tagline
+      writes.push(tagline)
+      if (tagline === 'first') return new Promise<void>(resolve => { releaseFirst = resolve })
+      return Promise.resolve(undefined)
+    })
+
+    const first = store.save({ tagline: 'first', about: '', coverImage: '' })
+    const second = store.save({ tagline: 'second', about: '', coverImage: '' })
+    await vi.waitFor(() => expect(writes).toEqual(['first']))
+    releaseFirst()
+    await Promise.all([first, second])
+
+    expect(writes).toEqual(['first', 'second'])
+    expect(store.profile.tagline).toBe('second')
+  })
+
+  it('过期 load 被无目录 load 取代时复位 loading', async () => {
+    const store = useHomeProfileStore()
+    let resolveA!: (value: string) => void
+    invokeMock.mockImplementationOnce(() => new Promise<string>(resolve => { resolveA = resolve }))
+    const first = store.load()
+    expect(store.loading).toBe(true)
+
+    backend.dir = null
+    await store.load()
+    expect(store.loading).toBe(false)
+
+    resolveA(JSON.stringify({ version: 1, tagline: 'A 的简介' }))
+    await first
+    expect(store.loading).toBe(false)
+    expect(store.profile.tagline).toBe('')
+  })
+
   it('过期 load 结果不回填（切项目竞态）', async () => {
     const store = useHomeProfileStore()
     let resolveA!: (value: string) => void

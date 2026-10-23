@@ -173,12 +173,21 @@ async function hydrate() {
   }
 }
 
-onMounted(hydrate)
+/** 世界包导入在面板打开时也可能改写 home.json：重读并重灌草稿（会作废未落盘的防抖） */
+function onProfileChanged() {
+  void hydrate()
+}
+
+onMounted(() => {
+  window.addEventListener('ws-home-profile-changed', onProfileChanged)
+  void hydrate()
+})
 
 // 切项目：currentProject 在切换末尾才更新（此时存储根已指向新项目）→ 重新载入并重灌草稿
 watch(() => project.currentProject.value?.id, () => { void hydrate() })
 
 onBeforeUnmount(() => {
+  window.removeEventListener('ws-home-profile-changed', onProfileChanged)
   if (!timer) return
   window.clearTimeout(timer)
   timer = undefined

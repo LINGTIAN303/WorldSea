@@ -7,7 +7,7 @@
 
 > **2026-09-25 注**：目录树中的 `modules/`（自定义模块定义）条目已删——「自定义模块」随本批整体剪除（见 [剪自定义模块批计划](../../../../../plans/已完成/2026-09-25-剪自定义模块批计划.md)），导出不再输出该目录。
 
-> **2026-10-23 注**（产品域首页收口）：`.worldsea/` 下新增可选的 `home.json`（首页 profile），导出/导入已纳入白名单：导出从当前项目实体根读取，导入写入新项目实体根；文件缺失时两侧都静默跳过，不阻塞主体。该文件是可选文件，`ProjectFS` 的格式版本不变。导入时 `switchProject` 返回 false 即中止（避免数据写进旧项目）；**已知边界**：应用启动链未调用 `registerProjectSwitcherApi`，导入流程当前不可达（导出已接，pre-existing）；写入 home.json 后广播 `ws-home-profile-changed`，让已挂载的首页资料 store 重读（切换项目早于本步写入，首轮 load 可能读到空资料）。
+> **2026-10-23 注**（产品域首页收口）：`.worldsea/` 下新增可选的 `home.json`（首页 profile），导出/导入已纳入白名单：导出从当前项目实体根读取，导入写入新项目实体根；文件缺失时两侧都静默跳过，不阻塞主体。该文件是可选文件，`ProjectFS` 的格式版本不变。导入时 `switchProject` 返回 false 即中止（避免数据写进旧项目）；**已知边界**：应用启动链未调用 `registerProjectSwitcherApi`，导入流程当前不可达（导出已接，pre-existing）；写入 home.json 后广播 `ws-home-profile-changed`，让已挂载的首页资料 store 重读（切换项目早于本步写入，首轮 load 可能读到空资料）。**2026-10-23 优化批**：`WorldSeaPack` 新增 `home-profile` 序列化分区（`core/serializers/HomeProfileSerializer.ts`），从当前项目收集、按 overwrite/merge 写回并广播同一事件；导入导出弹窗默认包含该分区。项目文件夹导入（`importProjectFromDir`）仍因 `registerProjectSwitcherApi` 未注册不可达。
 
 ````
 /**

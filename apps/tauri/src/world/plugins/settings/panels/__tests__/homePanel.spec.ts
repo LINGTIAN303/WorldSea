@@ -92,6 +92,18 @@ describe('HomePanel', () => {
     expect(save).toHaveBeenCalledWith(expect.objectContaining({ coverImage: '' }))
   })
 
+  it('收到 ws-home-profile-changed 后重读并重灌草稿', async () => {
+    const w = mount(HomePanel)
+    await settleLoad()
+    load.mockClear()
+    profile.value = { ...defaultHomeProfile(), tagline: '导入后的简介' }
+    window.dispatchEvent(new CustomEvent('ws-home-profile-changed'))
+    await vi.waitFor(() => {
+      expect(load).toHaveBeenCalled()
+      expect((w.find('#home-tagline').element as HTMLInputElement).value).toBe('导入后的简介')
+    })
+  })
+
   it('载入完成前字段/封面按钮禁用且不保存；载入后解禁', async () => {
     let resolveLoad!: () => void
     load.mockImplementationOnce(() => new Promise<void>((resolve) => { resolveLoad = resolve }))
