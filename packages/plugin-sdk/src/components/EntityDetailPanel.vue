@@ -102,9 +102,9 @@ defineExpose({ switchTab, activeTab })
 /* 载体独有的部分：浮在列表之上、贴右边。共用外壳见 detail/carrier-chrome.css */
 .detail-panel {
   position: fixed;
-  top: 0;
+  top: var(--titlebar-height, 32px); /* 让位标题栏（全屏归零） */
   right: 0;
-  height: 100vh;
+  height: calc(100vh - var(--titlebar-height, 32px));
   background: var(--color-bg-surface);
   border-left: 1px solid var(--color-border);
   box-shadow: -4px 0 24px rgba(0, 0, 0, 0.3);

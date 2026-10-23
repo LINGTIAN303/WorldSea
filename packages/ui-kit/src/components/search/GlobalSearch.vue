@@ -147,7 +147,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .global-search-overlay {
-  position: fixed; inset: 0; z-index: var(--z-overlay);
+  position: fixed; inset: var(--titlebar-height, 32px) 0 0 0; z-index: var(--z-overlay);
   background: var(--overlay-bg);
   display: flex; align-items: flex-start; justify-content: center;
   padding-top: 80px;

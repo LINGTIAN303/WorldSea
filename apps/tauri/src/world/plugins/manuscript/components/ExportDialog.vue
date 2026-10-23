@@ -125,7 +125,7 @@ async function doExport() {
 
 <style scoped>
 .export-overlay {
-  position: fixed; inset: 0; background: var(--color-overlay);
+  position: fixed; inset: var(--titlebar-height, 32px) 0 0 0; background: var(--color-overlay);
   display: flex; align-items: center; justify-content: center; z-index: 300;
 }
 .export-dialog {

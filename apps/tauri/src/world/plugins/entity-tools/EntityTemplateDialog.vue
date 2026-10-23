@@ -180,7 +180,7 @@ function close() {
 </script>
 
 <style scoped>
-.et-overlay { position: fixed; inset: 0; z-index: var(--z-overlay); background: var(--overlay, rgba(0,0,0,0.3)); display: flex; align-items: center; justify-content: center; }
+.et-overlay { position: fixed; inset: var(--titlebar-height, 32px) 0 0 0; z-index: var(--z-overlay); background: var(--overlay, rgba(0,0,0,0.3)); display: flex; align-items: center; justify-content: center; }
 .et-modal { width: 560px; max-height: 75vh; background: var(--content-bg); border-radius: var(--radius-2xl); box-shadow: 0 8px 40px rgba(0,0,0,0.15); display: flex; flex-direction: column; overflow: hidden; position: relative; }
 .et-header { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--border); }
 .et-header h3 { margin: 0; font-size: var(--font-size-lg); }

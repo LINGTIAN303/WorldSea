@@ -407,7 +407,7 @@ function switchToInfoTab() {
 .dp-type-label { font-size: var(--font-size-sm); color: var(--text-secondary); }
 
 /* Compare */
-.compare-overlay { position: fixed; inset: 0; z-index: var(--z-overlay); background: var(--overlay); display: flex; align-items: center; justify-content: center; }
+.compare-overlay { position: fixed; inset: var(--titlebar-height, 32px) 0 0 0; z-index: var(--z-overlay); background: var(--overlay); display: flex; align-items: center; justify-content: center; }
 .compare-panel { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: var(--radius-2xl); padding: 20px; min-width: 480px; max-width: 640px; max-height: 80vh; overflow-y: auto; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
 .compare-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
 .compare-header h3 { margin: 0; font-size: var(--font-size-lg); color: var(--accent); }

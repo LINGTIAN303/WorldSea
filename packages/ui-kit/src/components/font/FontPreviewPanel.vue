@@ -201,7 +201,7 @@ async function onExport() {
 <style scoped>
 .fpp-backdrop {
   position: fixed;
-  inset: 0;
+  inset: var(--titlebar-height, 32px) 0 0 0;
   z-index: var(--z-overlay, 200);
   background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(4px);

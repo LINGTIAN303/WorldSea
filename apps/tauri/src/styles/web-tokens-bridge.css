@@ -223,7 +223,7 @@
   --icon-2xl: 32px;
   --card-shadow-hover: var(--shadow-md);
   --shadow-dropdown: var(--shadow-md);
-  --layout-menubar-height: 30px;
+  --layout-menubar-height: var(--titlebar-height, 32px); /* 桥接：旧 web 顶栏高度 = Tauri 窗口标题栏（时间线详情面板清顶栏用） */
   --z-detail: var(--z-sticky);
   --z-detail-backdrop: var(--z-modal);
   --z-drawer: var(--z-modal);

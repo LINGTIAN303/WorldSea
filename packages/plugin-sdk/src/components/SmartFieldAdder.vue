@@ -346,7 +346,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 <style scoped>
 .sfa-backdrop {
   position: fixed;
-  inset: 0;
+  inset: var(--titlebar-height, 32px) 0 0 0;
   background: rgba(0, 0, 0, 0.4);
   z-index: 10001;
   display: flex;

@@ -556,7 +556,7 @@ onBeforeUnmount(() => {
 .cl-ctx-danger { color: var(--danger); }
 .cl-ctx-danger:hover { background: var(--danger-soft, rgba(220, 53, 69, 0.08)); }
 
-.cl-modal-overlay { position: fixed; inset: 0; background: var(--color-overlay); display: flex; align-items: center; justify-content: center; z-index: var(--z-sticky); }
+.cl-modal-overlay { position: fixed; inset: var(--titlebar-height, 32px) 0 0 0; background: var(--color-overlay); display: flex; align-items: center; justify-content: center; z-index: var(--z-sticky); }
 .cl-modal-sm { background: var(--modal-bg); border-radius: var(--radius-2xl); padding: 16px; max-width: 300px; width: 90%; }
 .cl-modal-sm h4 { margin: 0 0 10px; font-size: var(--font-size-base); }
 .cl-input { width: 100%; padding: 6px 10px; border: 1px solid var(--border-color); border-radius: var(--radius-xs); font-size: var(--font-size-sm); background: var(--input-bg); color: var(--text-color); box-sizing: border-box; }

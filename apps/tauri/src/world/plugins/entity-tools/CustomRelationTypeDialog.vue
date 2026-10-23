@@ -205,7 +205,7 @@ function close() {
 <style scoped>
 .crt-overlay {
   position: fixed;
-  inset: 0;
+  inset: var(--titlebar-height, 32px) 0 0 0;
   z-index: var(--z-overlay);
   background: var(--overlay, rgba(0, 0, 0, 0.3));
   display: flex;
@@ -318,7 +318,7 @@ function close() {
   display: flex;
   gap: 8px;
   margin-top: 12px;
-}
+}
 .crt-list-section {
   margin-top: 4px;
 }

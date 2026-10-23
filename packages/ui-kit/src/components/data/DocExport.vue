@@ -171,7 +171,7 @@ function close() { emit('close') }
 </script>
 
 <style scoped>
-.de-overlay { position: fixed; inset: 0; z-index: var(--z-overlay); background: var(--color-overlay); display: flex; align-items: center; justify-content: center; }
+.de-overlay { position: fixed; inset: var(--titlebar-height, 32px) 0 0 0; z-index: var(--z-overlay); background: var(--color-overlay); display: flex; align-items: center; justify-content: center; }
 .de-modal { position: relative; max-height: 80vh; background: var(--content-bg, #fff); border-radius: 12px; box-shadow: 0 8px 40px rgba(0,0,0,0.15); display: flex; flex-direction: column; overflow: hidden; }
 .de-header { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--border, #eee); }
 .de-header h3 { margin: 0; font-size: var(--font-size-lg); }

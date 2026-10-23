@@ -132,7 +132,7 @@ watch(() => state.value.show, (v) => {
 <style scoped>
 .ws-confirm-overlay {
   position: fixed;
-  inset: 0;
+  inset: var(--titlebar-height, 32px) 0 0 0;
   z-index: var(--z-modal);
   background: var(--overlay);
   backdrop-filter: blur(var(--overlay-blur));

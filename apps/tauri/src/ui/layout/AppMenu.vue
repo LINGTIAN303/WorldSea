@@ -309,7 +309,7 @@ async function saveFolder() {
 
 .appmenu-overlay {
   position: fixed;
-  top: 0;
+  top: var(--titlebar-height, 32px); /* 透明捕获层让位窗口栏：浮层开着时窗口操作仍可点（拍板 2026-10-24） */
   left: 0;
   right: 0;
   bottom: 0;

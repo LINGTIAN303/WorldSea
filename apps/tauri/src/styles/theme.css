@@ -76,6 +76,7 @@
   --shadow-lg: 0 12px 32px rgba(16, 24, 40, 0.12);
 
   /* ── 布局尺寸 ── */
+  --titlebar-height: 32px;    /* 自定义标题栏高度（TitleBar.vue 引用同一变量）；模态遮罩类弹窗据此让位窗口栏 */
   --rail-w: 68px;             /* 左侧导航轨道宽度 */
   --panel-w: 264px;           /* 会话列表面板宽度 */
   --icon-btn-lg: 28px;        /* icon-only 按钮：头部主操作（新建会话/弹窗关闭） */
@@ -421,4 +422,10 @@ textarea:focus {
   animation-iteration-count: 1 !important;
   transition-duration: 0.01ms;
   scroll-behavior: auto !important;
+}
+
+/* F11 绝对全屏：标题栏隐藏（TitleBar.vue 广播 data-fullscreen），让位量归零——
+   各模态遮罩用 inset: var(--titlebar-height, 32px) 0 0 0 让位窗口栏，全屏时自动回到窗口顶 */
+:root[data-fullscreen='true'] {
+  --titlebar-height: 0px;
 }

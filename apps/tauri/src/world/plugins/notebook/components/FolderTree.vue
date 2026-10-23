@@ -429,7 +429,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeyDown))
 .ft-empty { padding: 12px; text-align: center; font-size: var(--font-size-sm); color: var(--color-text-tertiary); }
 
 .ft-cm-backdrop {
-  position: fixed; inset: 0; z-index: calc(var(--z-modal) - 1); background: transparent;
+  position: fixed; inset: var(--titlebar-height, 32px) 0 0 0; /* 透明捕获层让位窗口栏（拍板 2026-10-24） */ z-index: calc(var(--z-modal) - 1); background: transparent;
 }
 .ft-context-menu {
   position: fixed; z-index: var(--z-modal); min-width: 150px;

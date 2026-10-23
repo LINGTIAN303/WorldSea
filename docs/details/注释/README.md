@@ -43,7 +43,7 @@
 | src/world/plugins/timeline/TimelineView.vue + composables/ + components/ | [timeline-calendar.md](apps/tauri/world/timeline-calendar.md) | 时间线双态视图与全量交互：标量为唯一可比较量、单位链缩放、分组/筛选/冲突、拖拽/键盘/框选、冲突跳转聚焦；`TimelineChart` 退为壳，两态拆 Canvas/Chronicle（2026-10-24） |
 | src/world/plugins/timeline/calendar/（types/math/parse/format/fuzzy/recurrence/store/migrate/projectExtras） | [timeline-calendar.md](apps/tauri/world/timeline-calendar.md) | 自定义历法内核与持久化：单位链/命名值/闰/周/日以下、规范文本为真源、项目库 KV + localStorage 回退、迁移与随项目导出/导入两条链（2026-10-24） |
 | src/world/plugins/outline/board/BoardView.vue | [实体视图分页.md](packages/plugin-sdk/实体视图分页.md) | 大纲侧核查结论：**三处自有列表都不分页**（白板网格量级个位数 / 节点是树 / 章节是拖拽调色板）；挂账改做虚拟化（2026-10-01） |
-| src/styles/theme.css | — | 全局基座：`*{box-sizing}` + **`button{color:inherit}` 复位**（UA 的 `color:buttontext` 不继承 → 未写 color 的按钮在暗色下黑字；25 处存量同型一次免疫，2026-10-01） |
+| src/styles/theme.css | [theme.md](tauri/theme.md) | 全局基座：`*{box-sizing}` + **`button{color:inherit}` 复位**（UA 的 `color:buttontext` 不继承 → 未写 color 的按钮在暗色下黑字；25 处存量同型一次免疫，2026-10-01）；令牌分区、**标题栏让位机制（--titlebar-height + data-fullscreen 归零）**与维护约定（2026-10-24 补建，修存量断链） |
 | 拆分记录（2026-08-06） | — | coreBackend.ts 按领域拆为 src/core/api/（schema / retrofit / entity / algo / health / runtime + index 聚合），coreBackend.ts 保留 `export * from './api'`，类型统一来自 @worldsea/core-api-types，公共导出签名不变，原 import 处无需改动；各新文件无 ≥ 10 行连续注释块，未生成新文档 |
 
 > ~~src-tauri/src/commands.rs~~（commands.md）、search-config / net-egress / web-fetch / useTerminalRust /

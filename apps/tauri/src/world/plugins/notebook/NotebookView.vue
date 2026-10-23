@@ -631,7 +631,7 @@ onBeforeUnmount(() => { flushPendingWrites() })
 
 /* 素材预览浮层（Teleport body，z 走全局令牌） */
 .nb-file-preview-overlay {
-  position: fixed; inset: 0; background: var(--color-overlay);
+  position: fixed; inset: var(--titlebar-height, 32px) 0 0 0; background: var(--color-overlay);
   display: flex; align-items: center; justify-content: center;
   z-index: var(--z-modal);
 }

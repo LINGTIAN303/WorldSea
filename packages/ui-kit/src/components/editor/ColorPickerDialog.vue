@@ -277,7 +277,7 @@ function hexToHsl(hex: string): { h: number; s: number; l: number } | null {
 </script>
 
 <style scoped>
-.cp-overlay { position: fixed; inset: 0; z-index: calc(var(--z-overlay) + 2); background: var(--color-overlay); display: flex; align-items: center; justify-content: center; }
+.cp-overlay { position: fixed; inset: var(--titlebar-height, 32px) 0 0 0; z-index: calc(var(--z-overlay) + 2); background: var(--color-overlay); display: flex; align-items: center; justify-content: center; }
 .cp-dialog { position: relative; background: var(--bg-secondary, var(--color-bg-surface)); border-radius: 12px; box-shadow: 0 8px 40px rgba(0,0,0,0.2); display: flex; flex-direction: column; overflow: hidden; }
 .cp-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--border, var(--color-border)); }
 .cp-header h3 { margin: 0; font-size: var(--font-size-base); }

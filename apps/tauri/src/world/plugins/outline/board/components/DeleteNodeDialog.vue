@@ -85,7 +85,7 @@ watch(
 
 <style scoped>
 .dnd-mask {
-  position: fixed; inset: 0; z-index: 4000;
+  position: fixed; inset: var(--titlebar-height, 32px) 0 0 0; z-index: 4000;
   display: flex; align-items: center; justify-content: center;
   background: rgba(0, 0, 0, 0.42);
 }

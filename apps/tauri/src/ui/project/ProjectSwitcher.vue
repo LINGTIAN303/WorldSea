@@ -196,7 +196,7 @@ onBeforeUnmount(() => {
 
 .ps-backdrop {
   position: fixed;
-  inset: 0;
+  inset: var(--titlebar-height, 32px) 0 0 0; /* 透明捕获层让位窗口栏（拍板 2026-10-24） */
   z-index: 9999;
 }
 .ps-menu {

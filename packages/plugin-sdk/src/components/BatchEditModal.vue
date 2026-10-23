@@ -412,7 +412,7 @@ function close() {
 </script>
 
 <style scoped>
-.be-overlay { position: fixed; inset: 0; z-index: var(--z-overlay); background: var(--color-overlay); display: flex; align-items: center; justify-content: center; }
+.be-overlay { position: fixed; inset: var(--titlebar-height, 32px) 0 0 0; z-index: var(--z-overlay); background: var(--color-overlay); display: flex; align-items: center; justify-content: center; }
 .be-modal { position: relative; max-height: 85vh; background: var(--content-bg); border-radius: 12px; box-shadow: 0 8px 40px rgba(0,0,0,0.15); display: flex; flex-direction: column; overflow: hidden; }
 .be-header { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--border); }
 .be-header h3 { margin: 0; font-size: var(--font-size-lg); }
@@ -455,7 +455,7 @@ function close() {
 .be-field-label { font-size: var(--font-size-xs); color: var(--text-secondary); }
 .be-inline-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .be-empty { text-align: center; padding: 40px; color: var(--text-tertiary, var(--color-text-tertiary)); }
-.be-dialog-overlay { position: fixed; inset: 0; z-index: calc(var(--z-overlay) + 1); background: rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center; }
+.be-dialog-overlay { position: fixed; inset: var(--titlebar-height, 32px) 0 0 0; z-index: calc(var(--z-overlay) + 1); background: rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center; }
 .be-dialog { width: 420px; background: var(--content-bg); border-radius: 12px; padding: 24px; box-shadow: 0 8px 30px rgba(0,0,0,0.12); }
 .be-dialog h4 { margin: 0 0 8px 0; font-size: var(--font-size-md); }
 .be-dialog-danger-title { margin: 0 0 8px 0; font-size: var(--font-size-md); color: var(--danger); }

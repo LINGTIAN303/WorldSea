@@ -143,7 +143,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .tui-drawer-mask {
   position: fixed;
-  inset: 0;
+  inset: var(--titlebar-height, 32px) 0 0 0;
   z-index: var(--z-modal);
   background: var(--overlay);
   backdrop-filter: blur(var(--overlay-blur));
@@ -151,8 +151,8 @@ onBeforeUnmount(() => {
 }
 .tui-drawer {
   position: fixed;
-  top: 0;
-  height: 100vh;
+  top: var(--titlebar-height, 32px); /* 让位标题栏（全屏归零） */
+  height: calc(100vh - var(--titlebar-height, 32px));
   z-index: var(--z-modal);
   display: flex;
   flex-direction: column;

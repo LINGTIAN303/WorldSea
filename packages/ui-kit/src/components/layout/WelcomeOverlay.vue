@@ -187,7 +187,7 @@ onMounted(async () => {
 
 .welcome-overlay {
   position: fixed;
-  inset: 0;
+  inset: var(--titlebar-height, 32px) 0 0 0;
   z-index: 9999;
   display: flex;
   align-items: center;

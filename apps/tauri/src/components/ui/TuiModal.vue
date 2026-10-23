@@ -163,7 +163,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .tui-modal-mask {
   position: fixed;
-  inset: 0;
+  inset: var(--titlebar-height, 32px) 0 0 0;
   z-index: var(--z-modal);
   display: flex;
   align-items: center;

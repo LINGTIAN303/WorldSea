@@ -148,6 +148,8 @@ const fullscreen = ref(false) // G1 收尾：全屏态驱动隐栏（与 Agent �
 async function syncFullscreen() {
   if (!appWindow) return
   try { fullscreen.value = await appWindow.isFullscreen() } catch { fullscreen.value = false }
+  // 全屏态广播到根节点：全屏隐栏后，模态遮罩（如 .set-overlay）据此把让位偏移归零
+  document.documentElement.dataset.fullscreen = fullscreen.value ? 'true' : 'false'
 }
 
 onMounted(async () => {
@@ -174,7 +176,8 @@ function close() {
 .titlebar {
   display: flex;
   align-items: center;
-  height: 32px;
+  /* 高度单一真源在 theme.css --titlebar-height（模态遮罩让位窗口栏也读它） */
+  height: var(--titlebar-height, 32px);
   flex-shrink: 0;
   /* 顶栏取中性灰（三级中性灰分区之一，2026-08-12）：胶囊填充 = 面板色（--switch-bg: var(--bg-surface)），
      两色一致时胶囊会「看不见」（只剩文字与图标）——故底色统一落到 --bg-muted */

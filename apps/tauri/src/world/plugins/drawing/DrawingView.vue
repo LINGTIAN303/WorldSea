@@ -728,7 +728,7 @@ watch([layers, activeLayerIndex], () => {
 .dv-card-delete:hover { background: var(--color-danger); }
 
 /* ─── 对话框 ─── */
-.dv-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 100; }
+.dv-overlay { position: fixed; inset: var(--titlebar-height, 32px) 0 0 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 100; }
 .dv-dialog { background: var(--color-bg-surface); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-2xl); padding: 24px; min-width: 360px; max-width: 500px; }
 .dv-dialog h3 { margin: 0 0 16px; font-size: var(--fs-lg); color: var(--color-text-primary); }
 .dv-field { margin-bottom: 12px; }

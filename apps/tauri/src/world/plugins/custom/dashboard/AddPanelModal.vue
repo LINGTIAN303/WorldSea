@@ -93,7 +93,7 @@ function onConfirm() {
 <style scoped>
 .modal-overlay {
   position: fixed;
-  inset: 0;
+  inset: var(--titlebar-height, 32px) 0 0 0;
   background: var(--overlay);
   display: flex;
   align-items: center;

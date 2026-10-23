@@ -114,7 +114,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .dialog-overlay {
-  position: fixed; inset: 0; z-index: var(--z-overlay);
+  position: fixed; inset: var(--titlebar-height, 32px) 0 0 0; z-index: var(--z-overlay);
   background: var(--overlay);
   display: flex; align-items: center; justify-content: center;
 }
