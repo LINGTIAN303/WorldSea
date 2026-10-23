@@ -133,10 +133,20 @@ export function useTimelineFilters(
     return list
   })
 
+  const hiddenCount = computed(() => sortedEvents.value.length - filteredEvents.value.length)
+
+  /** 一键清除全部筛选（搜索/单位/期段/重要度），供工具条反馈条使用 */
+  function clearFilters() {
+    searchQuery.value = ''
+    unitFilter.value = ''
+    periodFilter.value = ''
+    importanceFilter.value = ''
+  }
+
   return {
     searchQuery, unitFilter, periodFilter, importanceFilter,
     groupMode, groupModeOptions,
     unitFilterOptions, periodFilterOptions, importanceFilterOptions: IMPORTANCE_OPTIONS,
-    filteredEvents,
+    filteredEvents, hiddenCount, clearFilters,
   }
 }

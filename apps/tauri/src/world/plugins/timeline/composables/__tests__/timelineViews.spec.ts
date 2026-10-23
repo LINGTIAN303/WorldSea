@@ -9,7 +9,7 @@ import { useTimelineFilters } from '../useTimelineFilters'
 import { useConflictDetection } from '../useConflictDetection'
 import { useTimelineScale } from '../useTimelineScale'
 import { useTimelineSort } from '../useTimelineSort'
-import { formatSnapped, snapCeil, snapFloor } from '../timelineSnap'
+import { formatSnapped, snapCeil, snapFloor, dragHintText } from '../timelineSnap'
 
 function makeEvent(id: string, name: string, properties: Record<string, unknown>, tags: string[] = []): Entity {
   return {
@@ -126,6 +126,10 @@ describe('筛选', () => {
     expect(filters.filteredEvents.value.map(event => event.id)).toEqual(['e2'])
     expect(filters.unitFilterOptions.value.map(option => option.label)).toEqual(['全部纪元', '第一纪元', '第三纪元'])
     expect(filters.groupModeOptions.value.map(option => option.value)).not.toContain('character')
+    expect(filters.hiddenCount.value).toBe(1)
+    filters.clearFilters()
+    expect(filters.unitFilter.value).toBe('')
+    expect(filters.hiddenCount.value).toBe(0)
   })
 
   it('期段筛选只保留区间内事件，旧 era 分组值映射到顶层单位', () => {
@@ -303,5 +307,14 @@ describe('拖拽吸附', () => {
     const point = snapFloor(ctx, 20146.9)
     expect(ctx.runtime.toScalar(point)).toBe(20146)
     expect(ctx.runtime.toScalar(snapCeil(ctx, 20146))).toBe(20147)
+  })
+
+  it('拖拽气泡按吸附单位显示起止', () => {
+    const pointEvent = { raw: '第三纪元147年', range: false }
+    const rangeEvent = { raw: '第三纪元147年', rawEnd: '第三纪元150年', range: true }
+    expect(dragHintText(ctx, pointEvent, 'move', 20146, 20147, 0, ctx.runtime)).toBe('第三纪元147年')
+    expect(dragHintText(ctx, rangeEvent, 'move', 20146, 20149, 0, ctx.runtime)).toBe('第三纪元147年 ~ 第三纪元150年')
+    expect(dragHintText(ctx, rangeEvent, 'resize-start', 20146, 20149, 0, ctx.runtime)).toBe('第三纪元147年 ~ 第三纪元150年')
+    expect(dragHintText(ctx, rangeEvent, 'resize-end', 20146, 20146, 0, ctx.runtime)).toBe('第三纪元147年 ~ 第三纪元148年')
   })
 })

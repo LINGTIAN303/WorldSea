@@ -7,16 +7,9 @@
         :major-ticks="scale.majorTicks.value"
         :minor-ticks="scale.minorTicks.value"
         :bands="scale.pixelBands.value"
-        @pan-start="drag.onAxisPanStart"
+        @pan-start="pan.startPan($event.clientX)"
       />
-      <div class="axis-notes">
-        <span v-if="unresolvedCount > 0" class="axis-note" :title="`${unresolvedCount} 个事件的时间文本无法按当前历法解析，未出现在轴上`">
-          {{ unresolvedCount }} 个事件时间无法解析，未上轴
-        </span>
-        <span v-if="foreignCount > 0" class="axis-note" :title="`${foreignCount} 个事件属于其他历法，不在当前轴上显示`">
-          {{ foreignCount }} 个其他历法事件未上轴
-        </span>
-      </div>
+      <TimelineAxisNotes :events="allEvents" :points="points" :calendar="calendar" :calendars="calendars" @select-event="$emit('selectEvent', $event)" />
     </div>
 
     <div class="canvas-body" ref="bodyEl" @wheel="onWheel" @mousedown="drag.onPointerDown" @focusin="onFocusIn">
@@ -35,6 +28,7 @@
               :pixel-y="itemY(item)"
               :is-selected="selectedEventId === item.event.id || selectedIds.has(item.event.id)"
               :is-dragging="drag.activeId.value === item.event.id"
+              :draggable="dragEnabled === true"
               :child-count="0"
               :fuzzy="pointOf(item)?.fuzzy"
               :certainty-label="certaintyLabel(item)"
@@ -58,6 +52,7 @@
         </div>
       </div>
 
+      <div v-if="drag.hint.value" class="drag-hint" :style="{ left: drag.hint.value.left + 'px', top: drag.hint.value.top + 'px' }">{{ drag.hint.value.text }}</div>
       <div v-if="drag.ghost.value" class="drag-ghost" :style="rectStyle(drag.ghost.value)"></div>
       <div v-if="drag.marquee.value" class="drag-marquee" :style="rectStyle(drag.marquee.value)"></div>
 
@@ -88,12 +83,14 @@ import type { AxisBand, EventTime } from '../composables/useTimelinePoints'
 import type { TimelineGroup } from '../composables/timelineGroups'
 import { useTimelineScale } from '../composables/useTimelineScale'
 import { useTimelineOccurrences } from '../composables/useTimelineOccurrences'
+import { useTimelinePan } from '../composables/useTimelinePan'
 import {
   LANE_HEADER_HEIGHT, ROW_HEIGHT, useSwimlaneLayout, type LaneItem,
 } from '../composables/useSwimlaneLayout'
 import { rectsIntersect, useTimelineCanvasDrag, type CanvasCreatePreset } from '../composables/useTimelineCanvasDrag'
 
 import TimelineAxis from './TimelineAxis.vue'
+import TimelineAxisNotes from './TimelineAxisNotes.vue'
 import TimelineMinimap from './TimelineMinimap.vue'
 import TimelineSwimlaneHeader from './TimelineSwimlaneHeader.vue'
 import EventBar from './EventBar.vue'
@@ -104,12 +101,14 @@ const SIDEBAR_WIDTH = 160
 const props = defineProps<{
   /** 已过滤、且属于当前历法的事件 */
   events: Entity[]
+  /** 筛选后的全部事件（含其他历法与未定时间，供轴角标清单） */
+  allEvents: Entity[]
   points: Map<string, EventTime>
   runtime: CalendarRuntime
   calendar: Calendar
+  calendars: Calendar[]
   groups: TimelineGroup[]
   bands: AxisBand[]
-  foreignCount: number
   selectedEventId: string | null
   selectedIds: Set<string>
   batchMode?: boolean
@@ -133,11 +132,6 @@ const scaleEvents = computed(() =>
     .map(event => props.points.get(event.id))
     .filter((point): point is EventTime => !!point && !point.foreign && !point.unresolved)
     .map(point => ({ startScalar: point.startScalar, endScalar: point.endScalar })),
-)
-
-/** 无法解析时间的事件数：画布上不可定位，必须显式提示，不能静默消失 */
-const unresolvedCount = computed(() =>
-  props.events.filter(event => props.points.get(event.id)?.unresolved).length,
 )
 
 const scale = useTimelineScale({
@@ -172,6 +166,8 @@ const laneOffsets = computed(() => {
   })
 })
 
+const pan = useTimelinePan({ scrollOffset: scale.scrollOffset, setScrollOffset: scale.setScrollOffset })
+
 const drag = useTimelineCanvasDrag({
   bodyEl,
   runtime: computed(() => props.runtime),
@@ -189,6 +185,7 @@ const drag = useTimelineCanvasDrag({
   update: (id, changes) => entityStore.update(id, changes),
   onCreate: preset => emit('createEvent', preset),
   onSelectMany: ids => emit('selectEvents', ids),
+  onPanStart: pan.startPan,
   selectInRect,
 })
 
@@ -257,12 +254,18 @@ const minimapPositions = computed(() => {
   return result
 })
 
-/* 滚轮：Ctrl/⌘ 缩放；其余交给浏览器纵向滚动泳道（不再无条件劫持） */
+/* 滚轮：Ctrl/⌘ 缩放、Shift 横向平移；其余交给浏览器纵向滚动泳道 */
 function onWheel(event: WheelEvent) {
-  if (!event.ctrlKey && !event.metaKey) return
-  event.preventDefault()
-  if (event.deltaY < 0) scale.zoomIn()
-  else scale.zoomOut()
+  if (event.ctrlKey || event.metaKey) {
+    event.preventDefault()
+    if (event.deltaY < 0) scale.zoomIn()
+    else scale.zoomOut()
+    return
+  }
+  if (event.shiftKey) {
+    event.preventDefault()
+    scale.panBy(event.deltaY)
+  }
 }
 
 /** 键盘焦点移到视口外的事件时，把画布平移到它 */
@@ -324,21 +327,6 @@ defineExpose({
   position: relative;
 }
 .side-spacer { width: 160px; flex-shrink: 0; }
-.axis-notes {
-  position: absolute;
-  right: 8px;
-  top: 2px;
-  display: flex;
-  gap: 6px;
-}
-.axis-note {
-  padding: 1px 6px;
-  font-size: var(--font-size-xs);
-  color: var(--text-tertiary);
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-xs);
-}
 
 .canvas-body {
   flex: 1;
@@ -375,14 +363,16 @@ defineExpose({
   color: var(--text-tertiary);
 }
 
-/* 创建区间 / 框选的可视化覆盖层（随内容滚动） */
+/* 创建区间 / 框选 / 拖拽日期气泡（随内容滚动） */
 .drag-ghost,
-.drag-marquee {
+.drag-marquee,
+.drag-hint {
   position: absolute;
   z-index: 6;
   pointer-events: none;
-  border-radius: var(--radius-xs);
 }
+.drag-ghost,
+.drag-marquee { border-radius: var(--radius-xs); }
 .drag-ghost {
   background: color-mix(in srgb, var(--primary) 12%, transparent);
   border: 1px dashed var(--primary);
@@ -390,6 +380,16 @@ defineExpose({
 .drag-marquee {
   background: color-mix(in srgb, var(--primary) 8%, transparent);
   border: 1px solid var(--primary);
+}
+.drag-hint {
+  padding: 3px 8px;
+  font-size: var(--font-size-xs);
+  color: var(--text-color);
+  background: var(--card-bg);
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-dropdown);
+  white-space: nowrap;
 }
 
 .minimap-row {

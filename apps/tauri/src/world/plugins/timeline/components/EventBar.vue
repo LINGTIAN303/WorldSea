@@ -1,7 +1,7 @@
 <template>
   <div
     class="event-bar"
-    :class="[importanceClass, { selected: isSelected, 'is-dragging': isDragging, fuzzy }]"
+    :class="[importanceClass, { selected: isSelected, 'is-dragging': isDragging, fuzzy, draggable }]"
     :style="barStyle"
     role="button"
     tabindex="0"
@@ -44,6 +44,8 @@ const props = defineProps<{
   fuzzy?: boolean
   /** 周期事件：显示周期徽标 */
   cycle?: boolean
+  /** 「拖拽改时间」开启：显示抓取光标与两端拉伸手柄 */
+  draggable?: boolean
 }>()
 
 defineEmits<{
@@ -107,6 +109,26 @@ const displayDate = computed(() => {
   z-index: 10;
 }
 .event-bar.fuzzy { border-style: dashed; }
+.event-bar.draggable { cursor: grab; }
+.event-bar.draggable:active { cursor: grabbing; }
+/* 两端拉伸手柄：只在可拖拽时出现，热区与拖拽判定一致（6px） */
+.event-bar.draggable::before,
+.event-bar.draggable::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  width: 6px;
+  border-radius: 2px;
+  background: color-mix(in srgb, currentColor 45%, transparent);
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+  cursor: ew-resize;
+}
+.event-bar.draggable::before { left: 2px; }
+.event-bar.draggable::after { right: 2px; }
+.event-bar.draggable:hover::before,
+.event-bar.draggable:hover::after { opacity: 0.75; }
 
 .imp-critical { background: color-mix(in srgb, var(--danger) 20%, var(--card-bg)); color: var(--danger); border-left: 3px solid var(--danger); }
 .imp-important { background: color-mix(in srgb, var(--warning) 20%, var(--card-bg)); color: var(--warning); border-left: 3px solid var(--warning); }

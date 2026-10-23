@@ -9,6 +9,7 @@
       <CustomDropdown v-if="periods.length > 0" v-model="periodFilter" :options="periodFilterOptions" />
       <CustomDropdown v-model="importanceFilter" :options="importanceFilterOptions" />
       <CustomDropdown v-model="groupMode" :options="groupModeOptions" />
+      <TimelineFilterFeedback :shown="filteredEvents.length" :hidden="hiddenCount" :active="!!(searchQuery || unitFilter || periodFilter || importanceFilter)" @clear="clearFilters" />
     </Teleport>
     <Teleport to="#view-toolbar-actions">
       <TuiButton v-if="layoutMode === 'vertical'" variant="secondary" size="sm" :active="sortMode === 'tree'" :icon="sortMode === 'chrono' ? 'timeline' : 'plant'" @click="toggleSortMode" :title="sortMode === 'chrono' ? '切换为大纲视图' : '切换为时间排序'">{{ sortMode === 'chrono' ? '时间序' : '大纲序' }}</TuiButton>
@@ -45,10 +46,10 @@
       :points="points"
       :runtime="runtime"
       :calendar="activeCalendar"
+      :calendars="calendars"
       :canvas-groups="canvasGroups"
       :chronicle-groups="chronicleGroups"
       :bands="axisBands"
-      :foreign-count="foreignCount"
       :selected-event-id="selectedEvent?.id ?? null"
       :selected-ids="selectedIds"
       :batch-mode="selecting"
@@ -176,6 +177,7 @@ import ConflictDetector from './components/ConflictDetector.vue'
 import CausalGraph from './components/CausalGraph.vue'
 import EventDetailFields from './components/EventDetailFields.vue'
 import TimelineEventForm from './components/TimelineEventForm.vue'
+import TimelineFilterFeedback from './components/TimelineFilterFeedback.vue'
 import CalendarEditorPanel from './calendar/components/CalendarEditorPanel.vue'
 import { useTimelineCalendarActions } from './calendar/useTimelineCalendarActions'
 import { useEventTree } from './composables/useEventTree'
@@ -232,17 +234,15 @@ const tree = useEventTree(eventList)
 const { flatOrder, expandTo } = tree
 
 /* ── 时间数据层：按事件所属历法解析 → 标量区间 / 期段色带 ── */
-const { points, runtime, periods, axisBands, foreignCount } = useTimelinePoints({ events: eventList, calendars, activeCalendar })
+const { points, runtime, periods, axisBands } = useTimelinePoints({ events: eventList, calendars, activeCalendar })
 const { sortMode, sortedEvents, toggleSortMode } = useTimelineSort(eventList, flatOrder, points)
 const { conflicts, hasConflicts, scanStats } = useConflictDetection(
   computed(() => relationStore.relations), computed(() => entityStore.entityMap), points, runtime)
-
 const chartRef = ref<{ zoomIn: () => void; zoomOut: () => void; fitAll: () => void; focusEvent: (id: string) => void } | null>(null)
 
-/* ── 筛选管线（搜索 + 顶层单位 + 期段 + 重要度；分组选项按视图形态给出）── */
 const {
   searchQuery, unitFilter, periodFilter, importanceFilter, groupMode, groupModeOptions,
-  unitFilterOptions, periodFilterOptions, importanceFilterOptions, filteredEvents,
+  unitFilterOptions, periodFilterOptions, importanceFilterOptions, filteredEvents, hiddenCount, clearFilters,
 } = useTimelineFilters(
   sortedEvents,
   { points, periods, calendar: activeCalendar, layoutMode },

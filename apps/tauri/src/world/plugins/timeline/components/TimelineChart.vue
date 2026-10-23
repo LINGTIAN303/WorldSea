@@ -36,12 +36,13 @@
       v-else
       ref="canvasRef"
       :events="canvasEvents"
+      :all-events="events"
       :points="points"
       :runtime="runtime"
       :calendar="calendar"
+      :calendars="calendars"
       :groups="canvasGroups"
       :bands="bands"
-      :foreign-count="foreignCount"
       :selected-event-id="selectedEventId"
       :selected-ids="selectedIds"
       :batch-mode="batchMode"
@@ -76,10 +77,10 @@ defineProps<{
   points: Map<string, EventTime>
   runtime: CalendarRuntime
   calendar: Calendar
+  calendars: Calendar[]
   canvasGroups: TimelineGroup[]
   chronicleGroups: TimelineGroup[]
   bands: AxisBand[]
-  foreignCount: number
   selectedEventId: string | null
   selectedIds: Set<string>
   batchMode?: boolean
