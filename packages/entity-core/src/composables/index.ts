@@ -1,5 +1,5 @@
 // 主题管理（从根 src/composables/useTheme.ts 下沉到 entity-core；2026-09-13 收束为主题两轴）
-export { useTheme, ACCENT_PRESETS, DEFAULT_ACCENT_ID } from './useTheme'
+export { useTheme, ACCENT_PRESETS, DEFAULT_ACCENT_ID, CUSTOM_ACCENT_ID } from './useTheme'
 export type { ThemeDefinition, AccentPreset } from './useTheme'
 
 // 文件系统监听（从根 src/composables/useFsWatcher.ts 下沉到 entity-core）

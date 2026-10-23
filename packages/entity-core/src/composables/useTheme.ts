@@ -1,5 +1,5 @@
 import { ref, computed } from 'vue'
-import { deriveDark, deriveGradTo, pickOnAccent } from './accentColor'
+import { deriveDark, deriveGradTo, pickOnAccent, quantizeAnchor } from './accentColor'
 
 export interface ThemeDefinition {
   name: string
@@ -23,6 +23,9 @@ export interface ThemeDefinition {
 const STORAGE_KEY = 'worldsea-theme'
 const CUSTOM_THEMES_KEY = 'worldsea-custom-themes'
 const OVERRIDES_KEY = 'worldsea-theme-overrides'
+/** 自定义强调色：currentThemeId 记 'custom'，量化后的锚点色存此键 */
+const CUSTOM_ACCENT_KEY = 'worldsea-accent-custom'
+export const CUSTOM_ACCENT_ID = 'custom'
 
 /** 强调色预设：id 同时作为 currentThemeId（面板高亮 / 编辑器导出取名） */
 export interface AccentPreset {
@@ -79,6 +82,8 @@ function migrateTheme(id: string): string {
 }
 
 const currentThemeId = ref(migrateTheme(ls.getItem(STORAGE_KEY) || DEFAULT_ACCENT_ID))
+/** 自定义强调色锚点（已合规化；'custom' 轴激活时的主值来源） */
+const customAccentColor = ref<string | null>(hasLocalStorage ? ls.getItem(CUSTOM_ACCENT_KEY) : null)
 const customThemes = ref<ThemeDefinition[]>(loadCustomThemes())
 const userOverrides = ref<Record<string, string>>(loadUserOverrides())
 const componentOverrides = ref<Record<string, Record<string, string>>>(loadComponentOverrides())
@@ -187,13 +192,11 @@ function applyAccentStyle(p: AccentPreset | null): void {
 }
 
 /**
- * 切换强调色（收束后的「主题」第二轴）：1) 剔除 userOverrides 中的 accent 系内联键（预设语义 = 重置强调色，手动强调色被预设覆盖）；
+ * 强调色应用管线（预设与自定义共用）：1) 剔除 userOverrides 中的 accent 系内联键（切预设语义 = 重置强调色）；
  * 2) 清内联动态令牌并重放其余覆盖（圆角/密度等用户令牌借此在启动与切换时恢复）；3) 注入/移除深浅双段强调色规则；
  * 4) 记账 currentThemeId + 持久化（幂等，可安全重复调用）。
  */
-function setAccent(id: string): void {
-  const preset = ACCENT_PRESETS.find(a => a.id === id)
-    ?? ACCENT_PRESETS.find(a => a.id === DEFAULT_ACCENT_ID)!
+function applyAccentPipeline(preset: AccentPreset, id: string): void {
   const cleaned = { ...userOverrides.value }
   let dirty = false
   for (const k of ACCENT_INLINE_KEYS) {
@@ -215,14 +218,32 @@ function setAccent(id: string): void {
     for (const [, tokens] of Object.entries(componentOverrides.value)) {
       applyTokens(tokens)
     }
-    applyAccentStyle(preset.id === DEFAULT_ACCENT_ID ? null : preset)
+    applyAccentStyle(id === DEFAULT_ACCENT_ID ? null : preset)
   }
-  currentThemeId.value = preset.id
-  ls.setItem(STORAGE_KEY, preset.id)
+  currentThemeId.value = id
+  ls.setItem(STORAGE_KEY, id)
 }
 
-/** 启动恢复：重放用户令牌覆盖 + 注入已持久化的强调色（App.vue onMounted 调用一次；修复重启后观感回退裸基准） */
+function setAccent(id: string): void {
+  const preset = ACCENT_PRESETS.find(a => a.id === id)
+    ?? ACCENT_PRESETS.find(a => a.id === DEFAULT_ACCENT_ID)!
+  applyAccentPipeline(preset, preset.id)
+}
+
+/** 自定义强调色：取色器任意色 → 锚点合规化（白字 AA 亮度带）→ 走同一管线；深色/渐变/文字色由 OKLCH 派生 */
+function setCustomAccent(hex: string): void {
+  const light = quantizeAnchor(hex)
+  customAccentColor.value = light
+  ls.setItem(CUSTOM_ACCENT_KEY, light)
+  applyAccentPipeline({ id: CUSTOM_ACCENT_ID, label: '自定义', light }, CUSTOM_ACCENT_ID)
+}
+
+/** 启动恢复：自定义强调色优先回放，其余重放已持久化的预设（App.vue onMounted 调用一次；修复重启后观感回退裸基准） */
 function restorePersistedTheme(): void {
+  if (currentThemeId.value === CUSTOM_ACCENT_ID && customAccentColor.value) {
+    applyAccentPipeline({ id: CUSTOM_ACCENT_ID, label: '自定义', light: customAccentColor.value }, CUSTOM_ACCENT_ID)
+    return
+  }
   setAccent(currentThemeId.value)
 }
 
@@ -352,9 +373,11 @@ export function useTheme() {
     isDark,
     allThemes,
     customThemes,
+    customAccentColor,
     userOverrides,
     componentOverrides,
     setAccent,
+    setCustomAccent,
     restorePersistedTheme,
     setTheme,
     setUserOverrides,

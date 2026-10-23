@@ -15,8 +15,12 @@
             <button v-for="a in ACCENT_PRESETS" :key="a.id" class="set-accent-dot" :class="{ on: currentThemeId === a.id }" :title="a.label" :aria-label="`强调色：${a.label}`" @click="onAccentChange(a.id)">
               <span class="set-accent-core" :style="{ background: a.light }"></span>
             </button>
+            <button class="set-accent-dot set-accent-dot--custom" :class="{ on: isCustomAccent }" title="自定义强调色" aria-label="自定义强调色" @click="customPickerOpen = true">
+              <span class="set-accent-core" :style="isCustomAccent && customAccentColor ? { background: customAccentColor } : undefined"></span>
+            </button>
           </div>
           <div class="set-accent-hint">当前强调色：{{ currentAccentLabel }}（深色下自动提亮）</div>
+          <ColorPickerDialog :show="customPickerOpen" :initial-color="customAccentColor ?? '#4f46e5'" @confirm="onCustomAccentConfirm" @close="customPickerOpen = false" />
           <div class="set-theme-sub">图谱底色</div>
           <div class="set-row"><span>全局图谱</span><select v-model="store.graphBackgroundMode" class="set-select" aria-label="图谱底色"><option value="dark">深色星图</option><option value="theme">跟随主题</option></select></div>
           <button class="set-theme-editor-btn" @click="openThemeEditor">
@@ -105,11 +109,12 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useSettingsStore, useTheme, useFontStore, ACCENT_PRESETS, type FontLayer } from '@worldsea/entity-core'
+import { useSettingsStore, useTheme, useFontStore, ACCENT_PRESETS, CUSTOM_ACCENT_ID, type FontLayer } from '@worldsea/entity-core'
 import { useFontPresets, useFontLibraryStore, type FontLibraryEntry, type FontVariantEntry } from '@worldsea/font-kit'
 import { installFromWsfont, installFromRawFont, installFromZip } from '@worldsea/font-kit'
 import WsIcon from '../../WsIcon.vue'
 import WsInlineLoading from '../../feedback/loading/WsInlineLoading.vue'
+import ColorPickerDialog from '../../editor/ColorPickerDialog.vue'
 import { toastSuccess, toastWarn, CardDeck } from '@worldsea/ui-kit'
 import { matchKeywords, FONT_LAYERS, weightLabel, sourceLabel, formatSize } from '../utils'
 
@@ -190,12 +195,27 @@ function onModeChange(m: ModePreference) {
   emit('dirty')
 }
 
-// 轴 2 强调色：六色预设（entity-core ACCENT_PRESETS，深浅双段规则注入）。
-// currentThemeId（entity-core）收束后即当前强调色 id，驱动色板高亮。
-const currentAccentLabel = computed(() => ACCENT_PRESETS.find(a => a.id === currentThemeId.value)?.label ?? '靛蓝')
+// 轴 2 强调色：六色预设 + 自定义（entity-core ACCENT_PRESETS / setCustomAccent，深浅双段规则注入）。
+// currentThemeId（entity-core）收束后即当前强调色 id（'custom' = 自定义轴），驱动色板高亮。
+const { currentThemeId, customAccentColor, setCustomAccent } = useTheme()
+const currentAccentLabel = computed(() => {
+  if (currentThemeId.value === CUSTOM_ACCENT_ID) {
+    return customAccentColor.value ? `自定义 · ${customAccentColor.value}` : '自定义'
+  }
+  return ACCENT_PRESETS.find(a => a.id === currentThemeId.value)?.label ?? '靛蓝'
+})
 
 function onAccentChange(id: string) {
   window.dispatchEvent(new CustomEvent('ws-set-theme', { detail: { accent: id } }))
+  emit('dirty')
+}
+
+// 自定义强调色：取色器任意色 → ws-set-theme { accentHex } → App 壳 setCustomAccent（锚点合规化 + OKLCH 派生）
+const customPickerOpen = ref(false)
+const isCustomAccent = computed(() => currentThemeId.value === CUSTOM_ACCENT_ID)
+function onCustomAccentConfirm(color: string) {
+  customPickerOpen.value = false
+  window.dispatchEvent(new CustomEvent('ws-set-theme', { detail: { accent: CUSTOM_ACCENT_ID, accentHex: color } }))
   emit('dirty')
 }
 
@@ -333,6 +353,8 @@ function onFontImport(e: Event) {
   box-shadow: 0 0 0 2px var(--primary-light, color-mix(in srgb, var(--color-primary) 25%, transparent));
 }
 .set-accent-core { display: block; width: 100%; height: 100%; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08); }
+/* 自定义色点：未激活时彩虹轮盘示意「任选」，激活后由内联样式显示量化后的实际色 */
+.set-accent-dot--custom .set-accent-core { background: conic-gradient(#ef4444, #f59e0b, #22c55e, #06b6d4, #6366f1, #d946ef, #ef4444); }
 .set-accent-hint { margin-top: 8px; font-size: var(--font-size-xs); color: var(--text-tertiary, var(--color-text-tertiary)); }
 .set-theme-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px; border: 1px solid var(--border, var(--color-border)); border-radius: 8px; background: var(--bg, var(--color-bg-surface)); cursor: pointer; transition: background 0.12s, border-color 0.12s, color 0.12s, box-shadow 0.12s, transform 0.12s, opacity 0.12s, filter 0.12s; }
 .set-theme-btn:hover { border-color: var(--primary, var(--color-primary)); }

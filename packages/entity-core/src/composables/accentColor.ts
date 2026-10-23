@@ -36,9 +36,9 @@ export function hexToOklch(hex: string): Oklch {
 }
 
 export function oklchToHex({ l, c, h }: Oklch): string {
-  // 色度逐级回收防越域（clamp 通道会偏色相；降到域内保持观感）
+  // 色度逐级回收防越域：在 gamma 前检查线性域（clamp 会偏色相），越域则降色度重算保持色相
   let chroma = c
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < 12; i++) {
     const rad = h * Math.PI / 180
     const A = Math.cos(rad) * chroma
     const B = Math.sin(rad) * chroma
@@ -46,10 +46,11 @@ export function oklchToHex({ l, c, h }: Oklch): string {
     const m_ = l - 0.1055613458 * A - 0.0638541728 * B
     const s_ = l - 0.0894841775 * A - 1.2914855480 * B
     const lr = l_ * l_ * l_, mg = m_ * m_ * m_, sb = s_ * s_ * s_
-    const r = linearToSrgb(4.0767416621 * lr - 3.3077115913 * mg + 0.2309699292 * sb)
-    const g = linearToSrgb(-1.2684380046 * lr + 2.6097574011 * mg - 0.3413193965 * sb)
-    const b = linearToSrgb(-0.0041960863 * lr - 0.7034186147 * mg + 1.7076147010 * sb)
-    if (r >= 0 && r <= 1 && g >= 0 && g <= 1 && b >= 0 && b <= 1) {
+    const rl = 4.0767416621 * lr - 3.3077115913 * mg + 0.2309699292 * sb
+    const gl = -1.2684380046 * lr + 2.6097574011 * mg - 0.3413193965 * sb
+    const bl = -0.0041960863 * lr - 0.7034186147 * mg + 1.7076147010 * sb
+    if (rl >= -1e-6 && rl <= 1 + 1e-6 && gl >= -1e-6 && gl <= 1 + 1e-6 && bl >= -1e-6 && bl <= 1 + 1e-6) {
+      const r = linearToSrgb(rl), g = linearToSrgb(gl), b = linearToSrgb(bl)
       const to2 = (x: number) => Math.round(x * 255).toString(16).padStart(2, '0')
       return `#${to2(r)}${to2(g)}${to2(b)}`
     }
@@ -89,4 +90,21 @@ export function pickOnAccent(main: string): string {
 export function deriveGradTo(main: string): string {
   const { l, c, h } = hexToOklch(main)
   return oklchToHex({ l: Math.min(l + 0.031, 0.92), c: Math.min(c * 1.072, 0.26), h: (h + 16) % 360 })
+}
+
+/**
+ * 自定义强调色锚点合规化：亮度收进 [0.40, 0.56]、色相保持、色度上限 0.26。
+ * 亮度带保证 accent 面白字恒 ≥4.5:1（--on-accent 语义稳定，danger 复用面零风险）；
+ * 高明度黄绿类在上限处仍可能差线，逐级回退亮度直到过线。
+ */
+export function quantizeAnchor(hex: string): string {
+  const { c, h } = hexToOklch(hex)
+  let l = Math.min(0.56, Math.max(0.40, hexToOklch(hex).l))
+  let out = oklchToHex({ l, c: Math.min(c, 0.26), h })
+  let guard = 0
+  while (contrastRatio(out, '#ffffff') < 4.5 && l > 0.30 && guard++ < 26) {
+    l -= 0.01
+    out = oklchToHex({ l, c: Math.min(c, 0.26), h })
+  }
+  return out
 }

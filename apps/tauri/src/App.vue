@@ -61,12 +61,13 @@ onUnmounted(() => {
   if (splashHideTimer) clearTimeout(splashHideTimer)
 })
 // entity-core 主题引擎（强调色轴）：模块加载时已完成旧主题 id → accent id 迁移
-const { setAccent, restorePersistedTheme } = useEntityTheme()
+const { setAccent, setCustomAccent, restorePersistedTheme } = useEntityTheme()
 
 /**
  * 主题两轴统一落地（2026-09-13 收束：主题 = 底色 × 强调色；AppearancePanel 派发 ws-set-theme）。
  * App.vue 恒挂载（AgentSpace / Shell 平级切换），在此注册保证两种壳都生效。
  * - detail.mode（'light'|'dark'|'system'）→ App 壳三态（data-theme 唯一控制源；system 恢复跟随）
+ * - detail.accentHex（取色器任意色）→ entity-core setCustomAccent（锚点合规化 + OKLCH 派生）
  * - detail.accent（强调色 id）→ entity-core setAccent（深浅双段规则注入 + 用户令牌重放）
  */
 function onSetTheme(e: Event) {
@@ -77,7 +78,9 @@ function onSetTheme(e: Event) {
     } else if (detail.mode === 'light' || detail.mode === 'dark') {
       setMode(detail.mode)
     }
-    if (typeof detail.accent === 'string' && detail.accent) {
+    if (typeof detail.accentHex === 'string' && detail.accentHex) {
+      setCustomAccent(detail.accentHex)
+    } else if (typeof detail.accent === 'string' && detail.accent) {
       setAccent(detail.accent)
     }
   } catch (err) {
