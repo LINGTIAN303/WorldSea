@@ -2,21 +2,11 @@
   <section class="home-section home-asset-map">
     <header class="home-section-head">
       <h2>资产地图</h2>
-      <span class="home-section-note">当前启用的芽</span>
-    </header>
-    <div
-      v-if="barTotal > 0"
-      class="home-domain-bar"
-      role="img"
-      :aria-label="barLabel"
-    >
       <span
-        v-for="(d, i) in barDomains"
-        :key="d.id"
-        class="home-domain-bar-seg"
-        :style="{ flexGrow: d.entityCount ?? 0, background: `var(--home-cat-${(i % 8) + 1})` }"
-      ></span>
-    </div>
+        class="home-section-note"
+        title="同一实体类型可归属多个域（副域），域计数之和会大于实体总数"
+      >当前启用的芽 · 计数含跨域</span>
+    </header>
     <div class="home-domain-grid">
       <article
         v-for="d in domains"
@@ -31,6 +21,13 @@
             <p>{{ d.question }}</p>
           </div>
           <span class="home-domain-count">{{ d.entityCount ?? '—' }}</span>
+          <button
+            type="button"
+            class="home-domain-open"
+            :disabled="!d.firstViewId"
+            :aria-label="d.firstViewId ? `进入${d.label}` : `${d.label}暂无启用芽`"
+            @click="d.firstViewId && emit('enter', d.firstViewId)"
+          ><WsIcon name="arrow-right" size="xs" /></button>
         </header>
 
         <div class="home-domain-sprouts">
@@ -59,32 +56,18 @@
             {{ d.activeSprouts.length ? '尚无内容' : '—' }}
           </span>
         </div>
-
-        <button
-          type="button"
-          class="home-btn-enter"
-          :disabled="!d.firstViewId"
-          @click="d.firstViewId && emit('enter', d.firstViewId)"
-        >进入</button>
       </article>
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
 import { WsIcon } from '@worldsea/ui-kit'
 import type { HomeDomain } from './homeData'
 
-const props = defineProps<{ domains: HomeDomain[] }>()
+defineProps<{ domains: HomeDomain[] }>()
 const emit = defineEmits<{
   enter: [viewId: string]
   entity: [viewId: string, entityId: string]
 }>()
-
-const barDomains = computed(() => props.domains.filter(d => (d.entityCount ?? 0) > 0))
-const barTotal = computed(() => barDomains.value.reduce((sum, d) => sum + (d.entityCount ?? 0), 0))
-const barLabel = computed(() =>
-  props.domains.map(d => `${d.label} ${d.entityCount ?? '未启用'}`).join('，'),
-)
 </script>

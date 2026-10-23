@@ -113,6 +113,7 @@ describe('buildHomeData', () => {
     expect(buildHomeData(base).featuredBook).toMatchObject({
       id: 'b1', chapterCount: 2, wordCount: 2000, viewId: 'manuscript',
     })
+    expect(buildHomeData(base).featuredBook?.latestChapter?.name).toBeTruthy()
   })
 
   it('矩阵摘要：字段数降序、关系类型数按类型计', () => {

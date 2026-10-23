@@ -43,6 +43,7 @@ export interface HomeRecentItem {
 export interface HomeFeaturedBook {
   id: string; name: string; description: string; coverImage: string
   chapterCount: number; wordCount: number; viewId: string
+  latestChapter: { id: string; name: string; updatedAt: string } | null
 }
 export interface HomeMatrixRow {
   type: string; label: string; sproutLabel: string
@@ -183,11 +184,13 @@ export function buildHomeData(input: HomeDataInput): HomeData {
     const book = entities.filter(e => e.type === 'book').slice().sort(byUpdatedDesc)[0]
     if (book) {
       const chapters = entities.filter(e => e.type === 'manuscript' && e.properties.bookId === book.id)
+      const latest = chapters.slice().sort(byUpdatedDesc)[0]
       featuredBook = {
         id: book.id, name: book.name, description: book.description,
         coverImage: book.coverImage ?? '', chapterCount: chapters.length,
         wordCount: chapters.reduce((sum, e) => sum + (Number(e.properties.wordCount) || 0), 0),
         viewId: manuscriptView.id,
+        latestChapter: latest ? { id: latest.id, name: latest.name, updatedAt: latest.updatedAt } : null,
       }
     } else {
       const m = entities.filter(e => e.type === 'manuscript').slice().sort(byUpdatedDesc)[0]
@@ -195,6 +198,7 @@ export function buildHomeData(input: HomeDataInput): HomeData {
         featuredBook = {
           id: m.id, name: m.name, description: m.description, coverImage: m.coverImage ?? '',
           chapterCount: 1, wordCount: Number(m.properties.wordCount) || 0, viewId: manuscriptView.id,
+          latestChapter: { id: m.id, name: m.name, updatedAt: m.updatedAt },
         }
       }
     }

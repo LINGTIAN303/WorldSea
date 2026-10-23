@@ -13,8 +13,10 @@ describe('HomeMatrixDigest', () => {
   it('渲染静态表、总计与完整矩阵入口', async () => {
     const w = mount(HomeMatrixDigest, { props: { rows, stats, relationTypeCount: 7, matrixViewId: 'field-matrix' } })
     expect(w.findAll('tbody tr')).toHaveLength(2)
-    expect(w.find('.home-matrix-foot').text()).toContain('27 芽')
+    expect(w.find('.home-section-note').text()).toBe('Top 2 / 2 类型')
+    expect(w.find('.home-matrix-foot').text()).toContain('27 芽含类型')
     expect(w.find('.home-matrix-foot').text()).toContain('7 关系类型')
+    expect(w.find('tbody tr').text()).toContain('必填 2')
     await w.find('.home-matrix-foot button').trigger('click')
     expect(w.emitted('open')).toHaveLength(1)
   })
@@ -29,7 +31,8 @@ describe('HomeMatrixDigest', () => {
     const w = mount(HomeMatrixDigest, { props: { rows, stats, relationTypeCount: 7, matrixViewId: 'field-matrix' } })
     expect(w.find('table caption').text()).toContain('实体类型')
     const ths = w.findAll('th')
-    expect(ths).toHaveLength(5)
+    expect(ths).toHaveLength(4)
+    expect(ths.map(th => th.text())).not.toContain('必填')
     expect(ths.every(th => th.attributes('scope') === 'col')).toBe(true)
 
     const scroll = w.find('.home-matrix-scroll')

@@ -40,7 +40,7 @@
         <section class="home-section">
           <h2 class="home-sr-only">世界速览</h2>
           <div class="home-kpi-grid">
-            <WsSkeleton v-for="n in 6" :key="n" variant="card" label="正在载入世界速览" :aria-hidden="n > 1 || undefined" />
+            <WsSkeleton v-for="n in 4" :key="n" variant="card" label="正在载入世界速览" :aria-hidden="n > 1 || undefined" />
           </div>
         </section>
         <section class="home-section">
@@ -67,6 +67,15 @@
               <span class="home-kpi-label">{{ kpi.label }}</span>
             </component>
           </div>
+          <div class="home-kpi-secondary">
+            <button
+              type="button"
+              class="home-kpi-side is-link"
+              title="芽 = 可直接打开的功能模块"
+              @click="openSettingsPlugins"
+            >已启用芽 <strong>{{ data.snapshot.activeSproutCount }}/{{ data.snapshot.totalSproutCount }}</strong></button>
+            <span class="home-kpi-side">字段 <strong>{{ data.snapshot.fieldCount }}</strong></span>
+          </div>
         </section>
 
         <HomeAssetMap :domains="data.domains" @enter="onEnterView" @entity="onEnterEntity" />
@@ -78,7 +87,7 @@
               <span class="home-section-note">当前启用的芽</span>
             </header>
             <ul v-if="data.recent.length" class="home-recent-list">
-              <li v-for="item in data.recent" :key="item.id">
+              <li v-for="item in visibleRecent" :key="item.id">
                 <button type="button" class="home-recent-row" @click="onEnterEntity(item.viewId, item.id)">
                   <span class="home-recent-time">{{ relativeTime(item.updatedAt) }}</span>
                   <span class="home-recent-main">
@@ -91,6 +100,12 @@
               </li>
             </ul>
             <WsEmpty v-else title="还没有最近修改" description="在工作台写下第一条内容后，这里会出现动态。" />
+            <button
+              v-if="data.recent.length > 6"
+              type="button"
+              class="home-recent-more"
+              @click="showAllRecent = !showAllRecent"
+            >{{ showAllRecent ? '收起' : `展开更多（${data.recent.length - 6}）` }}</button>
           </section>
 
           <section v-if="data.featuredBook" class="home-section home-featured">
@@ -98,17 +113,33 @@
               <h2>近期写作</h2>
               <span class="home-section-note">正文</span>
             </header>
-            <button type="button" class="home-book" @click="onEnterView(data.featuredBook.viewId)">
-              <span class="home-book-cover">
+            <div class="home-book">
+              <div class="home-book-cover">
                 <img v-if="data.featuredBook.coverImage" :src="data.featuredBook.coverImage" alt="" />
                 <WsIcon v-else name="book" size="lg" />
-              </span>
-              <span class="home-book-body">
+              </div>
+              <div class="home-book-body">
                 <span class="home-book-name">{{ data.featuredBook.name }}</span>
                 <span class="home-book-desc">{{ data.featuredBook.description || '尚无简介' }}</span>
                 <span class="home-book-meta">{{ data.featuredBook.chapterCount }} 章 · {{ data.featuredBook.wordCount }} 字</span>
-              </span>
-            </button>
+              </div>
+            </div>
+            <div v-if="data.featuredBook.latestChapter" class="home-book-latest">
+              <span class="home-book-latest-label">最近章节</span>
+              <button
+                type="button"
+                class="home-book-latest-name"
+                @click="onEnterEntity(data.featuredBook.viewId, data.featuredBook.latestChapter.id)"
+              >{{ data.featuredBook.latestChapter.name }}</button>
+              <span class="home-book-latest-time">{{ relativeTime(data.featuredBook.latestChapter.updatedAt) }}</span>
+            </div>
+            <TuiButton
+              class="home-book-cta"
+              size="sm"
+              variant="secondary"
+              icon="edit"
+              @click="onEnterView(data.featuredBook.viewId)"
+            >继续写作</TuiButton>
           </section>
         </div>
 
@@ -165,14 +196,19 @@ const lastUpdatedText = computed(() => data.value?.snapshot.lastUpdatedAt
   ? relativeTime(data.value.snapshot.lastUpdatedAt)
   : '暂无内容')
 
+/** 最近动态默认只露 6 条，避免把右栏拉成大片空白；行内展开，不新增页面 */
+const showAllRecent = ref(false)
+const visibleRecent = computed(() => {
+  const recent = data.value?.recent ?? []
+  return showAllRecent.value ? recent : recent.slice(0, 6)
+})
+
 const kpis = computed(() => {
   if (!data.value) return []
   const s = data.value.snapshot
   return [
     { key: 'entities', label: '实体', value: s.entityCount, action: null as string | null },
     { key: 'relations', label: '关系', value: s.relationCount, action: null },
-    { key: 'sprouts', label: '已启用芽', value: `${s.activeSproutCount}/${s.totalSproutCount}`, action: 'sprouts' },
-    { key: 'fields', label: '字段', value: s.fieldCount, action: null },
     { key: 'outline', label: '大纲', value: s.outlineCount, action: data.value.outlineViewId ? 'outline' : null },
     { key: 'manuscript', label: '正文', value: s.manuscriptCount, action: data.value.manuscriptViewId ? 'manuscript' : null },
   ]
@@ -195,7 +231,6 @@ function openSettingsPlugins() {
   window.dispatchEvent(new CustomEvent('ws-open-settings'))
 }
 function onKpi(kpi: { action: string | null }) {
-  if (kpi.action === 'sprouts') openSettingsPlugins()
   if (kpi.action === 'outline' && data.value?.outlineViewId) openWorkspace(data.value.outlineViewId)
   if (kpi.action === 'manuscript' && data.value?.manuscriptViewId) openWorkspace(data.value.manuscriptViewId)
 }

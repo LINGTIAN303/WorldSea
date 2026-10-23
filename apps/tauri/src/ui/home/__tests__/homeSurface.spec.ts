@@ -47,7 +47,10 @@ function fixture(): HomeData {
       recentEntities: [{ id: 'c1', name: '乔', type: 'character', updatedAt: '2026-10-23T10:00:00Z', viewId: 'characters' }],
     }],
     recent: [{ id: 'c1', type: 'character', name: '乔', description: '简介', updatedAt: '2026-10-23T10:00:00Z', typeLabel: '角色', icon: 'character', viewId: 'characters' }],
-    featuredBook: { id: 'b1', name: '书', description: '书简介', coverImage: '', chapterCount: 2, wordCount: 2000, viewId: 'manuscript' },
+    featuredBook: {
+      id: 'b1', name: '书', description: '书简介', coverImage: '', chapterCount: 2, wordCount: 2000, viewId: 'manuscript',
+      latestChapter: { id: 'm1', name: '第一章', updatedAt: '2026-10-23T10:00:00Z' },
+    },
     matrixRows: [{ type: 'character', label: '角色', sproutLabel: '角色', fieldCount: 2, requiredCount: 1, relationTypeCount: 1 }],
     matrixStats: { buds: 27, entities: 1, instances: 3, keys: 2, traits: 0, facets: 0 },
     matrixRelationTypeCount: 1,
@@ -77,7 +80,7 @@ describe('HomeSurface', () => {
     const w = mount(HomeSurface)
     expect(w.find('h1').exists()).toBe(true)
     expect(w.find('table caption').text()).toContain('实体类型')
-    expect(w.find('.home-domain-bar').attributes('aria-label')).toContain('生命与族群')
+    expect(w.find('.home-asset-map .home-section-note').text()).toContain('含跨域')
     // 唯一 main 由 ShellSurface 提供，首页自身不得再嵌套
     expect(w.findAll('main')).toHaveLength(0)
   })
@@ -95,7 +98,7 @@ describe('HomeSurface', () => {
   it('加载中显示骨架，Hero 仍渲染项目名；不出现「暂无内容」占位', () => {
     const w = mount(HomeSurface)
     expect(w.find('.home-hero h1').text()).toBe('纯真')
-    expect(w.find('.home-kpi-grid .ws-skeleton').exists()).toBe(true)
+    expect(w.findAll('.home-kpi-grid .ws-skeleton')).toHaveLength(4)
     expect(w.find('.home-meta').exists()).toBe(false)
     expect(w.find('.home-footer').text()).not.toContain('暂无内容')
   })
@@ -127,11 +130,50 @@ describe('HomeSurface', () => {
     loading.value = false
     const w = mount(HomeSurface)
     expect(w.find('.home-tagline').text()).toBe('一句话')
-    expect(w.findAll('.home-kpi')).toHaveLength(6)
+    expect(w.findAll('.home-kpi')).toHaveLength(4)
     expect(w.find('.home-domain').exists()).toBe(true)
     expect(w.text()).toContain('乔')
     expect(w.text()).toContain('书')
     expect(w.find('.home-matrix').exists()).toBe(true)
+  })
+
+  it('最近动态默认 6 条，可展开/收起', async () => {
+    const base = fixture()
+    data.value = {
+      ...base,
+      recent: Array.from({ length: 9 }, (_, i) => ({ ...base.recent[0], id: `r${i}`, name: `实体${i}` })),
+    }
+    loading.value = false
+    const w = mount(HomeSurface)
+    expect(w.findAll('.home-recent-row')).toHaveLength(6)
+    const more = w.find('.home-recent-more')
+    expect(more.text()).toContain('展开更多（3）')
+    await more.trigger('click')
+    expect(w.findAll('.home-recent-row')).toHaveLength(9)
+    expect(w.find('.home-recent-more').text()).toBe('收起')
+  })
+
+  it('近期写作显示最近章节与继续写作', async () => {
+    data.value = fixture()
+    loading.value = false
+    const w = mount(HomeSurface)
+    expect(w.find('.home-book-latest').text()).toContain('第一章')
+    await w.find('.home-book-latest-name').trigger('click')
+    expect(openWorkspace).toHaveBeenLastCalledWith('manuscript', 'm1')
+    await w.find('.home-book-cta').trigger('click')
+    expect(openWorkspace).toHaveBeenLastCalledWith('manuscript')
+  })
+
+  it('速览副行：芽入口进设置，字段只读', async () => {
+    data.value = fixture()
+    loading.value = false
+    const spy = vi.spyOn(window, 'dispatchEvent')
+    const w = mount(HomeSurface)
+    expect(w.find('.home-kpi-secondary').text()).toContain('已启用芽 4/27')
+    expect(w.find('.home-kpi-secondary').text()).toContain('字段 3')
+    await w.find('.home-kpi-side.is-link').trigger('click')
+    expect(useUIStore().settingsTarget).toEqual({ section: 'plugins' })
+    expect(spy.mock.calls.some(([e]) => (e as CustomEvent).type === 'ws-open-settings')).toBe(true)
   })
 
   it('继续上次/实体/矩阵入口都走 openWorkspace', async () => {
