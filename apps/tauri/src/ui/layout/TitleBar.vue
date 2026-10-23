@@ -20,11 +20,12 @@
       </button>
     </div>
     <div class="titlebar-left" data-tauri-drag-region>
-      <ProjectSwitcher variant="titlebar" />
+      <ProjectHomeButton />
+      <ProjectSwitcher variant="titlebar" :show-brand="false" />
     </div>
     <div class="titlebar-spacer" data-tauri-drag-region></div>
     <div class="titlebar-center" data-tauri-drag-region>
-      <span v-if="uiStore.currentView" class="titlebar-viewname">{{ currentViewLabel }}</span>
+      <span v-if="uiStore.currentView || uiStore.surface === 'home'" class="titlebar-viewname">{{ centerLabel }}</span>
     </div>
     <div class="titlebar-right">
       <div class="titlebar-controls">
@@ -60,6 +61,7 @@ import { useUIStore } from '@/stores/uiStore'
 import { usePluginStore } from '@worldsea/entity-core'
 import { WsIcon } from '@worldsea/ui-kit'
 import ProjectSwitcher from '@/ui/project/ProjectSwitcher.vue'
+import ProjectHomeButton from './ProjectHomeButton.vue'
 import { switchShell } from '@/composables/shellSwitch'
 import { useProjectSwitcher } from '@/composables/useProjectSwitcher'
 
@@ -78,6 +80,9 @@ const currentViewLabel = computed(() => {
   const view = pluginStore.views.find((v) => v.id === uiStore.currentView)
   return view?.label ?? ''
 })
+
+/* 中心标签：首页态固定「首页」（首页无 currentView），工作台态取当前芽名 */
+const centerLabel = computed(() => uiStore.surface === 'home' ? '首页' : currentViewLabel.value)
 
 /* ── 进入 Agent 空间按钮（2026-08-10；D1-b 双窗；2026-09-30 C 批去陈旧壳状态）──
    双窗里本页恒为工作台窗，方向固定「进入 Agent 空间」（与 dsh 侧注入栏的「切换到工作台」对称）；

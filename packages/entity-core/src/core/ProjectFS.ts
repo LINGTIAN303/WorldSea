@@ -4,6 +4,7 @@ import { getProjectManager } from './ProjectManager'
 import { useEntityStore, useRelationStore, useSettingsStore } from '../stores'
 import { getProjectSwitcherApi } from './ProjectSwitcherApi'
 import { getProjectExtraProviders } from './projectExtras'
+import { getFileStorageBackend } from './StorageBackend'
 import { createBatchIpc } from '@worldsea/perf-kit/io'
 
 /* ════════════════════════════════════════
@@ -91,6 +92,24 @@ async function openDirDialog(title: string): Promise<string | null> {
   } catch {
     return null
   }
+}
+
+/** 写入文本文件（createDirs：目标目录不存在则创建） */
+async function writeTextFile(path: string, content: string): Promise<void> {
+  const invoke = await getInvoke()
+  if (!invoke) throw new Error('Tauri 环境不可用，无法写入文件')
+  await invoke('cmd_fs_write', { path, content, createDirs: true })
+}
+
+/** 归一为正斜杠（导出/导入路径拼接口径） */
+function toPosixPath(path: string): string {
+  return path.replace(/\\/g, '/')
+}
+
+/** 当前项目实体根下的首页 profile 路径（`.worldsea/home.json`，设计 §5.3） */
+function currentHomeProfilePath(): string | null {
+  const projectDir = getFileStorageBackend()?.projectDir
+  return projectDir ? `${toPosixPath(projectDir)}/.worldsea/home.json` : null
 }
 
 /* ════════════════════════════════════════
@@ -212,7 +231,17 @@ export async function exportProjectToDir(
     }
   }
 
-  // 6. 写入缓存信息
+  // 6. 导出首页 profile（`.worldsea/home.json`，设计 §5.3 白名单）：可选文件，缺失即跳过
+  const homeSourcePath = currentHomeProfilePath()
+  if (homeSourcePath) {
+    try {
+      batchWriter.add(`${projectDir}/.worldsea/home.json`, await readTextFile(homeSourcePath))
+    } catch {
+      // 未填写首页简介（无 home.json）属正常情况
+    }
+  }
+
+  // 7. 写入缓存信息
   const cache: ProjectCache = {
     formatVersion: 1,
     entityCount: entities.length,
@@ -221,7 +250,7 @@ export async function exportProjectToDir(
   }
   batchWriter.add(`${projectDir}/.worldsea/cache.json`, JSON.stringify(cache, null, 2))
 
-  // 7. 批量刷出所有文件
+  // 8. 批量刷出所有文件
   await batchWriter.flush()
   batchWriter.destroy()
 
@@ -259,7 +288,8 @@ export async function importProjectFromDir(
   if (!switcherApi) {
     throw new Error('项目切换服务未注册：请先调用 registerProjectSwitcherApi')
   }
-  await switcherApi.switchProject(newProject.id)
+  const switched = await switcherApi.switchProject(newProject.id)
+  if (!switched) throw new Error('切换到导入项目失败，已中止导入')
 
   // 5. 导入实体（批量收集后一次性写入 DB）
   const entitiesDir = `${sourceDir}/entities`
@@ -328,6 +358,19 @@ export async function importProjectFromDir(
       await provider.importFile(content)
     } catch {
       // 附加文件可能不存在
+    }
+  }
+
+  // 8. 导入首页 profile（可选文件：缺失即跳过；写入新项目实体根的 `.worldsea/`）
+  const homeTargetPath = currentHomeProfilePath()
+  if (homeTargetPath) {
+    try {
+      const homeText = await readTextFile(`${toPosixPath(sourceDir)}/.worldsea/home.json`)
+      await writeTextFile(homeTargetPath, homeText)
+      // 切换项目早于本步写入，已挂载的首页资料 store 首轮可能读到空资料——广播让消费方重读
+      if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('ws-home-profile-changed'))
+    } catch {
+      // 源目录无 home.json 或新项目目录未就绪：跳过，不影响导入主体
     }
   }
 

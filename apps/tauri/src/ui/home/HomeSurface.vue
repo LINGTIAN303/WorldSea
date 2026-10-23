@@ -1,0 +1,224 @@
+<template>
+  <div class="home-surface">
+    <div class="home-inner">
+      <section class="home-hero">
+        <img
+          v-if="profile.coverImage && !coverFailed"
+          class="home-hero-img"
+          :src="profile.coverImage"
+          :alt="`${projectName} 封面`"
+          @error="coverFailed = true"
+        />
+        <div class="home-hero-shade" aria-hidden="true"></div>
+        <div class="home-hero-body">
+          <p class="home-eyebrow">WorldSea · 项目首页</p>
+          <h1 ref="heroTitle" tabindex="-1">{{ projectName }}</h1>
+          <p class="home-tagline">{{ tagline }}</p>
+          <p v-if="about" class="home-about">{{ about }}</p>
+          <p v-if="data" class="home-meta">
+            最后更新 {{ lastUpdatedText }} · 已启用芽
+            {{ data.snapshot.activeSproutCount }}/{{ data.snapshot.totalSproutCount }}
+          </p>
+          <div class="home-hero-actions">
+            <TuiButton
+              variant="primary"
+              icon="arrow-right"
+              :disabled="!continueTarget"
+              @click="onContinue"
+            >{{ continueLabel }}</TuiButton>
+            <TuiButton variant="ghost" icon="edit" @click="onEditProfile">编辑简介</TuiButton>
+          </div>
+        </div>
+      </section>
+
+      <div v-if="error" class="home-inline-error" role="alert">
+        <span>{{ error }}</span>
+        <TuiButton size="sm" variant="secondary" @click="reload">重试</TuiButton>
+      </div>
+
+      <template v-if="loading || !data">
+        <section class="home-section">
+          <h2 class="home-sr-only">世界速览</h2>
+          <div class="home-kpi-grid">
+            <WsSkeleton v-for="n in 6" :key="n" variant="card" label="正在载入世界速览" :aria-hidden="n > 1 || undefined" />
+          </div>
+        </section>
+        <section class="home-section">
+          <div class="home-domain-grid">
+            <WsSkeleton v-for="n in 8" :key="n" variant="card" label="正在载入资产地图" :aria-hidden="n > 1 || undefined" />
+          </div>
+        </section>
+      </template>
+
+      <template v-else>
+        <section class="home-section home-snapshot">
+          <h2 class="home-sr-only">世界速览</h2>
+          <div class="home-kpi-grid">
+            <component
+              :is="kpi.action ? 'button' : 'div'"
+              v-for="kpi in kpis"
+              :key="kpi.key"
+              class="home-kpi"
+              :class="{ 'is-link': !!kpi.action }"
+              :type="kpi.action ? 'button' : undefined"
+              @click="onKpi(kpi)"
+            >
+              <span class="home-kpi-value">{{ kpi.value }}</span>
+              <span class="home-kpi-label">{{ kpi.label }}</span>
+            </component>
+          </div>
+        </section>
+
+        <HomeAssetMap :domains="data.domains" @enter="onEnterView" @entity="onEnterEntity" />
+
+        <div class="home-split" :class="{ 'is-single': !data.featuredBook }">
+          <section class="home-section home-recent">
+            <header class="home-section-head">
+              <h2>最近动态</h2>
+              <span class="home-section-note">当前启用的芽</span>
+            </header>
+            <ul v-if="data.recent.length" class="home-recent-list">
+              <li v-for="item in data.recent" :key="item.id">
+                <button type="button" class="home-recent-row" @click="onEnterEntity(item.viewId, item.id)">
+                  <span class="home-recent-time">{{ relativeTime(item.updatedAt) }}</span>
+                  <span class="home-recent-main">
+                    <span class="home-recent-name"><WsIcon :name="item.icon" size="xs" />{{ item.name }}</span>
+                    <span class="home-recent-desc">
+                      {{ item.typeLabel }}<template v-if="item.description"> · {{ item.description }}</template>
+                    </span>
+                  </span>
+                </button>
+              </li>
+            </ul>
+            <WsEmpty v-else title="还没有最近修改" description="在工作台写下第一条内容后，这里会出现动态。" />
+          </section>
+
+          <section v-if="data.featuredBook" class="home-section home-featured">
+            <header class="home-section-head">
+              <h2>近期写作</h2>
+              <span class="home-section-note">正文</span>
+            </header>
+            <button type="button" class="home-book" @click="onEnterView(data.featuredBook.viewId)">
+              <span class="home-book-cover">
+                <img v-if="data.featuredBook.coverImage" :src="data.featuredBook.coverImage" alt="" />
+                <WsIcon v-else name="book" size="lg" />
+              </span>
+              <span class="home-book-body">
+                <span class="home-book-name">{{ data.featuredBook.name }}</span>
+                <span class="home-book-desc">{{ data.featuredBook.description || '尚无简介' }}</span>
+                <span class="home-book-meta">{{ data.featuredBook.chapterCount }} 章 · {{ data.featuredBook.wordCount }} 字</span>
+              </span>
+            </button>
+          </section>
+        </div>
+
+        <HomeMatrixDigest
+          :rows="data.matrixRows"
+          :stats="data.matrixStats"
+          :relation-type-count="data.matrixRelationTypeCount"
+          :matrix-view-id="data.matrixViewId"
+          @open="onOpenMatrix"
+        />
+      </template>
+
+      <footer class="home-footer">WorldSea · 项目首页</footer>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { TuiButton, WsEmpty, WsIcon, WsSkeleton } from '@worldsea/ui-kit'
+import { useUIStore } from '@/stores/uiStore'
+import { useHomeProfileStore } from '@/stores/homeProfileStore'
+import { useProjectSwitcher } from '@/composables/useProjectSwitcher'
+import { relativeTime } from './homeData'
+import { useHomeData } from './useHomeData'
+import { useHomeNavigation } from './useHomeNavigation'
+import HomeAssetMap from './HomeAssetMap.vue'
+import HomeMatrixDigest from './HomeMatrixDigest.vue'
+
+const ui = useUIStore()
+const project = useProjectSwitcher()
+const profileStore = useHomeProfileStore()
+const { data, loading, error, reload } = useHomeData()
+const { openWorkspace } = useHomeNavigation()
+
+const heroTitle = ref<HTMLElement | null>(null)
+const profile = computed(() => profileStore.profile)
+/** 封面加载失败（跨机器迁移后 asset URL 失效）→ 回落默认视觉，不留破图 */
+const coverFailed = ref(false)
+watch(() => profile.value.coverImage, () => { coverFailed.value = false })
+
+const fallbackProjectName = computed(() => {
+  const p = project.currentProject.value
+  return p?.isDefault ? '默认工作区' : (p?.name || '默认工作区')
+})
+const projectName = computed(() => data.value?.projectName ?? fallbackProjectName.value)
+const tagline = computed(() => data.value?.tagline ?? '')
+const about = computed(() => data.value?.profile.about ?? '')
+const continueTarget = computed(() => data.value?.continueTarget ?? null)
+const continueLabel = computed(() => continueTarget.value
+  ? `继续上次：${continueTarget.value.label}`
+  : '进入工作台')
+const lastUpdatedText = computed(() => data.value?.snapshot.lastUpdatedAt
+  ? relativeTime(data.value.snapshot.lastUpdatedAt)
+  : '暂无内容')
+
+const kpis = computed(() => {
+  if (!data.value) return []
+  const s = data.value.snapshot
+  return [
+    { key: 'entities', label: '实体', value: s.entityCount, action: null as string | null },
+    { key: 'relations', label: '关系', value: s.relationCount, action: null },
+    { key: 'sprouts', label: '已启用芽', value: `${s.activeSproutCount}/${s.totalSproutCount}`, action: 'sprouts' },
+    { key: 'fields', label: '字段', value: s.fieldCount, action: null },
+    { key: 'outline', label: '大纲', value: s.outlineCount, action: data.value.outlineViewId ? 'outline' : null },
+    { key: 'manuscript', label: '正文', value: s.manuscriptCount, action: data.value.manuscriptViewId ? 'manuscript' : null },
+  ]
+})
+
+function onContinue() {
+  if (continueTarget.value) openWorkspace(continueTarget.value.viewId)
+}
+function onEnterView(viewId: string) {
+  openWorkspace(viewId)
+}
+function onEnterEntity(viewId: string, entityId: string) {
+  openWorkspace(viewId, entityId)
+}
+function onOpenMatrix() {
+  if (data.value?.matrixViewId) openWorkspace(data.value.matrixViewId)
+}
+function openSettingsPlugins() {
+  ui.settingsTarget = { section: 'plugins' }
+  window.dispatchEvent(new CustomEvent('ws-open-settings'))
+}
+function onKpi(kpi: { action: string | null }) {
+  if (kpi.action === 'sprouts') openSettingsPlugins()
+  if (kpi.action === 'outline' && data.value?.outlineViewId) openWorkspace(data.value.outlineViewId)
+  if (kpi.action === 'manuscript' && data.value?.manuscriptViewId) openWorkspace(data.value.manuscriptViewId)
+}
+function onEditProfile() {
+  ui.settingsTarget = { section: 'home' }
+  window.dispatchEvent(new CustomEvent('ws-open-settings'))
+}
+
+/** 项目包导入在切换项目之后才写入 home.json，此时首轮 load 可能读到空资料；由写入方广播刷新 */
+function onProfileChanged() {
+  void profileStore.load()
+}
+
+onMounted(() => {
+  void profileStore.load()
+  window.addEventListener('ws-home-profile-changed', onProfileChanged)
+  void nextTick(() => heroTitle.value?.focus())
+})
+onBeforeUnmount(() => window.removeEventListener('ws-home-profile-changed', onProfileChanged))
+watch(() => ui.bootState, state => {
+  if (state === 'ready') void profileStore.load()
+}, { immediate: true })
+watch(() => project.currentProject.value?.id, () => { void profileStore.load() })
+</script>
+
+<style src="./home.css"></style>

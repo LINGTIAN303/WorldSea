@@ -16,6 +16,8 @@ const SPLIT_SYNC_COLLAPSE_KEY = 'worldsea_split_sync_collapse'
 export type SproutNavMode = 'flat' | 'popover' | 'rail' | 'tabs' | 'dual' | 'split'
 export type SproutDomainFilter = 'all' | SproutDomainId
 export type SplitSidebarOrder = 'domain-left' | 'sprout-left'
+/** 产品域表面：home=项目扉页（壳级），workspace=芽侧栏+工具条+视图。不落盘，冷启动恒 home。 */
+export type Surface = 'home' | 'workspace'
 export interface SettingsTarget {
   section: string
   card?: number
@@ -122,6 +124,18 @@ function saveSplitSidebarOrder(order: SplitSidebarOrder) {
 
 export const useUIStore = defineStore('ui', () => {
   const currentView = ref<string | null>(null)
+  /* ── 产品域表面（壳级状态，不落盘）── */
+  const surface = ref<Surface>('home')
+
+  function setSurface(next: Surface) {
+    surface.value = next
+  }
+
+  /** 回项目扉页；保留 currentView，供从扉页再次进入工作区时恢复 */
+  function openHome() {
+    surface.value = 'home'
+  }
+
   /**
    * 导航选中挂起位（2026-10-08 语义复活）：`ws-navigate` 跨视图跳转写入，
    * 目标视图挂载时读回（挂载晚于事件派发，见 Shell.onWsNavigate）；`setView` 会清空。
@@ -257,6 +271,9 @@ export const useUIStore = defineStore('ui', () => {
 
   return {
     currentView,
+    surface,
+    setSurface,
+    openHome,
     selectedEntityId,
     sidebarCollapsed,
     menuOpen,

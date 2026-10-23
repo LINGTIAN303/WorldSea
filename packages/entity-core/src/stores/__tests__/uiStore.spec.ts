@@ -94,3 +94,16 @@ describe('uiStore / R3-c 侧栏偏好', () => {
     expect(next.sproutCountEnabled).toBe(false)
   })
 })
+
+describe('uiStore / 产品域表面', () => {
+  it('默认 surface=home；setSurface 切换；openHome 不清 currentView', () => {
+    const ui = useUIStore()
+    expect(ui.surface).toBe('home')
+    ui.setView('characters')
+    ui.setSurface('workspace')
+    expect(ui.surface).toBe('workspace')
+    ui.openHome()
+    expect(ui.surface).toBe('home')
+    expect(ui.currentView).toBe('characters')
+  })
+})
