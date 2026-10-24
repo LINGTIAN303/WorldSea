@@ -79,6 +79,8 @@ export const SHORTCUT_CATALOG: ShortcutItem[] = [
   { id: 'outline-board.redo', description: '大纲白板：重做', keys: ['ctrl', 'shift', 'z'], scope: 'view' },
   { id: 'outline-board.delete-container', description: '大纲白板：删除选中节点（含容器与关系）', keys: ['delete'], scope: 'view' },
   { id: 'outline-board.reset-zoom', description: '大纲白板：缩放重置为 100%', keys: ['ctrl', '0'], scope: 'view' },
+  { id: 'outline-board.zoom-in', description: '大纲白板：放大', keys: ['ctrl', '='], scope: 'view' },
+  { id: 'outline-board.zoom-out', description: '大纲白板：缩小', keys: ['ctrl', '-'], scope: 'view' },
   // Shift+1 经 normalizeKeys 归一为单键 '!'（非字母可打印字符不叠加 shift 修饰）；
   // 'keys' 与注册处保持一致写 '!'，展示层负责拆成 Shift + 1
   { id: 'outline-board.fit-all', description: '大纲白板：适配全部', keys: ['!'], scope: 'view' },

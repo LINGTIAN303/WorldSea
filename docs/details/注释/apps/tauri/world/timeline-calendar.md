@@ -16,8 +16,8 @@
 | 数据层 | `composables/useTimelinePoints` | 事件 → 标量区间 / 其他历法 / 未定时间；期段与顶层单位色带 |
 | 派生层 | `useTimelineSort` `useTimelineFilters` `useTimelineGroups` `timelineGroups` `useConflictDetection` `useSwimlaneLayout` | 排序、筛选、分组、冲突、泳道行分配 |
 | 画布 | `composables/useTimelineScale` `timelineSnap` `useTimelineCanvasDrag` `useTimelineOccurrences` | 标尺与刻度、吸附、指针交互、周期 occurrence |
-| 视图 | `TimelineChart`（壳）/ `TimelineCanvas` / `TimelineChronicle` | 两态渲染与控件显隐 |
-| 交互接线 | `composables/useTimelineKeyboard` | 快捷键注册/注销、方向键焦点 |
+| 视图 | `TimelineChart`（壳）/ `TimelineCanvas` / `TimelineChronicle` / `TimelineEventMenu` | 两态渲染、控件显隐、事件右键菜单 |
+| 交互接线 | `composables/useTimelineKeyboard` `useTimelineEventMenu` | 快捷键注册/注销、方向键焦点、右键菜单命中与动作口径 |
 
 ## 3. 关键设计决策
 
@@ -74,6 +74,7 @@
 - **键盘**：方向键移动 DOM 焦点（元素自带 Enter 打开），`+/-` 缩放，`Home` 适配，Esc 关闭详情/退出批量。
 - **筛选反馈**：筛选条显示「显示 N · 已隐藏 M」并提供「清除筛选」，避免筛掉事件后无从察觉。
 - **详情导航**：详情顶部「‹ N / M ›」按当前**可见序列**步进（口径见 3.8：树态含分组与折叠，时序态跨页自动翻页）；「在画布中查看」切横态并定位。
+- **右键菜单**：画布事件条/点与编年史卡片右键 → 编辑 / 在另一视图定位 / 删除（走确认）。菜单由壳层按 `data-event-id` 做事件委托，两态零侵入；未命中事件时保留浏览器默认菜单。
 - **分段折叠**：编年史段标题可折叠，状态按项目存 localStorage（`worldsea_timeline_collapsed_groups:<projectId>`），视图重载 / 切换视图后保持。
 - **撤销**：拖拽写回走 `entityStore.update`，天然进撤销栈。
 
@@ -107,5 +108,6 @@
 - `composables/__tests__/timelineViews.spec.ts`：解析/foreign/未定时间、分组、筛选、冲突、标尺层级、吸附往返、排序；分组树可见顺序（段序 + 组内树序、折叠截断、多组去重）。
 - `composables/__tests__/useTimelineNeighbors.spec.ts`：详情邻接导航步进、树态按 `treeOrder` 步进、隐藏选中时索引为 -1。
 - `composables/__tests__/useChronicleCollapse.spec.ts`：分段折叠按项目持久化、非法存储回落。
+- `composables/__tests__/useTimelineEventMenu.spec.ts`：右键只在事件元素上开菜单、坐标与目标事件、未命中不拦截。
 - `packages/plugin-sdk/.../useEntityPaging.spec.ts`：分页切片/收敛/重置，以及 `revealIndex` 跨页翻页。
 - `__tests__/timelineGuards.spec.ts`：禁止硬编码纪元数学与直读 `properties.era`（迁移层豁免）；「拖拽改时间」必须有消费方；导出/导入两条链接线不得掉。
