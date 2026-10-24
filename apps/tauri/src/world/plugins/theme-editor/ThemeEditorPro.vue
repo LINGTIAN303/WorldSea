@@ -288,7 +288,8 @@ function getLuminance(hex: string): number {
 .theme-pro__reset:hover { border-color: var(--color-danger); color: var(--color-danger); }
 
 .theme-pro__groups { display: flex; flex-direction: column; gap: var(--space-1); }
-.theme-pro__group { border: 1px solid var(--color-border-subtle); border-radius: var(--radius-md); overflow: hidden; }
+/* 免疫压缩：组卡片永不收缩（历史教训——容器高度受限时 flex-shrink 会把展开组均匀压扁并被 overflow:hidden 裁切） */
+.theme-pro__group { border: 1px solid var(--color-border-subtle); border-radius: var(--radius-md); overflow: hidden; flex-shrink: 0; }
 .theme-pro__group-header {
   display: flex; align-items: center; gap: var(--space-2); width: 100%; padding: var(--space-2) var(--space-3);
   border: none; background: var(--color-bg-elevated); cursor: pointer; font-size: var(--font-size-sm);
