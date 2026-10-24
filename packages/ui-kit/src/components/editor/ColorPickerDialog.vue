@@ -21,21 +21,17 @@
             </div>
             <div class="cp-slider-row">
               <span class="cp-slider-label">S</span>
-              <input type="range" min="0" max="100" v-model.number="sat" class="cp-slider" />
+              <input type="range" min="0" max="100" v-model.number="sat" class="cp-slider" :style="satTrackStyle" />
               <span class="cp-slider-val">{{ sat }}%</span>
             </div>
             <div class="cp-slider-row">
               <span class="cp-slider-label">L</span>
-              <input type="range" min="0" max="100" v-model.number="light" class="cp-slider" />
+              <input type="range" min="0" max="100" v-model.number="light" class="cp-slider" :style="lightTrackStyle" />
               <span class="cp-slider-val">{{ light }}%</span>
             </div>
           </div>
           <div class="cp-preview-row">
-            <div class="cp-swatch" :style="{ background: currentColor }" title="所选色"></div>
-            <template v-if="showTransformed">
-              <span class="cp-preview-arrow" aria-hidden="true">→</span>
-              <div class="cp-swatch cp-swatch--result" :style="{ background: transformedColor }" title="将应用的合规化色"></div>
-            </template>
+            <div class="cp-swatch cp-swatch--result" :style="{ background: currentColor }" title="将应用的强调色"></div>
             <input v-model="hexInput" class="cp-hex-input" @change="onHexInput" @focus="hexFocused = true" @blur="hexFocused = false" />
           </div>
           <div class="cp-presets">
@@ -127,16 +123,32 @@ const cursorStyle = computed(() => {
 })
 
 const currentColor = computed(() => hslToHex(hue.value, sat.value, light.value))
-/** 应用换算（如锚点合规化）后的「将生效色」；与所选色一致时不高亮显示 */
-const transformedColor = computed(() => props.transform ? props.transform(currentColor.value) : currentColor.value)
-const showTransformed = computed(() =>
-  !!props.transform && transformedColor.value.toLowerCase() !== currentColor.value.toLowerCase(),
-)
 
-// 滑杆/盘面变化时同步 hex 输入框（聚焦期间不打断手动输入）
+// 合规化吸附：传入 transform（如强调色锚点合规化）时，任何选取立即吸附到「将生效色」——
+// 盘面光标/预览/hex 三者恒等于最终应用色，杜绝所见非所得（吸附幂等，单次收敛）
 watch([hue, sat, light], () => {
+  if (props.transform) {
+    const final = props.transform(currentColor.value)
+    if (final.toLowerCase() !== currentColor.value.toLowerCase()) {
+      const snapped = hexToHsl(final)
+      if (snapped) {
+        hue.value = snapped.h
+        sat.value = snapped.s
+        light.value = snapped.l
+        return
+      }
+    }
+  }
   if (!hexFocused.value) hexInput.value = currentColor.value
 })
+
+// S/L 滑轨视觉：随当前色相/亮度动态渐变（暗色主题下静态灰底几乎不可见）
+const satTrackStyle = computed(() => ({
+  background: `linear-gradient(to right, hsl(${hue.value}, 0%, ${light.value}%), hsl(${hue.value}, 100%, ${light.value}%))`,
+}))
+const lightTrackStyle = computed(() => ({
+  background: `linear-gradient(to right, #000, hsl(${hue.value}, 100%, 50%), #fff)`,
+}))
 
 watch(() => props.show, (v) => {
   if (v && props.initialColor) {
@@ -330,7 +342,6 @@ function hexToHsl(hex: string): { h: number; s: number; l: number } | null {
 .cp-slider-hue { background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00); }
 .cp-slider-val { font-size: var(--font-size-xs); color: var(--text-tertiary); width: 36px; text-align: right; }
 .cp-preview-row { display: flex; align-items: center; gap: 10px; }
-.cp-preview-arrow { color: var(--text-tertiary); font-size: var(--font-size-sm); }
 .cp-swatch { width: 36px; height: 36px; border-radius: var(--radius-sm); border: 2px solid var(--border, var(--color-border)); flex-shrink: 0; }
 .cp-swatch--result { border-color: var(--accent, var(--color-primary)); }
 .cp-hex-input { flex: 1; padding: 6px 10px; border: 1px solid var(--border, var(--color-border)); border-radius: 4px; background: var(--bg-tertiary, var(--color-bg-elevated)); color: var(--text); font-size: var(--font-size-sm); font-family: monospace; outline: none; }
