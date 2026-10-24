@@ -31,7 +31,7 @@
       <button class="bv-tb" type="button" title="放大" @click="zoomBy(1)">＋</button>
       <button class="bv-tb" type="button" title="适配全部 (Shift+1)" @click="fitAll">适配</button>
       <span class="bv-sep" />
-      <button class="bv-tb" type="button" title="导出大纲（按表现形式渲染）" @click="exportOpen = true">
+      <button class="bv-tb" type="button" title="导出大纲（按表现形式渲染）" @click="openExport">
         <WsIcon name="file-down" size="xs" />
       </button>
     </template>
@@ -142,7 +142,8 @@
       v-if="exportOpen"
       :node-count="outlineNodes.length"
       :exporting="exporting"
-      @close="exportOpen = false"
+      :preview="exportResult?.markdown ?? ''"
+      @close="closeExport"
       @confirm="onExport"
     />
 
@@ -209,7 +210,7 @@ import {
   type ContextTarget,
   type MenuItem,
 } from './contextMenu'
-import { buildOutlineExport } from './export/outlineExport'
+import { buildOutlineExport, type OutlineExportResult } from './export/outlineExport'
 import {
   downloadBlob,
   downloadText,
@@ -1052,16 +1053,31 @@ function registerShortcuts(): void {
 // ── 导出（规格 §十：按表现形式渲染；导出的是全部大纲节点，布局只提供形式偏好）──
 const exportOpen = ref(false)
 const exporting = ref(false)
+/** 打开弹层时算一次，预览与最终导出共用（避免大板重复构建 IR） */
+const exportResult = ref<OutlineExportResult | null>(null)
+
+function openExport(): void {
+  try {
+    exportResult.value = buildOutlineExport({ nodes: outlineNodes.value, layout: layout.value })
+  } catch (err) {
+    console.warn('[BoardView] 导出预览构建失败', err)
+    exportResult.value = null
+  }
+  exportOpen.value = true
+}
+
+function closeExport(): void {
+  exportOpen.value = false
+  exportResult.value = null
+}
 
 async function onExport(format: ExportFormat): Promise<void> {
   if (exporting.value) return
   exporting.value = true
   try {
     const boardName = currentBoard.value?.name || '大纲'
-    const result = buildOutlineExport({
-      nodes: outlineNodes.value,
-      layout: layout.value,
-    })
+    const result = exportResult.value
+      ?? buildOutlineExport({ nodes: outlineNodes.value, layout: layout.value })
     const base = safeFileName(boardName)
     if (format === 'md') {
       downloadText(result.markdown, `${base}.md`, 'text/markdown')
@@ -1071,6 +1087,7 @@ async function onExport(format: ExportFormat): Promise<void> {
       downloadBlob(blob, `${base}.docx`)
     }
     exportOpen.value = false
+    exportResult.value = null
   } catch (err) {
     // 导出失败不静默：提示用户并保留弹层便于重试
     console.warn('[BoardView] 导出失败', err)

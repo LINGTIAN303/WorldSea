@@ -18,7 +18,7 @@
  * HTML 与 Markdown —— 同源保证两格式不会各自漂移。HTML 可直接喂入既有 docx 链路
  * （`htmlToDocxBlocks` → `blocksToDocx`），故 docx 与 md 的规则天然一致。
  */
-import { resolveChildNodes, resolveNodeNumbering, type NodeLike } from '../outlineDerive'
+import { MAX_DEPTH, orderOf, parentIdOf, resolveChildNodes, resolveNodeNumbering, type NodeLike } from '../outlineDerive'
 import {
   composeTitleLine,
   depthToHeadingLevel,
@@ -186,17 +186,69 @@ function buildSubtreeListItems(
   rootId: string,
   nodes: ExportSourceNode[],
   numbering: NumberingStyle,
+  index?: ExportNodeIndex,
 ): Array<{ text: string; depth: number }> {
+  const childrenOf = index ? index.childrenOf : (pid: string) => resolveChildNodes(pid, nodes)
+  const numberingOf = index ? index.numberingOf : (id: string) => resolveNodeNumbering(id, nodes)
   const items: Array<{ text: string; depth: number }> = []
   const walk = (parentId: string, depth: number): void => {
-    for (const child of resolveChildNodes(parentId, nodes)) {
-      const chain = numbering === 'none' ? [] : resolveNodeNumbering(child.id, nodes)
+    for (const child of childrenOf(parentId)) {
+      const chain = numbering === 'none' ? [] : numberingOf(child.id)
       items.push({ text: composeTitleLine(nodeTitle(child), chain, numbering), depth })
       walk(child.id, depth + 1)
     }
   }
   walk(rootId, 0)
   return items
+}
+
+/**
+ * 导出用的节点索引（2026-10-24 · 13-B 性能实测后优化）：
+ *
+ * 原实现每个节点都调用 `resolveNodeNumbering`，而它每次都重建 `byId` 并线性扫描全部节点，
+ * 1000 节点实测 327–592ms，呈 O(n²)。此处一次性建「父 → 有序子列表」索引，
+ * 编号链只沿祖先走（深度 ≤ MAX_DEPTH），输出与 `resolveNodeNumbering` 完全一致
+ * （排序规则同样按 order + id 兜底，见 `resolveChildNodes`）。
+ */
+interface ExportNodeIndex {
+  childrenOf(parentId: string): ExportSourceNode[]
+  numberingOf(nodeId: string): number[]
+}
+
+function createNodeIndex(nodes: ExportSourceNode[]): ExportNodeIndex {
+  const byId = new Map<string, ExportSourceNode>()
+  const groups = new Map<string, ExportSourceNode[]>()
+  for (const n of nodes) {
+    byId.set(n.id, n)
+    const pid = parentIdOf(n)
+    const arr = groups.get(pid)
+    if (arr) arr.push(n)
+    else groups.set(pid, [n])
+  }
+  const siblingIndex = new Map<string, number>()
+  for (const arr of groups.values()) {
+    arr.sort((a, b) => orderOf(a) - orderOf(b) || String(a.id).localeCompare(String(b.id)))
+    arr.forEach((n, i) => siblingIndex.set(n.id, i + 1))
+  }
+  return {
+    childrenOf: (parentId: string) => groups.get(parentId) ?? [],
+    numberingOf: (nodeId: string) => {
+      const chain: number[] = []
+      const seen = new Set<string>([nodeId])
+      let cur = byId.get(nodeId)
+      let guard = 0
+      while (cur && guard < MAX_DEPTH) {
+        guard += 1
+        const idx = siblingIndex.get(cur.id) ?? 0
+        if (idx > 0) chain.unshift(idx)
+        const pid = parentIdOf(cur)
+        if (!pid || seen.has(pid)) break
+        seen.add(pid)
+        cur = byId.get(pid)
+      }
+      return chain
+    },
+  }
 }
 
 /**
@@ -210,9 +262,10 @@ export function buildOutlineExportBlocks(opts: {
 }): ExportBlock[] {
   const nodes = Array.isArray(opts.nodes) ? opts.nodes : []
   const blocks: ExportBlock[] = []
+  const index = createNodeIndex(nodes)
 
   const walk = (parentId: string, depth: number): void => {
-    for (const node of resolveChildNodes(parentId, nodes)) {
+    for (const node of index.childrenOf(parentId)) {
       const components = componentsOf(opts.layout, node.id)
       const titleComp = componentsByForm(components, 'title')[0]
       const sentenceComp = componentsByForm(components, 'sentence')[0]
@@ -224,7 +277,7 @@ export function buildOutlineExportBlocks(opts: {
         ? resolveFormConfig('title', titleComp.config)
         : resolveFormConfig('title')
       const numberingStyle = (titleCfg.numbering ?? 'numeric') as NumberingStyle
-      const chain = numberingStyle === 'none' ? [] : resolveNodeNumbering(node.id, nodes)
+      const chain = numberingStyle === 'none' ? [] : index.numberingOf(node.id)
       const line = composeTitleLine(nodeTitle(node), chain, numberingStyle)
 
       if (numberingStyle === 'none' || shouldDegradeToListItem(depth)) {
@@ -264,7 +317,7 @@ export function buildOutlineExportBlocks(opts: {
       if (treeComp) {
         const cfg = resolveFormConfig('tree', treeComp.config)
         const style = (cfg.numbering ?? 'none') as NumberingStyle
-        const items = buildSubtreeListItems(node.id, nodes, style)
+        const items = buildSubtreeListItems(node.id, nodes, style, index)
         if (items.length) blocks.push({ kind: 'list', items })
         continue
       }

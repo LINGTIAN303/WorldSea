@@ -29,6 +29,14 @@
         </button>
       </div>
 
+      <!-- 2026-10-24（13-B）：内容预览。Markdown 与 Word 共用同一份导出 IR，
+           故预览以 Markdown 呈现即可代表两种格式的结构 -->
+      <div class="bed-preview-head">
+        <span>内容预览</span>
+        <span class="bed-preview-hint">Markdown 结构 · Word 由同一份结构生成</span>
+      </div>
+      <pre class="bed-preview">{{ preview || '（暂无内容）' }}</pre>
+
       <div class="bed-actions">
         <button class="bed-btn" type="button" :disabled="exporting" @click="$emit('close')">取消</button>
         <button class="bed-btn bed-btn--primary" type="button" :disabled="exporting" @click="onConfirm">
@@ -52,6 +60,8 @@ defineProps<{
   nodeCount: number
   /** 导出进行中（docx 需动态加载库，可能数百毫秒） */
   exporting?: boolean
+  /** 内容预览（Markdown；与导出共用同一份 IR） */
+  preview?: string
 }>()
 
 const emit = defineEmits<{
@@ -82,8 +92,11 @@ function onConfirm(): void {
   background: rgba(0, 0, 0, 0.28);
 }
 .bed {
-  width: 380px;
+  width: 620px;
   max-width: calc(100% - 32px);
+  max-height: calc(100% - 48px);
+  display: flex;
+  flex-direction: column;
   padding: 14px 16px;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-mid);
@@ -98,6 +111,34 @@ function onConfirm(): void {
 }
 .bed-desc { font-size: var(--font-size-xs); color: var(--text-secondary); line-height: 1.5; margin-bottom: 12px; }
 .bed-formats { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+/* 内容预览（2026-10-24 · 13-B）：只读区，占满剩余高度，长文内部滚动 */
+.bed-preview-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+  font-size: var(--font-size-2xs);
+  color: var(--text-secondary);
+}
+.bed-preview-hint { color: var(--text-tertiary); }
+.bed-preview {
+  flex: 1;
+  min-height: 120px;
+  max-height: 300px;
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  overflow: auto;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xs);
+  background: var(--input-bg);
+  color: var(--text-secondary);
+  font-family: var(--font-mono, Consolas, monospace);
+  font-size: var(--font-size-2xs);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
 .bed-format {
   display: flex;
   flex-direction: column;
