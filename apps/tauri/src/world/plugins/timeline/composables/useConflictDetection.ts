@@ -60,7 +60,7 @@ export function useConflictDetection(
   points: ComputedRef<Map<string, EventTime>>,
   runtime: ComputedRef<CalendarRuntime>,
 ) {
-  const mode = ref<ConflictMode>('time')
+  const mode = ref<ConflictMode>('character')
 
   function rangeFor(point: EventTime): ScalarRange | null {
     if (!point.start) return null

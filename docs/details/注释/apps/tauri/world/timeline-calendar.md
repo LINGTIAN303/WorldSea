@@ -49,10 +49,12 @@
 
 `calendar/fuzzy.ts` 的 `scalarRange` 负责区间；`useConflictDetection` 提供两种口径，面板顶部切换：
 
-- **时间重叠（默认）**：当前历法下任意两个事件的时间区间重叠（按起点排序扫描，相邻年份不重叠）；「早于 / 晚于」开放式日期不参与；命中超过 200 对截断并提示「仅显示前 200 对」。
-- **角色日程**：同一角色/组织通过「涉及」关系关联的事件重叠；正向 `involves`（事件→角色）与反向 `involved_in_event` 都认，非角色/组织目标忽略。
+- **角色日程（默认）**：同一角色/组织通过「涉及」关系关联的事件重叠；正向 `involves`（事件→角色）与反向 `involved_in_event` 都认，非角色/组织目标忽略。默认选它，是因为「同一角色不能同时出现在两处」才是真冲突。
+- **时间重叠**：当前历法下任意两个事件的时间区间重叠（按起点排序扫描，相邻年份不重叠）；「早于 / 晚于」开放式日期不参与；命中超过 200 对截断并提示「仅显示前 200 对」。没有关系数据时用它先看全量重合。
 
 模糊日期单独标注（fuzzy=true），精确冲突排前、模糊冲突排后；跨历法事件不共享标量轴，不参与比较。面板头部展示两口径条数与当前口径的检测范围；角色口径在 `involveRelations === 0` 时直接给出「如何建立涉及关系」的指引。冲突面板是**弹窗**（TuiModal lg）：点条目定位第一个事件并给另一方加对位环，点事件 chip 则以该方为定位方。
+
+**参与角色的数据入口**：事件表单里的「参与角色/组织」多选（`InvolvedEntitiesPicker`）只写关系、不落 `properties`；保存时由 `eventInvolves.syncEventInvolves` 差集落库——新增建 `involves` + `involved_in_event` 成对关系，取消勾选成对删除。既有关联页仍可自由增删，两处同源。
 
 ### 3.7 期段取最深包含区间
 
@@ -80,6 +82,7 @@
 - **筛选反馈**：筛选条显示「显示 N · 已隐藏 M」并提供「清除筛选」，避免筛掉事件后无从察觉。
 - **详情导航**：详情顶部「‹ N / M ›」按当前**可见序列**步进（口径见 3.8：树态含分组与折叠，时序态跨页自动翻页）；「在画布中查看」切横态并定位。
 - **右键菜单**：画布事件条/点与编年史卡片右键 → 编辑 / 在另一视图定位 / 删除（走确认）。菜单由壳层按 `data-event-id` 做事件委托，两态零侵入；未命中事件时保留浏览器默认菜单。
+- **参与角色**：事件表单「参与角色/组织」多选 → 保存时同步 `involves` 成对关系（角色日程冲突检测的数据源）；既有关系会回填，取消勾选即成对删除。
 - **冲突对位**：冲突面板定位后，另一方以琥珀色虚线/圆环高亮（不参与选中，工具栏不进入批量态），两态都生效；下一次选中即清除。
 - **分段折叠**：编年史段标题可折叠，状态按项目存 localStorage（`worldsea_timeline_collapsed_groups:<projectId>`），视图重载 / 切换视图后保持。
 - **撤销**：拖拽写回走 `entityStore.update`，天然进撤销栈。
@@ -115,6 +118,7 @@
 - `composables/__tests__/useTimelineNeighbors.spec.ts`：详情邻接导航步进、树态按 `treeOrder` 步进、隐藏选中时索引为 -1。
 - `composables/__tests__/useChronicleCollapse.spec.ts`：分段折叠按项目持久化、非法存储回落。
 - `composables/__tests__/useTimelineEventMenu.spec.ts`：右键只在事件元素上开菜单、坐标与目标事件、未命中不拦截。
+- `composables/__tests__/eventInvolves.spec.ts`：参与角色关系差集（正反向归并、成对删除、非 involves 类型忽略）。
 - `composables/__tests__/useConflictDetection.spec.ts`：时间口径（同日/区间/相邻年、开放式日期排除、上限截断）与角色口径（正反向关系、非角色目标忽略、零关系空态）。
 - `packages/plugin-sdk/.../useEntityPaging.spec.ts`：分页切片/收敛/重置，以及 `revealIndex` 跨页翻页。
 - `__tests__/timelineGuards.spec.ts`：禁止硬编码纪元数学与直读 `properties.era`（迁移层豁免）；「拖拽改时间」必须有消费方；导出/导入两条链接线不得掉。

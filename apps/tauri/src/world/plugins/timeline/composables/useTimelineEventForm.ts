@@ -3,6 +3,7 @@ import type { Ref } from 'vue'
 import type { Entity } from '@worldsea/entity-core'
 import { toastSuccess } from '@worldsea/ui-kit'
 import type { Calendar } from '../calendar/types'
+import { syncEventInvolves } from './eventInvolves'
 
 export interface TimelineEventFormPayload {
   name: string
@@ -37,21 +38,27 @@ export function useTimelineEventForm(options: TimelineEventFormOptions) {
 
   async function onFormSave(data: TimelineEventFormPayload): Promise<void> {
     const now = new Date().toISOString()
+    // 伪字段：参与角色只走 involves 关系，不落 properties；缺键说明控件未挂载，关系保持原样
+    const { _involvedIds, ...formProps } = data.properties
+    const involveIds = Array.isArray(_involvedIds)
+      ? _involvedIds.filter((id): id is string => typeof id === 'string')
+      : null
     // 表单不展示的历史属性（era 等）必须保留：update 的 properties 是整体替换语义
     const properties: Record<string, any> = {
       ...(options.editingEvent.value?.properties ?? {}),
-      ...data.properties,
-      calendarId: data.properties.calendarId || options.activeCalendar.value.id,
-      dateCertainty: data.properties.dateCertainty || 'exact',
+      ...formProps,
+      calendarId: formProps.calendarId || options.activeCalendar.value.id,
+      dateCertainty: formProps.dateCertainty || 'exact',
     }
 
-    if (options.editingEvent.value) {
+    let eventId = options.editingEvent.value?.id ?? ''
+    if (eventId) {
       const updateData: Record<string, unknown> = { description: data.description, properties, tags: data.tags }
       // 表单无 name/title 字段时 data.name 为空串——不带 name 键，防止抹掉既有名（方言守卫）
       if (data.name) updateData.name = data.name
       if (data._coverPosition) updateData.coverPosition = data._coverPosition
       if (data._coverZoom) updateData.coverZoom = data._coverZoom
-      await options.entityStore.update(options.editingEvent.value.id, updateData)
+      await options.entityStore.update(eventId, updateData)
     } else {
       const checkedName = await options.checkAndConfirmName(data.name, undefined, 'event')
       if (!checkedName) return
@@ -66,9 +73,12 @@ export function useTimelineEventForm(options: TimelineEventFormOptions) {
         updatedAt: now,
       }
       await options.entityStore.add(entity)
+      eventId = entity.id
       toastSuccess('已创建')
       await options.formModalRef.value?.syncEntityRefAfterCreate(entity.id)
     }
+
+    if (involveIds && eventId) await syncEventInvolves(eventId, involveIds)
 
     options.showForm.value = false
     options.editingEvent.value = null

@@ -33,17 +33,20 @@ function setup(entities: Entity[], relations: Relation[] = []) {
 }
 
 describe('冲突检测 / 全量时间重叠口径', () => {
-  it('默认按时间口径：同一日期成对冲突，相邻年份不冲突', () => {
-    const { mode, conflicts, timeConflicts } = setup([
+  it('默认按角色口径；切到时间口径后同一日期成对、相邻年份不冲突', () => {
+    const api = setup([
       event('a', '甲', { date: '第三纪元147年' }),
       event('b', '乙', { date: '第三纪元147年' }),
       event('c', '丙', { date: '第三纪元148年' }),
     ])
-    expect(mode.value).toBe('time')
-    expect(timeConflicts.value).toEqual([
+    expect(api.mode.value).toBe('character')
+    expect(api.conflicts.value).toEqual([])
+
+    api.mode.value = 'time'
+    expect(api.timeConflicts.value).toEqual([
       expect.objectContaining({ type: 'same_date', scope: 'time', eventIds: ['a', 'b'] }),
     ])
-    expect(conflicts.value).toHaveLength(1)
+    expect(api.conflicts.value).toHaveLength(1)
   })
 
   it('区间重叠计入；「早于/晚于」开放式日期不参与', () => {
@@ -93,7 +96,6 @@ describe('冲突检测 / 角色日程口径', () => {
       event('e2', '乙', { date: '第三纪元147年' }),
     ])
     expect(api.scanStats.value.involveRelations).toBe(0)
-    api.mode.value = 'character'
     expect(api.conflicts.value).toEqual([])
     expect(api.hasConflicts.value).toBe(false)
     expect(api.conflictCounts.value.time).toBe(1)
