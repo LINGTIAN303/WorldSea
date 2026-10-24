@@ -58,6 +58,16 @@ describe('时间线守卫 / 设置消费方', () => {
   })
 })
 
+describe('时间线守卫 / 事件右键菜单', () => {
+  it('壳层委托右键并把动作抛给视图（两态共用同一委托）', () => {
+    const chart = sources.find(item => item.file.endsWith('components/TimelineChart.vue'))
+    expect(chart?.text).toContain('@contextmenu="onContextMenu"')
+    expect(chart?.text).toContain('useTimelineEventMenu')
+    const view = sources.find(item => item.file.endsWith('TimelineView.vue'))
+    expect(view?.text).toContain('@event-action="onEventMenu"')
+  })
+})
+
 describe('时间线守卫 / 项目迁移接线', () => {
   it('时间体系同时接入目录导出与打包分区', () => {
     const entry = readFileSync(join(TIMELINE_DIR, 'index.ts'), 'utf8')

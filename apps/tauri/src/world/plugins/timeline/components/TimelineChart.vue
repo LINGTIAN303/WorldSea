@@ -1,5 +1,5 @@
 <template>
-  <div class="timeline-chart">
+  <div class="timeline-chart" @contextmenu="onContextMenu">
     <div v-if="loading" class="timeline-skeleton" role="status" aria-label="正在载入时间线">
       <WsSkeleton
         v-for="n in 8"
@@ -52,6 +52,16 @@
       @select-events="$emit('selectEvents', $event)"
       @create-event="$emit('createEvent', $event)"
     />
+
+    <TimelineEventMenu
+      v-if="menu"
+      :x="menu.x"
+      :y="menu.y"
+      :name="menu.event.name"
+      :focus-label="layoutMode === 'vertical' ? '在画布中查看' : '在编年史中查看'"
+      @pick="pickMenu"
+      @close="closeMenu"
+    />
   </div>
 </template>
 
@@ -65,11 +75,13 @@ import type { AxisBand, EventTime } from '../composables/useTimelinePoints'
 import type { TimelineGroup } from '../composables/timelineGroups'
 import type { CanvasCreatePreset } from '../composables/useTimelineCanvasDrag'
 import type { TreeNode as TreeNodeType } from '../composables/useEventTree'
+import { useTimelineEventMenu, type TimelineEventAction } from '../composables/useTimelineEventMenu'
 
 import TimelineCanvas from './TimelineCanvas.vue'
 import TimelineChronicle from './TimelineChronicle.vue'
+import TimelineEventMenu from './TimelineEventMenu.vue'
 
-defineProps<{
+const props = defineProps<{
   /** 筛选后的事件（判定空态用） */
   events: Entity[]
   /** 已排除其他历法、可上轴的事件 */
@@ -97,12 +109,23 @@ defineProps<{
   dragEnabled?: boolean
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   selectEvent: [event: Entity]
   toggleSelect: [id: string]
   selectEvents: [ids: string[]]
   createEvent: [preset: CanvasCreatePreset]
+  eventAction: [event: Entity, action: TimelineEventAction]
 }>()
+
+/* 右键菜单：在壳层做事件委托（画布条/点与编年史卡片都带 data-event-id），两态零侵入 */
+const { menu, openAt, close: closeMenu } = useTimelineEventMenu()
+function onContextMenu(pointer: MouseEvent) {
+  if (openAt(pointer, props.events)) pointer.preventDefault()
+}
+function pickMenu(action: TimelineEventAction) {
+  if (menu.value) emit('eventAction', menu.value.event, action)
+  closeMenu()
+}
 
 const canvasRef = ref<{
   zoomIn: () => void

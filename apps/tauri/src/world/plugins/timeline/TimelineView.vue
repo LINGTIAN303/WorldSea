@@ -63,6 +63,7 @@
       @toggle-select="toggleSelect"
       @select-events="onSelectEvents"
       @create-event="openNewFormFromCanvas"
+      @event-action="onEventMenu"
     />
     <!-- 事件详情：容器走载体注册表（此前直挂 EntityDetailPanel＝时间线拿不到别的载体），
          内容侧仍复用通用件——私有 EventDetailPanel 早在 2026-09-13 收敛过，令牌/结构与全局一致 -->
@@ -85,21 +86,9 @@
     >
       <template #info>
         <EventDetailNav v-if="selectedEvent" :index="nav.index" :total="nav.total" :has-prev="nav.hasPrev" :has-next="nav.hasNext" @prev="step(-1)" @next="step(1)" @focus="focusInCanvas(selectedEvent.id)" />
-        <AutoLinkSuggestions
-          v-if="selectedEvent && !isEditing"
-          :entity-id="selectedEvent.id"
-          :entity-type="'event'"
-          :properties="selectedEvent.properties"
-        />
-        <EventDetailFields
-          :event="selectedEvent"
-          :schema-fields="eventSchema?.fields ?? []"
-          :editing="isEditing"
-          :draft="editForm"
-          :calendar="eventCalendar"
-          :calendars="calendars"
-          @update:field="(k, v) => editForm[k] = v"
-        />
+        <AutoLinkSuggestions v-if="selectedEvent && !isEditing" :entity-id="selectedEvent.id" :entity-type="'event'" :properties="selectedEvent.properties" />
+        <EventDetailFields :event="selectedEvent" :schema-fields="eventSchema?.fields ?? []" :editing="isEditing"
+          :draft="editForm" :calendar="eventCalendar" :calendars="calendars" @update:field="(k, v) => editForm[k] = v" />
         <div v-if="involved.length > 0" class="detail-section">
           <h4>涉及实体</h4>
           <div v-for="e in involved" :key="e.id" class="involved-item">{{ e.name }}</div>
@@ -184,6 +173,7 @@ import { useTimelineSort } from './composables/useTimelineSort'
 import { useConflictDetection } from './composables/useConflictDetection'
 import { useTimelineFilters } from './composables/useTimelineFilters'
 import { useTimelineNeighbors } from './composables/useTimelineNeighbors'
+import type { TimelineEventAction } from './composables/useTimelineEventMenu'
 import { useTimelinePoints } from './composables/useTimelinePoints'
 import { useTimelineGroups } from './composables/useTimelineGroups'
 import { useTimelineKeyboard } from './composables/useTimelineKeyboard'
@@ -285,6 +275,14 @@ function selectEvent(event: Entity) {
   if (sortMode.value === 'tree') expandTo(event.id)
   // 分页形态下选中目标可能在页外（详情邻接导航）：翻到所在页，别让详情选中的事件在列表里失踪
   else if (pageable.value) revealIndex(filteredEvents.value.findIndex(e => e.id === event.id))
+}
+/** 右键菜单动作：编辑等选中态落定再进编辑（watch 会重置 isEditing）；定位切到另一视图；删除走确认 */
+function onEventMenu(event: Entity, action: TimelineEventAction) {
+  if (action === 'delete') return void deleteEvent(event.id)
+  selectEvent(event)
+  if (action === 'edit') nextTick(startEdit)
+  else if (layoutMode.value === 'vertical') focusInCanvas(event.id)
+  else { layoutMode.value = 'vertical'; nextTick(() => document.querySelector(`[data-event-id="${event.id}"]`)?.scrollIntoView({ block: 'center' })) }
 }
 /** 跨视图/冲突跳转：按 id 选中并聚焦（类型不符 no-op，与 GEV 的 selectById 同口径） */
 function selectEventById(id: string): void {
