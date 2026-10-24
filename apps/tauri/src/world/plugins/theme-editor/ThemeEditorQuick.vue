@@ -1,6 +1,11 @@
 <template>
   <div class="theme-quick">
-    <!-- 2026-09-13 收束：预设主题选择已并入 设置 → 外观（底色 × 强调色），此处不再重复陈列 -->
+    <!-- 底色 × 强调色统一在外观面板（预设/自定义/我的收藏），此处跳转不重复编辑 -->
+    <button class="theme-quick__jump" @click="jumpToAppearance">
+      <span class="theme-quick__jump-title">底色 × 强调色</span>
+      <span class="theme-quick__jump-desc">浅色/深色 · 预设/自定义/我的收藏 —— 前往「外观」分区调整</span>
+    </button>
+
     <div class="theme-quick__section">
       <h4 class="theme-quick__heading">圆角风格</h4>
       <div class="theme-quick__options">
@@ -28,11 +33,31 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
+import { useUIStore } from '@worldsea/entity-core'
 // entity-core 主题引擎：setUserOverrides 仅写令牌覆盖（圆角/密度），不碰 data-theme 与强调色。
 import { useTheme } from '@/composables/useTheme'
 
+const props = defineProps<{ activeTab?: string }>()
+const emit = defineEmits<{ 'jump-to-appearance': [] }>()
+
 const { userOverrides, setUserOverrides } = useTheme()
+const ui = useUIStore()
+
+/** 切入本 Tab 时重读覆盖状态（其他 Tab/面板可能已改动） */
+watch(() => props.activeTab, (v) => {
+  if (v === 'quick') {
+    radiusStyle.value = detectRadiusStyle()
+    density.value = detectDensity()
+  }
+})
+
+/** 前往外观面板：带 section 目标打开设置（先例 HomeSurface），并关本编辑器避免双模态 */
+function jumpToAppearance() {
+  ui.settingsTarget = { section: 'appearance' }
+  window.dispatchEvent(new CustomEvent('ws-open-settings'))
+  emit('jump-to-appearance')
+}
 
 // 圆角/密度覆盖键全集：选「标准/舒适」（= 回归主题基准）时据此清除，避免旧覆盖残留
 const RADIUS_KEYS = ['--radius-btn', '--radius-card', '--radius-input', '--radius-modal']
@@ -121,6 +146,14 @@ function applyQuickSettings() {
 
 <style scoped>
 .theme-quick { display: flex; flex-direction: column; gap: var(--space-5); }
+.theme-quick__jump {
+  display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-bg-elevated);
+  cursor: pointer; text-align: left; transition: border-color var(--duration-fast) var(--ease-default), background var(--duration-fast) var(--ease-default);
+}
+.theme-quick__jump:hover { border-color: var(--color-primary); background: var(--color-bg-hover); }
+.theme-quick__jump-title { font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); color: var(--color-primary); }
+.theme-quick__jump-desc { font-size: var(--font-size-xs); color: var(--color-text-tertiary); }
 .theme-quick__heading { font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); color: var(--color-text-secondary); margin-bottom: var(--space-2); }
 .theme-quick__options { display: flex; gap: var(--space-2); }
 .theme-quick__option {

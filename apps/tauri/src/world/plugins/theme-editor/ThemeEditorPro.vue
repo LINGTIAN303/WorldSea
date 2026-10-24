@@ -1,9 +1,14 @@
 <template>
   <div class="theme-pro">
     <div class="theme-pro__toolbar">
-      <span class="theme-pro__hint">编辑设计令牌（覆盖优先于强调色预设），实时预览效果</span>
+      <span class="theme-pro__hint">编辑设计令牌覆盖（实时生效）；强调色统一在「外观」分区管理</span>
       <button class="theme-pro__reset" @click="resetOverrides">重置</button>
     </div>
+
+    <button class="theme-pro__jump" @click="jumpToAppearance">
+      <span class="theme-pro__jump-title">强调色 → 外观面板</span>
+      <span class="theme-pro__jump-desc">预设 / 自定义 / 我的收藏已统一管理（手动覆盖强调色四键已退役，避免与强调色轴互相清除）</span>
+    </button>
 
     <div class="theme-pro__groups">
       <div v-for="group in tokenGroups" :key="group.id" class="theme-pro__group">
@@ -60,6 +65,7 @@
 
 <script setup lang="ts">
 import { reactive, computed, onMounted } from 'vue'
+import { useUIStore } from '@worldsea/entity-core'
 import { useTheme } from '@/composables/useTheme'
 
 const { userOverrides, setUserOverrides } = useTheme()
@@ -81,6 +87,16 @@ interface TokenGroup {
   tokens: TokenDef[]
 }
 
+const emit = defineEmits<{ 'jump-to-appearance': [] }>()
+
+/** 前往外观面板（强调色唯一入口）：带 section 目标打开设置并关本编辑器 */
+function jumpToAppearance() {
+  const ui = useUIStore()
+  ui.settingsTarget = { section: 'appearance' }
+  window.dispatchEvent(new CustomEvent('ws-open-settings'))
+  emit('jump-to-appearance')
+}
+
 const expandedGroups = reactive<Record<string, boolean>>({})
 
 function toggleGroup(id: string) {
@@ -88,20 +104,6 @@ function toggleGroup(id: string) {
 }
 
 const tokenGroups: TokenGroup[] = [
-  {
-    id: 'colors-brand',
-    label: '强调色',
-    // 2026-09-13 收束：直接编辑 --accent 系（theme.css 基准令牌，全端消费者）；
-    // 此前编辑 --color-primary 仅影响 web 桥接别名（--color-primary: var(--accent) 的
-    // 消费者），Tauri 原生 --accent 组件不变色——同一个「主色」两套体系已收敛。
-    // 注意：此处的手动覆盖优先于强调色预设（setAccent 会清除这些内联键）。
-    tokens: [
-      { key: '--accent', label: '强调主色', type: 'color' },
-      { key: '--accent-hover', label: '悬停色', type: 'color' },
-      { key: '--accent-soft', label: '弱底色', type: 'color' },
-      { key: '--accent-soft-border', label: '弱底边框', type: 'color' },
-    ],
-  },
   {
     id: 'colors-semantic',
     label: '语义色',
@@ -218,6 +220,14 @@ function getLuminance(hex: string): number {
 <style scoped>
 .theme-pro { display: flex; flex-direction: column; gap: var(--space-3); }
 .theme-pro__toolbar { display: flex; justify-content: space-between; align-items: center; }
+.theme-pro__jump {
+  display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-bg-elevated);
+  cursor: pointer; text-align: left; transition: border-color var(--duration-fast) var(--ease-default), background var(--duration-fast) var(--ease-default);
+}
+.theme-pro__jump:hover { border-color: var(--color-primary); background: var(--color-bg-hover); }
+.theme-pro__jump-title { font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); color: var(--color-primary); }
+.theme-pro__jump-desc { font-size: var(--font-size-xs); color: var(--color-text-tertiary); }
 .theme-pro__hint { font-size: var(--font-size-xs); color: var(--color-text-tertiary); }
 .theme-pro__reset {
   padding: var(--space-1) var(--space-2); border: 1px solid var(--color-border); border-radius: var(--radius-sm);

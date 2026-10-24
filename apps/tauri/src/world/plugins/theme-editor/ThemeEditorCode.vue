@@ -21,11 +21,12 @@
       {{ validationMsg }}
     </div>
 
-    <div class="theme-code__section">
-      <div class="theme-code__section-header">
-        <span class="theme-code__section-title">CSS 注入</span>
-        <span class="theme-code__section-hint">自定义 CSS 将注入到 :root</span>
-      </div>
+      <div class="theme-code__section">
+        <div class="theme-code__section-header">
+          <span class="theme-code__section-title">CSS 注入</span>
+          <span class="theme-code__section-hint">自定义 CSS 将注入到 :root</span>
+          <button class="theme-code__btn theme-code__btn--reset" title="清空并移除已注入的自定义 CSS" @click="resetCss">重置 CSS</button>
+        </div>
       <textarea
         class="theme-code__css-editor"
         v-model="cssText"
@@ -42,9 +43,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import { useTheme } from '@/composables/useTheme'
 import type { ThemeDefinition } from '@/composables/useTheme'
+
+const props = defineProps<{ activeTab?: string }>()
 
 const { userOverrides, setUserOverrides, exportTheme, allThemes, currentThemeId } = useTheme()
 
@@ -56,15 +59,13 @@ const validationType = ref<'error' | 'success' | 'info'>('info')
 // 自定义 CSS 持久化键（2026-09-13 修复：此前只写 DOM style 标签，刷新即丢）
 const CUSTOM_CSS_KEY = 'worldsea:custom-css'
 
-onMounted(() => {
+/** 重读当前状态：令牌 JSON + 持久化 CSS（切入本 Tab 时刷新，其他 Tab/面板可能已改动） */
+function reSync() {
   const overrides = { ...userOverrides.value }
-  if (Object.keys(overrides).length > 0) {
-    jsonText.value = JSON.stringify(overrides, null, 2)
-  } else {
-    jsonText.value = '{\n  "--radius-md": "8px"\n}'
-  }
+  jsonText.value = Object.keys(overrides).length > 0
+    ? JSON.stringify(overrides, null, 2)
+    : '{\n  "--radius-md": "8px"\n}'
 
-  // 恢复持久化的自定义 CSS（无则保持空，不注入）
   let saved = ''
   try {
     saved = localStorage.getItem(CUSTOM_CSS_KEY) ?? ''
@@ -76,11 +77,13 @@ onMounted(() => {
     applyCssToDom(saved)
   } else {
     const style = document.getElementById('ws-custom-css')
-    if (style) {
-      cssText.value = style.textContent ?? ''
-    }
+    cssText.value = style?.textContent ?? ''
   }
-})
+}
+
+onMounted(reSync)
+// 切入本 Tab 时重读（快速/专业 Tab 的改动在此可见）
+watch(() => props.activeTab, (v) => { if (v === 'code') reSync() })
 
 function onJsonInput() {
   validationMsg.value = ''
@@ -135,6 +138,19 @@ function onCssInput() {
   } catch {
     // localStorage 不可用时仅本次会话生效
   }
+}
+
+/** 重置 CSS：清空文本、移除注入样式标签与持久化记录 */
+function resetCss() {
+  cssText.value = ''
+  applyCssToDom('')
+  try {
+    localStorage.removeItem(CUSTOM_CSS_KEY)
+  } catch {
+    // 同上，仅本次会话生效
+  }
+  validationMsg.value = '自定义 CSS 已重置'
+  validationType.value = 'success'
 }
 
 async function importFromClipboard() {
@@ -204,9 +220,10 @@ async function exportToClipboard() {
 .theme-code__validation.info { background: color-mix(in srgb, var(--info) 15%, transparent); color: var(--info); border: 1px solid color-mix(in srgb, var(--info) 30%, transparent); }
 
 .theme-code__section { }
-.theme-code__section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-2); }
+.theme-code__section-header { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-2); }
 .theme-code__section-title { font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); color: var(--color-text-primary); }
 .theme-code__section-hint { font-size: var(--font-size-xs); color: var(--color-text-tertiary); }
+.theme-code__section-header .theme-code__btn--reset { margin-left: auto; }
 .theme-code__css-editor {
   width: 100%; min-height: 100px; padding: var(--space-3); border: 1px solid var(--color-border);
   border-radius: var(--radius-md); background: var(--color-bg-elevated); color: var(--color-text-primary);

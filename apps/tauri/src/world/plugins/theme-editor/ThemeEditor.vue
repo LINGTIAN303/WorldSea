@@ -12,9 +12,9 @@
         </button>
       </div>
       <div class="theme-editor__content">
-        <ThemeEditorQuick v-if="activeTab === 'quick'" />
-        <ThemeEditorPro v-if="activeTab === 'pro'" />
-        <ThemeEditorCode v-if="activeTab === 'code'" />
+        <ThemeEditorQuick v-if="activeTab === 'quick'" :active-tab="activeTab" @jump-to-appearance="closeForAppearance" />
+        <ThemeEditorPro v-if="activeTab === 'pro'" :active-tab="activeTab" @jump-to-appearance="closeForAppearance" />
+        <ThemeEditorCode v-if="activeTab === 'code'" :active-tab="activeTab" />
       </div>
     </div>
   </TuiModal>
@@ -28,16 +28,22 @@ import ThemeEditorQuick from './ThemeEditorQuick.vue'
 import ThemeEditorPro from './ThemeEditorPro.vue'
 import ThemeEditorCode from './ThemeEditorCode.vue'
 
-defineProps<{ show: boolean }>()
-defineEmits<{ close: [] }>()
+const props = defineProps<{ show: boolean }>()
+const emit = defineEmits<{ close: [] }>()
 
-const activeTab = ref('quick')
+type TabId = 'quick' | 'pro' | 'code'
+const activeTab = ref<TabId>('quick')
 
 const tabs = [
-  { id: 'quick', label: '快速', icon: 'sparkle' },
-  { id: 'pro', label: '专业', icon: 'wrench' },
-  { id: 'code', label: '代码', icon: 'terminal' },
+  { id: 'quick' as const, label: '快速', icon: 'sparkle' },
+  { id: 'pro' as const, label: '专业', icon: 'wrench' },
+  { id: 'code' as const, label: '代码', icon: 'terminal' },
 ]
+
+/** 子 Tab 的「前往外观面板」跳转：先关本编辑器（避免双模态叠放），由 AppearancePanel 打开逻辑接手 */
+function closeForAppearance() {
+  if (props.show) emit('close')
+}
 </script>
 
 <style scoped>
