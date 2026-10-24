@@ -74,8 +74,9 @@ async function htmlToMarkdown(html: string, includeFrontmatter: boolean, entity:
  */
 async function htmlToDocx(html: string, title: string, includeTitle = true): Promise<Blob> {
   const [{ htmlToBlocks }, { buildDocxBlob }] = await Promise.all([
-    import('./htmlToDocxBlocks'),
-    import('./blocksToDocx'),
+    // 2026-10-24（13-A）：docx 链已下沉到应用级共享目录，manuscript 与 outline 共用
+    import('@/composables/docx/htmlToDocxBlocks'),
+    import('@/composables/docx/blocksToDocx'),
   ])
   // 资产图片预处理（2026-09-14 目录化）：正文里 convertFileSrc 绝对 URL 换回
   // data URL 再进纯函数链（IR/映射层仍只认 data URL，零改动）；读取失败的

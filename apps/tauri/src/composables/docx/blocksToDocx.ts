@@ -3,7 +3,7 @@
  *
  * 拆层理由：docx 库对象是带私有字段的类实例，构造后**无法断言其内容** ——
  * 所以测试策略是「IR 层逐条断言 + 本层只做一次端到端冒烟（Packer.toBuffer 验 ZIP 签名）」。
- * 本文件静态 import docx（由 `useManuscriptExport` 动态 import 本模块触发，保持 docx 懒加载）。
+ * 本文件静态 import docx（由 manuscript / outline 导出侧动态 import 本模块触发，保持 docx 懒加载）。
  *
  * docx API 版本：9.7.1（d.ts 逐一核对过：Paragraph.heading/bullet/numbering/thematicBreak、
  * TextRun.break=换行数、TableCell.columnSpan/rowSpan、LevelFormat.DECIMAL 等）。

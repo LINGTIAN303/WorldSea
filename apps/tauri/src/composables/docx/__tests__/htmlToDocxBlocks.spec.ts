@@ -7,8 +7,8 @@
  *    Packer.toBuffer 拿到产物后用 jszip 解包，直接断言 document.xml / numbering.xml 内容
  */
 import { describe, it, expect } from 'vitest'
-import { htmlToBlocks, normalizeRuns, type DocxBlock, type DocxRun } from '../composables/htmlToDocxBlocks'
-import { parseDataUrl, decodeBase64, mimeToDocxType, readImageSize } from '../composables/imageData'
+import { htmlToBlocks, normalizeRuns, type DocxBlock, type DocxRun } from '../htmlToDocxBlocks'
+import { parseDataUrl, decodeBase64, mimeToDocxType, readImageSize } from '../imageData'
 
 function texts(runs: DocxRun[]): string[] {
   return runs.map(r => r.text)
@@ -239,7 +239,7 @@ describe('imageData · data URL 解析与图片头尺寸', () => {
 
 describe('blocksToDocx · 真实打包冒烟（jszip 解包断言）', () => {
   it('标题/样式/字体/表格/有序列表 numbering 全部落进产物', async () => {
-    const { buildDocument } = await import('../composables/blocksToDocx')
+    const { buildDocument } = await import('../blocksToDocx')
     const { Packer } = await import('docx')
     const JSZip = (await import('jszip')).default
 
@@ -273,7 +273,7 @@ describe('blocksToDocx · 真实打包冒烟（jszip 解包断言）', () => {
   })
 
   it('无有序列表时 numbering.xml 只含内建定义、正文无编号引用', async () => {
-    const { buildDocument } = await import('../composables/blocksToDocx')
+    const { buildDocument } = await import('../blocksToDocx')
     const { Packer } = await import('docx')
     const JSZip = (await import('jszip')).default
 
@@ -288,7 +288,7 @@ describe('blocksToDocx · 真实打包冒烟（jszip 解包断言）', () => {
   })
 
   it('image 块：PNG data URL 嵌入为 drawing；webp / 外部 URL 走显式占位', async () => {
-    const { buildDocument } = await import('../composables/blocksToDocx')
+    const { buildDocument } = await import('../blocksToDocx')
     const { Packer } = await import('docx')
     const JSZip = (await import('jszip')).default
 

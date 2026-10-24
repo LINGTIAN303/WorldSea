@@ -1,7 +1,8 @@
 /**
  * htmlToDocxBlocks —— TipTap 富文本 HTML → docx 导出中间表示（IR）
  *
- * 用途：`useManuscriptExport.htmlToDocx` 的解析层。旧实现是 `stripHTML` 后逐行成段，
+ * 用途：manuscript 与 outline 共用的 docx 解析层（2026-10-24 从 manuscript 芽下沉到
+ * `@/composables/docx/`）。旧实现是 `stripHTML` 后逐行成段，
  * 丢失标题层级 / 列表 / 加粗斜体 / 引用 / 代码块 / 表格 —— 本模块把 HTML 解析成
  * 与渲染无关的块级 IR，再由 `blocksToDocx.ts` 映射为 docx 库对象。
  *
