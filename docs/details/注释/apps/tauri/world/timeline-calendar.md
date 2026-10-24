@@ -73,11 +73,11 @@
 
 ## 4. 交互模型（T4）
 
-- **创建**：空白单击 → 单点事件；空白拖拽 → 区间事件。落点按 `labelLevel` 吸附，表单通过 `EntityFormModal` 的 `preset` 预填。
+- **创建**：空白单击 → 单点事件；空白拖拽 → 区间事件。落点按 `labelLevel` 吸附，表单通过 `EntityFormModal` 的 `preset` 预填；新建成功自动选中并打开详情，方便接着补参与角色等。
 - **移动/拉伸**：仅 `timelineDragEnabled` 开启时；条两端 6px 内为拉伸，其余为移动；点事件只能移动。拖拽中显示吸附日期气泡，拖到左右边缘自动横向滚动，hover 时两端出现拉伸手柄。
 - **平移**：Alt / 中键拖拽、时间轴拖拽、缩略图点击/拖拽、`Shift + 滚轮` 横向平移；普通左键空白拖拽已被创建占用。
 - **未上轴清单**：轴右上角「N 个事件时间无法解析 / N 个其他历法事件」是可点击角标，弹窗逐条列出并可直接选中修正。
-- **批量**：批量态空白拖拽 = 框选；事件条点击 = 切换选中。
+- **批量**：批量态空白拖拽 = 框选；事件条点击 = 切换选中；选中后可批量编辑重要度/状态（空字段=不改动，patch 合并旧 properties）或删除。
 - **键盘**：方向键移动 DOM 焦点（元素自带 Enter 打开），`+/-` 缩放，`Home` 适配，Esc 关闭详情/退出批量。
 - **筛选反馈**：筛选条显示「显示 N · 已隐藏 M」并提供「清除筛选」，避免筛掉事件后无从察觉。
 - **详情导航**：详情顶部「‹ N / M ›」按当前**可见序列**步进（口径见 3.8：树态含分组与折叠，时序态跨页自动翻页）；「在画布中查看」切横态并定位。
@@ -120,6 +120,7 @@
 - `composables/__tests__/useChronicleCollapse.spec.ts`：分段折叠按项目持久化、非法存储回落。
 - `composables/__tests__/useTimelineEventMenu.spec.ts`：右键只在事件元素上开菜单、坐标与目标事件、未命中不拦截。
 - `composables/__tests__/eventInvolves.spec.ts`：参与角色关系差集（正反向归并、成对删除、非 involves 类型忽略）。
+- `composables/__tests__/batchProperties.spec.ts`：批量补丁只改选中事件、空字段不改动、非事件实体忽略。
 - `composables/__tests__/useConflictDetection.spec.ts`：时间口径（同日/区间/相邻年、开放式日期排除、上限截断）与角色口径（正反向关系、非角色目标忽略、零关系空态）。
 - `packages/plugin-sdk/.../useEntityPaging.spec.ts`：分页切片/收敛/重置，以及 `revealIndex` 跨页翻页。
 - `__tests__/timelineGuards.spec.ts`：禁止硬编码纪元数学与直读 `properties.era`（迁移层豁免）；「拖拽改时间」必须有消费方；导出/导入两条链接线不得掉。
