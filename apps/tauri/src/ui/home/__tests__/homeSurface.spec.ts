@@ -160,6 +160,23 @@ describe('HomeSurface', () => {
     expect(w.find('.home-recent-more').attributes('aria-expanded')).toBe('true')
   })
 
+  it('宽屏小节导航：四个锚点、active 与点击滚动', async () => {
+    data.value = fixture()
+    loading.value = false
+    const w = mount(HomeSurface)
+    expect(w.find('.home-section-nav').exists()).toBe(true)
+    const btns = w.findAll('.home-section-nav-btn')
+    expect(btns).toHaveLength(4)
+    expect(btns[0].attributes('aria-current')).toBe('location')
+    expect(btns[1].attributes('aria-label')).toBe('创作活跃度')
+
+    const surface = w.find('.home-surface')
+    const scrollTo = vi.fn()
+    ;(surface.element as HTMLElement).scrollTo = scrollTo
+    await btns[1].trigger('click')
+    expect(scrollTo).toHaveBeenCalledWith(expect.objectContaining({ top: expect.any(Number) }))
+  })
+
   it('滚动超过阈值出现回到顶部并可跳回', async () => {
     data.value = fixture()
     loading.value = false

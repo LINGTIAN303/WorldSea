@@ -109,16 +109,17 @@
           </div>
         </section>
 
-        <HomeAssetMap :domains="data.domains" @enter="onEnterView" @entity="onEnterEntity" />
+        <HomeAssetMap id="home-assets" :domains="data.domains" @enter="onEnterView" @entity="onEnterEntity" />
 
         <HomeActivity
+          id="home-activity"
           :daily="data.activity.daily"
           :day-names="data.activity.dayNames"
           :day-relation-counts="data.activity.dayRelationCounts"
         />
 
         <div class="home-split" :class="{ 'is-single': !data.featuredBook }">
-          <section class="home-section home-recent">
+          <section id="home-recent" class="home-section home-recent">
             <header class="home-section-head">
               <h2>最近动态</h2>
               <span class="home-section-note">最近 10 条 · 当前启用的芽</span>
@@ -183,6 +184,7 @@
         </div>
 
         <HomeMatrixDigest
+          id="home-matrix"
           :rows="data.matrixRows"
           :stats="data.matrixStats"
           :relation-type-count="data.matrixRelationTypeCount"
@@ -199,6 +201,18 @@
 
       <footer class="home-footer">WorldSea · 项目首页</footer>
     </div>
+    <nav v-if="data" class="home-section-nav" aria-label="首页小节导航">
+      <button
+        v-for="link in SECTION_LINKS"
+        :key="link.id"
+        type="button"
+        class="home-section-nav-btn"
+        :class="{ 'is-active': activeSection === link.id }"
+        :aria-label="link.label"
+        :aria-current="activeSection === link.id ? 'location' : undefined"
+        @click="scrollToSection(link.id)"
+      ><span class="home-section-nav-dot"></span></button>
+    </nav>
     <button
       v-if="canBackTop"
       type="button"
@@ -232,6 +246,13 @@ const { openWorkspace } = useHomeNavigation()
 const heroTitle = ref<HTMLElement | null>(null)
 const surfaceRef = ref<HTMLElement | null>(null)
 const canBackTop = ref(false)
+const SECTION_LINKS = [
+  { id: 'home-assets', label: '资产地图' },
+  { id: 'home-activity', label: '创作活跃度' },
+  { id: 'home-recent', label: '最近动态' },
+  { id: 'home-matrix', label: '字段矩阵' },
+] as const
+const activeSection = ref<string>(SECTION_LINKS[0].id)
 const profile = computed(() => profileStore.profile)
 /** 封面加载失败（跨机器迁移后 asset URL 失效）→ 回落默认视觉，不留破图 */
 const coverFailed = ref(false)
@@ -308,9 +329,26 @@ function onOpenSearch() {
   window.dispatchEvent(new CustomEvent('ws-open-search'))
 }
 
-/** 长页导航：滚动超过约一屏后出现回到顶部；reduced-motion 下直接跳转 */
+/** 长页导航：滚动超过约一屏后出现回到顶部；宽屏右侧点状目录同步高亮 */
 function onScroll() {
-  canBackTop.value = (surfaceRef.value?.scrollTop ?? 0) > 600
+  const surface = surfaceRef.value
+  if (!surface) return
+  canBackTop.value = surface.scrollTop > 600
+  const threshold = surface.getBoundingClientRect().top + 80
+  let current: string = SECTION_LINKS[0].id
+  for (const link of SECTION_LINKS) {
+    const section = surface.querySelector<HTMLElement>(`#${link.id}`)
+    if (section && section.getBoundingClientRect().top <= threshold) current = link.id
+  }
+  activeSection.value = current
+}
+function scrollToSection(id: string) {
+  const surface = surfaceRef.value
+  const section = surface?.querySelector<HTMLElement>(`#${id}`)
+  if (!surface || !section) return
+  const top = section.getBoundingClientRect().top - surface.getBoundingClientRect().top + surface.scrollTop - 12
+  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false
+  surface.scrollTo?.({ top: Math.max(0, top), behavior: reduce ? 'auto' : 'smooth' })
 }
 function backToTop() {
   const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false
