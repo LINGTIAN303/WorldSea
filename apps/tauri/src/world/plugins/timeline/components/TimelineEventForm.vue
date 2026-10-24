@@ -33,6 +33,12 @@
       >
         <option v-for="calendar in calendars" :key="calendar.id" :value="calendar.id">{{ calendar.name }}</option>
       </select>
+      <InvolvedEntitiesPicker
+        v-else-if="field.key === '_involvedIds'"
+        :model-value="asStringArray(form._involvedIds)"
+        @update:model-value="ids => set(ids)"
+        :event-id="entity?.id"
+      />
       <FieldControl
         v-else
         :value="value"
@@ -61,6 +67,7 @@ import type { Calendar, Certainty } from '../calendar/types'
 import { createSimpleCalendar } from '../calendar/defaults'
 import TimePointInput from '../calendar/components/TimePointInput.vue'
 import RecurrenceEditor from '../calendar/components/RecurrenceEditor.vue'
+import InvolvedEntitiesPicker from './InvolvedEntitiesPicker.vue'
 
 const props = defineProps<{
   modelValue: boolean
@@ -119,6 +126,7 @@ const fields = computed<FormFieldDef[]>(() => [
     options: ['正史', '废案', '备选'].map(value => ({ value, label: value })),
   },
   { key: 'location', label: '发生地点', type: 'text' },
+  { key: '_involvedIds', label: '参与角色/组织', type: 'text' },
   { key: 'tags', label: '标签', type: 'tags' },
   { key: 'parentId', label: '父级事件', type: 'entityRef', refType: 'event', placeholder: '搜索事件...' },
 ])
@@ -126,6 +134,11 @@ const fields = computed<FormFieldDef[]>(() => [
 function calendarFor(form: Record<string, any>): Calendar {
   const id = String(form.calendarId ?? '') || props.activeCalendarId
   return props.calendars.find(calendar => calendar.id === id) ?? fallbackCalendar.value
+}
+
+/** 插槽 form 值 → InvolvedEntitiesPicker 的 modelValue（模板联合类型断言在 vue-tsc 下失效，走显式转换） */
+function asStringArray(v: unknown): string[] | undefined {
+  return Array.isArray(v) ? v.map(item => String(item)) : undefined
 }
 
 function certaintyOf(form: Record<string, any>): Certainty {

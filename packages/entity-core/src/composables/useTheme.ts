@@ -166,7 +166,7 @@ function clearDynamicTokens() {
 // 默认「靛蓝」不注入任何规则（theme.css 基准即靛蓝，避免重复定义）。
 const ACCENT_STYLE_ID = 'ws-accent-override'
 /** 强调色预设语义 = 重置强调色：这些键不再走 userOverrides 内联覆盖 */
-const ACCENT_INLINE_KEYS = ['--accent', '--accent-hover', '--accent-soft', '--accent-soft-border']
+export const ACCENT_INLINE_KEYS = ['--accent', '--accent-hover', '--accent-soft', '--accent-soft-border']
 
 function accentCssBlock(p: AccentPreset, mode: 'light' | 'dark'): string {
   const a = mode === 'light' ? p.light : (p.dark ?? deriveDark(p.light))
@@ -267,6 +267,42 @@ function saveCurrentAccent(): boolean {
 function removeSavedAccent(hex: string): void {
   savedAccents.value = savedAccents.value.filter(x => x !== hex)
   ls.setItem(SAVED_ACCENTS_KEY, JSON.stringify(savedAccents.value))
+}
+
+/**
+ * 把当前令牌覆盖保存为命名主题（引擎已支持 customThemes，此前无编辑器入口）：
+ * 剔除强调色管理键（--accent 系由强调色轴统一管理，不随主题保存，避免双入口打架）；
+ * 当前无有效覆盖时返回 null。
+ */
+function saveCurrentOverridesAsTheme(name: string): ThemeDefinition | null {
+  const trimmed = name.trim()
+  if (!trimmed) return null
+  const tokens: Record<string, string> = {}
+  for (const [k, v] of Object.entries(userOverrides.value)) {
+    if ((ACCENT_INLINE_KEYS as readonly string[]).includes(k)) continue
+    tokens[k] = v
+  }
+  if (Object.keys(tokens).length === 0) return null
+  const theme: ThemeDefinition = {
+    name: trimmed,
+    id: `custom-${Date.now()}`,
+    author: 'User',
+    version: '1.0.0',
+    tokens,
+  }
+  customThemes.value = [...customThemes.value, theme]
+  saveCustomThemes(customThemes.value)
+  return theme
+}
+
+/** 应用命名主题：整组替换当前令牌覆盖（回到该主题保存时的样子） */
+function applyNamedTheme(id: string): boolean {
+  const theme = customThemes.value.find(t => t.id === id)
+  if (!theme?.tokens) return false
+  userOverrides.value = { ...theme.tokens }
+  saveUserOverrides(userOverrides.value)
+  applyTokens(userOverrides.value)
+  return true
 }
 
 /** 启动恢复：自定义强调色优先回放，其余重放已持久化的预设（App.vue onMounted 调用一次；修复重启后观感回退裸基准） */
@@ -412,6 +448,8 @@ export function useTheme() {
     setCustomAccent,
     saveCurrentAccent,
     removeSavedAccent,
+    saveCurrentOverridesAsTheme,
+    applyNamedTheme,
     restorePersistedTheme,
     setTheme,
     setUserOverrides,

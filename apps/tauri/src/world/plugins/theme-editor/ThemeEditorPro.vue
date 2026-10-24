@@ -10,6 +10,26 @@
       <span class="theme-pro__jump-desc">预设 / 自定义 / 我的收藏已统一管理（手动覆盖强调色四键已退役，避免与强调色轴互相清除）</span>
     </button>
 
+    <div class="theme-pro__named">
+      <div class="theme-pro__named-head">
+        <span class="theme-pro__named-title">我的主题</span>
+        <span class="theme-pro__named-hint">整组保存当前令牌覆盖（强调色由外观面板管理，不随主题保存）；应用 = 整组替换</span>
+      </div>
+      <div class="theme-pro__named-save">
+        <input v-model="namedDraft" class="theme-pro__named-input" placeholder="主题名…" @keydown.enter="onSaveNamed" />
+        <button class="theme-pro__named-save-btn" @click="onSaveNamed">保存当前为主题</button>
+      </div>
+      <div v-if="namedThemes.length" class="theme-pro__named-list">
+        <div v-for="t in namedThemes" :key="t.id" class="theme-pro__named-item">
+          <span class="theme-pro__named-name">{{ t.name }}</span>
+          <span class="theme-pro__named-count">{{ Object.keys(t.tokens).length }} 项</span>
+          <button class="theme-pro__named-btn" @click="onApplyNamed(t.id)">应用</button>
+          <button class="theme-pro__named-btn theme-pro__named-btn--del" @click="onDeleteNamed(t.id)">删除</button>
+        </div>
+      </div>
+      <div v-else class="theme-pro__named-empty">暂无保存的主题——在专业/快速 Tab 调好令牌后，命名保存即可随时应用</div>
+    </div>
+
     <div class="theme-pro__groups">
       <div v-for="group in tokenGroups" :key="group.id" class="theme-pro__group">
         <button class="theme-pro__group-header" @click="toggleGroup(group.id)">
@@ -64,11 +84,10 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useUIStore } from '@worldsea/entity-core'
+import { toastSuccess, toastWarn } from '@worldsea/ui-kit'
 import { useTheme } from '@/composables/useTheme'
-
-const { userOverrides, setUserOverrides } = useTheme()
 
 interface TokenDef {
   key: string
@@ -88,6 +107,7 @@ interface TokenGroup {
 }
 
 const emit = defineEmits<{ 'jump-to-appearance': [] }>()
+const props = defineProps<{ activeTab?: string; previewNonce?: number }>()
 
 /** 前往外观面板（强调色唯一入口）：带 section 目标打开设置并关本编辑器 */
 function jumpToAppearance() {
@@ -95,6 +115,29 @@ function jumpToAppearance() {
   ui.settingsTarget = { section: 'appearance' }
   window.dispatchEvent(new CustomEvent('ws-open-settings'))
   emit('jump-to-appearance')
+}
+
+// 我的主题：把当前令牌覆盖整组存为命名主题，随时应用/删除（引擎 customThemes，强调色键剔除在 useTheme 内完成）
+const { userOverrides, setUserOverrides, customThemes, saveCurrentOverridesAsTheme, applyNamedTheme, removeCustomTheme } = useTheme()
+const namedThemes = computed(() => customThemes.value)
+const namedDraft = ref('')
+
+function onSaveNamed() {
+  const saved = saveCurrentOverridesAsTheme(namedDraft.value)
+  if (!saved) {
+    toastWarn('当前没有可保存的令牌覆盖（或主题名为空）')
+    return
+  }
+  toastSuccess(`已保存主题「${saved.name}」`)
+  namedDraft.value = ''
+}
+
+function onApplyNamed(id: string) {
+  if (applyNamedTheme(id)) toastSuccess('主题已应用')
+}
+
+function onDeleteNamed(id: string) {
+  removeCustomTheme(id)
 }
 
 const expandedGroups = reactive<Record<string, boolean>>({})
@@ -193,6 +236,7 @@ function resetOverrides() {
 }
 
 const contrastInfo = computed(() => {
+  props.previewNonce // 深浅预览切换后重算（getComputedStyle 非响应式，靠 nonce 触发重渲染）
   const primary = getTokenValue('--color-text-primary')
   const bg = getTokenValue('--color-bg-base')
   if (!primary || !bg) return null
@@ -228,6 +272,25 @@ function getLuminance(hex: string): number {
 .theme-pro__jump:hover { border-color: var(--color-primary); background: var(--color-bg-hover); }
 .theme-pro__jump-title { font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); color: var(--color-primary); }
 .theme-pro__jump-desc { font-size: var(--font-size-xs); color: var(--color-text-tertiary); }
+
+/* 我的主题（命名主题管理） */
+.theme-pro__named { border: 1px solid var(--color-border-subtle); border-radius: var(--radius-md); padding: var(--space-3); display: flex; flex-direction: column; gap: var(--space-2); }
+.theme-pro__named-head { display: flex; align-items: baseline; gap: var(--space-2); flex-wrap: wrap; }
+.theme-pro__named-title { font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); color: var(--color-text-primary); }
+.theme-pro__named-hint { font-size: var(--font-size-xs); color: var(--color-text-tertiary); }
+.theme-pro__named-save { display: flex; gap: var(--space-2); }
+.theme-pro__named-input { flex: 1; padding: var(--space-1) var(--space-2); border: 1px solid var(--color-border); border-radius: var(--radius-sm); font-size: var(--font-size-xs); background: var(--color-bg-elevated); color: var(--color-text-primary); outline: none; }
+.theme-pro__named-input:focus { border-color: var(--color-primary); }
+.theme-pro__named-save-btn { padding: var(--space-1) var(--space-2); border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-bg-elevated); color: var(--color-text-secondary); font-size: var(--font-size-xs); cursor: pointer; white-space: nowrap; }
+.theme-pro__named-save-btn:hover { border-color: var(--color-primary); color: var(--color-primary); }
+.theme-pro__named-list { display: flex; flex-direction: column; gap: var(--space-1); }
+.theme-pro__named-item { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); background: var(--color-bg-elevated); }
+.theme-pro__named-name { font-size: var(--font-size-xs); color: var(--color-text-primary); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.theme-pro__named-count { font-size: var(--font-size-xs); color: var(--color-text-tertiary); }
+.theme-pro__named-btn { padding: 2px var(--space-2); border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: transparent; color: var(--color-text-secondary); font-size: var(--font-size-xs); cursor: pointer; }
+.theme-pro__named-btn:hover { border-color: var(--color-primary); color: var(--color-primary); }
+.theme-pro__named-btn--del:hover { border-color: var(--color-danger); color: var(--color-danger); }
+.theme-pro__named-empty { font-size: var(--font-size-xs); color: var(--color-text-tertiary); }
 .theme-pro__hint { font-size: var(--font-size-xs); color: var(--color-text-tertiary); }
 .theme-pro__reset {
   padding: var(--space-1) var(--space-2); border: 1px solid var(--color-border); border-radius: var(--radius-sm);

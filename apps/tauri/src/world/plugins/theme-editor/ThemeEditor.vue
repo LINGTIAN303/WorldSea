@@ -10,10 +10,13 @@
         >
           <WsIcon :name="tab.icon" :size="14" :stroke-width="1.7" /> {{ tab.label }}
         </button>
+        <button class="theme-editor__mode-toggle" :title="isDark ? '切到浅色预览' : '切到深色预览'" @click="togglePreviewMode">
+          <WsIcon :name="isDark ? 'sun' : 'moon'" :size="14" :stroke-width="1.7" /> {{ isDark ? '浅色预览' : '深色预览' }}
+        </button>
       </div>
       <div class="theme-editor__content">
         <ThemeEditorQuick v-if="activeTab === 'quick'" :active-tab="activeTab" @jump-to-appearance="closeForAppearance" />
-        <ThemeEditorPro v-if="activeTab === 'pro'" :active-tab="activeTab" @jump-to-appearance="closeForAppearance" />
+        <ThemeEditorPro v-if="activeTab === 'pro'" :active-tab="activeTab" :preview-nonce="previewNonce" @jump-to-appearance="closeForAppearance" />
         <ThemeEditorCode v-if="activeTab === 'code'" :active-tab="activeTab" />
       </div>
     </div>
@@ -21,7 +24,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { WsIcon } from '@worldsea/ui-kit'
 import TuiModal from '@/components/ui/TuiModal.vue'
 import ThemeEditorQuick from './ThemeEditorQuick.vue'
@@ -44,6 +47,17 @@ const tabs = [
 function closeForAppearance() {
   if (props.show) emit('close')
 }
+
+// 深浅预览：走 ws-set-theme 统一契约切换底色（会持久化，编辑器内可随时切回）；nonce 通知 Pro Tab 重读 computed 样式
+const previewNonce = ref(0)
+const isDark = ref(false)
+watch(() => props.show, (v) => { if (v) isDark.value = document.documentElement.dataset.theme === 'dark' })
+function togglePreviewMode() {
+  const next = isDark.value ? 'light' : 'dark'
+  window.dispatchEvent(new CustomEvent('ws-set-theme', { detail: { mode: next } }))
+  isDark.value = next === 'dark'
+  previewNonce.value++
+}
 </script>
 
 <style scoped>
@@ -56,5 +70,7 @@ function closeForAppearance() {
 }
 .theme-editor__tab:hover { background: var(--color-bg-hover); color: var(--color-text-primary); }
 .theme-editor__tab--active { background: var(--color-primary-subtle); color: var(--color-primary); font-weight: var(--font-weight-medium); }
+.theme-editor__mode-toggle { margin-left: auto; padding: var(--space-1) var(--space-2); border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: transparent; font-size: var(--font-size-xs); color: var(--color-text-secondary); cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: background var(--duration-fast) var(--ease-default), border-color var(--duration-fast) var(--ease-default), color var(--duration-fast) var(--ease-default); }
+.theme-editor__mode-toggle:hover { border-color: var(--color-primary); color: var(--color-primary); }
 .theme-editor__content { }
 </style>
