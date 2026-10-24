@@ -149,9 +149,29 @@ describe('HomeSurface', () => {
     expect(w.findAll('.home-recent-row')).toHaveLength(6)
     const more = w.find('.home-recent-more')
     expect(more.text()).toContain('展开更多（3）')
+    expect(more.attributes('aria-expanded')).toBe('false')
     await more.trigger('click')
     expect(w.findAll('.home-recent-row')).toHaveLength(9)
     expect(w.find('.home-recent-more').text()).toBe('收起')
+    expect(w.find('.home-recent-more').attributes('aria-expanded')).toBe('true')
+  })
+
+  it('滚动超过阈值出现回到顶部并可跳回', async () => {
+    data.value = fixture()
+    loading.value = false
+    const w = mount(HomeSurface)
+    const surface = w.find('.home-surface')
+    expect(w.find('.home-back-top').exists()).toBe(false)
+
+    ;(surface.element as HTMLElement).scrollTop = 800
+    await surface.trigger('scroll')
+    const btn = w.find('.home-back-top')
+    expect(btn.exists()).toBe(true)
+
+    const scrollTo = vi.fn()
+    ;(surface.element as HTMLElement).scrollTo = scrollTo
+    await btn.trigger('click')
+    expect(scrollTo).toHaveBeenCalledWith(expect.objectContaining({ top: 0 }))
   })
 
   it('近期写作显示最近章节与继续写作', async () => {

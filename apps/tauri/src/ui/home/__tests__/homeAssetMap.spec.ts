@@ -42,7 +42,9 @@ describe('HomeAssetMap', () => {
     const cards = w.findAll('.home-domain')
     expect(cards).toHaveLength(2)
     expect(cards[1].classes()).toContain('is-empty')
+    expect(cards[0].find('.home-domain-unit').text()).toBe('实体')
     expect(cards[1].find('.home-domain-count').text()).toBe('—')
+    expect(cards[1].find('.home-domain-unit').exists()).toBe(false)
     expect(cards[1].find('.home-domain-open').attributes('disabled')).toBeDefined()
 
     await cards[0].find('.home-chip').trigger('click')

@@ -20,7 +20,7 @@
             <h3>{{ d.label }}</h3>
             <p>{{ d.question }}</p>
           </div>
-          <span class="home-domain-count">{{ d.entityCount ?? '—' }}</span>
+          <span class="home-domain-count">{{ d.entityCount ?? '—' }}<small v-if="d.entityCount !== null" class="home-domain-unit">实体</small></span>
           <button
             type="button"
             class="home-domain-open"

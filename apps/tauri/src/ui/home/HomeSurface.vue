@@ -1,5 +1,5 @@
 <template>
-  <div class="home-surface">
+  <div ref="surfaceRef" class="home-surface" @scroll="onScroll">
     <div class="home-inner">
       <section class="home-hero">
         <img
@@ -52,7 +52,7 @@
           <section class="home-section home-recent">
             <header class="home-section-head">
               <h2>最近动态</h2>
-              <span class="home-section-note">当前启用的芽</span>
+              <span class="home-section-note">最近 10 条 · 当前启用的芽</span>
             </header>
             <WsSkeleton v-for="n in 6" :key="n" variant="row" label="正在载入最近动态" :aria-hidden="n > 1 || undefined" />
           </section>
@@ -104,9 +104,9 @@
           <section class="home-section home-recent">
             <header class="home-section-head">
               <h2>最近动态</h2>
-              <span class="home-section-note">当前启用的芽</span>
+              <span class="home-section-note">最近 10 条 · 当前启用的芽</span>
             </header>
-            <ul v-if="data.recent.length" class="home-recent-list">
+            <ul v-if="data.recent.length" id="home-recent-list" class="home-recent-list">
               <li v-for="item in visibleRecent" :key="item.id">
                 <button type="button" class="home-recent-row" @click="onEnterEntity(item.viewId, item.id)">
                   <span class="home-recent-time">{{ relativeTime(item.updatedAt) }}</span>
@@ -124,6 +124,8 @@
               v-if="data.recent.length > 6"
               type="button"
               class="home-recent-more"
+              :aria-expanded="showAllRecent"
+              aria-controls="home-recent-list"
               @click="showAllRecent = !showAllRecent"
             >{{ showAllRecent ? '收起' : `展开更多（${data.recent.length - 6}）` }}</button>
           </section>
@@ -180,6 +182,14 @@
 
       <footer class="home-footer">WorldSea · 项目首页</footer>
     </div>
+    <button
+      v-if="canBackTop"
+      type="button"
+      class="home-back-top"
+      aria-label="回到顶部"
+      title="回到顶部"
+      @click="backToTop"
+    ><WsIcon name="arrow-up" size="sm" /></button>
   </div>
 </template>
 
@@ -202,6 +212,8 @@ const { data, loading, error, reload } = useHomeData()
 const { openWorkspace } = useHomeNavigation()
 
 const heroTitle = ref<HTMLElement | null>(null)
+const surfaceRef = ref<HTMLElement | null>(null)
+const canBackTop = ref(false)
 const profile = computed(() => profileStore.profile)
 /** 封面加载失败（跨机器迁移后 asset URL 失效）→ 回落默认视觉，不留破图 */
 const coverFailed = ref(false)
@@ -263,6 +275,15 @@ function onKpi(kpi: { action: string | null }) {
 function onEditProfile() {
   ui.settingsTarget = { section: 'home' }
   window.dispatchEvent(new CustomEvent('ws-open-settings'))
+}
+
+/** 长页导航：滚动超过约一屏后出现回到顶部；reduced-motion 下直接跳转 */
+function onScroll() {
+  canBackTop.value = (surfaceRef.value?.scrollTop ?? 0) > 600
+}
+function backToTop() {
+  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false
+  surfaceRef.value?.scrollTo?.({ top: 0, behavior: reduce ? 'auto' : 'smooth' })
 }
 
 /** 项目包导入在切换项目之后才写入 home.json，此时首轮 load 可能读到空资料；由写入方广播刷新 */
