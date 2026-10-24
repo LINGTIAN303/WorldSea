@@ -1,12 +1,12 @@
 <template>
   <div
     class="event-marker"
-    :class="[importanceClass, { selected: isSelected, fuzzy, occurrence, 'is-peer': peer }]"
+    :class="[importanceClass, { selected: isSelected, fuzzy, occurrence, 'is-skipped': skipped, 'is-peer': peer }]"
     :style="markerStyle"
     role="button"
     tabindex="0"
     :aria-pressed="isSelected"
-    :aria-label="occurrence ? `选择事件：${event.name}（周期）` : `选择事件：${event.name}`"
+    :aria-label="occurrence ? `选择事件：${event.name}（周期${skipped ? '，已跳过' : ''}）` : `选择事件：${event.name}`"
     @click="$emit('select')"
     @keydown.enter="$emit('select')"
     @keydown.space.prevent="$emit('select')"
@@ -37,6 +37,8 @@ const props = defineProps<{
   fuzzy?: boolean
   /** 周期展开出的虚拟 occurrence：空心小点 */
   occurrence?: boolean
+  /** 命中周期例外的发生：虚线空心点，tooltip 标「已跳过」 */
+  skipped?: boolean
   /** 冲突对位高亮（另一方）：琥珀色圆环，不参与选中 */
   peer?: boolean
 }>()
@@ -114,6 +116,11 @@ const displayDate = computed(() =>
   height: 8px;
   background: transparent;
   border-color: var(--primary);
+}
+/* 周期例外（已跳过）：虚线并可减小透明度，与有效发生区分 */
+.event-marker.is-skipped .marker-dot {
+  border-style: dashed;
+  opacity: 0.6;
 }
 
 .marker-tooltip {

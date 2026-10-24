@@ -12,7 +12,10 @@ export interface OccurrenceMarker {
   key: string
   eventId: string
   scalar: number
+  /** 含「第 N 次」与日期的 tooltip 文案 */
   text: string
+  /** 命中周期例外：画布画成跳过点 */
+  skipped: boolean
 }
 
 export interface LaneItem {
@@ -23,6 +26,7 @@ export interface LaneItem {
   row: number
   /** 有值 = 周期展开出的虚拟 occurrence */
   occurrenceText?: string
+  occurrenceSkipped?: boolean
 }
 
 export interface Swimlane {
@@ -75,7 +79,7 @@ export function useSwimlaneLayout(options: SwimlaneLayoutOptions) {
           items.push({
             key: occurrence.key, event,
             startScalar: occurrence.scalar, endScalar: occurrence.scalar + 1,
-            row: 0, occurrenceText: occurrence.text,
+            row: 0, occurrenceText: occurrence.text, occurrenceSkipped: occurrence.skipped || undefined,
           })
         }
       }

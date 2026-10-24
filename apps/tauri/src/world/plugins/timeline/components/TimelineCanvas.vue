@@ -48,6 +48,7 @@
               :display-text="item.occurrenceText"
               :fuzzy="pointOf(item)?.fuzzy"
               :occurrence="!!item.occurrenceText"
+              :skipped="item.occurrenceSkipped"
               @select="onItemSelect(item.event)"
             />
           </template>

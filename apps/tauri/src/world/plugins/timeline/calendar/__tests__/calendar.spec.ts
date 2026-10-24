@@ -10,7 +10,7 @@ import { validateCalendar } from '../validate'
 import { parseTimePoint, parseUnitValue } from '../parse'
 import { formatTimePoint } from '../format'
 import { scalarRange } from '../fuzzy'
-import { expandRecurrence, formatRecurrenceSummary } from '../recurrence'
+import { expandRecurrence, expandRecurrenceDetailed, formatRecurrenceSummary } from '../recurrence'
 import { migrateEventDates } from '../migrate'
 import { parseDate, parseDateRange, detectEras } from '../legacy'
 import {
@@ -197,6 +197,30 @@ describe('周期事件', () => {
       { start: runtime.toScalar(base), end: runtime.toScalar(until) },
     )
     expect(occurrences.map(item => item.values[1])).toEqual([2024, 2026])
+  })
+
+  it('详细展开带「第 N 次」序号，跳过点保留并标记', () => {
+    const base = parseTimePoint('公元2024年一月1日', calendar)!.point
+    const until = parseTimePoint('公元2027年一月1日', calendar)!.point
+    const list = expandRecurrenceDetailed(
+      base,
+      { unit: 'year', every: 1, until: '公元2027年一月1日', exceptions: ['公元2025年一月1日'] },
+      runtime,
+      { start: runtime.toScalar(base), end: runtime.toScalar(until) },
+    )
+    expect(list.map(item => [item.point.values[1], item.ordinal, item.skipped])).toEqual([
+      [2024, 1, false], [2025, 2, true], [2026, 3, false], [2027, 4, false],
+    ])
+  })
+
+  it('窗口远晚于起点时序号不丢', () => {
+    const base = parseTimePoint('第一纪元1年', simple)!.point
+    const start = parseTimePoint('第一纪元100年', simple)!.point
+    const end = parseTimePoint('第一纪元102年', simple)!.point
+    const list = expandRecurrenceDetailed(base, { unit: 'year', every: 1 }, simpleRt, {
+      start: simpleRt.toScalar(start), end: simpleRt.toScalar(end),
+    })
+    expect(list.map(item => [item.point.values[1], item.ordinal])).toEqual([[100, 100], [101, 101], [102, 102]])
   })
 })
 

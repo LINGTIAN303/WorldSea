@@ -3,7 +3,7 @@ import { computed, type ComputedRef } from 'vue'
 import type { Entity } from '@worldsea/entity-core'
 import type { Calendar, RecurrenceRule } from '../calendar/types'
 import type { CalendarRuntime } from '../calendar/math'
-import { expandRecurrence } from '../calendar/recurrence'
+import { expandRecurrenceDetailed } from '../calendar/recurrence'
 import { formatTimePoint } from '../calendar/format'
 import type { OccurrenceMarker } from './useSwimlaneLayout'
 import type { EventTime } from './useTimelinePoints'
@@ -41,14 +41,16 @@ export function useTimelineOccurrences(options: TimelineOccurrenceOptions) {
       const point = options.points.value.get(event.id)
       if (!rule || !point?.start || point.foreign || point.unresolved) continue
       try {
-        for (const occurrence of expandRecurrence(point.start, rule, options.runtime.value, window, limit)) {
-          const scalar = options.runtime.value.toScalar(occurrence)
+        for (const occurrence of expandRecurrenceDetailed(point.start, rule, options.runtime.value, window, limit)) {
+          const scalar = options.runtime.value.toScalar(occurrence.point)
           if (scalar === point.startScalar) continue
+          const dateText = formatTimePoint(occurrence.point, options.calendar.value)
           result.push({
             key: `${event.id}#${scalar}`,
             eventId: event.id,
             scalar,
-            text: formatTimePoint(occurrence, options.calendar.value),
+            text: `第 ${occurrence.ordinal} 次 · ${dateText}${occurrence.skipped ? '（已跳过）' : ''}`,
+            skipped: occurrence.skipped,
           })
           if (result.length >= totalLimit) return result
         }
