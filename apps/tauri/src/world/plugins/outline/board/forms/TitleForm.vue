@@ -23,8 +23,8 @@
         v-model="draft"
         class="tf-input"
         :style="rowTextStyle"
-        @keydown.enter.prevent="commit"
-        @keydown.esc.prevent="cancel"
+        @keydown.enter="guardEnter($event, commit)"
+        @keydown.esc="guardEsc($event, cancel)"
         @blur="commit"
         @dblclick.stop
       />
@@ -60,6 +60,7 @@ import { formatNumbering, type NumberingStyle } from './titleNumbering'
 import { resolveFormConfig } from './registry'
 import { statusOf as statusOfNode } from './progressStats'
 import { injectBoardUndo } from '../composables/useBoardUndo'
+import { guardEnter, guardEsc } from './enterGuard'
 
 const WRITE_DEBOUNCE = 400
 

@@ -13,7 +13,7 @@
         role="button"
         tabindex="0"
         @click="onOpen(b.id)"
-        @keydown.enter.prevent="onOpen(b.id)"
+        @keydown.enter="guardEnter($event, () => onOpen(b.id))"
       >
         <div class="blv-actions">
           <button
@@ -45,8 +45,9 @@
           class="blv-rename"
           type="text"
           @click.stop
-          @keydown.enter.prevent="commitRename(b.id)"
-          @keydown.esc.prevent="cancelRename"
+          @keydown.stop
+          @keydown.enter="guardEnter($event, () => commitRename(b.id))"
+          @keydown.esc="guardEsc($event, cancelRename)"
           @blur="commitRename(b.id)"
         />
         <div v-else class="blv-name">{{ b.name }}</div>
@@ -75,6 +76,7 @@
  * 确认态 3 秒后自动失效，避免误触后忘记。
  */
 import { nextTick, ref } from 'vue'
+import { guardEnter, guardEsc } from './forms/enterGuard'
 import type { Entity } from '@worldsea/entity-core'
 // 显式导入（非全局组件）：漏导入时渲染静默为空，vue-tsc 不报错
 import { WsEmpty, WsIcon } from '@worldsea/ui-kit'

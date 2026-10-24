@@ -16,8 +16,8 @@
         v-model="draft"
         class="qf-input"
         placeholder="这一节要回答什么问题？"
-        @keydown.enter.prevent="commit"
-        @keydown.esc.prevent="cancel"
+        @keydown.enter="guardEnter($event, commit)"
+        @keydown.esc="guardEsc($event, cancel)"
         @blur="commit"
         @dblclick.stop
       />
@@ -41,7 +41,7 @@
           class="qf-input qf-input--multi"
           :rows="answerRows"
           @keydown.enter="onAnswerEnter"
-          @keydown.esc.prevent="cancel"
+          @keydown.esc="guardEsc($event, cancel)"
           @blur="commit"
           @dblclick.stop
         />
@@ -73,6 +73,7 @@ import { useEntityStore } from '@worldsea/entity-core'
 import { resolveFormConfig } from './registry'
 import { statusOf } from './progressStats'
 import { injectBoardUndo } from '../composables/useBoardUndo'
+import { guardEnter, guardEsc } from './enterGuard'
 
 const WRITE_DEBOUNCE = 400
 /** 回答软上限（计数提示，不硬截断——硬截断会吞用户输入） */
@@ -187,9 +188,8 @@ function cancel(): void {
 
 /** Enter 提交、Shift+Enter 换行（回答是多行文本） */
 function onAnswerEnter(ev: KeyboardEvent): void {
-  if (ev.shiftKey) return
-  ev.preventDefault()
-  commit()
+  // 回答是多行：Enter 提交、Shift+Enter 换行；组合期放行给 IME
+  guardEnter(ev, commit, { noShift: true })
 }
 
 watch(draft, v => {

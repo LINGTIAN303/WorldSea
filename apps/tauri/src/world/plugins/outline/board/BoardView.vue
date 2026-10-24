@@ -1023,6 +1023,9 @@ function registerShortcuts(): void {
       if (c) askDeleteNode(c.nodeId)
     },
     'outline-board.reset-zoom': () => canvasRef.value?.zoomTo(1),
+    // 与滚轮同一套 1.1 / 0.9 步进（canvas.zoomStep 内部按 deltaY 取方向）
+    'outline-board.zoom-in': () => canvasRef.value?.zoomStep(-1),
+    'outline-board.zoom-out': () => canvasRef.value?.zoomStep(1),
     'outline-board.fit-all': fitAll,
     'outline-board.draw-section': () => { sectionDrawMode.value = !sectionDrawMode.value },
     'outline-board.escape': onEscapeKey,

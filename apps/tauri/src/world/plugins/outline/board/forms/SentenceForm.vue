@@ -25,8 +25,8 @@
           class="sf-input"
           :rows="inputRows"
           :style="inputStyle"
-          @keydown.enter="onEnter"
-          @keydown.esc.prevent="cancel"
+        @keydown.enter="onEnter"
+        @keydown.esc="guardEsc($event, cancel)"
           @blur="commit"
           @pointerdown.stop
           @dblclick.stop
@@ -62,6 +62,7 @@ import { resolveChildNodes } from '../outlineDerive'
 import { createChildNode } from './childNodeCreate'
 import { resolveFormConfig } from './registry'
 import { injectBoardUndo } from '../composables/useBoardUndo'
+import { guardEnter, guardEsc } from './enterGuard'
 import {
   countChars,
   exceedsLimit,
@@ -158,11 +159,9 @@ async function startEdit(row: Entity): Promise<void> {
   inputEl.value?.focus()
 }
 
-/** Enter 提交、Shift+Enter 换行（规格 §2.2-③） */
+/** Enter 提交、Shift+Enter 换行（规格 §2.2-③）；组合期放行给 IME */
 function onEnter(ev: KeyboardEvent): void {
-  if (ev.shiftKey) return
-  ev.preventDefault()
-  commit()
+  guardEnter(ev, commit, { noShift: true })
 }
 
 function commit(): void {

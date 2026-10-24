@@ -48,6 +48,18 @@ export const BOARD_SHORTCUT_META: BoardShortcutMeta[] = [
     preventDefault: true,
   },
   {
+    id: 'outline-board.zoom-in',
+    keys: ['ctrl', '='],
+    description: '大纲白板：放大',
+    preventDefault: true,
+  },
+  {
+    id: 'outline-board.zoom-out',
+    keys: ['ctrl', '-'],
+    description: '大纲白板：缩小',
+    preventDefault: true,
+  },
+  {
     id: 'outline-board.fit-all',
     keys: ['!'],
     description: '大纲白板：适配全部',

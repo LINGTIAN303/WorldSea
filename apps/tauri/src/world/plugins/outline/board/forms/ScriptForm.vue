@@ -16,8 +16,8 @@
         v-model="draft"
         class="scf-input"
         placeholder="内景 / 外景 · 地点 · 时间"
-        @keydown.enter.prevent="commit"
-        @keydown.esc.prevent="cancel"
+        @keydown.enter="guardEnter($event, commit)"
+        @keydown.esc="guardEsc($event, cancel)"
         @blur="commit"
         @dblclick.stop
       />
@@ -39,8 +39,8 @@
         v-model="draft"
         class="scf-input scf-input--multi"
         :rows="rowsOf(draft, 3, 12)"
-        @keydown.enter.ctrl.prevent="commit"
-        @keydown.esc.prevent="cancel"
+          @keydown.enter="guardEnter($event, commit, { ctrl: true })"
+          @keydown.esc="guardEsc($event, cancel)"
         @blur="commit"
         @dblclick.stop
       />
@@ -62,8 +62,8 @@
         v-model="draft"
         class="scf-input scf-input--multi"
         :rows="rowsOf(draft, 2, 8)"
-        @keydown.enter.ctrl.prevent="commit"
-        @keydown.esc.prevent="cancel"
+          @keydown.enter="guardEnter($event, commit, { ctrl: true })"
+          @keydown.esc="guardEsc($event, cancel)"
         @blur="commit"
         @dblclick.stop
       />
@@ -95,6 +95,7 @@ import { computed, nextTick, ref, watch, type ComponentPublicInstance } from 'vu
 import { useEntityStore } from '@worldsea/entity-core'
 import { resolveFormConfig } from './registry'
 import { injectBoardUndo } from '../composables/useBoardUndo'
+import { guardEnter, guardEsc } from './enterGuard'
 
 const WRITE_DEBOUNCE = 400
 

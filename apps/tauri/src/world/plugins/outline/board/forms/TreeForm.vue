@@ -33,8 +33,8 @@
           v-model="draft"
           class="trf-input"
           type="text"
-          @keydown.enter.prevent="commit(row.id)"
-          @keydown.esc.prevent="cancel"
+          @keydown.enter="guardEnter($event, () => commit(row.id))"
+          @keydown.esc="guardEsc($event, cancel)"
           @blur="commit(row.id)"
           @pointerdown.stop
           @dblclick.stop
@@ -71,6 +71,7 @@ import { resolveFormConfig } from './registry'
 import { focusNodeField } from '../composables/useNodeFieldFocus'
 import { injectBoardUndo } from '../composables/useBoardUndo'
 import { formatNumbering, indentForDepth, type NumberingStyle } from './titleNumbering'
+import { guardEnter, guardEsc } from './enterGuard'
 import { buildTreeRows, defaultExpandedIds, normalizeExpandDepth, type TreeRow, type TreeScope, type TreeSourceNode } from './treeRows'
 
 /** 与标题式同策略的内容写入防抖 */

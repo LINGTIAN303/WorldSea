@@ -30,8 +30,8 @@
         type="text"
         @pointerdown.stop
         @dblclick.stop
-        @keydown.enter.prevent="commitRename"
-        @keydown.esc.prevent="cancelRename"
+        @keydown.enter="guardEnter($event, commitRename)"
+        @keydown.esc="guardEsc($event, cancelRename)"
         @blur="commitRename"
       />
       <span class="bs-meta">{{ containerCount }} 容器 · {{ arrangeLabel }}</span>
@@ -70,6 +70,7 @@
  */
 import { computed, nextTick, ref, watch } from 'vue'
 import type { BoardSection, SectionArrange } from '../layoutSchema'
+import { guardEnter, guardEsc } from '../forms/enterGuard'
 
 const props = defineProps<{
   section: BoardSection

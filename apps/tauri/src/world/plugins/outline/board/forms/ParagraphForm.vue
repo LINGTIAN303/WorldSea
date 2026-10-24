@@ -14,8 +14,8 @@
       class="pf-input"
       :rows="inputRows"
       :style="inputStyle"
-      @keydown.enter.ctrl.prevent="commit"
-      @keydown.esc.prevent="cancel"
+        @keydown.enter="guardEnter($event, commit, { ctrl: true })"
+        @keydown.esc="guardEsc($event, cancel)"
       @blur="commit"
       @dblclick.stop
     />
@@ -46,6 +46,7 @@ import { computed, nextTick, ref, watch, type ComponentPublicInstance } from 'vu
 import { useEntityStore } from '@worldsea/entity-core'
 import { resolveFormConfig } from './registry'
 import { injectBoardUndo } from '../composables/useBoardUndo'
+import { guardEnter, guardEsc } from './enterGuard'
 
 const WRITE_DEBOUNCE = 400
 /** 正文软上限（计数提示，不硬截断） */

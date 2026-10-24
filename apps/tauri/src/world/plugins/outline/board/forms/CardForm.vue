@@ -14,8 +14,8 @@
         ref="nameInput"
         v-model="nameDraft"
         class="cf-input cf-input--title"
-        @keydown.enter.prevent="commitName"
-        @keydown.esc.prevent="cancelName"
+        @keydown.enter="guardEnter($event, commitName)"
+        @keydown.esc="guardEsc($event, cancelName)"
         @blur="commitName"
         @dblclick.stop
       />
@@ -34,8 +34,8 @@
       ref="descInput"
       v-model="descDraft"
       class="cf-input"
-      @keydown.enter.prevent="commitDesc"
-      @keydown.esc.prevent="cancelDesc"
+      @keydown.enter="guardEnter($event, commitDesc)"
+      @keydown.esc="guardEsc($event, cancelDesc)"
       @blur="commitDesc"
       @dblclick.stop
     />
@@ -63,6 +63,7 @@ import { useEntityStore } from '@worldsea/entity-core'
 import { resolveFormConfig } from './registry'
 import { statusOf } from './progressStats'
 import { injectBoardUndo } from '../composables/useBoardUndo'
+import { guardEnter, guardEsc } from './enterGuard'
 
 const WRITE_DEBOUNCE = 400
 /** 摘要软上限（与句子式对齐） */

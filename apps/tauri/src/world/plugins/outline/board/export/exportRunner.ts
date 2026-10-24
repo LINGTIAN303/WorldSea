@@ -7,9 +7,9 @@
  * 故 **docx 与 markdown 的规则天然一致**（同一份 IR 的两个序列化产物），
  * 且零新增依赖。
  *
- * 【跨芽引用点收敛】这两个模块目前位于 manuscript 芽内。为不牵动另一条工作线，
- * 本文件**是唯一的跨芽引用点**——将来把它们下沉到 app 共享位置（`@/composables/`）时
- * 只需改这里（挂账登记见施工分解 §十二）。
+ * 【跨芽引用点为零】2026-10-24（13-A）已把 `htmlToDocxBlocks` / `blocksToDocx` /
+ * `imageData` 从 manuscript 芽下沉到 `@/composables/docx/`，manuscript 与 outline
+ * 都从共享位置导入；本文件不再跨芽引用（施工分解 §十二-1 / §十三 A1 结清）。
  *
  * 【为什么跳过资产图片预处理】manuscript 导出会先把 `convertFileSrc` 绝对 URL 换回 data URL；
  * 大纲导出的产物只含标题/摘要/表格（**不含图片**），故不做这一步（省一次 IO 与失败面）。
@@ -49,8 +49,8 @@ export function safeFileName(name: string, fallback = '大纲'): string {
  */
 export async function htmlToDocxBlob(html: string, title: string): Promise<Blob> {
   const [{ htmlToBlocks }, { buildDocxBlob }, { useFontStore }] = await Promise.all([
-    import('@/world/plugins/manuscript/composables/htmlToDocxBlocks'),
-    import('@/world/plugins/manuscript/composables/blocksToDocx'),
+    import('@/composables/docx/htmlToDocxBlocks'),
+    import('@/composables/docx/blocksToDocx'),
     import('@/stores/fontStore'),
   ])
   const prefs = useFontStore().prefs
