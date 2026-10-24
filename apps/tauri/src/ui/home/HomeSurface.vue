@@ -27,7 +27,9 @@
               @click="onContinue"
             >{{ continueLabel }}</TuiButton>
             <TuiButton variant="ghost" icon="edit" @click="onEditProfile">编辑简介</TuiButton>
+            <TuiButton variant="ghost" icon="search" @click="onOpenSearch">搜索世界</TuiButton>
           </div>
+          <p v-if="isEmpty" class="home-empty-hint">从下方资产地图进入任意域，或按 Ctrl+K 搜索。</p>
         </div>
       </section>
 
@@ -227,9 +229,12 @@ const projectName = computed(() => data.value?.projectName ?? fallbackProjectNam
 const tagline = computed(() => data.value?.tagline ?? '')
 const about = computed(() => data.value?.profile.about ?? '')
 const continueTarget = computed(() => data.value?.continueTarget ?? null)
-const continueLabel = computed(() => continueTarget.value
-  ? `继续上次：${continueTarget.value.label}`
-  : '进入工作台')
+const isEmpty = computed(() => (data.value?.snapshot.entityCount ?? 0) === 0)
+const continueLabel = computed(() => {
+  const target = continueTarget.value
+  if (!target) return '进入工作台'
+  return isEmpty.value ? `开始创建：${target.label}` : `继续上次：${target.label}`
+})
 const lastUpdatedText = computed(() => data.value?.snapshot.lastUpdatedAt
   ? relativeTime(data.value.snapshot.lastUpdatedAt)
   : '暂无内容')
@@ -275,6 +280,9 @@ function onKpi(kpi: { action: string | null }) {
 function onEditProfile() {
   ui.settingsTarget = { section: 'home' }
   window.dispatchEvent(new CustomEvent('ws-open-settings'))
+}
+function onOpenSearch() {
+  window.dispatchEvent(new CustomEvent('ws-open-search'))
 }
 
 /** 长页导航：滚动超过约一屏后出现回到顶部；reduced-motion 下直接跳转 */

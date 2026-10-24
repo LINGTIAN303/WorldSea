@@ -136,6 +136,7 @@ describe('HomeSurface', () => {
     expect(w.text()).toContain('乔')
     expect(w.text()).toContain('书')
     expect(w.find('.home-matrix').exists()).toBe(true)
+    expect(w.find('.home-empty-hint').exists()).toBe(false)
   })
 
   it('最近动态默认 6 条，可展开/收起', async () => {
@@ -207,6 +208,25 @@ describe('HomeSurface', () => {
     expect(openWorkspace).toHaveBeenLastCalledWith('characters', 'c1')
     await w.find('.home-matrix-foot button').trigger('click')
     expect(openWorkspace).toHaveBeenLastCalledWith('field-matrix')
+  })
+
+  it('Hero 搜索世界入口派发 ws-open-search', async () => {
+    data.value = fixture()
+    loading.value = false
+    const spy = vi.spyOn(window, 'dispatchEvent')
+    const w = mount(HomeSurface)
+    const btn = w.findAll('.home-hero-actions button').find(b => b.text().includes('搜索世界'))!
+    await btn.trigger('click')
+    expect(spy.mock.calls.some(([e]) => (e as CustomEvent).type === 'ws-open-search')).toBe(true)
+  })
+
+  it('空项目：CTA 改为开始创建并显示起步提示', async () => {
+    const base = fixture()
+    data.value = { ...base, snapshot: { ...base.snapshot, entityCount: 0 } }
+    loading.value = false
+    const w = mount(HomeSurface)
+    expect(w.find('.home-hero-actions').text()).toContain('开始创建：角色')
+    expect(w.find('.home-empty-hint').text()).toContain('Ctrl+K')
   })
 
   it('编辑简介：写 settingsTarget 并派发 ws-open-settings', async () => {
