@@ -20,6 +20,10 @@ function makeEvent(id: string, name: string, properties: Record<string, unknown>
   } as Entity
 }
 
+function makeCharacter(id: string, name: string): Entity {
+  return { ...makeEvent(id, name, {}), type: 'character' } as Entity
+}
+
 function setupPoints(events: Entity[], calendar = createSimpleCalendar()) {
   const calendars = ref([calendar, createThreeEraCalendar()])
   return useTimelinePoints({
@@ -222,17 +226,17 @@ describe('冲突检测', () => {
     ]
     const { points, runtime } = setupPoints(events)
     const entityMap = computed(() => new Map([
-      ['c1', makeEvent('c1', '角色', {})],
+      ['c1', makeCharacter('c1', '角色')],
       ['e1', events[0]], ['e2', events[1]], ['e3', events[2]], ['e4', events[3]],
     ]))
-    const { conflicts, scanStats } = useConflictDetection(relations, entityMap, points, runtime)
-    const sameDate = conflicts.value.find(item => item.type === 'same_date')
-    const overlap = conflicts.value.find(item => item.type === 'overlap')
+    const { characterConflicts, scanStats } = useConflictDetection(relations, entityMap, points, runtime)
+    const sameDate = characterConflicts.value.find(item => item.type === 'same_date')
+    const overlap = characterConflicts.value.find(item => item.type === 'overlap')
     expect(sameDate?.entities).toEqual(['甲', '乙'])
     expect(sameDate?.fuzzy).toBe(false)
     expect(overlap?.entities).toEqual(['甲', '丙'])
     // 检测范围：1 个角色 / 4 个关联事件，全部可比较
-    expect(scanStats.value).toEqual({ characters: 1, events: 4, scannable: 4 })
+    expect(scanStats.value).toEqual({ characters: 1, events: 4, scannable: 4, involveRelations: 4 })
   })
 
   it('模糊日期冲突带 fuzzy 标记并排在精确冲突之后', () => {
@@ -244,13 +248,13 @@ describe('冲突检测', () => {
     ]
     const { points, runtime } = setupPoints(events)
     const entityMap = computed(() => new Map([
-      ['c1', makeEvent('c1', '角色', {})],
+      ['c1', makeCharacter('c1', '角色')],
       ['e1', events[0]], ['e2', events[2]], ['e3', events[3]],
     ]))
-    const { conflicts } = useConflictDetection(relations, entityMap, points, runtime)
-    expect(conflicts.value.length).toBeGreaterThan(0)
-    expect(conflicts.value[0].fuzzy).toBe(false)
-    expect(conflicts.value.some(item => item.fuzzy)).toBe(true)
+    const { characterConflicts } = useConflictDetection(relations, entityMap, points, runtime)
+    expect(characterConflicts.value.length).toBeGreaterThan(0)
+    expect(characterConflicts.value[0].fuzzy).toBe(false)
+    expect(characterConflicts.value.some(item => item.fuzzy)).toBe(true)
   })
 })
 

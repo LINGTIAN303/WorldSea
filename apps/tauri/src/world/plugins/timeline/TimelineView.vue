@@ -118,10 +118,10 @@
       </template>
     </component>
     <ConflictDetector
-      :show="showConflicts"
-      :conflicts="conflicts"
-      :stats="scanStats"
-      @close="showConflicts = false"
+      :show="showConflicts" :mode="conflictMode"
+      :conflicts="conflicts" :counts="conflictCounts"
+      :stats="scanStats" :truncated="conflictsTruncated"
+      @close="showConflicts = false" @update:mode="conflictMode = $event"
       @focus="focusConflict"
     />
 
@@ -227,7 +227,7 @@ const { flatOrder, expandTo } = tree
 /* ── 时间数据层：按事件所属历法解析 → 标量区间 / 期段色带 ── */
 const { points, runtime, periods, axisBands } = useTimelinePoints({ events: eventList, calendars, activeCalendar })
 const { sortMode, sortedEvents, toggleSortMode } = useTimelineSort(eventList, flatOrder, points)
-const { conflicts, hasConflicts, scanStats } = useConflictDetection(
+const { conflicts, hasConflicts, scanStats, mode: conflictMode, conflictCounts, truncated: conflictsTruncated } = useConflictDetection(
   computed(() => relationStore.relations), computed(() => entityStore.entityMap), points, runtime)
 const chartRef = ref<{ zoomIn: () => void; zoomOut: () => void; fitAll: () => void; focusEvent: (id: string) => void } | null>(null)
 const {

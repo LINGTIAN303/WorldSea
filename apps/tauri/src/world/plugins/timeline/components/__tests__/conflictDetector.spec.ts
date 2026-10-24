@@ -6,6 +6,7 @@ import type { Conflict } from '../../composables/useConflictDetection'
 
 const conflict: Conflict = {
   type: 'overlap',
+  scope: 'time',
   description: '某角色参与了时间重叠的事件',
   entities: ['事件一', '事件二'],
   eventIds: ['e1', 'e2'],
@@ -15,7 +16,7 @@ const conflict: Conflict = {
 
 function mountPanel() {
   return mount(ConflictDetector, {
-    props: { show: true, conflicts: [conflict] },
+    props: { show: true, conflicts: [conflict], mode: 'time' },
     global: { stubs: { TuiModal: { template: '<div><slot name="header" /><slot /></div>' }, WsIcon: true } },
   })
 }

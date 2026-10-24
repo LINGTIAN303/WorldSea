@@ -45,9 +45,14 @@
 
 `useTimelinePoints` 按事件 `calendarId` 找历法；找不到时回落当前历法。`foreign` 的事件不参与当前轴：画布只给计数提示，列表单列尾组。跨历法同轴需要显式锚点，本期明确不做。
 
-### 3.6 模糊日期不混入精确冲突
+### 3.6 冲突检测两口径
 
-`calendar/fuzzy.ts` 的 `scalarRange` 负责区间；`useConflictDetection` 给每条冲突打 `fuzzy` 标，精确冲突排前、模糊冲突排后并单独标注。冲突面板是**弹窗**（TuiModal lg）：头部展示检测范围（角色数 / 可比较事件数）与精确/模糊计数，空态说明「只比较角色关联事件」的口径；点条目定位第一个事件并给另一方加对位环，点事件 chip 则以该方为定位方。
+`calendar/fuzzy.ts` 的 `scalarRange` 负责区间；`useConflictDetection` 提供两种口径，面板顶部切换：
+
+- **时间重叠（默认）**：当前历法下任意两个事件的时间区间重叠（按起点排序扫描，相邻年份不重叠）；「早于 / 晚于」开放式日期不参与；命中超过 200 对截断并提示「仅显示前 200 对」。
+- **角色日程**：同一角色/组织通过「涉及」关系关联的事件重叠；正向 `involves`（事件→角色）与反向 `involved_in_event` 都认，非角色/组织目标忽略。
+
+模糊日期单独标注（fuzzy=true），精确冲突排前、模糊冲突排后；跨历法事件不共享标量轴，不参与比较。面板头部展示两口径条数与当前口径的检测范围；角色口径在 `involveRelations === 0` 时直接给出「如何建立涉及关系」的指引。冲突面板是**弹窗**（TuiModal lg）：点条目定位第一个事件并给另一方加对位环，点事件 chip 则以该方为定位方。
 
 ### 3.7 期段取最深包含区间
 
@@ -110,6 +115,6 @@
 - `composables/__tests__/useTimelineNeighbors.spec.ts`：详情邻接导航步进、树态按 `treeOrder` 步进、隐藏选中时索引为 -1。
 - `composables/__tests__/useChronicleCollapse.spec.ts`：分段折叠按项目持久化、非法存储回落。
 - `composables/__tests__/useTimelineEventMenu.spec.ts`：右键只在事件元素上开菜单、坐标与目标事件、未命中不拦截。
-- `components/__tests__/conflictDetector.spec.ts`：条目/事件 chip 都带出对位方（定位方 + 对位方）。
+- `composables/__tests__/useConflictDetection.spec.ts`：时间口径（同日/区间/相邻年、开放式日期排除、上限截断）与角色口径（正反向关系、非角色目标忽略、零关系空态）。
 - `packages/plugin-sdk/.../useEntityPaging.spec.ts`：分页切片/收敛/重置，以及 `revealIndex` 跨页翻页。
 - `__tests__/timelineGuards.spec.ts`：禁止硬编码纪元数学与直读 `properties.era`（迁移层豁免）；「拖拽改时间」必须有消费方；导出/导入两条链接线不得掉。
