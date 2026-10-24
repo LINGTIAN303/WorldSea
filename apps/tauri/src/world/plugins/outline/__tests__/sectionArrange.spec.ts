@@ -4,6 +4,7 @@ import {
   SECTION_HEADER,
   SECTION_PADDING,
   arrangeSection,
+  clampContainerTop,
   contentOrigin,
   shouldRearrangeOnResize,
   type ArrangeItem,
@@ -120,5 +121,24 @@ describe('sectionArrange / 边界与判定', () => {
     expect(shouldRearrangeOnResize('vertical')).toBe(true)
     expect(shouldRearrangeOnResize('horizontal')).toBe(true)
     expect(shouldRearrangeOnResize('grid')).toBe(true)
+  })
+})
+
+describe('sectionArrange / 区标题栏避让（13-C）', () => {
+  it('无归属区：原样返回', () => {
+    expect(clampContainerTop(rect(10, 5), null)).toBe(5)
+    expect(clampContainerTop(rect(10, 5), undefined)).toBe(5)
+  })
+
+  it('容器顶部高于区标题栏：钳到标题栏下沿', () => {
+    expect(clampContainerTop(rect(10, 5), rect(0, 100))).toBe(100 + SECTION_HEADER)
+  })
+
+  it('容器已在内容区：不改 y', () => {
+    expect(clampContainerTop(rect(10, 200), rect(0, 100))).toBe(200)
+  })
+
+  it('可覆盖 header（与 contentOrigin 同口径）', () => {
+    expect(clampContainerTop(rect(10, 5), rect(0, 100), 0)).toBe(100)
   })
 })

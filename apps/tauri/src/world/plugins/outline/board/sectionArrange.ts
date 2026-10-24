@@ -111,3 +111,17 @@ export function arrangeSection(
 export function shouldRearrangeOnResize(arrange: SectionArrange): boolean {
   return arrange !== 'free'
 }
+
+/**
+ * 区内容器的顶部下限（2026-10-24 · 13-C）：
+ * 归属区的容器不得盖住标题栏（否则改名/拖动热区被遮）。
+ * 只调 y，不调 x 与尺寸；无区归属时原样返回。
+ */
+export function clampContainerTop(
+  rect: Rect,
+  sectionRect: Rect | null | undefined,
+  header: number = SECTION_HEADER,
+): number {
+  if (!sectionRect) return rect.y
+  return Math.max(rect.y, sectionRect.y + header)
+}

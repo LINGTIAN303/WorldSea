@@ -148,6 +148,9 @@ defineExpose({
   overflow: hidden;
   user-select: none;
   position: relative;
+  /* 2026-10-24（13-C）：窄窗下不溢出视口；内容在 .fp-body 内滚动 */
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 16px);
 }
 
 .fp-header {
@@ -229,6 +232,8 @@ defineExpose({
 
 .fp-body {
   flex: 1;
+  /* flex 子项默认 min-height:auto 会阻止收缩，配合 max-height 内部滚动必须显式置 0 */
+  min-height: 0;
   overflow-y: auto;
   padding: 0;
 }

@@ -49,11 +49,7 @@ import {
   type OutlineBoardLayout,
   type SectionArrange,
 } from '../layoutSchema'
-import {
-  arrangeSection,
-  shouldRearrangeOnResize,
-  type ArrangeItem,
-} from '../sectionArrange'
+import { arrangeSection, clampContainerTop, shouldRearrangeOnResize, type ArrangeItem } from '../sectionArrange'
 
 /** 布局保存防抖（与 drawing 芽的 AUTOSAVE_DELAY 对齐量级） */
 export const BOARD_SAVE_DEBOUNCE = 500
@@ -378,13 +374,15 @@ export function useBoardLayout() {
     mutate(removeSections(layout.value, [sectionId], mode))
   }
 
-  /** 容器拖动结束后重算归属：中心点落在哪个区就归哪个区，未命中则脱离 */
+  /** 容器拖动结束后重算归属：中心点落在哪个区就归哪个区，未命中则脱离；
+   *  归属区时同时把顶部钳到标题栏之下（2026-10-24 · 13-C）。 */
   function settleContainerSection(containerId: string): void {
     const c = findContainer(layout.value, containerId)
     if (!c) return
-    const sid = resolveSectionFor(layout.value, rectOfContainer(c))
-    if ((c.sectionId ?? null) === sid) return
-    mutate(setContainerSectionId(layout.value, containerId, sid))
+    const rect = rectOfContainer(c)
+    const sid = resolveSectionFor(layout.value, rect)
+    const y = clampContainerTop(rect, sid ? findSection(layout.value, sid)?.rect : null)
+    if ((c.sectionId ?? null) !== sid || c.pos.y !== y) mutate(replaceContainer(layout.value, containerId, { ...c, sectionId: sid || undefined, pos: { x: c.pos.x, y } }))
   }
   // ── 悬空容器（节点被删）──
 
