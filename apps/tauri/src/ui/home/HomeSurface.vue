@@ -51,6 +51,13 @@
             <WsSkeleton v-for="n in 8" :key="n" variant="card" label="正在载入资产地图" :aria-hidden="n > 1 || undefined" />
           </div>
         </section>
+        <section class="home-section">
+          <h2 class="home-sr-only">创作活跃度</h2>
+          <div class="home-activity-grid">
+            <WsSkeleton variant="card" label="正在载入创作活跃度" />
+            <WsSkeleton variant="card" label="正在载入活跃日历" />
+          </div>
+        </section>
         <div class="home-split">
           <section class="home-section home-recent">
             <header class="home-section-head">
@@ -103,6 +110,8 @@
         </section>
 
         <HomeAssetMap :domains="data.domains" @enter="onEnterView" @entity="onEnterEntity" />
+
+        <HomeActivity :daily="data.activity.daily" />
 
         <div class="home-split" :class="{ 'is-single': !data.featuredBook }">
           <section class="home-section home-recent">
@@ -207,6 +216,7 @@ import { relativeTime } from './homeData'
 import { useHomeData } from './useHomeData'
 import { useHomeNavigation } from './useHomeNavigation'
 import HomeAssetMap from './HomeAssetMap.vue'
+import HomeActivity from './HomeActivity.vue'
 import HomeMatrixDigest from './HomeMatrixDigest.vue'
 
 const ui = useUIStore()

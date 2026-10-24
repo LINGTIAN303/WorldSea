@@ -117,6 +117,14 @@ describe('buildHomeData', () => {
     expect(buildHomeData(base).featuredBook?.latestChapter?.name).toBeTruthy()
   })
 
+  it('创作活跃度：实体/关系按本地日去重聚合', () => {
+    const activity = buildHomeData(base).activity
+    expect(activity.activeDays).toBe(7)
+    expect(activity.maxCount).toBe(1)
+    expect(activity.total).toBe(7)
+    expect(Object.keys(activity.daily)).toHaveLength(7)
+  })
+
   it('矩阵摘要：字段数降序、关系类型数按类型计', () => {
     const rows = buildHomeData(base).matrixRows
     expect(rows[0]).toMatchObject({ type: 'character', fieldCount: 2, requiredCount: 1, relationTypeCount: 1 })

@@ -45,6 +45,13 @@ export interface HomeFeaturedBook {
   chapterCount: number; wordCount: number; viewId: string
   latestChapter: { id: string; name: string; updatedAt: string } | null
 }
+export interface HomeActivity {
+  /** 本地日 YYYY-MM-DD → 当日有创建/最后更新的实体/关系数（同一天同一内容只计一次） */
+  daily: Record<string, number>
+  total: number
+  activeDays: number
+  maxCount: number
+}
 export interface HomeMatrixRow {
   type: string; label: string; sproutLabel: string
   fieldCount: number; requiredCount: number; relationTypeCount: number
@@ -64,6 +71,7 @@ export interface HomeData {
   domains: HomeDomain[]
   recent: HomeRecentItem[]
   featuredBook: HomeFeaturedBook | null
+  activity: HomeActivity
   matrixRows: HomeMatrixRow[]
   matrixStats: FieldMatrixStats
   matrixRelationTypeCount: number
@@ -75,6 +83,47 @@ export interface HomeData {
 
 const byUpdatedDesc = (a: { updatedAt: string }, b: { updatedAt: string }) => b.updatedAt.localeCompare(a.updatedAt)
 const firstView = (pluginId: string, views: readonly PluginView[]) => views.find(v => v.pluginId === pluginId)
+
+/** 本地日键（热力图/日历按用户本地时区切日，不按 UTC） */
+function localDayKey(iso: string): string | null {
+  const date = new Date(iso)
+  if (!Number.isFinite(date.getTime())) return null
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${date.getFullYear()}-${month}-${day}`
+}
+
+/**
+ * 创作活跃度：只依赖实体/关系的 createdAt / updatedAt（没有编辑历史）。
+ * 同一内容同一天创建+更新只计一次；实体与关系用前缀区分 id。
+ */
+function buildActivity(entities: readonly Entity[], relations: readonly Relation[]): HomeActivity {
+  const dailySets = new Map<string, Set<string>>()
+  const mark = (iso: string, key: string) => {
+    const day = localDayKey(iso)
+    if (!day) return
+    const set = dailySets.get(day) ?? new Set<string>()
+    set.add(key)
+    dailySets.set(day, set)
+  }
+  for (const e of entities) {
+    mark(e.createdAt, `e:${e.id}`)
+    mark(e.updatedAt, `e:${e.id}`)
+  }
+  for (const r of relations) {
+    mark(r.createdAt, `r:${r.id}`)
+    mark(r.updatedAt, `r:${r.id}`)
+  }
+  const daily: Record<string, number> = {}
+  for (const [day, set] of dailySets) daily[day] = set.size
+  const counts = Object.values(daily)
+  return {
+    daily,
+    total: counts.reduce((sum, n) => sum + n, 0),
+    activeDays: counts.length,
+    maxCount: counts.length ? Math.max(...counts) : 0,
+  }
+}
 
 function toContinueTarget(view: PluginView | undefined): HomeContinueTarget | null {
   return view ? { viewId: view.id, label: view.label, icon: view.icon } : null
@@ -246,6 +295,7 @@ export function buildHomeData(input: HomeDataInput): HomeData {
     domains,
     recent,
     featuredBook,
+    activity: buildActivity(entities, relations),
     matrixRows,
     matrixStats: matrix.stats,
     matrixRelationTypeCount: matrix.relations.length,

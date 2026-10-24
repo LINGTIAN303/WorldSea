@@ -51,6 +51,7 @@ function fixture(): HomeData {
       id: 'b1', name: '书', description: '书简介', coverImage: '', chapterCount: 2, wordCount: 2000, viewId: 'manuscript',
       latestChapter: { id: 'm1', name: '第一章', updatedAt: '2026-10-23T10:00:00Z' },
     },
+    activity: { daily: {}, total: 0, activeDays: 0, maxCount: 0 },
     matrixRows: [{ type: 'character', label: '角色', sproutLabel: '角色', fieldCount: 2, requiredCount: 1, relationTypeCount: 1 }],
     matrixStats: { buds: 27, entities: 1, instances: 3, keys: 2, traits: 0, facets: 0 },
     matrixRelationTypeCount: 1,
@@ -79,7 +80,7 @@ describe('HomeSurface', () => {
     loading.value = false
     const w = mount(HomeSurface)
     expect(w.find('h1').exists()).toBe(true)
-    expect(w.find('table caption').text()).toContain('实体类型')
+    expect(w.find('.home-matrix caption').text()).toContain('实体类型')
     expect(w.find('.home-asset-map .home-section-note').text()).toContain('含跨域')
     // 唯一 main 由 ShellSurface 提供，首页自身不得再嵌套
     expect(w.findAll('main')).toHaveLength(0)
@@ -137,6 +138,7 @@ describe('HomeSurface', () => {
     expect(w.text()).toContain('乔')
     expect(w.text()).toContain('书')
     expect(w.find('.home-matrix').exists()).toBe(true)
+    expect(w.find('.home-activity').exists()).toBe(true)
     expect(w.find('.home-empty-hint').exists()).toBe(false)
   })
 
