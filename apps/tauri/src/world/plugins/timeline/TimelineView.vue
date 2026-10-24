@@ -25,6 +25,7 @@
       <!-- 分页只在「竖向 + 时序表」出现：横向画布吃全量时间跨度、大纲树分页会丢页外子节点 -->
       <EntityPager v-if="pageable && totalPages > 1" :page="page" :total="totalPages" @prev="pagePrev" @next="pageNext" />
       <TuiButton variant="secondary" size="sm" :active="selecting" :title="selecting ? '退出批量选择（Esc）' : '进入批量选择'" @click="toggleSelectMode">批量选择</TuiButton>
+      <TuiButton v-if="selectedIds.size > 0" variant="secondary" size="sm" @click="showBatchEdit = true">批量编辑</TuiButton>
       <TuiButton v-if="selectedIds.size > 0" variant="danger-ghost" size="sm" icon="delete" @click="batchDelete(filteredEvents, '事件')">删除 ({{ selectedIds.size }})</TuiButton>
       <TuiButton v-if="selectedIds.size > 0" variant="secondary" size="sm" @click="clearSelection">取消选择</TuiButton>
     </Teleport>
@@ -124,6 +125,7 @@
       @close="showConflicts = false" @update:mode="conflictMode = $event"
       @focus="focusConflict"
     />
+    <BatchEditModal :show="showBatchEdit" :ids="selectedIds" @close="showBatchEdit = false" @applied="clearSelection()" />
 
     <TimelineEventForm
       ref="formModalRef"
@@ -161,6 +163,7 @@ import { useSettingsStore } from '@/stores/settingsStore'
 import { TuiButton, WsEmpty } from '@worldsea/ui-kit'
 import TimelineChart from './components/TimelineChart.vue'
 import ConflictDetector from './components/ConflictDetector.vue'
+import BatchEditModal from './components/BatchEditModal.vue'
 import CausalGraph from './components/CausalGraph.vue'
 import EventDetailFields from './components/EventDetailFields.vue'
 import EventDetailNav from './components/EventDetailNav.vue'
@@ -193,6 +196,7 @@ const { visible: chartLoading, error: timelineError, run: runTimelineLoad } = us
 const eventsLoaded = ref(false)
 const showForm = ref(false)
 const showConflicts = ref(false)
+const showBatchEdit = ref(false)
 const selectedEvent = ref<Entity | null>(null)
 /** 冲突对位高亮：只加环不选中，下一次选中即清除 */
 const conflictPeerIds = ref<Set<string>>(new Set())
@@ -219,7 +223,7 @@ const eventList = computed(() => entityStore.entities.filter(e => e.type === 'ev
 const calendarApi = useTimelineCalendarActions({ events: () => eventList.value, entityStore, loadTimeline, confirm: confirm as any })
 const { calendars, active: activeCalendar, activeId: activeCalendarId, showPanel: showCalendarPanel, migrating, load: loadCalendars, saveCalendar: onCalendarSave, removeCalendar: onCalendarRemove, activateCalendar: onCalendarActivate, migrateDates, byId: calendarById } = calendarApi
 const eventCalendar = computed(() => calendarById(selectedEvent.value?.properties.calendarId as string | undefined))
-const { openNewForm, onFormSave } = useTimelineEventForm({ showForm, editingEvent, activeCalendar, preset: formPreset, entityStore, formModalRef, checkAndConfirmName })
+const { openNewForm, onFormSave } = useTimelineEventForm({ showForm, editingEvent, activeCalendar, preset: formPreset, entityStore, formModalRef, checkAndConfirmName, onCreated: selectEventById })
 
 const tree = useEventTree(eventList)
 const { flatOrder, expandTo } = tree
@@ -257,10 +261,9 @@ const { canvasEvents, chronicleGroups, canvasGroups, chronicleOrder } = useTimel
 /** 详情邻接导航按屏幕顺序步进：树态用分组 + 折叠后的可见顺序，时序态用全量（跨页自动翻） */
 const { nav, step } = useTimelineNeighbors(selectedEvent, filteredEvents, selectEvent, { mode: sortMode, treeOrder: chronicleOrder })
 
-function involvedEntities(eventId: string): Entity[] {
-  const rels = relationStore.relations.filter(r => r.type === 'involves' && r.sourceId === eventId)
-  return rels.map(r => entityStore.entityMap.get(r.targetId)).filter(Boolean) as Entity[]
-}
+const involvedEntities = (eventId: string): Entity[] => relationStore.relations
+  .filter(r => r.type === 'involves' && r.sourceId === eventId)
+  .map(r => entityStore.entityMap.get(r.targetId)).filter(Boolean) as Entity[]
 
 function toggleLayoutMode() {
   layoutMode.value = layoutMode.value === 'horizontal' ? 'vertical' : 'horizontal'
@@ -356,10 +359,9 @@ const importanceIcon = computed(() => {
 })
 
 const eventSubtitle = computed(() => {
-  if (!selectedEvent.value) return ''
-  const d = String(selectedEvent.value.properties.date || '?')
-  const end = selectedEvent.value.properties.dateEnd as string | undefined
-  return end ? `${d} ~ ${end}` : d
+  const p = selectedEvent.value?.properties
+  if (!p) return ''
+  return p.dateEnd ? `${p.date || '?'} ~ ${p.dateEnd}` : String(p.date || '?')
 })
 
 function navigateToEvent(id: string) {
@@ -427,12 +429,7 @@ onBeforeUnmount(() => {
 .timeline-view--split .timeline-chart { min-width: 0; }
 .timeline-view--split :deep(.detail-column) { margin-top: -20px; margin-bottom: -20px; height: auto; }
 /* R3 单行适配：上移后控件基线样式（scoped，仅作用于本视图 teleport 内容） */
-.search-input {
-  padding: 4px 10px; font-size: var(--font-size-sm);
-  border: 1px solid var(--border-color, var(--color-border));
-  border-radius: var(--radius-sm); background: var(--color-bg-elevated);
-  color: var(--text-color, var(--color-text-primary)); outline: none; min-width: 160px;
-}
+.search-input { padding: 4px 10px; font-size: var(--font-size-sm); border: 1px solid var(--border-color, var(--color-border)); border-radius: var(--radius-sm); background: var(--color-bg-elevated); color: var(--text-color, var(--color-text-primary)); outline: none; min-width: 160px; }
 .search-input:focus { border-color: var(--primary); box-shadow: 0 0 0 2px var(--color-primary-subtle); }
 /* ── 事件详情面板内容（自私有 EventDetailPanel 收敛而来）── */
 .detail-section { margin: 12px 0; }

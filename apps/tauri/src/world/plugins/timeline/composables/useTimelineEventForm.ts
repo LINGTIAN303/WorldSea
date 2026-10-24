@@ -27,6 +27,8 @@ export interface TimelineEventFormOptions {
   }
   formModalRef: Ref<{ syncEntityRefAfterCreate: (id: string) => Promise<void> | void } | null>
   checkAndConfirmName: (name: string, excludeId?: string, entityType?: string) => Promise<string | null>
+  /** 新建成功后回调（自动选中新事件并打开详情） */
+  onCreated?: (id: string) => void
 }
 
 export function useTimelineEventForm(options: TimelineEventFormOptions) {
@@ -76,6 +78,7 @@ export function useTimelineEventForm(options: TimelineEventFormOptions) {
       eventId = entity.id
       toastSuccess('已创建')
       await options.formModalRef.value?.syncEntityRefAfterCreate(entity.id)
+      options.onCreated?.(entity.id)
     }
 
     if (involveIds && eventId) await syncEventInvolves(eventId, involveIds)
