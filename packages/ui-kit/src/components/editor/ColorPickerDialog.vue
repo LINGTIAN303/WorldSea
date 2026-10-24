@@ -291,9 +291,9 @@ function hslToHex(h: number, s: number, l: number): string {
 }
 
 function hexToHsl(hex: string): { h: number; s: number; l: number } | null {
-  let s = hex.replace('#', '')
-  if (s.length === 3) s = s.split('').map(ch => ch + ch).join('')
-  const m = s.match(/^([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i)
+  const raw = hex.replace('#', '')
+  const expanded = raw.length === 3 ? raw.split('').map(ch => ch + ch).join('') : raw
+  const m = expanded.match(/^([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i)
   if (!m) return null
   let r = parseInt(m[1], 16) / 255, g = parseInt(m[2], 16) / 255, b = parseInt(m[3], 16) / 255
   const max = Math.max(r, g, b), min = Math.min(r, g, b)
