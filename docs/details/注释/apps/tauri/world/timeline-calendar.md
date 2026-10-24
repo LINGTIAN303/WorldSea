@@ -47,7 +47,7 @@
 
 ### 3.6 模糊日期不混入精确冲突
 
-`calendar/fuzzy.ts` 的 `scalarRange` 负责区间；`useConflictDetection` 给每条冲突打 `fuzzy` 标，精确冲突排前、模糊冲突排后并单独标注。冲突面板是**弹窗**（TuiModal lg）：头部展示检测范围（角色数 / 可比较事件数）与精确/模糊计数，空态说明「只比较角色关联事件」的口径；点击条目或实体 chip 可定位。
+`calendar/fuzzy.ts` 的 `scalarRange` 负责区间；`useConflictDetection` 给每条冲突打 `fuzzy` 标，精确冲突排前、模糊冲突排后并单独标注。冲突面板是**弹窗**（TuiModal lg）：头部展示检测范围（角色数 / 可比较事件数）与精确/模糊计数，空态说明「只比较角色关联事件」的口径；点条目定位第一个事件并给另一方加对位环，点事件 chip 则以该方为定位方。
 
 ### 3.7 期段取最深包含区间
 
@@ -75,6 +75,7 @@
 - **筛选反馈**：筛选条显示「显示 N · 已隐藏 M」并提供「清除筛选」，避免筛掉事件后无从察觉。
 - **详情导航**：详情顶部「‹ N / M ›」按当前**可见序列**步进（口径见 3.8：树态含分组与折叠，时序态跨页自动翻页）；「在画布中查看」切横态并定位。
 - **右键菜单**：画布事件条/点与编年史卡片右键 → 编辑 / 在另一视图定位 / 删除（走确认）。菜单由壳层按 `data-event-id` 做事件委托，两态零侵入；未命中事件时保留浏览器默认菜单。
+- **冲突对位**：冲突面板定位后，另一方以琥珀色虚线/圆环高亮（不参与选中，工具栏不进入批量态），两态都生效；下一次选中即清除。
 - **分段折叠**：编年史段标题可折叠，状态按项目存 localStorage（`worldsea_timeline_collapsed_groups:<projectId>`），视图重载 / 切换视图后保持。
 - **撤销**：拖拽写回走 `entityStore.update`，天然进撤销栈。
 
@@ -109,5 +110,6 @@
 - `composables/__tests__/useTimelineNeighbors.spec.ts`：详情邻接导航步进、树态按 `treeOrder` 步进、隐藏选中时索引为 -1。
 - `composables/__tests__/useChronicleCollapse.spec.ts`：分段折叠按项目持久化、非法存储回落。
 - `composables/__tests__/useTimelineEventMenu.spec.ts`：右键只在事件元素上开菜单、坐标与目标事件、未命中不拦截。
+- `components/__tests__/conflictDetector.spec.ts`：条目/事件 chip 都带出对位方（定位方 + 对位方）。
 - `packages/plugin-sdk/.../useEntityPaging.spec.ts`：分页切片/收敛/重置，以及 `revealIndex` 跨页翻页。
 - `__tests__/timelineGuards.spec.ts`：禁止硬编码纪元数学与直读 `properties.era`（迁移层豁免）；「拖拽改时间」必须有消费方；导出/导入两条链接线不得掉。
