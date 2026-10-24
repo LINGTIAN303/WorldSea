@@ -31,7 +31,7 @@
               <button class="set-saved-del" :aria-label="`删除我的强调色 ${hex}`" title="删除" @click.stop="onSavedRemove(hex)">✕</button>
             </div>
           </div>
-          <ColorPickerDialog :show="customPickerOpen" :initial-color="customAccentColor ?? '#4f46e5'" @confirm="onCustomAccentConfirm" @close="customPickerOpen = false" />
+          <ColorPickerDialog :show="customPickerOpen" :initial-color="customAccentColor ?? '#4f46e5'" :transform="quantizeAnchor" @confirm="onCustomAccentConfirm" @close="customPickerOpen = false" />
           <div class="set-theme-sub">图谱底色</div>
           <div class="set-row"><span>全局图谱</span><select v-model="store.graphBackgroundMode" class="set-select" aria-label="图谱底色"><option value="dark">深色星图</option><option value="theme">跟随主题</option></select></div>
           <button class="set-theme-editor-btn" @click="openThemeEditor">
@@ -120,7 +120,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useSettingsStore, useTheme, useFontStore, ACCENT_PRESETS, CUSTOM_ACCENT_ID, type FontLayer } from '@worldsea/entity-core'
+import { useSettingsStore, useTheme, useFontStore, ACCENT_PRESETS, CUSTOM_ACCENT_ID, quantizeAnchor, type FontLayer } from '@worldsea/entity-core'
 import { useFontPresets, useFontLibraryStore, type FontLibraryEntry, type FontVariantEntry } from '@worldsea/font-kit'
 import { installFromWsfont, installFromRawFont, installFromZip } from '@worldsea/font-kit'
 import WsIcon from '../../WsIcon.vue'

@@ -68,5 +68,9 @@ describe('accentColor OKLCH 派生算法', () => {
     }
     // 已合规的输入应原样通过（量化幂等）
     expect(quantizeAnchor('#4f46e5')).toBe('#4f46e5')
+    // 幂等性：二次量化与一次结果一致（预览色 = 应用色管线前提）
+    for (const input of ['#fef08a', '#ff0000', '#22d3ee']) {
+      expect(quantizeAnchor(quantizeAnchor(input))).toBe(quantizeAnchor(input))
+    }
   })
 })

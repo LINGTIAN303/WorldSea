@@ -31,8 +31,12 @@
             </div>
           </div>
           <div class="cp-preview-row">
-            <div class="cp-swatch" :style="{ background: currentColor }"></div>
-            <input v-model="hexInput" class="cp-hex-input" @change="onHexInput" />
+            <div class="cp-swatch" :style="{ background: currentColor }" title="所选色"></div>
+            <template v-if="showTransformed">
+              <span class="cp-preview-arrow" aria-hidden="true">→</span>
+              <div class="cp-swatch cp-swatch--result" :style="{ background: transformedColor }" title="将应用的合规化色"></div>
+            </template>
+            <input v-model="hexInput" class="cp-hex-input" @change="onHexInput" @focus="hexFocused = true" @blur="hexFocused = false" />
           </div>
           <div class="cp-presets">
             <button v-for="c in presetColors" :key="c" class="cp-preset-btn" :style="{ background: c }" @click="applyPreset(c)"></button>
@@ -53,7 +57,12 @@ import { ref, computed, watch, onMounted, nextTick, onBeforeUnmount } from 'vue'
 import { useResizable, useModalShortcuts } from '@worldsea/ui-kit'
 import WsIcon from '../WsIcon.vue'
 
-const props = defineProps<{ show: boolean; initialColor?: string }>()
+const props = defineProps<{
+  show: boolean
+  initialColor?: string
+  /** 可选的「将应用色」换算（如强调色锚点合规化）：预览行显示 所选色 → 生效色 双块，消除所见非所得 */
+  transform?: (hex: string) => string
+}>()
 const emit = defineEmits<{ close: []; confirm: [color: string] }>()
 const modalResizable = useResizable({ panelId: 'modal-color-picker', defaultWidth: 340, minWidth: 240 })
 
@@ -92,15 +101,24 @@ const hue = ref(0)
 const sat = ref(80)
 const light = ref(50)
 const hexInput = ref('#4a6cf7')
+/** hex 输入框聚焦期间不回写（避免打断手动输入） */
+const hexFocused = ref(false)
 
 const canvasRef = ref<HTMLCanvasElement>()
 const wheelRef = ref<HTMLDivElement>()
 
+// 色环几何（唯一标尺）：S=0 在内缘、S=100 在外缘——盘面渐变/光标半径/取色换算/滑杆四者共用
+const WHEEL_CX = 110, WHEEL_CY = 110, WHEEL_OUTER = 100, WHEEL_INNER = 40
+
+function satToRadius(satPct: number): number {
+  return WHEEL_INNER + (Math.min(100, Math.max(0, satPct)) / 100) * (WHEEL_OUTER - WHEEL_INNER)
+}
+
 const cursorStyle = computed(() => {
   const angle = (hue.value - 90) * Math.PI / 180
-  const r = (sat.value / 100) * 100
-  const cx = 110 + r * Math.cos(angle)
-  const cy = 110 + r * Math.sin(angle)
+  const r = satToRadius(sat.value)
+  const cx = WHEEL_CX + r * Math.cos(angle)
+  const cy = WHEEL_CY + r * Math.sin(angle)
   return {
     left: cx + 'px',
     top: cy + 'px',
@@ -109,6 +127,16 @@ const cursorStyle = computed(() => {
 })
 
 const currentColor = computed(() => hslToHex(hue.value, sat.value, light.value))
+/** 应用换算（如锚点合规化）后的「将生效色」；与所选色一致时不高亮显示 */
+const transformedColor = computed(() => props.transform ? props.transform(currentColor.value) : currentColor.value)
+const showTransformed = computed(() =>
+  !!props.transform && transformedColor.value.toLowerCase() !== currentColor.value.toLowerCase(),
+)
+
+// 滑杆/盘面变化时同步 hex 输入框（聚焦期间不打断手动输入）
+watch([hue, sat, light], () => {
+  if (!hexFocused.value) hexInput.value = currentColor.value
+})
 
 watch(() => props.show, (v) => {
   if (v && props.initialColor) {
@@ -148,20 +176,21 @@ function drawWheel() {
   if (!canvas) return
   const ctx = canvas.getContext('2d')
   if (!ctx) return
-  const cx = 110, cy = 110, outerR = 100, innerR = 40
+  const curL = light.value
 
   ctx.clearRect(0, 0, 220, 220)
 
-  for (let angle = 0; angle < 360; angle += 1) {
-    const startAngle = (angle - 1) * Math.PI / 180
-    const endAngle = (angle + 1) * Math.PI / 180
+  // S=0（内缘，灰）→ S=100（外缘，纯色），与光标半径/取色换算同一标尺
+  for (let angle = 0; angle < 360; angle += 2) {
+    const startAngle = (angle - 1.2) * Math.PI / 180
+    const endAngle = (angle + 1.2) * Math.PI / 180
     ctx.beginPath()
-    ctx.arc(cx, cy, outerR, startAngle, endAngle)
-    ctx.arc(cx, cy, innerR, endAngle, startAngle, true)
+    ctx.arc(WHEEL_CX, WHEEL_CY, WHEEL_OUTER, startAngle, endAngle)
+    ctx.arc(WHEEL_CX, WHEEL_CY, WHEEL_INNER, endAngle, startAngle, true)
     ctx.closePath()
-    const grad = ctx.createRadialGradient(cx, cy, innerR, cx, cy, outerR)
-    grad.addColorStop(0, `hsl(${angle}, 30%, ${light.value}%)`)
-    grad.addColorStop(1, `hsl(${angle}, 100%, ${light.value}%)`)
+    const grad = ctx.createRadialGradient(WHEEL_CX, WHEEL_CY, WHEEL_INNER, WHEEL_CX, WHEEL_CY, WHEEL_OUTER)
+    grad.addColorStop(0, `hsl(${angle}, 0%, ${curL}%)`)
+    grad.addColorStop(1, `hsl(${angle}, 100%, ${curL}%)`)
     ctx.fillStyle = grad
     ctx.fill()
   }
@@ -192,27 +221,27 @@ function onWheelTouchStart(e: TouchEvent) {
 function updateFromWheel(e: MouseEvent) {
   if (!wheelRef.value) return
   const rect = wheelRef.value.getBoundingClientRect()
-  const x = e.clientX - rect.left - 110
-  const y = e.clientY - rect.top - 110
+  const x = e.clientX - rect.left - WHEEL_CX
+  const y = e.clientY - rect.top - WHEEL_CY
   setFromXY(x, y)
 }
 
 function updateFromWheelTouch(e: TouchEvent) {
   if (!wheelRef.value || !e.touches[0]) return
   const rect = wheelRef.value.getBoundingClientRect()
-  const x = e.touches[0].clientX - rect.left - 110
-  const y = e.touches[0].clientY - rect.top - 110
+  const x = e.touches[0].clientX - rect.left - WHEEL_CX
+  const y = e.touches[0].clientY - rect.top - WHEEL_CY
   setFromXY(x, y)
 }
 
 function setFromXY(x: number, y: number) {
   const dist = Math.sqrt(x * x + y * y)
-  const outerR = 100, innerR = 40
-  if (dist < innerR || dist > outerR) return
+  // 越界 clamp 到环上继续跟踪（拖出外缘贴外缘、拖进内孔贴内缘），不再冻结
+  const clamped = Math.min(WHEEL_OUTER, Math.max(WHEEL_INNER, dist))
   let angle = Math.atan2(y, x) * 180 / Math.PI + 90
   if (angle < 0) angle += 360
   hue.value = Math.round(angle)
-  sat.value = Math.round((dist / outerR) * 100)
+  sat.value = Math.round(((clamped - WHEEL_INNER) / (WHEEL_OUTER - WHEEL_INNER)) * 100)
   hexInput.value = currentColor.value
 }
 
@@ -262,7 +291,9 @@ function hslToHex(h: number, s: number, l: number): string {
 }
 
 function hexToHsl(hex: string): { h: number; s: number; l: number } | null {
-  const m = hex.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i)
+  let s = hex.replace('#', '')
+  if (s.length === 3) s = s.split('').map(ch => ch + ch).join('')
+  const m = s.match(/^([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i)
   if (!m) return null
   let r = parseInt(m[1], 16) / 255, g = parseInt(m[2], 16) / 255, b = parseInt(m[3], 16) / 255
   const max = Math.max(r, g, b), min = Math.min(r, g, b)
@@ -299,7 +330,9 @@ function hexToHsl(hex: string): { h: number; s: number; l: number } | null {
 .cp-slider-hue { background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00); }
 .cp-slider-val { font-size: var(--font-size-xs); color: var(--text-tertiary); width: 36px; text-align: right; }
 .cp-preview-row { display: flex; align-items: center; gap: 10px; }
+.cp-preview-arrow { color: var(--text-tertiary); font-size: var(--font-size-sm); }
 .cp-swatch { width: 36px; height: 36px; border-radius: var(--radius-sm); border: 2px solid var(--border, var(--color-border)); flex-shrink: 0; }
+.cp-swatch--result { border-color: var(--accent, var(--color-primary)); }
 .cp-hex-input { flex: 1; padding: 6px 10px; border: 1px solid var(--border, var(--color-border)); border-radius: 4px; background: var(--bg-tertiary, var(--color-bg-elevated)); color: var(--text); font-size: var(--font-size-sm); font-family: monospace; outline: none; }
 .cp-hex-input:focus { border-color: var(--accent, var(--color-primary)); }
 .cp-presets { display: flex; flex-wrap: wrap; gap: 4px; }
