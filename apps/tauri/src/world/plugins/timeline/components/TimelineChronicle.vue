@@ -57,10 +57,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import type { Entity } from '@worldsea/entity-core'
 import type { TreeNode as TreeNodeType } from '../composables/useEventTree'
 import type { TimelineGroup } from '../composables/timelineGroups'
+import { useChronicleCollapse } from '../composables/useChronicleCollapse'
 import EventCard from './EventCard.vue'
 import TreeNode from './TreeNode.vue'
 
@@ -88,15 +89,8 @@ const treeCollapsedSet = computed<Set<string>>(() => {
   return source instanceof Set ? source : source.value
 })
 
-/* 分段折叠：按 group.id 记录，分组模式切换后遗留 id 不影响渲染 */
-const collapsedGroups = ref<Set<string>>(new Set())
-function isCollapsed(id: string) { return collapsedGroups.value.has(id) }
-function toggleGroup(id: string) {
-  const next = new Set(collapsedGroups.value)
-  if (next.has(id)) next.delete(id)
-  else next.add(id)
-  collapsedGroups.value = next
-}
+/* 分段折叠：状态按项目持久化（见 useChronicleCollapse），分组模式切换后遗留 id 不影响渲染 */
+const { isCollapsed, toggleGroup } = useChronicleCollapse()
 const treeRoots = computed<TreeNodeType[]>(() => {
   const source = props.tree.roots
   return Array.isArray(source) ? source : source.value

@@ -4,8 +4,10 @@ import type { Entity, Relation } from '@worldsea/entity-core'
 import { createSimpleCalendar, createThreeEraCalendar } from '../../calendar/defaults'
 import { createCalendarRuntime } from '../../calendar/math'
 import { useTimelinePoints } from '../useTimelinePoints'
-import { buildGroups, periodOf } from '../timelineGroups'
+import { buildGroups, periodOf, type GroupMode } from '../timelineGroups'
 import { useTimelineFilters } from '../useTimelineFilters'
+import { useTimelineGroups } from '../useTimelineGroups'
+import { useEventTree } from '../useEventTree'
 import { useConflictDetection } from '../useConflictDetection'
 import { useTimelineScale } from '../useTimelineScale'
 import { useTimelineSort } from '../useTimelineSort'
@@ -104,6 +106,59 @@ describe('分组：单位 / 期段', () => {
     expect(groups[0].events.map(event => event.id)).toEqual(['x1'])
     expect(groups[1].events.map(event => event.id)).toEqual(['x2'])
     expect(periodOf(periods.value, points.value.get('x1')!.startScalar)!.id).toBe('p2')
+  })
+})
+
+describe('分组树可见顺序（树态 + 分组同开）', () => {
+  const calendar = createSimpleCalendar()
+  const events = [
+    makeEvent('r1', '根一', { date: '第一纪元10年' }),
+    makeEvent('c1', '子一', { date: '第一纪元10年', parentId: 'r1' }),
+    makeEvent('r2', '根二', { date: '第三纪元147年' }),
+    makeEvent('c2', '子二', { date: '第三纪元147年', parentId: 'r2' }),
+  ]
+
+  function setup(groupMode: GroupMode, sortMode: 'chrono' | 'tree', relations: Relation[] = []) {
+    const buckets = setupPoints(events, calendar)
+    const tree = useEventTree(computed(() => events))
+    const filtered = computed(() => tree.flatOrder.value)
+    const groups = useTimelineGroups({
+      verticalEvents: filtered, filteredEvents: filtered,
+      points: buckets.points, calendar: computed(() => calendar),
+      runtime: buckets.runtime, periods: buckets.periods,
+      relations: computed(() => relations),
+      entityMap: computed(() => new Map(events.map(event => [event.id, event]))),
+      groupMode: ref(groupMode), tree, sortMode: ref(sortMode),
+    })
+    return { tree, groups, ids: () => groups.chronicleOrder.value.map(event => event.id) }
+  }
+
+  it('段由根事件归属决定，子事件跟随父链，顺序 = 段序 + 组内树序', () => {
+    const { groups, ids } = setup('unit:era', 'tree')
+    expect(groups.chronicleGroups.value.map(group => group.label)).toEqual(['第一纪元', '第三纪元'])
+    expect(ids()).toEqual(['r1', 'c1', 'r2', 'c2'])
+  })
+
+  it('折叠父节点时整棵子树截断，被折叠节点自身仍在序列里', () => {
+    const { tree, ids } = setup('unit:era', 'tree')
+    tree.toggleCollapse('r1')
+    expect(ids()).toEqual(['r1', 'r2', 'c2'])
+  })
+
+  it('时序态忽略折叠，返回全量筛选结果', () => {
+    const { tree, ids } = setup('unit:era', 'chrono')
+    tree.collapseAll()
+    expect(ids()).toEqual(['r1', 'c1', 'r2', 'c2'])
+  })
+
+  it('同一事件被多个组收录时只计首次出现（导航不重复）', () => {
+    const relations = [
+      { id: 'x1', type: 'involves', sourceId: 'r1', targetId: 'ch1' },
+      { id: 'x2', type: 'involves', sourceId: 'r1', targetId: 'ch2' },
+    ] as Relation[]
+    const { ids } = setup('character', 'tree', relations)
+    expect(ids().filter(id => id === 'r1')).toHaveLength(1)
+    expect(ids()).toEqual(['r1', 'c1', 'r2', 'c2'])
   })
 })
 

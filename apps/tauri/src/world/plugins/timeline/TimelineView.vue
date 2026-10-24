@@ -245,11 +245,9 @@ const {
   { points, periods, calendar: activeCalendar, layoutMode },
   (settingsStore as any).timelineDefaultGroup ?? 'none',
 )
-const { nav, step } = useTimelineNeighbors(selectedEvent, filteredEvents, selectEvent)
-
 /* ── 分页（2026-10-01，与 GEV 同一口径：只切「渲染哪一段」，filteredEvents 仍全量——
  * 冲突检测、批量删除取名、跨页选中都吃全量，不随翻页变化）── */
-const { page, totalPages, pagedList: pagedEvents, pagePrev, pageNext, resetPage } = useEntityPaging(filteredEvents, 100)
+const { page, totalPages, pagedList: pagedEvents, pagePrev, pageNext, resetPage, revealIndex } = useEntityPaging(filteredEvents, 100)
 /** 可分页形态 = 竖向 + 时序表（横向画布吃全量时间跨度；大纲树分页会丢页外子节点） */
 const pageable = computed(() => layoutMode.value === 'vertical' && sortMode.value === 'chrono')
 // 离开可分页形态即回第 1 页：否则切回来时停在上次那页，像是「事件少了」
@@ -258,11 +256,13 @@ watch([searchQuery, unitFilter, periodFilter, importanceFilter], resetPage)
 
 /* ── 两态分组派生（画布剔除其他历法事件；编年史保留尾组）── */
 const verticalEvents = computed(() => pageable.value ? pagedEvents.value : filteredEvents.value)
-const { canvasEvents, chronicleGroups, canvasGroups } = useTimelineGroups({
+const { canvasEvents, chronicleGroups, canvasGroups, chronicleOrder } = useTimelineGroups({
   verticalEvents, filteredEvents, points, calendar: activeCalendar, runtime, periods,
-  relations: computed(() => relationStore.relations), groupMode,
+  relations: computed(() => relationStore.relations), groupMode, tree, sortMode,
   entityMap: computed(() => entityStore.entityMap),
 })
+/** 详情邻接导航按屏幕顺序步进：树态用分组 + 折叠后的可见顺序，时序态用全量（跨页自动翻） */
+const { nav, step } = useTimelineNeighbors(selectedEvent, filteredEvents, selectEvent, { mode: sortMode, treeOrder: chronicleOrder })
 
 function involvedEntities(eventId: string): Entity[] {
   const rels = relationStore.relations.filter(r => r.type === 'involves' && r.sourceId === eventId)
@@ -283,8 +283,9 @@ function focusInCanvas(id: string) { layoutMode.value = 'horizontal'; nextTick((
 function selectEvent(event: Entity) {
   selectedEvent.value = event
   if (sortMode.value === 'tree') expandTo(event.id)
+  // 分页形态下选中目标可能在页外（详情邻接导航）：翻到所在页，别让详情选中的事件在列表里失踪
+  else if (pageable.value) revealIndex(filteredEvents.value.findIndex(e => e.id === event.id))
 }
-
 /** 跨视图/冲突跳转：按 id 选中并聚焦（类型不符 no-op，与 GEV 的 selectById 同口径） */
 function selectEventById(id: string): void {
   const entity = entityStore.entityMap.get(id)
@@ -300,7 +301,6 @@ const openNewFormFromCanvas = (preset: { date: string; dateEnd?: string; calenda
 function onWsSelectEntity(e: Event) {
   selectEventById(((e as CustomEvent).detail?.entityId as string | undefined) ?? '')
 }
-
 // ── 事件详情面板（原私有 EventDetailPanel 逻辑收敛到通用 EntityDetailPanel）──
 const detailActiveTab = ref('info')
 /** 载体实例（ALT+←/→ 程序化切页要经它；契约同 GEV 的 detailPanelRef） */
