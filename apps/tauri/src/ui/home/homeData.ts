@@ -48,6 +48,10 @@ export interface HomeFeaturedBook {
 export interface HomeActivity {
   /** 本地日 YYYY-MM-DD → 当日有创建/最后更新的实体/关系数（同一天同一内容只计一次） */
   daily: Record<string, number>
+  /** 当日实体名（按最后更新倒序，最多 3 个） */
+  dayNames: Record<string, string[]>
+  /** 当日涉及的关系条数（与 daily 合并计数；用于 tooltip 说明） */
+  dayRelationCounts: Record<string, number>
   total: number
   activeDays: number
   maxCount: number
@@ -116,9 +120,45 @@ function buildActivity(entities: readonly Entity[], relations: readonly Relation
   }
   const daily: Record<string, number> = {}
   for (const [day, set] of dailySets) daily[day] = set.size
+
+  // 当日实体名（去重、按最后更新倒序，最多 3 个）与关系条数，供 tooltip 说明
+  const dayEntityMap = new Map<string, Map<string, { name: string; updatedAt: string }>>()
+  for (const e of entities) {
+    for (const iso of [e.createdAt, e.updatedAt]) {
+      const day = localDayKey(iso)
+      if (!day) continue
+      const map = dayEntityMap.get(day) ?? new Map<string, { name: string; updatedAt: string }>()
+      map.set(e.id, { name: e.name, updatedAt: e.updatedAt })
+      dayEntityMap.set(day, map)
+    }
+  }
+  const dayNames: Record<string, string[]> = {}
+  for (const [day, map] of dayEntityMap) {
+    const names = [...map.values()]
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+      .map(x => x.name)
+      .filter((name, index, list) => list.indexOf(name) === index)
+      .slice(0, 3)
+    dayNames[day] = names
+  }
+  const dayRelationSets = new Map<string, Set<string>>()
+  for (const r of relations) {
+    for (const iso of [r.createdAt, r.updatedAt]) {
+      const day = localDayKey(iso)
+      if (!day) continue
+      const set = dayRelationSets.get(day) ?? new Set<string>()
+      set.add(r.id)
+      dayRelationSets.set(day, set)
+    }
+  }
+  const dayRelationCounts: Record<string, number> = {}
+  for (const [day, set] of dayRelationSets) dayRelationCounts[day] = set.size
+
   const counts = Object.values(daily)
   return {
     daily,
+    dayNames,
+    dayRelationCounts,
     total: counts.reduce((sum, n) => sum + n, 0),
     activeDays: counts.length,
     maxCount: counts.length ? Math.max(...counts) : 0,

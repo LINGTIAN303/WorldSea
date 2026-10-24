@@ -111,7 +111,11 @@
 
         <HomeAssetMap :domains="data.domains" @enter="onEnterView" @entity="onEnterEntity" />
 
-        <HomeActivity :daily="data.activity.daily" />
+        <HomeActivity
+          :daily="data.activity.daily"
+          :day-names="data.activity.dayNames"
+          :day-relation-counts="data.activity.dayRelationCounts"
+        />
 
         <div class="home-split" :class="{ 'is-single': !data.featuredBook }">
           <section class="home-section home-recent">

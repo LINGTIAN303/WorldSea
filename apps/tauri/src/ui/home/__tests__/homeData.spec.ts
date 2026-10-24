@@ -123,6 +123,8 @@ describe('buildHomeData', () => {
     expect(activity.maxCount).toBe(1)
     expect(activity.total).toBe(7)
     expect(Object.keys(activity.daily)).toHaveLength(7)
+    expect(Object.values(activity.dayNames).flat()).toContain('乔2')
+    expect(activity.dayRelationCounts).toEqual({})
   })
 
   it('矩阵摘要：字段数降序、关系类型数按类型计', () => {

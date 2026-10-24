@@ -51,7 +51,7 @@ function fixture(): HomeData {
       id: 'b1', name: '书', description: '书简介', coverImage: '', chapterCount: 2, wordCount: 2000, viewId: 'manuscript',
       latestChapter: { id: 'm1', name: '第一章', updatedAt: '2026-10-23T10:00:00Z' },
     },
-    activity: { daily: {}, total: 0, activeDays: 0, maxCount: 0 },
+    activity: { daily: {}, dayNames: {}, dayRelationCounts: {}, total: 0, activeDays: 0, maxCount: 0 },
     matrixRows: [{ type: 'character', label: '角色', sproutLabel: '角色', fieldCount: 2, requiredCount: 1, relationTypeCount: 1 }],
     matrixStats: { buds: 27, entities: 1, instances: 3, keys: 2, traits: 0, facets: 0 },
     matrixRelationTypeCount: 1,

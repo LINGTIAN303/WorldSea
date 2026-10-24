@@ -548,14 +548,22 @@
   border-radius: 2px;
   background: var(--bg-muted);
 }
+.home-heat-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
 .home-heat-legend {
   display: flex;
   align-items: center;
   gap: 4px;
-  margin-top: 10px;
   font-size: var(--fs-xs);
   color: var(--text-muted);
 }
+.home-heat-summary { font-size: var(--fs-xs); color: var(--text-muted); }
 .home-heat-legend i {
   display: inline-block;
   width: 10px;

@@ -29,10 +29,13 @@
             </div>
           </div>
         </div>
-        <div class="home-heat-legend" aria-hidden="true">
-          <span>少</span>
-          <i v-for="level in LEVELS" :key="level" :class="`is-l${level}`"></i>
-          <span>多</span>
+        <div class="home-heat-foot">
+          <div class="home-heat-legend" aria-hidden="true">
+            <span>少</span>
+            <i v-for="level in LEVELS" :key="level" :class="`is-l${level}`"></i>
+            <span>多</span>
+          </div>
+          <span class="home-heat-summary">近 53 周活跃 {{ windowActiveDays }} 天 · 最高 {{ windowMax }} 项/天</span>
         </div>
       </div>
 
@@ -78,6 +81,10 @@ import { WsIcon } from '@worldsea/ui-kit'
 const props = defineProps<{
   /** 本地日 YYYY-MM-DD → 当日活跃内容数 */
   daily: Record<string, number>
+  /** 当日实体名（最多 3 个） */
+  dayNames?: Record<string, string[]>
+  /** 当日关系条数 */
+  dayRelationCounts?: Record<string, number>
   /** 测试注入的「今天」；运行时留空取本机当天 */
   today?: string
 }>()
@@ -104,6 +111,16 @@ function addDays(date: Date, days: number): Date {
 function levelOf(count: number, max: number): number {
   if (count <= 0 || max <= 0) return 0
   return Math.min(4, Math.max(1, Math.ceil((count / max) * 4)))
+}
+
+function dayTip(date: string, count: number): string {
+  if (!count) return `${date} · 无更新`
+  const names = props.dayNames?.[date] ?? []
+  const relations = props.dayRelationCounts?.[date] ?? 0
+  if (!names.length) return `${date} · ${count} 项${relations ? `：${relations} 条关系` : ''}`
+  const moreNames = count > names.length + relations ? '…' : ''
+  const relPart = relations ? ` · 另有 ${relations} 条关系` : ''
+  return `${date} · ${count} 项：${names.join('、')}${moreNames}${relPart}`
 }
 
 const todayKey = computed(() => props.today ?? toKey(new Date()))
@@ -138,7 +155,7 @@ const weeks = computed(() => {
         date,
         count,
         level: levelOf(count, windowMax.value),
-        title: `${date} · ${count ? `${count} 项内容` : '无更新'}`,
+        title: dayTip(date, count),
         dateObj,
       })
     }
@@ -152,7 +169,8 @@ const weeks = computed(() => {
 })
 
 const heatCells = computed(() => weeks.value.flatMap(w => w.cells))
-const heatmapSummary = computed(() => `近 53 周创作活跃度，最高一天 ${windowMax.value} 项内容`)
+const windowActiveDays = computed(() => heatCells.value.filter(c => c.count > 0).length)
+const heatmapSummary = computed(() => `近 53 周创作活跃度，活跃 ${windowActiveDays.value} 天，最高一天 ${windowMax.value} 项内容`)
 
 /** 月历：周一开头，可翻近 12 个月（含本月） */
 const monthOffset = ref(0)
@@ -192,7 +210,7 @@ const calendarWeeks = computed(() => {
       count,
       isToday,
       isFuture,
-      title: isFuture ? date : `${date} · ${count ? `${count} 项内容` : '无更新'}`,
+      title: isFuture ? date : dayTip(date, count),
       className: classes.join(' '),
     })
   }
