@@ -130,13 +130,13 @@ export function buildHomeData(input: HomeDataInput): HomeData {
     const entityCount = domainSprouts.length === 0
       ? null
       : [...typeSet].reduce((sum, type) => sum + (typeCounts.get(type) ?? 0), 0)
-    // 先按「有可见视图」过滤再取前 3：不可跳转的类型若先占位，会挤掉后面可跳转的条目
+    // 先按「有可见视图」过滤再取前 2：不可跳转的类型若先占位，会挤掉后面可跳转的条目
     const recentEntities: HomeDomainRecent[] = entities
       .filter(e => typeSet.has(e.type))
       .map(entity => ({ entity, view: typeToView(entity.type) }))
       .filter((x): x is { entity: Entity; view: PluginView } => Boolean(x.view))
       .sort((a, b) => byUpdatedDesc(a.entity, b.entity))
-      .slice(0, 3)
+      .slice(0, 2)
       .map(({ entity, view }) => ({
         id: entity.id, name: entity.name, type: entity.type, updatedAt: entity.updatedAt, viewId: view.id,
       }))

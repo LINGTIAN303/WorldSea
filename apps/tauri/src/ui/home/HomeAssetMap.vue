@@ -32,7 +32,7 @@
 
         <div class="home-domain-sprouts">
           <button
-            v-for="s in d.activeSprouts.slice(0, 3)"
+            v-for="s in d.activeSprouts.slice(0, 2)"
             :key="s.id"
             type="button"
             class="home-chip"
@@ -40,7 +40,7 @@
           >
             <WsIcon :name="s.icon" size="xs" />{{ s.label }}
           </button>
-          <span v-if="d.activeSprouts.length > 3" class="home-chip is-muted">+{{ d.activeSprouts.length - 3 }}</span>
+          <span v-if="d.activeSprouts.length > 2" class="home-chip is-muted">+{{ d.activeSprouts.length - 2 }}</span>
           <span v-if="d.activeSprouts.length === 0" class="home-muted">该域暂无启用芽</span>
         </div>
 

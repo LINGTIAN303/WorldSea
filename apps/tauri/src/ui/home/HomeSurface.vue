@@ -36,7 +36,7 @@
         <TuiButton size="sm" variant="secondary" @click="reload">重试</TuiButton>
       </div>
 
-      <template v-if="loading || !data">
+      <template v-if="loading">
         <section class="home-section">
           <h2 class="home-sr-only">世界速览</h2>
           <div class="home-kpi-grid">
@@ -48,9 +48,29 @@
             <WsSkeleton v-for="n in 8" :key="n" variant="card" label="正在载入资产地图" :aria-hidden="n > 1 || undefined" />
           </div>
         </section>
+        <div class="home-split">
+          <section class="home-section home-recent">
+            <header class="home-section-head">
+              <h2>最近动态</h2>
+              <span class="home-section-note">当前启用的芽</span>
+            </header>
+            <WsSkeleton v-for="n in 6" :key="n" variant="row" label="正在载入最近动态" :aria-hidden="n > 1 || undefined" />
+          </section>
+          <section class="home-section home-featured">
+            <header class="home-section-head">
+              <h2>近期写作</h2>
+              <span class="home-section-note">正文</span>
+            </header>
+            <WsSkeleton variant="card" label="正在载入近期写作" />
+          </section>
+        </div>
+        <section class="home-section">
+          <h2 class="home-sr-only">字段矩阵</h2>
+          <WsSkeleton variant="card" label="正在载入字段矩阵" />
+        </section>
       </template>
 
-      <template v-else>
+      <template v-else-if="data">
         <section class="home-section home-snapshot">
           <h2 class="home-sr-only">世界速览</h2>
           <div class="home-kpi-grid">
@@ -151,6 +171,12 @@
           @open="onOpenMatrix"
         />
       </template>
+
+      <WsEmpty
+        v-else-if="!error"
+        title="暂时没有可展示的世界数据"
+        description="可在工作台创建内容后回到首页。"
+      />
 
       <footer class="home-footer">WorldSea · 项目首页</footer>
     </div>

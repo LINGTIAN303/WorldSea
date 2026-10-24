@@ -53,6 +53,17 @@
 
 `timelineGroups.periodOf` 只把事件归到最深一层期段；父段没有直属事件时不产生空组。筛选按期段包含关系（父段筛选包含子段内事件）。
 
+### 3.8 分组树的可见顺序口径
+
+树态与分组同开时，屏幕顺序按四条规则（也是详情邻接导航 `N / M` 的取序）：
+
+1. **段由根事件的归属决定**：段序沿用分组派生（单位取值序 / 期段起始序 / 名称序，其他历法与未定时间尾置），组内只取属于该组的根节点。
+2. **子事件不单独参与分组**：跟随父链渲染——父在哪个段，整棵子树就在哪个段。
+3. **组内顺序 = 树 DFS 序**；折叠父节点时整棵子树截断，被折叠节点自身仍可见。
+4. **同序导航**：`N / M` 与滚动列表同序；同一事件被多个组收录（如多角色）只计**首次出现**，避免「下一个」原地打转。
+
+实现落在 `useTimelineGroups` 的 `chronicleOrder`：树态产出该顺序；时序态直接返回全量筛选结果，配合分页 `revealIndex` 跨页翻页。
+
 ## 4. 交互模型（T4）
 
 - **创建**：空白单击 → 单点事件；空白拖拽 → 区间事件。落点按 `labelLevel` 吸附，表单通过 `EntityFormModal` 的 `preset` 预填。
@@ -62,11 +73,15 @@
 - **批量**：批量态空白拖拽 = 框选；事件条点击 = 切换选中。
 - **键盘**：方向键移动 DOM 焦点（元素自带 Enter 打开），`+/-` 缩放，`Home` 适配，Esc 关闭详情/退出批量。
 - **筛选反馈**：筛选条显示「显示 N · 已隐藏 M」并提供「清除筛选」，避免筛掉事件后无从察觉。
+- **详情导航**：详情顶部「‹ N / M ›」按当前**可见序列**步进（口径见 3.8：树态含分组与折叠，时序态跨页自动翻页）；「在画布中查看」切横态并定位。
+- **分段折叠**：编年史段标题可折叠，状态按项目存 localStorage（`worldsea_timeline_collapsed_groups:<projectId>`），视图重载 / 切换视图后保持。
 - **撤销**：拖拽写回走 `entityStore.update`，天然进撤销栈。
 
 ## 5. 持久化与项目迁移
 
 项目库 `project_settings` 键：`timeline_calendar_index` / `timeline_calendar_<id>` / `timeline_active_calendar` / `timeline_migrated_v1`；localStorage 同键名兜底。
+
+纯 UI 态（编年史分段折叠）只进 localStorage，按项目隔离：`worldsea_timeline_collapsed_groups:<projectId>`，不随项目导出；分组模式切换后遗留 id 不匹配即自然忽略。
 
 随项目迁移通过 `calendar/projectExtras.ts` 注册两个扩展点（核心只搬运，不认识历法结构）：
 
@@ -89,5 +104,8 @@
 ## 7. 守卫与测试
 
 - `calendar/__tests__/calendar.spec.ts`：内核往返、闰、命名纪元、周期、迁移、持久化与导入快照。
-- `composables/__tests__/timelineViews.spec.ts`：解析/foreign/未定时间、分组、筛选、冲突、标尺层级、吸附往返、排序。
+- `composables/__tests__/timelineViews.spec.ts`：解析/foreign/未定时间、分组、筛选、冲突、标尺层级、吸附往返、排序；分组树可见顺序（段序 + 组内树序、折叠截断、多组去重）。
+- `composables/__tests__/useTimelineNeighbors.spec.ts`：详情邻接导航步进、树态按 `treeOrder` 步进、隐藏选中时索引为 -1。
+- `composables/__tests__/useChronicleCollapse.spec.ts`：分段折叠按项目持久化、非法存储回落。
+- `packages/plugin-sdk/.../useEntityPaging.spec.ts`：分页切片/收敛/重置，以及 `revealIndex` 跨页翻页。
 - `__tests__/timelineGuards.spec.ts`：禁止硬编码纪元数学与直读 `properties.era`（迁移层豁免）；「拖拽改时间」必须有消费方；导出/导入两条链接线不得掉。

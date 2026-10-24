@@ -23,6 +23,20 @@ describe('HomeAssetMap', () => {
     expect(w.find('.home-domain-bar').exists()).toBe(false)
   })
 
+  it('代表芽最多 2 个，溢出显示 +N', () => {
+    const domain: HomeDomain = {
+      ...domains[0],
+      activeSprouts: [
+        { id: 'a', label: 'A', icon: 'user', viewId: 'v1' },
+        { id: 'b', label: 'B', icon: 'user', viewId: 'v2' },
+        { id: 'c', label: 'C', icon: 'user', viewId: 'v3' },
+      ],
+    }
+    const w = mount(HomeAssetMap, { props: { domains: [domain] } })
+    expect(w.findAll('.home-chip:not(.is-muted)')).toHaveLength(2)
+    expect(w.find('.home-chip.is-muted').text()).toBe('+1')
+  })
+
   it('渲染域卡、空域禁用、点击芽/实体/进入派发', async () => {
     const w = mount(HomeAssetMap, { props: { domains } })
     const cards = w.findAll('.home-domain')

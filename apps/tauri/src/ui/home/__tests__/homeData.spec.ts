@@ -103,6 +103,7 @@ describe('buildHomeData', () => {
     expect(d.domains.find(x => x.id === 'goods')?.entityCount).toBeNull()
     expect(d.domains.find(x => x.id === 'life')?.activeSprouts[0].viewId).toBe('characters')
     expect(d.domains.find(x => x.id === 'life')?.recentEntities.map(e => e.name)).toEqual(['乔2', '乔'])
+    expect(d.domains.find(x => x.id === 'narrative')?.recentEntities).toHaveLength(2)
   })
 
   it('最近动态按 updatedAt 倒序、只取可见类型', () => {

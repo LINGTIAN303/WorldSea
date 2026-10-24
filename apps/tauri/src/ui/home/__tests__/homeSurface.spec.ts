@@ -99,6 +99,7 @@ describe('HomeSurface', () => {
     const w = mount(HomeSurface)
     expect(w.find('.home-hero h1').text()).toBe('纯真')
     expect(w.findAll('.home-kpi-grid .ws-skeleton')).toHaveLength(4)
+    expect(w.findAll('.home-split .ws-skeleton')).toHaveLength(7)
     expect(w.find('.home-meta').exists()).toBe(false)
     expect(w.find('.home-footer').text()).not.toContain('暂无内容')
   })
@@ -204,6 +205,8 @@ describe('HomeSurface', () => {
     loading.value = false
     const w = mount(HomeSurface)
     expect(w.find('.home-inline-error').text()).toContain('加载失败')
+    expect(w.find('.home-kpi-grid').exists()).toBe(false)
+    expect(w.find('.ws-empty').exists()).toBe(false)
     await w.find('.home-inline-error button').trigger('click')
     expect(reload).toHaveBeenCalled()
   })
