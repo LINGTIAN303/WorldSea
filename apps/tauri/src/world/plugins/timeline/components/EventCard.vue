@@ -1,7 +1,7 @@
 <template>
   <div
     class="event-card"
-    :class="{ highlighted: highlighted, 'is-range': isRange, compact, 'batch-selected': batchSelected, 'batch-mode': batchMode }"
+    :class="{ highlighted: highlighted, 'is-range': isRange, compact, 'batch-selected': batchSelected, 'batch-mode': batchMode, 'is-peer': peer }"
     role="button"
     tabindex="0"
     :aria-label="batchMode ? `选中事件 ${event.name}` : `打开事件 ${event.name}`"
@@ -41,6 +41,8 @@ const props = withDefaults(defineProps<{
   batchMode?: boolean
   compact?: boolean
   breadcrumb?: string
+  /** 冲突对位高亮（另一方）：琥珀色虚线环，不参与选中 */
+  peer?: boolean
 }>(), {
   compact: false,
   breadcrumb: '',
@@ -114,6 +116,8 @@ const statusClass = computed(() => {
 .event-card.is-range {
   border-left: 3px solid var(--primary);
 }
+/* 冲突对位：琥珀虚线环，与选中（主色实心环）区分 */
+.event-card.is-peer { outline: 2px dashed var(--warning); outline-offset: 2px; }
 .event-card.compact {
   padding: 4px 10px;
   display: flex;

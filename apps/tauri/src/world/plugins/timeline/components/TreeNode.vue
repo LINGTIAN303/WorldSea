@@ -20,6 +20,7 @@
       :event="node.entity"
       :data-event-id="node.entity.id"
       :highlighted="isSelected"
+      :peer="peerIds?.has(node.entity.id)"
       :batch-selected="isBatchSelected"
       :batch-mode="batchMode"
       :compact="compact"
@@ -41,6 +42,7 @@
       :collapsed-set="collapsedSet"
       :selected-event-id="selectedEventId"
       :selected-ids="selectedIds"
+      :peer-ids="peerIds"
       :batch-mode="batchMode"
       :compact="compact"
       :parent-names="[...parentNames, node.entity.name]"
@@ -65,6 +67,8 @@ const props = defineProps<{
   collapsedSet: Set<string>
   selectedEventId: string | null
   selectedIds: Set<string>
+  /** 冲突对位高亮（只加环不选中） */
+  peerIds?: Set<string>
   batchMode?: boolean
   compact: boolean
   parentNames: string[]

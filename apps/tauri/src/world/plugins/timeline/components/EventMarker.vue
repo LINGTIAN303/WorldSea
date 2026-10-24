@@ -1,7 +1,7 @@
 <template>
   <div
     class="event-marker"
-    :class="[importanceClass, { selected: isSelected, fuzzy, occurrence }]"
+    :class="[importanceClass, { selected: isSelected, fuzzy, occurrence, 'is-peer': peer }]"
     :style="markerStyle"
     role="button"
     tabindex="0"
@@ -37,6 +37,8 @@ const props = defineProps<{
   fuzzy?: boolean
   /** 周期展开出的虚拟 occurrence：空心小点 */
   occurrence?: boolean
+  /** 冲突对位高亮（另一方）：琥珀色圆环，不参与选中 */
+  peer?: boolean
 }>()
 
 defineEmits<{
@@ -104,6 +106,8 @@ const displayDate = computed(() =>
 
 /* 模糊日期：虚线描边，与精确事件区分 */
 .event-marker.fuzzy .marker-dot { border-style: dashed; }
+/* 冲突对位：琥珀色圆环，与选中（主色）区分 */
+.event-marker.is-peer .marker-dot { box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning) 40%, transparent); }
 /* 周期 occurrence：空心小点，点击仍打开基础事件 */
 .event-marker.occurrence .marker-dot {
   width: 8px;

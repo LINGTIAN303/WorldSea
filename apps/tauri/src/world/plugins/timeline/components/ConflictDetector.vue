@@ -23,8 +23,8 @@
         :key="i"
         class="cf-item"
         :class="[c.type, { fuzzy: c.fuzzy }]"
-        :title="`点击定位到「${c.entities[0]}」`"
-        @click="$emit('focus', c.eventIds[0])"
+        :title="`定位「${c.entities[0]}」并高亮双方`"
+        @click="$emit('focus', c.eventIds[0], c.eventIds[1])"
       >
         <div class="cf-item-head">
           <span class="cf-type">{{ typeLabel(c.type) }}</span>
@@ -38,8 +38,8 @@
             :key="`${name}-${idx}`"
             type="button"
             class="cf-entity"
-            :title="`定位到「${name}」`"
-            @click.stop="$emit('focus', c.eventIds[idx])"
+            :title="`定位到「${name}」（另一方同时高亮）`"
+            @click.stop="$emit('focus', c.eventIds[idx], c.eventIds[1 - idx])"
           >{{ name }}</button>
         </div>
       </div>
@@ -63,7 +63,8 @@ const props = withDefaults(defineProps<{
 
 defineEmits<{
   close: []
-  focus: [eventId: string]
+  /** 定位方 + 对位方（对位方只高亮不选中，便于同时看到冲突双方） */
+  focus: [eventId: string, peerId: string]
 }>()
 
 const preciseCount = computed(() => props.conflicts.filter(item => !item.fuzzy).length)

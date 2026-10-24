@@ -28,6 +28,7 @@
           :collapsed-set="treeCollapsedSet"
           :selected-event-id="selectedEventId"
           :selected-ids="selectedIds"
+          :peer-ids="peerIds"
           :batch-mode="batchMode"
           :compact="compactMode"
           :parent-names="[]"
@@ -44,6 +45,7 @@
             :event="event"
             :data-event-id="event.id"
             :highlighted="selectedEventId === event.id"
+            :peer="peerIds?.has(event.id)"
             :batch-selected="selectedIds.has(event.id)"
             :batch-mode="batchMode"
             :compact="compactMode"
@@ -76,6 +78,8 @@ const props = defineProps<{
   compactMode: boolean
   selectedEventId: string | null
   selectedIds: Set<string>
+  /** 冲突对位高亮（只加环不选中） */
+  peerIds?: Set<string>
   batchMode?: boolean
 }>()
 

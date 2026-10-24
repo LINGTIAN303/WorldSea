@@ -27,6 +27,7 @@
               :pixel-width="itemWidth(item)"
               :pixel-y="itemY(item)"
               :is-selected="selectedEventId === item.event.id || selectedIds.has(item.event.id)"
+              :peer="peerIds?.has(item.event.id)"
               :is-dragging="drag.activeId.value === item.event.id"
               :draggable="dragEnabled === true"
               :child-count="0"
@@ -43,6 +44,7 @@
               :pixel-x="itemX(item)"
               :pixel-y="itemY(item)"
               :is-selected="selectedEventId === item.event.id || selectedIds.has(item.event.id)"
+              :peer="peerIds?.has(item.event.id)"
               :display-text="item.occurrenceText"
               :fuzzy="pointOf(item)?.fuzzy"
               :occurrence="!!item.occurrenceText"
@@ -111,6 +113,8 @@ const props = defineProps<{
   bands: AxisBand[]
   selectedEventId: string | null
   selectedIds: Set<string>
+  /** 冲突对位高亮（只加环不选中） */
+  peerIds?: Set<string>
   batchMode?: boolean
   /** 「拖拽改时间」设置：关闭时事件条不可移动/拉伸 */
   dragEnabled?: boolean
@@ -256,16 +260,11 @@ const minimapPositions = computed(() => {
 
 /* 滚轮：Ctrl/⌘ 缩放、Shift 横向平移；其余交给浏览器纵向滚动泳道 */
 function onWheel(event: WheelEvent) {
-  if (event.ctrlKey || event.metaKey) {
-    event.preventDefault()
-    if (event.deltaY < 0) scale.zoomIn()
-    else scale.zoomOut()
-    return
-  }
-  if (event.shiftKey) {
-    event.preventDefault()
-    scale.panBy(event.deltaY)
-  }
+  if (!event.ctrlKey && !event.metaKey && !event.shiftKey) return
+  event.preventDefault()
+  if (event.shiftKey && !event.ctrlKey && !event.metaKey) scale.panBy(event.deltaY)
+  else if (event.deltaY < 0) scale.zoomIn()
+  else scale.zoomOut()
 }
 
 /** 键盘焦点移到视口外的事件时，把画布平移到它 */

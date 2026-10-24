@@ -1,7 +1,7 @@
 <template>
   <div
     class="event-bar"
-    :class="[importanceClass, { selected: isSelected, 'is-dragging': isDragging, fuzzy, draggable }]"
+    :class="[importanceClass, { selected: isSelected, 'is-dragging': isDragging, fuzzy, draggable, 'is-peer': peer }]"
     :style="barStyle"
     role="button"
     tabindex="0"
@@ -46,6 +46,8 @@ const props = defineProps<{
   cycle?: boolean
   /** 「拖拽改时间」开启：显示抓取光标与两端拉伸手柄 */
   draggable?: boolean
+  /** 冲突对位高亮（另一方）：琥珀色虚线环，不参与选中 */
+  peer?: boolean
 }>()
 
 defineEmits<{
@@ -109,6 +111,8 @@ const displayDate = computed(() => {
   z-index: 10;
 }
 .event-bar.fuzzy { border-style: dashed; }
+/* 冲突对位：与选中区分开（选中=实心环，对位=琥珀虚线环） */
+.event-bar.is-peer { outline: 2px dashed var(--warning); outline-offset: 2px; }
 .event-bar.draggable { cursor: grab; }
 .event-bar.draggable:active { cursor: grabbing; }
 /* 两端拉伸手柄：只在可拖拽时出现，热区与拖拽判定一致（6px） */

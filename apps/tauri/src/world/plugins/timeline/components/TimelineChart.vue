@@ -27,6 +27,7 @@
       :compact-mode="compactMode"
       :selected-event-id="selectedEventId"
       :selected-ids="selectedIds"
+      :peer-ids="peerIds"
       :batch-mode="batchMode"
       @select-event="$emit('selectEvent', $event)"
       @toggle-select="$emit('toggleSelect', $event)"
@@ -45,6 +46,7 @@
       :bands="bands"
       :selected-event-id="selectedEventId"
       :selected-ids="selectedIds"
+      :peer-ids="peerIds"
       :batch-mode="batchMode"
       :drag-enabled="dragEnabled"
       @select-event="$emit('selectEvent', $event)"
@@ -95,6 +97,8 @@ const props = defineProps<{
   bands: AxisBand[]
   selectedEventId: string | null
   selectedIds: Set<string>
+  /** 冲突对位高亮（只加环不选中） */
+  peerIds?: Set<string>
   batchMode?: boolean
   loading: boolean
   loaded: boolean

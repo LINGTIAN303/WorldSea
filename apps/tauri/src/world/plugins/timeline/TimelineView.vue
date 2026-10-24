@@ -51,6 +51,7 @@
       :bands="axisBands"
       :selected-event-id="selectedEvent?.id ?? null"
       :selected-ids="selectedIds"
+      :peer-ids="conflictPeerIds"
       :batch-mode="selecting"
       :loading="chartLoading"
       :loaded="eventsLoaded"
@@ -193,6 +194,8 @@ const eventsLoaded = ref(false)
 const showForm = ref(false)
 const showConflicts = ref(false)
 const selectedEvent = ref<Entity | null>(null)
+/** 冲突对位高亮：只加环不选中，下一次选中即清除 */
+const conflictPeerIds = ref<Set<string>>(new Set())
 // 载体走与 GEV 同一套解析（用户按类型覆写 > 缺省抽屉）；时间线没有芽声明这一层
 const { carrierDef, detailPanelId, isSplit, isImmersive } = useDetailCarrier(() => 'event')
 const splitCarrierOpen = computed(() => isSplit.value && !!selectedEvent.value)
@@ -272,6 +275,7 @@ function focusEventInView(id: string): void {
 function focusInCanvas(id: string) { layoutMode.value = 'horizontal'; nextTick(() => chartRef.value?.focusEvent(id)) }
 function selectEvent(event: Entity) {
   selectedEvent.value = event
+  conflictPeerIds.value = new Set()
   if (sortMode.value === 'tree') expandTo(event.id)
   // 分页形态下选中目标可能在页外（详情邻接导航）：翻到所在页，别让详情选中的事件在列表里失踪
   else if (pageable.value) revealIndex(filteredEvents.value.findIndex(e => e.id === event.id))
@@ -287,9 +291,10 @@ function onEventMenu(event: Entity, action: TimelineEventAction) {
 /** 跨视图/冲突跳转：按 id 选中并聚焦（类型不符 no-op，与 GEV 的 selectById 同口径） */
 function selectEventById(id: string): void {
   const entity = entityStore.entityMap.get(id)
-  if (entity?.type === 'event') { selectedEvent.value = entity; focusEventInView(id) }
+  if (entity?.type === 'event') { selectedEvent.value = entity; conflictPeerIds.value = new Set(); focusEventInView(id) }
 }
-function focusConflict(id: string) { selectEventById(id) }
+/** 冲突定位：选中定位方，另一方加对位环（顺序反着来，避免被 selectEventById 的清空覆盖） */
+function focusConflict(id: string, peerId: string) { selectEventById(id); conflictPeerIds.value = new Set([peerId]) }
 /** 画布框选：并入当前选中集 */
 const onSelectEvents = (ids: string[]) => { selectedIds.value = new Set([...selectedIds.value, ...ids]) }
 /** 画布空白拖拽/单击建事件：预填吸附后的起止日期 */
@@ -359,10 +364,7 @@ const eventSubtitle = computed(() => {
 
 function navigateToEvent(id: string) {
   const found = entityStore.entityMap.get(id)
-  if (found) {
-    selectedEvent.value = found
-    expandTo(id)
-  }
+  if (found) { selectedEvent.value = found; expandTo(id) }
 }
 
 async function deleteEvent(id: string) {
