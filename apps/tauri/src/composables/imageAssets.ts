@@ -25,11 +25,12 @@
  * 的竞态；mtime 未知一律不删（宁可漏删）。删除实体不联动清理：多实体共享
  * 同一图片时引用判定不划算，误删风险 > 收益。
  *
- * 【迁移 rebase】正文存绝对 asset URL，项目目录整体迁移后旧引用断链（img
- * 404 非致命）。rebaseAssetSrcs 纯函数保留原 src 的平台前缀形态、仅重编码
- * 路径（新绝对路径统一正斜杠，与 cmd_fs_list 口径一致）；挂接点「项目目录
- * 失效重选」生命周期尚未存在（useProjectSwitcher 只有目录匹配 / 基名新建
- * 两条路）→ 函数与测试先行入库，调用点挂账。
+ * 【迁移 rebase · 2026-10-25 复核】正文存绝对 asset URL，项目目录整体迁移后旧引用断链
+ * （img 404 非致命）。`rebaseAssetSrcs` 纯函数保留原 src 的平台前缀形态、仅重编码路径
+ * （新绝对路径统一正斜杠，与 cmd_fs_list 口径一致）。
+ * **当前没有生产调用点**——`useProjectSwitcher` 仍只有「目录匹配 / 基名新建」两条路，
+ * 没有「项目目录失效重选」生命周期。本批决定：保留函数与测试并明确标注挂账，待项目
+ * 迁移 / 重选立项时再接；在那之前**不要**在渲染链里临时调用（旧根未知，硬重写会误伤）。
  */
 
 import { invoke } from '@tauri-apps/api/core'
@@ -239,7 +240,9 @@ export function findOrphanAssets(
  * 其他根）原样；保留原 src 的平台前缀形态（同一台机器迁移，平台不变），
  * 新绝对路径统一正斜杠。前缀边界精确到「oldRoot + /」，worldfoo 不会误判为
  * world 的子路径。
- * ⚠ 调用点挂账：「项目目录失效重选」生命周期尚不存在，函数与测试先行入库。
+ *
+ * @internal 当前仅测试使用；生产调用点待「项目目录失效重选」生命周期（见文件头
+ * 2026-10-25 复核）。不要在渲染链里临时调用——旧根未知时硬重写会误伤。
  */
 export function rebaseAssetSrcs(html: string, oldRoot: string, newRoot: string): string {
   if (!html || !html.includes('<img') || !oldRoot || !newRoot || oldRoot === newRoot) return html

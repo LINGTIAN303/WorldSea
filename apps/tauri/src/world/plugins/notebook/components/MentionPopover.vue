@@ -186,7 +186,7 @@ defineExpose({ open, close })
 <style scoped>
 .mention-popover {
   position: fixed;
-  z-index: 200;
+  z-index: var(--z-popover, 400);
   background: var(--modal-bg);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-mid);

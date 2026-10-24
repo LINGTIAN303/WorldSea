@@ -114,6 +114,8 @@
   /* ── 层级（z-index 统一规划，避免魔数）── */
   --z-sticky: 2;          /* 吸顶 header（视图面板/列表 header） */
   --z-dropdown: 100;
+  /* 编辑器浮层（提及 / 斜杠菜单）：高于视图工具条（300），低于 modal（1000） */
+  --z-popover: 400;
   --z-modal: 1000;
   --z-toast: 2000;
 
