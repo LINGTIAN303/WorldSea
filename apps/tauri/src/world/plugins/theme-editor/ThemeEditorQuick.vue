@@ -59,8 +59,9 @@ function jumpToAppearance() {
   emit('jump-to-appearance')
 }
 
-// 圆角/密度覆盖键全集：选「标准/舒适」（= 回归主题基准）时据此清除，避免旧覆盖残留
-const RADIUS_KEYS = ['--radius-btn', '--radius-card', '--radius-input', '--radius-modal']
+// 圆角/密度覆盖键全集：选「标准/舒适」（= 回归主题基准）时据此清除，避免旧覆盖残留。
+// 2026-10-25 归一：圆角唯一入口 = 本 Tab 三态（专业 Tab 滑杆已退役），键集扩全 7 键杜绝交叉残留
+const RADIUS_KEYS = ['--radius-btn', '--radius-card', '--radius-input', '--radius-modal', '--radius-sm', '--radius-md', '--radius-lg']
 const DENSITY_KEYS = ['--spacing-card', '--spacing-btn', '--spacing-gap', '--spacing-btn-x', '--spacing-btn-sm-x', '--spacing-modal-x']
 
 // 回显：从 userOverrides 反推当前风格（未覆盖 = standard/comfortable），
@@ -114,11 +115,17 @@ function applyQuickSettings() {
     overrides['--radius-card'] = '4px'
     overrides['--radius-input'] = '2px'
     overrides['--radius-modal'] = '8px'
+    overrides['--radius-sm'] = '1px'
+    overrides['--radius-md'] = '4px'
+    overrides['--radius-lg'] = '6px'
   } else if (radiusStyle.value === 'round') {
     overrides['--radius-btn'] = '12px'
     overrides['--radius-card'] = '16px'
     overrides['--radius-input'] = '12px'
     overrides['--radius-modal'] = '20px'
+    overrides['--radius-sm'] = '8px'
+    overrides['--radius-md'] = '14px'
+    overrides['--radius-lg'] = '20px'
   }
 
   if (density.value === 'compact') {

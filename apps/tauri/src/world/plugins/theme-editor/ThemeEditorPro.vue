@@ -1,7 +1,7 @@
 <template>
   <div class="theme-pro">
     <div class="theme-pro__toolbar">
-      <span class="theme-pro__hint">编辑设计令牌覆盖（实时生效）；强调色统一在「外观」分区管理</span>
+      <span class="theme-pro__hint">编辑设计令牌覆盖（实时生效）；强调色在「外观」、圆角在「快速」Tab 管理</span>
       <button class="theme-pro__reset" @click="resetOverrides">重置</button>
     </div>
 
@@ -184,18 +184,6 @@ const tokenGroups: TokenGroup[] = [
     tokens: [
       { key: '--color-border', label: '默认边框', type: 'color' },
       { key: '--color-border-subtle', label: '弱边框', type: 'color' },
-    ],
-  },
-  {
-    id: 'radius',
-    label: '圆角',
-    tokens: [
-      { key: '--radius-sm', label: '小圆角', type: 'range', min: 0, max: 12, step: 1, unit: 'px', fallback: '4' },
-      { key: '--radius-md', label: '中圆角', type: 'range', min: 0, max: 16, step: 1, unit: 'px', fallback: '8' },
-      { key: '--radius-lg', label: '大圆角', type: 'range', min: 0, max: 24, step: 1, unit: 'px', fallback: '12' },
-      { key: '--radius-btn', label: '按钮圆角', type: 'range', min: 0, max: 16, step: 1, unit: 'px', fallback: '6' },
-      { key: '--radius-card', label: '卡片圆角', type: 'range', min: 0, max: 24, step: 1, unit: 'px', fallback: '12' },
-      { key: '--radius-modal', label: '弹窗圆角', type: 'range', min: 0, max: 32, step: 1, unit: 'px', fallback: '16' },
     ],
   },
   {

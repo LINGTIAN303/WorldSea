@@ -1,4 +1,4 @@
-﻿import { ref } from 'vue'
+import { ref } from 'vue'
 import Graph from 'graphology'
 import { algoCommunityDetection } from '@/core/coreBackend'
 import { graphToWeightedGraph } from '@worldsea/ui-kit'
@@ -12,6 +12,9 @@ export interface ClusterInfo {
   nodeIds: string[]
   size: number
 }
+
+/** 聚类簇色板（类别色：多色相区分社区，刻意不随强调色）——主检测与降级检测共用一份 */
+const CLUSTER_COLORS = ['#4fc3f7', '#26c6da', '#7c4dff', '#536dfe', '#00e5ff', '#69f0ae', '#b388ff', '#84ffff']
 
 export function useGraphClustering() {
   const clusters = ref<ClusterInfo[]>([])
@@ -36,7 +39,6 @@ export function useGraphClustering() {
         return fallback
       }
 
-      const clusterColors = ['#4fc3f7', '#26c6da', '#7c4dff', '#536dfe', '#00e5ff', '#69f0ae', '#b388ff', '#84ffff']
       const resultClusters: ClusterInfo[] = []
       let colorIdx = 0
 
@@ -47,7 +49,7 @@ export function useGraphClustering() {
         resultClusters.push({
           id: `cluster-${comm.id}`,
           label: clusterLabel(graph, nodeIds, dominantType),
-          color: clusterColors[colorIdx % clusterColors.length],
+          color: CLUSTER_COLORS[colorIdx % CLUSTER_COLORS.length],
           nodeIds,
           size: nodeIds.length,
         })
@@ -65,7 +67,6 @@ export function useGraphClustering() {
   }
 
   function labelPropagationFallback(graph: Graph): ClusterInfo[] {
-    const clusterColors = ['#4fc3f7', '#26c6da', '#7c4dff', '#536dfe', '#00e5ff', '#69f0ae', '#b388ff', '#84ffff']
     const nodes = graph.nodes()
     if (nodes.length === 0) return []
     const labels = new Map<string, string>()
@@ -112,7 +113,7 @@ export function useGraphClustering() {
       result.push({
         id: `cluster-${lbl}`,
         label: clusterLabel(graph, members, dominantType),
-        color: clusterColors[colorIdx % clusterColors.length],
+        color: CLUSTER_COLORS[colorIdx % CLUSTER_COLORS.length],
         nodeIds: members,
         size: members.length,
       })
