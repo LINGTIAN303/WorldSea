@@ -266,6 +266,23 @@ describe('useBoardLayout / 区：命名与归属重算', () => {
     expect(board.layout.value.containers.find(c => c.id === ca)?.sectionId).toBeUndefined()
   })
 
+  it('拖动结束：非 free 区按落点重排（同一次变更）', async () => {
+    const { es, board } = await setup()
+    const id = await createBoard(es, '区白板 F3')
+    await board.load(id)
+    const secId = board.addSection({ x: 0, y: 0, w: 400, h: 600 }) as string
+    board.setSectionArrange(secId, 'vertical')
+    const a = board.addContainer('st-c', { x: 20, y: 300 }, secId) as string
+    const b = board.addContainer('st-d', { x: 20, y: 42 }, secId) as string
+
+    board.moveContainer(a, { x: 20, y: 0 }) // 拖到 b 上方
+    board.settleContainerSection(a)
+
+    const ca = board.layout.value.containers.find(c => c.id === a)!
+    const cb = board.layout.value.containers.find(c => c.id === b)!
+    expect(ca.pos.y).toBeLessThan(cb.pos.y)
+  })
+
   it('归属未变时不产生新的布局对象', async () => {
     const { es, board } = await setup()
     const id = await createBoard(es, '区白板 F2')

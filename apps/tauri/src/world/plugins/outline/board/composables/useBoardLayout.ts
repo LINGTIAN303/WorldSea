@@ -22,7 +22,6 @@ import {
   type Viewport,
 } from '../boardGeometry'
 import {
-  containersOfSection,
   createComponent,
   createContainer,
   createEmptyBoardLayout,
@@ -49,7 +48,8 @@ import {
   type OutlineBoardLayout,
   type SectionArrange,
 } from '../layoutSchema'
-import { arrangeSection, clampContainerTop, shouldRearrangeOnResize, type ArrangeItem } from '../sectionArrange'
+import { clampContainerTop, shouldRearrangeOnResize } from '../sectionArrange'
+import { arrangeSectionInLayout } from '../sectionLayout'
 
 /** 布局保存防抖（与 drawing 芽的 AUTOSAVE_DELAY 对齐量级） */
 export const BOARD_SAVE_DEBOUNCE = 500
@@ -345,21 +345,7 @@ export function useBoardLayout() {
 
   /** 按区的 arrange 重算其内容器坐标（只有容器位置变化，纯计算） */
   function applyArrange(layoutIn: OutlineBoardLayout, sectionId: string): OutlineBoardLayout {
-    const s = findSection(layoutIn, sectionId)
-    if (!s) return layoutIn
-    const items: ArrangeItem[] = containersOfSection(layoutIn, sectionId).map(c => {
-      const r = rectOfContainer(c)
-      return { id: c.id, x: r.x, y: r.y, w: r.w, h: r.h }
-    })
-    const placed = arrangeSection(items, s.rect, s.arrange)
-    const posById = new Map(placed.map(p => [p.id, p] as const))
-    return {
-      ...layoutIn,
-      containers: layoutIn.containers.map(c => {
-        const p = posById.get(c.id)
-        return p ? { ...c, pos: { x: p.x, y: p.y } } : c
-      }),
-    }
+    return arrangeSectionInLayout(layoutIn, sectionId)
   }
 
   /** 手动触发一次区内重排（属性面板「重新排列」用） */
@@ -375,14 +361,22 @@ export function useBoardLayout() {
   }
 
   /** 容器拖动结束后重算归属：中心点落在哪个区就归哪个区，未命中则脱离；
-   *  归属区时同时把顶部钳到标题栏之下（2026-10-24 · 13-C）。 */
+   *  归属区时把顶部钳到标题栏之下；非 free 区再按落点重排（13-C / 13-D）。 */
   function settleContainerSection(containerId: string): void {
     const c = findContainer(layout.value, containerId)
     if (!c) return
+    const oldSid = c.sectionId ?? null
     const rect = rectOfContainer(c)
     const sid = resolveSectionFor(layout.value, rect)
     const y = clampContainerTop(rect, sid ? findSection(layout.value, sid)?.rect : null)
-    if ((c.sectionId ?? null) !== sid || c.pos.y !== y) mutate(replaceContainer(layout.value, containerId, { ...c, sectionId: sid || undefined, pos: { x: c.pos.x, y } }))
+    if (oldSid === sid && c.pos.y === y) return
+    let next = replaceContainer(layout.value, containerId, { ...c, sectionId: sid || undefined, pos: { x: c.pos.x, y } })
+    // 旧区/新区各排一次；同一次 mutate，避免「已归属但未排」的中间态入库
+    for (const id of new Set([oldSid, sid])) {
+      const s = id ? findSection(next, id) : null
+      if (s && s.arrange !== 'free') next = applyArrange(next, s.id)
+    }
+    mutate(next)
   }
   // ── 悬空容器（节点被删）──
 
