@@ -22,9 +22,13 @@ export function useEntityPaging<T>(
   function pageNext() { if (page.value < totalPages.value) page.value += 1 }
   /** 过滤/搜索条件变化时回到第 1 页（否则条件收窄后可能停在空页） */
   function resetPage() { page.value = 1 }
+  /** 翻到第 index 项所在页（跨页选中/跳转）；-1 或越界索引不动 */
+  function revealIndex(index: number) {
+    if (index >= 0) page.value = Math.floor(index / perPage.value) + 1
+  }
 
   // 源列表缩短（过滤收窄、批量删除）可能把当前页挤出范围 → 收敛到末页
   watch(totalPages, tp => { if (page.value > tp) page.value = tp })
 
-  return { page, totalPages, pagedList, pagePrev, pageNext, resetPage }
+  return { page, totalPages, pagedList, pagePrev, pageNext, resetPage, revealIndex }
 }

@@ -53,6 +53,18 @@ describe('useEntityPaging 分页口径', () => {
     expect(page.value).toBe(1)
   })
 
+  it('revealIndex 翻到目标项所在页（跨页选中/跳转），-1 不动', () => {
+    const source = ref(nums(9))
+    const { page, revealIndex } = useEntityPaging(source, 3)
+
+    revealIndex(7)
+    expect(page.value).toBe(3)
+    revealIndex(0)
+    expect(page.value).toBe(1)
+    revealIndex(-1)
+    expect(page.value).toBe(1)
+  })
+
   it('pageSize 可传 getter，改值后页数与切片同步', () => {
     const source = computed(() => nums(10))
     const size = ref(5)
