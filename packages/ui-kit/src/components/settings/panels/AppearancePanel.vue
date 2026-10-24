@@ -19,7 +19,18 @@
               <span class="set-accent-core" :style="isCustomAccent && customAccentColor ? { background: customAccentColor } : undefined"></span>
             </button>
           </div>
-          <div class="set-accent-hint">当前强调色：{{ currentAccentLabel }}（深色下自动提亮）</div>
+          <div class="set-accent-hint">
+            当前强调色：{{ currentAccentLabel }}（深色下自动提亮）
+            <button v-if="isCustomAccent && customAccentColor" class="set-accent-save" :title="isAlreadySaved ? '已在收藏中' : '保存到我的强调色'" @click="onSaveCurrent">{{ isAlreadySaved ? '已保存' : '保存此色' }}</button>
+          </div>
+          <div v-if="savedAccents.length" class="set-accent-row set-accent-row--saved" role="group" aria-label="我的强调色">
+            <div v-for="hex in savedAccents" :key="hex" class="set-saved-wrap">
+              <button class="set-accent-dot" :class="{ on: isCustomAccent && customAccentColor === hex }" :title="`我的强调色 ${hex}`" :aria-label="`应用我的强调色 ${hex}`" @click="onSavedApply(hex)">
+                <span class="set-accent-core" :style="{ background: hex }"></span>
+              </button>
+              <button class="set-saved-del" :aria-label="`删除我的强调色 ${hex}`" title="删除" @click.stop="onSavedRemove(hex)">✕</button>
+            </div>
+          </div>
           <ColorPickerDialog :show="customPickerOpen" :initial-color="customAccentColor ?? '#4f46e5'" @confirm="onCustomAccentConfirm" @close="customPickerOpen = false" />
           <div class="set-theme-sub">图谱底色</div>
           <div class="set-row"><span>全局图谱</span><select v-model="store.graphBackgroundMode" class="set-select" aria-label="图谱底色"><option value="dark">深色星图</option><option value="theme">跟随主题</option></select></div>
@@ -196,7 +207,7 @@ function onModeChange(m: ModePreference) {
 
 // 轴 2 强调色：六色预设 + 自定义（entity-core ACCENT_PRESETS / setCustomAccent，深浅双段规则注入）。
 // currentThemeId（entity-core）收束后即当前强调色 id（'custom' = 自定义轴），驱动色板高亮。
-const { currentThemeId, customAccentColor } = useTheme()
+const { currentThemeId, customAccentColor, savedAccents, saveCurrentAccent, removeSavedAccent } = useTheme()
 const currentAccentLabel = computed(() => {
   if (currentThemeId.value === CUSTOM_ACCENT_ID) {
     return customAccentColor.value ? `自定义 · ${customAccentColor.value}` : '自定义'
@@ -216,6 +227,22 @@ function onCustomAccentConfirm(color: string) {
   customPickerOpen.value = false
   window.dispatchEvent(new CustomEvent('ws-set-theme', { detail: { accent: CUSTOM_ACCENT_ID, accentHex: color } }))
   emit('dirty')
+}
+
+// 我的强调色：收藏当前自定义色 / 应用 / 删除（存取在 entity-core useTheme，localStorage 持久化）
+const isAlreadySaved = computed(() => !!customAccentColor.value && savedAccents.value.includes(customAccentColor.value))
+function onSaveCurrent() {
+  const hex = customAccentColor.value
+  const added = saveCurrentAccent()
+  if (added) toastSuccess(`已保存自定义强调色 ${hex}`)
+  else toastWarn('该颜色已在收藏中')
+}
+function onSavedApply(hex: string) {
+  window.dispatchEvent(new CustomEvent('ws-set-theme', { detail: { accent: CUSTOM_ACCENT_ID, accentHex: hex } }))
+  emit('dirty')
+}
+function onSavedRemove(hex: string) {
+  removeSavedAccent(hex)
 }
 
 function match(keywords: string): boolean {
@@ -354,6 +381,14 @@ function onFontImport(e: Event) {
 .set-accent-core { display: block; width: 100%; height: 100%; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08); }
 /* 自定义色点：未激活时彩虹轮盘示意「任选」，激活后由内联样式显示量化后的实际色 */
 .set-accent-dot--custom .set-accent-core { background: conic-gradient(#ef4444, #f59e0b, #22c55e, #06b6d4, #6366f1, #d946ef, #ef4444); }
+/* 我的强调色（收藏行）：悬停显示删除角标 */
+.set-accent-row--saved { margin-top: 8px; }
+.set-saved-wrap { position: relative; display: inline-flex; }
+.set-saved-del { position: absolute; top: -5px; right: -5px; width: 15px; height: 15px; border-radius: 50%; border: none; background: var(--bg-active, var(--color-bg-active)); color: var(--text-secondary, var(--color-text-secondary)); font-size: 9px; line-height: 1; cursor: pointer; opacity: 0; transition: opacity 0.12s; display: flex; align-items: center; justify-content: center; }
+.set-saved-wrap:hover .set-saved-del, .set-saved-del:focus-visible { opacity: 1; }
+.set-accent-save { margin-left: 8px; padding: 2px 10px; font-size: var(--font-size-xs); border: 1px solid var(--border, var(--color-border)); border-radius: var(--radius-sm, 6px); background: var(--bg, var(--color-bg-surface)); color: var(--text-secondary, var(--color-text-secondary)); cursor: pointer; transition: border-color 0.12s, color 0.12s; }
+.set-accent-save:hover { border-color: var(--primary, var(--color-primary)); color: var(--primary, var(--color-primary)); }
+.set-accent-save:disabled { opacity: 0.6; cursor: default; }
 .set-accent-hint { margin-top: 8px; font-size: var(--font-size-xs); color: var(--text-tertiary, var(--color-text-tertiary)); }
 .set-theme-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px; border: 1px solid var(--border, var(--color-border)); border-radius: 8px; background: var(--bg, var(--color-bg-surface)); cursor: pointer; transition: background 0.12s, border-color 0.12s, color 0.12s, box-shadow 0.12s, transform 0.12s, opacity 0.12s, filter 0.12s; }
 .set-theme-btn:hover { border-color: var(--primary, var(--color-primary)); }

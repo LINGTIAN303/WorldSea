@@ -26,6 +26,9 @@ const OVERRIDES_KEY = 'worldsea-theme-overrides'
 /** 自定义强调色：currentThemeId 记 'custom'，量化后的锚点色存此键 */
 const CUSTOM_ACCENT_KEY = 'worldsea-accent-custom'
 export const CUSTOM_ACCENT_ID = 'custom'
+/** 我的强调色：用户收藏的自定义锚点列表（量化后 hex），上限 12 个挤掉最早 */
+const SAVED_ACCENTS_KEY = 'worldsea-accent-saved'
+export const SAVED_ACCENTS_LIMIT = 12
 
 /** 强调色预设：id 同时作为 currentThemeId（面板高亮 / 编辑器导出取名） */
 export interface AccentPreset {
@@ -84,6 +87,8 @@ function migrateTheme(id: string): string {
 const currentThemeId = ref(migrateTheme(ls.getItem(STORAGE_KEY) || DEFAULT_ACCENT_ID))
 /** 自定义强调色锚点（已合规化；'custom' 轴激活时的主值来源） */
 const customAccentColor = ref<string | null>(hasLocalStorage ? ls.getItem(CUSTOM_ACCENT_KEY) : null)
+/** 我的强调色：收藏的自定义锚点（量化后 hex） */
+const savedAccents = ref<string[]>(loadSavedAccents())
 const customThemes = ref<ThemeDefinition[]>(loadCustomThemes())
 const userOverrides = ref<Record<string, string>>(loadUserOverrides())
 const componentOverrides = ref<Record<string, Record<string, string>>>(loadComponentOverrides())
@@ -120,6 +125,16 @@ function loadComponentOverrides(): Record<string, Record<string, string>> {
     return raw ? JSON.parse(raw) : {}
   } catch {
     return {}
+  }
+}
+
+function loadSavedAccents(): string[] {
+  try {
+    const raw = ls.getItem(SAVED_ACCENTS_KEY)
+    const arr = raw ? JSON.parse(raw) : []
+    return Array.isArray(arr) ? arr.filter((x): x is string => typeof x === 'string').slice(0, SAVED_ACCENTS_LIMIT) : []
+  } catch {
+    return []
   }
 }
 
@@ -236,6 +251,22 @@ function setCustomAccent(hex: string): void {
   customAccentColor.value = light
   ls.setItem(CUSTOM_ACCENT_KEY, light)
   applyAccentPipeline({ id: CUSTOM_ACCENT_ID, label: '自定义', light }, CUSTOM_ACCENT_ID)
+}
+
+/** 保存当前自定义强调色到「我的强调色」：去重、超上限挤掉最早。返回是否新增（false = 已在收藏） */
+function saveCurrentAccent(): boolean {
+  if (!customAccentColor.value) return false
+  const hex = customAccentColor.value
+  if (savedAccents.value.includes(hex)) return false
+  savedAccents.value = [...savedAccents.value, hex].slice(-SAVED_ACCENTS_LIMIT)
+  ls.setItem(SAVED_ACCENTS_KEY, JSON.stringify(savedAccents.value))
+  return true
+}
+
+/** 删除收藏项：仅移除收藏记录，当前激活色不受影响 */
+function removeSavedAccent(hex: string): void {
+  savedAccents.value = savedAccents.value.filter(x => x !== hex)
+  ls.setItem(SAVED_ACCENTS_KEY, JSON.stringify(savedAccents.value))
 }
 
 /** 启动恢复：自定义强调色优先回放，其余重放已持久化的预设（App.vue onMounted 调用一次；修复重启后观感回退裸基准） */
@@ -374,10 +405,13 @@ export function useTheme() {
     allThemes,
     customThemes,
     customAccentColor,
+    savedAccents,
     userOverrides,
     componentOverrides,
     setAccent,
     setCustomAccent,
+    saveCurrentAccent,
+    removeSavedAccent,
     restorePersistedTheme,
     setTheme,
     setUserOverrides,
