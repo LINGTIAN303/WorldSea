@@ -14,9 +14,12 @@
     <div v-if="built.empty" class="tb-empty">暂无子节点</div>
     <DataTable
       v-else
-      :columns="built.columns"
+      :columns="tableColumns"
       :rows="built.rows"
       row-key="__id"
+      :virtual="virtual"
+      :max-height="virtualMaxHeight"
+      :row-height="density === 'compact' ? 28 : 32"
       @row-click="onRowClick"
     />
 
@@ -85,6 +88,22 @@ const built = computed(() =>
     sortBy: normalizeSort(cfg.value.sortBy),
   }),
 )
+
+// ── 虚拟滚动（2026-10-25）：仅行数超阈值时开启，小表保持原全量渲染 ──
+const VIRTUAL_THRESHOLD = 80
+/** 虚拟模式的固定列宽（仅虚拟模式生效；标题列吃掉剩余宽度） */
+const COLUMN_WIDTHS: Record<string, string> = {
+  title: 'auto',
+  order: '44px',
+  status: '68px',
+  wordCount: '62px',
+  nodeType: '68px',
+  storylines: '26%',
+}
+const virtual = computed(() => built.value.rows.length > VIRTUAL_THRESHOLD)
+/** 预留「管理行」按钮的高度，避免外层再出现一条滚动条 */
+const virtualMaxHeight = computed(() => Math.max(120, maxHeight.value - 26))
+const tableColumns = computed(() => built.value.columns.map(c => ({ ...c, width: COLUMN_WIDTHS[c.key] })))
 
 /** 行 = 直接子节点（与表格同一数据源，但这里要 id 才能操作） */
 const children = computed<TableSourceNode[]>(() => {
