@@ -113,6 +113,7 @@ describe('HomeSurface', () => {
     await w.find('.home-hero-img').trigger('error')
     expect(w.find('.home-hero-img').exists()).toBe(false)
     expect(w.find('.home-hero').exists()).toBe(true)
+    expect(w.find('.home-cover-hint').text()).toContain('重新选择')
     expect(w.find('.home-meta').text()).toContain('最后更新')
     expect(w.find('.home-footer').text()).not.toContain('最后更新')
   })
@@ -182,6 +183,16 @@ describe('HomeSurface', () => {
     expect(w.find('.home-book-latest').text()).toContain('第一章')
     await w.find('.home-book-latest-name').trigger('click')
     expect(openWorkspace).toHaveBeenLastCalledWith('manuscript', 'm1')
+    await w.find('.home-book-cta').trigger('click')
+    expect(openWorkspace).toHaveBeenLastCalledWith('manuscript', 'm1')
+  })
+
+  it('无最近章节时继续写作只开正文视图', async () => {
+    const base = fixture()
+    data.value = { ...base, featuredBook: { ...base.featuredBook!, latestChapter: null } }
+    loading.value = false
+    const w = mount(HomeSurface)
+    expect(w.find('.home-book-latest').exists()).toBe(false)
     await w.find('.home-book-cta').trigger('click')
     expect(openWorkspace).toHaveBeenLastCalledWith('manuscript')
   })

@@ -30,6 +30,7 @@
             <TuiButton variant="ghost" icon="search" @click="onOpenSearch">搜索世界</TuiButton>
           </div>
           <p v-if="isEmpty" class="home-empty-hint">从下方资产地图进入任意域，或按 Ctrl+K 搜索。</p>
+          <p v-if="profile.coverImage && coverFailed" class="home-cover-hint">封面文件不可用，可在「编辑简介」中重新选择。</p>
         </div>
       </section>
 
@@ -83,6 +84,7 @@
               class="home-kpi"
               :class="{ 'is-link': !!kpi.action }"
               :type="kpi.action ? 'button' : undefined"
+              :title="kpi.hint"
               @click="onKpi(kpi)"
             >
               <span class="home-kpi-value">{{ kpi.value }}</span>
@@ -96,7 +98,7 @@
               title="芽 = 可直接打开的功能模块"
               @click="openSettingsPlugins"
             >已启用芽 <strong>{{ data.snapshot.activeSproutCount }}/{{ data.snapshot.totalSproutCount }}</strong></button>
-            <span class="home-kpi-side">字段 <strong>{{ data.snapshot.fieldCount }}</strong></span>
+            <span class="home-kpi-side" title="Schema 字段实例数（当前注册类型）">字段 <strong>{{ data.snapshot.fieldCount }}</strong></span>
           </div>
         </section>
 
@@ -110,7 +112,7 @@
             </header>
             <ul v-if="data.recent.length" id="home-recent-list" class="home-recent-list">
               <li v-for="item in visibleRecent" :key="item.id">
-                <button type="button" class="home-recent-row" @click="onEnterEntity(item.viewId, item.id)">
+                <button type="button" class="home-recent-row" :title="item.description || item.name" @click="onEnterEntity(item.viewId, item.id)">
                   <span class="home-recent-time">{{ relativeTime(item.updatedAt) }}</span>
                   <span class="home-recent-main">
                     <span class="home-recent-name"><WsIcon :name="item.icon" size="xs" />{{ item.name }}</span>
@@ -144,7 +146,7 @@
               </div>
               <div class="home-book-body">
                 <span class="home-book-name">{{ data.featuredBook.name }}</span>
-                <span class="home-book-desc">{{ data.featuredBook.description || '尚无简介' }}</span>
+                <span class="home-book-desc" :title="data.featuredBook.description || undefined">{{ data.featuredBook.description || '尚无简介' }}</span>
                 <span class="home-book-meta">{{ data.featuredBook.chapterCount }} 章 · {{ data.featuredBook.wordCount }} 字</span>
               </div>
             </div>
@@ -162,7 +164,7 @@
               size="sm"
               variant="secondary"
               icon="edit"
-              @click="onEnterView(data.featuredBook.viewId)"
+              @click="onContinueWriting"
             >继续写作</TuiButton>
           </section>
         </div>
@@ -250,10 +252,10 @@ const kpis = computed(() => {
   if (!data.value) return []
   const s = data.value.snapshot
   return [
-    { key: 'entities', label: '实体', value: s.entityCount, action: null as string | null },
-    { key: 'relations', label: '关系', value: s.relationCount, action: null },
-    { key: 'outline', label: '大纲', value: s.outlineCount, action: data.value.outlineViewId ? 'outline' : null },
-    { key: 'manuscript', label: '正文', value: s.manuscriptCount, action: data.value.manuscriptViewId ? 'manuscript' : null },
+    { key: 'entities', label: '实体', value: s.entityCount, action: null as string | null, hint: '实体总数（全量）' },
+    { key: 'relations', label: '关系', value: s.relationCount, action: null, hint: '关系实例总数（全量；关系类型见字段矩阵）' },
+    { key: 'outline', label: '大纲', value: s.outlineCount, action: data.value.outlineViewId ? 'outline' : null, hint: '大纲节点数' },
+    { key: 'manuscript', label: '正文', value: s.manuscriptCount, action: data.value.manuscriptViewId ? 'manuscript' : null, hint: '正文数（仅正文类型，不含书籍）' },
   ]
 })
 
@@ -265,6 +267,13 @@ function onEnterView(viewId: string) {
 }
 function onEnterEntity(viewId: string, entityId: string) {
   openWorkspace(viewId, entityId)
+}
+/** 继续写作：有最近章节时直接打开该章，否则回到正文视图 */
+function onContinueWriting() {
+  const book = data.value?.featuredBook
+  if (!book) return
+  if (book.latestChapter) openWorkspace(book.viewId, book.latestChapter.id)
+  else openWorkspace(book.viewId)
 }
 function onOpenMatrix() {
   if (data.value?.matrixViewId) openWorkspace(data.value.matrixViewId)
