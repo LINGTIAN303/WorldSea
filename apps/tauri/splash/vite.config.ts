@@ -20,6 +20,8 @@ export default defineConfig({
       '@': path.resolve(TAURI_DIR, 'src'),
       // SplashScreen.vue 的 uiStore 依赖 → 桩（原 store 会拖入整个 entity-core）
       '../../stores/uiStore': path.resolve(__dirname, 'stub-uiStore.ts'),
+      // 启动页强调色注入只需预设纯模块（同主构建子路径别名口径，避开 entity-core 响应式层）
+      '@worldsea/entity-core/composables': path.resolve(TAURI_DIR, '../../packages/entity-core/src/composables'),
     },
   },
   build: {

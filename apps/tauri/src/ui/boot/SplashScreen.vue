@@ -37,7 +37,7 @@
     <!-- 中央内容 -->
     <div class="ws-splash__content">
       <div class="ws-splash__logo-glow">
-        <WorldSeaLogo :size="96" :radius="22" class="ws-splash__logo" />
+        <WorldEye class="ws-splash__eye" />
       </div>
       <div class="ws-splash__title-glow">
         <h1 class="ws-splash__title">WorldSea</h1>
@@ -82,7 +82,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { createSplashEngine, type SplashEngine } from './splash-canvas'
 import { useUIStore } from '../../stores/uiStore'
-import WorldSeaLogo from '../../components/brand/WorldSeaLogo.vue'
+import WorldEye from '../../components/brand/WorldEye.vue'
 
 const constellationRef = ref<HTMLCanvasElement | null>(null)
 const interactionRef = ref<HTMLCanvasElement | null>(null)
@@ -282,7 +282,7 @@ onUnmounted(() => {
   animation: ws-splash-breathe 4s ease-in-out infinite;
 }
 
-/* 品牌 Logo：辉光 + 轻微呼吸，与标题 glow 呼应 */
+/* 世界之眼：辉光壳沿用 Logo 位（辉光 + 轻微浮动，宽度给到主视觉量级） */
 .ws-splash__logo-glow {
   position: relative;
   display: inline-block;
@@ -302,8 +302,9 @@ onUnmounted(() => {
   z-index: -1;
   animation: ws-splash-breathe 4s ease-in-out infinite;
 }
-.ws-splash__logo {
+.ws-splash__eye {
   display: block;
+  width: clamp(200px, 22vw, 260px);
   animation: ws-splash-logo-float 5s ease-in-out infinite;
 }
 @keyframes ws-splash-logo-float {
@@ -485,7 +486,8 @@ onUnmounted(() => {
 }
 
 :root[data-anim-splash='off'] .ws-splash__title,
-:root[data-anim-splash='off'] .ws-splash__dot { animation: none !important; }
+:root[data-anim-splash='off'] .ws-splash__dot,
+:root[data-anim-splash='off'] .ws-splash__eye { animation: none !important; }
 
 :root[data-anim-splash='off'] .ws-splash__route-fill,
 :root[data-anim-splash='off'] .ws-splash__route-star,
