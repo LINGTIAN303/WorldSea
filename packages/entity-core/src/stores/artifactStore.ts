@@ -6,9 +6,11 @@ import { getEventBus } from '../core/serviceProvider'
 import type { Artifact, ArtifactVersion } from '../types'
 
 /**
- * ArtifactStore — Agent 产物（多版本 + 回滚）
+ * ArtifactStore — 随笔（多版本 + 回滚）
  * 采用「entity-core Dexie」存储：直接读写当前项目的 WorldDatabase（IndexedDB），不经过 StorageBackend 抽象（后者面向实体的 Tauri/File 多后端）；
  * 每次内容变更自动追加一个历史版本，支持回滚到任意版本。
+ * 定位：原旧 Agent 面时代的「Agent 随笔」预留存储（Agent 侧从未接线写入），
+ * 2026-10-26 重定位为用户侧「随笔」；表名 artifacts / store id 保留 artifact 命名。
  */
 export const useArtifactStore = defineStore('artifact', () => {
   const { items: artifacts, setAll, push, removeById, updateById, findById } =
@@ -32,7 +34,7 @@ export const useArtifactStore = defineStore('artifact', () => {
     return raw.filter((a): a is Artifact => a != null && typeof a.id === 'string')
   }
 
-  /** 加载当前项目全部产物（含各产物版本列表）。项目切换后调用。 */
+  /** 加载当前项目全部随笔（含各随笔版本列表）。项目切换后调用。 */
   async function loadAll() {
     clearError()
     loading.value = true
@@ -54,7 +56,7 @@ export const useArtifactStore = defineStore('artifact', () => {
       }
       versionsReplaceAll(grouped)
     } catch (e: any) {
-      setError(e?.message ?? '加载产物失败')
+      setError(e?.message ?? '加载随笔失败')
     } finally {
       loading.value = false
     }
@@ -66,7 +68,7 @@ export const useArtifactStore = defineStore('artifact', () => {
     versionsReplaceAll(new Map())
   }
 
-  /** 新建产物（version=1，写入历史快照）。返回新 id。 */
+  /** 新建随笔（version=1，写入历史快照）。返回新 id。 */
   async function create(input: { title: string; content: string; artifact_type?: string }): Promise<string> {
     const db = currentDb()
     const projectId = getProjectManager().getCurrentProjectId() ?? ''
@@ -99,11 +101,11 @@ export const useArtifactStore = defineStore('artifact', () => {
     return id
   }
 
-  /** 更新产物内容。内容有变化时自动追加新版本（+1）。 */
+  /** 更新随笔内容。内容有变化时自动追加新版本（+1）。 */
   async function updateImpl(id: string, patch: { title?: string; content?: string; artifact_type?: string }): Promise<void> {
     const db = currentDb()
     const cur = findById(id) ?? (await db.artifacts.get(id))
-    if (!cur) throw new Error(`产物不存在: ${id}`)
+    if (!cur) throw new Error(`随笔不存在: ${id}`)
 
     const next: Partial<Artifact> = { ...patch, updated_at: new Date().toISOString() }
     delete (next as any).id
@@ -142,7 +144,7 @@ export const useArtifactStore = defineStore('artifact', () => {
     await updateImpl(id, { content: target.content })
   }
 
-  /** 获取产物全部历史版本（按版本号降序）。 */
+  /** 获取随笔全部历史版本（按版本号降序）。 */
   async function getVersions(id: string): Promise<ArtifactVersion[]> {
     const cached = versionsMap.value.get(id)
     if (cached) return cached
@@ -155,13 +157,13 @@ export const useArtifactStore = defineStore('artifact', () => {
     return list
   }
 
-  /** 获取指定产物指定版本。 */
+  /** 获取指定随笔指定版本。 */
   async function getVersion(id: string, version: number): Promise<ArtifactVersion | undefined> {
     const versions = await getVersions(id)
     return versions.find(v => v.version === version)
   }
 
-  /** 删除产物及其全部历史版本。 */
+  /** 删除随笔及其全部历史版本。 */
   async function remove(id: string): Promise<void> {
     const db = currentDb()
     await db.transaction('rw', db.artifacts, db.artifact_versions, async () => {

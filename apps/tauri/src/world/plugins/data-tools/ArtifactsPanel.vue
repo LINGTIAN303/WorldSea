@@ -3,7 +3,7 @@
     <div class="artifacts-overlay" v-if="show" @click.self="close">
       <div class="artifacts-modal">
         <div class="artifacts-header">
-          <h3>产物</h3>
+          <h3>随笔</h3>
           <div class="artifacts-hdr-actions">
             <span v-if="busy" class="artifacts-busy">
               <WsInlineLoading size="sm" :label="busyLabel" />
@@ -17,14 +17,14 @@
 
         <!-- 新建表单 -->
         <div v-if="creating" class="artifacts-create">
-          <input v-model="createTitle" class="input" placeholder="产物标题" />
+          <input v-model="createTitle" class="input" placeholder="随笔标题" />
           <select v-model="createType" class="input select">
             <option value="document">文档</option>
             <option value="chart">图表</option>
             <option value="code">代码</option>
             <option value="other">其他</option>
           </select>
-          <textarea v-model="createContent" class="input textarea" rows="4" placeholder="产物内容" />
+          <textarea v-model="createContent" class="input textarea" rows="4" placeholder="随笔内容" />
           <div class="create-actions">
             <TuiButton variant="secondary" size="sm" :disabled="busy" @click="creating = false">取消</TuiButton>
             <TuiButton variant="primary" size="sm" :disabled="busy" @click="doCreate">保存</TuiButton>
@@ -32,7 +32,7 @@
         </div>
 
         <div class="artifacts-body" :inert="busy || undefined">
-          <!-- 左：产物列表 -->
+          <!-- 左：随笔列表 -->
           <div class="artifacts-list">
             <div
               v-for="a in artifacts"
@@ -49,7 +49,7 @@
                 <TuiButton variant="danger-ghost" size="sm" :disabled="busy" @click.stop="doDelete(a)">删除</TuiButton>
               </div>
             </div>
-            <div v-if="artifacts.length === 0" class="artifacts-empty">暂无产物，点击「新建」创建</div>
+            <div v-if="artifacts.length === 0" class="artifacts-empty">暂无随笔，点击「新建」创建</div>
           </div>
 
           <!-- 右：预览 -->
@@ -62,7 +62,7 @@
               </div>
               <div class="preview-content">{{ selected.content }}</div>
             </template>
-            <div v-else class="preview-empty">选择左侧产物以预览</div>
+            <div v-else class="preview-empty">选择左侧随笔以预览</div>
           </div>
         </div>
 
@@ -164,7 +164,7 @@ function openCreate() {
 
 async function doCreate() {
   if (!createTitle.value.trim()) return
-  await withBusy('正在保存产物…', async () => {
+  await withBusy('正在保存随笔…', async () => {
     await create({
       title: createTitle.value.trim(),
       content: createContent.value,
@@ -186,7 +186,7 @@ async function doRollback(v: ArtifactVersion) {
   const target = versionsTarget.value
   if (!target) return
   if (confirm(`确定回滚「${target.title}」到 v${v.version}？\n将追加一个新版本，历史完整保留。`)) {
-    await withBusy('正在回滚产物…', async () => {
+    await withBusy('正在回滚随笔…', async () => {
       await rollback(target.id, v.version)
       await loadAll()
       selected.value = artifacts.value.find(a => a.id === target.id) ?? null
@@ -196,8 +196,8 @@ async function doRollback(v: ArtifactVersion) {
 }
 
 async function doDelete(a: Artifact) {
-  if (confirm(`删除产物「${a.title}」及其全部历史版本？`)) {
-    await withBusy('正在删除产物…', async () => {
+  if (confirm(`删除随笔「${a.title}」及其全部历史版本？`)) {
+    await withBusy('正在删除随笔…', async () => {
       await remove(a.id)
       if (selected.value?.id === a.id) selected.value = null
       versionsOpen.value = false

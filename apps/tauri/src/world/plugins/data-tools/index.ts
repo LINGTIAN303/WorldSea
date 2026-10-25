@@ -5,7 +5,7 @@ export const manifest = {
   id: 'official.data-tools',
   name: '数据工具',
   version: '1.0.0',
-  description: '数据管理面板组：回收站、产物面板、一致性报告',
+  description: '数据管理面板组：回收站、随笔面板、一致性报告',
   author: 'WorldSea',
   kind: 'utility' as const,
 }
@@ -17,7 +17,7 @@ export const manifest = {
  */
 export function apply(_ctx: unknown, api: WorldPluginApi) {
   api.registerOverlay({ id: 'trash', label: '回收站', component: defineAsyncComponent(() => import('./TrashPanel.vue')) })
-  api.registerOverlay({ id: 'artifacts', label: '产物面板', component: defineAsyncComponent(() => import('./ArtifactsPanel.vue')), menu: { label: '产物', icon: 'file-text', order: 4 } })
+  api.registerOverlay({ id: 'artifacts', label: '随笔面板', component: defineAsyncComponent(() => import('./ArtifactsPanel.vue')), menu: { label: '随笔', icon: 'document', order: 4 } })
   api.registerOverlay({ id: 'consistency', label: '一致性报告', component: defineAsyncComponent(() => import('./ConsistencyReportPanel.vue')), menu: { label: '一致性检查', icon: 'shield', order: 3 } })
 }
 
