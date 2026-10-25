@@ -78,9 +78,33 @@ const previewMd = ref('')
 const generating = ref(false)
 let generateToken = 0
 
+/** Markdown 表格块（| 表头 | + |---| 分隔行 + 数据行）→ 单行 <table>；先于逐行替换处理，避免换行转 <br/> 混入单元格 */
+function mdTablesToHtml(md: string): string {
+  const lines = md.split('\n')
+  const isRow = (s: string) => /^\s*\|.*\|\s*$/.test(s)
+  const cells = (s: string) => s.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => c.trim())
+  const out: string[] = []
+  for (let i = 0; i < lines.length; i++) {
+    if (isRow(lines[i]) && /^\s*\|[\s:|-]+\|\s*$/.test(lines[i + 1] ?? '')) {
+      const head = cells(lines[i])
+      i += 2
+      const body: string[] = []
+      while (i < lines.length && isRow(lines[i])) {
+        body.push('<tr>' + cells(lines[i]).map(c => `<td>${c}</td>`).join('') + '</tr>')
+        i++
+      }
+      i--
+      out.push('<table><tr>' + head.map(c => `<th>${c}</th>`).join('') + '</tr>' + body.join('') + '</table>')
+    } else {
+      out.push(lines[i])
+    }
+  }
+  return out.join('\n')
+}
+
 function mdToHtml(md: string): string {
-  let html = md
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  let html = mdTablesToHtml(md
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'))
     .replace(/^### (.+)$/gm, '<h3>$1</h3>')
     .replace(/^## (.+)$/gm, '<h2>$1</h2>')
     .replace(/^# (.+)$/gm, '<h1>$1</h1>')
@@ -95,7 +119,7 @@ function mdToHtml(md: string): string {
   html = html.replace(/<p><\/p>/g, '').replace(/<p>(<h[1-3]>)/g, '$1').replace(/(<\/h[1-3]>)<\/p>/g, '$1')
   html = html.replace(/<p>(<ul>)/g, '$1').replace(/(<\/ul>)<\/p>/g, '$1')
   html = html.replace(/<p>(<hr\/>)<\/p>/g, '$1')
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{font-family:system-ui,sans-serif;max-width:720px;margin:24px auto;padding:0 16px;color:#222;line-height:1.7}h1{border-bottom:2px solid #e5e7eb;padding-bottom:8px}h2{border-bottom:1px solid #e5e7eb;padding-bottom:6px;margin-top:24px}h3{margin-top:20px}ul{padding-left:20px}li{margin:4px 0}hr{border:none;border-top:1px solid #e5e7eb;margin:20px 0}strong{color:#111}</style></head><body>${html}</body></html>`
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{font-family:system-ui,sans-serif;max-width:720px;margin:24px auto;padding:0 16px;color:#222;line-height:1.7}h1{border-bottom:2px solid #e5e7eb;padding-bottom:8px}h2{border-bottom:1px solid #e5e7eb;padding-bottom:6px;margin-top:24px}h3{margin-top:20px}ul{padding-left:20px}li{margin:4px 0}hr{border:none;border-top:1px solid #e5e7eb;margin:20px 0}strong{color:#111}table{border-collapse:collapse;width:100%;margin:12px 0}td,th{border:1px solid #e5e7eb;padding:6px 10px;text-align:left;font-size:13px}th{background:#f3f4f6}</style></head><body>${html}</body></html>`
 }
 
 const renderedMd = computed(() => mdToHtml(previewMd.value))

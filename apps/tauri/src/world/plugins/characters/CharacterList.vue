@@ -14,7 +14,7 @@
       @select-entity="onSelectEntity"
     >
       <template #toolbar-extra>
-        <button class="btn-compare" :class="{ active: compareMode }" @click="toggleCompareMode"><WsIcon name="compare" size="xs" /> 对比</button>
+        <TuiButton variant="secondary" size="sm" icon="compare" :active="compareMode" @click="toggleCompareMode">对比</TuiButton>
         <CustomDropdown v-model="selectedTemplate" :options="templateOptions" placeholder="模板创建" @update:model-value="onTemplateSelect" />
       </template>
 
