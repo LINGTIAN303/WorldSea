@@ -49,6 +49,7 @@ const STORAGE_KEY_UNDO_LIMIT = 'worldsea_undo_history_limit'
 const STORAGE_KEY_MULTI_STEP_REDO = 'worldsea_multi_step_redo'
 const STORAGE_KEY_MAX_CENTER_NODES = 'worldsea_max_center_nodes'
 const STORAGE_KEY_PANEL_LIMIT_ENABLED = 'worldsea_panel_limit_enabled'
+const STORAGE_KEY_DECK_WHEEL_GATE = 'worldsea_deck_wheel_gate'
 const STORAGE_KEY_SMOOTH_CARET = 'worldsea_smooth_caret'
 const STORAGE_KEY_SMOOTH_CARET_DURATION = 'worldsea_smooth_caret_duration'
 const STORAGE_KEY_SMOOTH_CARET_VARIANT = 'worldsea_smooth_caret_variant'
@@ -292,6 +293,8 @@ export const useSettingsStore = defineStore('settings', () => {
   const multiStepRedo = persistedRef(STORAGE_KEY_MULTI_STEP_REDO, true)
   const maxCenterNodes = persistedRef(STORAGE_KEY_MAX_CENTER_NODES, 5)
   const panelLimitEnabled = persistedRef(STORAGE_KEY_PANEL_LIMIT_ENABLED, true)
+  // 设置翻卡滚轮手势判定（2026-10-26）：默认开启——可滚内容到边缘后需停顿再滚（新手势）才翻卡，防惯性连翻；关闭则到边缘即翻
+  const deckWheelGateEnabled = persistedRef(STORAGE_KEY_DECK_WHEEL_GATE, true)
   const smoothCaretEnabled = persistedRef(STORAGE_KEY_SMOOTH_CARET, true)
   const smoothCaretDuration = persistedRef(STORAGE_KEY_SMOOTH_CARET_DURATION, 150)
   const smoothCaretVariant = persistedRef(STORAGE_KEY_SMOOTH_CARET_VARIANT, 'line')
@@ -466,7 +469,7 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   return { sprouts, sproutGroups, theme, toggleSprout, syncExternalSprouts, setSproutsActive, saveSproutGroup, applySproutGroup, removeSproutGroup, setTheme, isActive, getActiveSproutIds, loadProjectSprouts, loadProjectSproutGroups,
-           undoHistoryLimit, multiStepRedo, maxCenterNodes, panelLimitEnabled,
+           undoHistoryLimit, multiStepRedo, maxCenterNodes, panelLimitEnabled, deckWheelGateEnabled,
            smoothCaretEnabled, smoothCaretDuration, smoothCaretVariant,
            autoCreateEntityEnabled, autoCreateSelectorEnabled, autoCreateEntityRefEnabled,
            highlight_pulseEnabled, highlight_dimmingEnabled, highlight_dimmingMode, highlight_dimOpacity, highlight_spreadHops,

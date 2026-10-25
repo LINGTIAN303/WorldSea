@@ -1,24 +1,39 @@
 <template>
-  <CardDeck :count="1" :flat="!!searchQuery" @change="(i) => emit('card-change', i)" ref="deckRef">
+  <CardDeck :count="2" :flat="!!searchQuery" @change="(i) => emit('card-change', i)" ref="deckRef">
     <template #card="{ idx, cls }">
-      <div class="set-card deck-card" :class="cls" :data-index="idx" v-show="match('动画效果 减弱 动态 动画 动效 消息 脉冲 状态 面板 侧边栏 弹窗 控件 启动 眩晕 降低 可访问 reduce motion animation accessibility')">
-        <div class="sc-head">动画效果</div>
-        <div class="set-row">
-          <span>减弱动态效果</span>
-          <label class="set-toggle">
-            <input type="checkbox" v-model="store.reduceMotion" />
-            <span class="set-toggle-slider"></span>
-          </label>
-        </div>
-        <p class="set-hint">开启后关闭全部界面动效（全局减弱）；关闭时保留动画，可按下述分组逐项关闭。</p>
-        <div v-for="(label, key) in ANIMATION_GROUPS" :key="key" class="set-row">
-          <span>{{ label }}</span>
-          <label class="set-toggle">
-            <input type="checkbox" :checked="!!store.animations[key]" @change="onAnimToggle(key, ($event.target as HTMLInputElement).checked)" />
-            <span class="set-toggle-slider"></span>
-          </label>
-        </div>
-        <p class="set-hint">关闭某类动画（如消息与对话）即禁用对应组件的动效，其余保持正常。</p>
+      <!-- slot 按 count 循环渲染，内容必须按 idx 互斥分支（否则每个循环都输出全部卡，.sc-head 重复进左列） -->
+      <div class="set-card deck-card" :class="cls" :data-index="idx"
+        v-show="idx === 0 ? match('动画效果 减弱 动态 动画 动效 消息 脉冲 状态 面板 侧边栏 弹窗 控件 启动 眩晕 降低 可访问 reduce motion animation accessibility') : match('面板翻卡 翻卡 滚轮 滚动 边缘 二次 松开 误触 翻页 可访问 accessibility')">
+        <template v-if="idx === 0">
+          <div class="sc-head">动画效果</div>
+          <div class="set-row">
+            <span>减弱动态效果</span>
+            <label class="set-toggle">
+              <input type="checkbox" v-model="store.reduceMotion" />
+              <span class="set-toggle-slider"></span>
+            </label>
+          </div>
+          <p class="set-hint">开启后关闭全部界面动效（全局减弱）；关闭时保留动画，可按下述分组逐项关闭。</p>
+          <div v-for="(label, key) in ANIMATION_GROUPS" :key="key" class="set-row">
+            <span>{{ label }}</span>
+            <label class="set-toggle">
+              <input type="checkbox" :checked="!!store.animations[key]" @change="onAnimToggle(key, ($event.target as HTMLInputElement).checked)" />
+              <span class="set-toggle-slider"></span>
+            </label>
+          </div>
+          <p class="set-hint">关闭某类动画（如消息与对话）即禁用对应组件的动效，其余保持正常。</p>
+        </template>
+        <template v-else-if="idx === 1">
+          <div class="sc-head">面板翻卡</div>
+          <div class="set-row">
+            <span>滚轮翻卡防误触</span>
+            <label class="set-toggle">
+              <input type="checkbox" v-model="store.deckWheelGateEnabled" />
+              <span class="set-toggle-slider"></span>
+            </label>
+          </div>
+          <p class="set-hint">开启后，卡片内容滚到边缘不会立即翻卡——停顿（松手）后再次滚动才翻到下一张，避免长内容惯性滚动时连环误翻；关闭则滚到边缘立即翻卡。</p>
+        </template>
       </div>
     </template>
   </CardDeck>
