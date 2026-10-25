@@ -139,7 +139,7 @@ export default defineConfig({
     '__TAURI__': JSON.stringify(true),
   },
   plugins: [
-    vue(),
+    vue({ template: { compilerOptions: { isCustomElement: (tag) => tag === "model-viewer" } } }),
     wasm(),
     // gzip + brotli 压缩（10KB 以上才压缩，保留原文件）
     // 注：Tauri 端产物会被打包进二进制，压缩可减小安装包体积

@@ -13,6 +13,12 @@ const TOP_LEVEL_FIELD: Record<string, keyof Entity> = {
   coverPosition: 'coverPosition',
   coverZoom: 'coverZoom',
   avatar: 'avatar',
+  // 形象图族（2026-10-25 形象图批计划 A 批）
+  portrait: 'portrait',
+  portraitKind: 'portraitKind',
+  portraitMeta: 'portraitMeta',
+  videoAsset: 'videoAsset',
+  coverSource: 'coverSource',
 }
 
 /** 该 schema 字段是否由实体顶层承载 */

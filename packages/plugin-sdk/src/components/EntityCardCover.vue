@@ -1,25 +1,61 @@
 <template>
   <div v-if="hasCover" class="card-cover-wrap">
-    <img v-if="coverUrl" :src="coverUrl" class="card-cover" :alt="entity.name" :style="coverStyle" />
+    <!-- 视频封面（C 批 #15/#16/#17/#18）：首帧静默；三档自动播放；悬停播独立开关 -->
+    <video
+      v-if="usingVideo"
+      ref="videoEl"
+      class="card-cover"
+      :src="`${entity.videoAsset}#t=0.1`"
+      muted
+      loop
+      playsinline
+      preload="metadata"
+      :autoplay="autoplayOn"
+    ></video>
+    <!-- 形象作封面且为模型/Lottie：PortraitRenderer 实时渲染（B 批接管 A 批占位） -->
+    <PortraitRenderer
+      v-else-if="portraitLive"
+      :src="entity.portrait!"
+      :kind="entity.portraitKind!"
+      class="card-cover-live"
+    />
+    <img v-else-if="coverUrl" :src="coverUrl" class="card-cover" :alt="entity.name" :style="coverStyle" />
     <div class="card-cover-overlay"></div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useEntityImage } from '@worldsea/entity-core/composables'
-import type { Entity } from '@worldsea/entity-core'
+import { useSettingsStore, type Entity } from '@worldsea/entity-core'
+import PortraitRenderer from './PortraitRenderer.vue'
+import { useCardVideoScrollPause } from '../composables/useCardVideoScrollPause'
 
 const props = defineProps<{
   entity: Entity
   coverFieldKey: string
+  /** 卡片悬停态（父级 EntityCard 传入；悬停播视频用） */
+  hovered?: boolean
 }>()
 
+const settings = useSettingsStore()
+
+/** 形象图作封面（coverSource 勾选生效且资产在）：优先级 image < portrait < video（视频源 C 批接入） */
+const usingVideo = computed(() => props.entity.coverSource === 'video' && !!props.entity.videoAsset)
+const usingPortrait = computed(() => props.entity.coverSource === 'portrait' && !!props.entity.portrait)
+
+/** 模型/Lottie 封面走 PortraitRenderer（img 无能渲染 3D/矢量动画） */
+const portraitLive = computed(
+  () => usingPortrait.value && (props.entity.portraitKind === 'model' || props.entity.portraitKind === 'lottie'),
+)
+
 const coverValue = computed(() => {
+  if (usingPortrait.value && !portraitLive.value) return props.entity.portrait
   return props.entity.coverImage || props.entity.properties[props.coverFieldKey]
 })
 
 const hasCover = computed(() => {
+  if (usingVideo.value || portraitLive.value) return true
   const v = coverValue.value
   if (!v) return false
   if (typeof v === 'string') return v.trim().length > 0
@@ -33,12 +69,44 @@ const hasCover = computed(() => {
 const { imageUrl: coverUrl } = useEntityImage(coverValue)
 
 const coverStyle = computed(() => {
-  const pos = props.entity.coverPosition || '50% 50%'
-  const zoom = props.entity.coverZoom || 1
+  // 形象作封面用形象焦点，否则用封面焦点（语义一致：objectPosition + scale）
+  const focus = props.entity.portraitMeta?.focus
+  const pos = (usingPortrait.value && focus?.position) || props.entity.coverPosition || '50% 50%'
+  const zoom = (usingPortrait.value && focus?.zoom) || props.entity.coverZoom || 1
   return {
     objectPosition: pos,
     transform: `scale(${zoom})`,
     transformOrigin: pos,
+  }
+})
+
+// ── 视频封面播放策略（C 批）：三档自动播放（off/all/selected）+ 悬停播独立开关 ──
+const videoEl = ref<HTMLVideoElement | null>(null)
+const { scrolling } = useCardVideoScrollPause()
+
+/** 三档判定（#17：selected=设置中指定的实体列表） */
+const autoplayOn = computed(() => {
+  if (!usingVideo.value) return false
+  const mode = settings.videoCoverAutoplay
+  if (mode === 'all') return true
+  if (mode === 'selected') return settings.videoCoverAutoplayEntities.includes(props.entity.id)
+  return false
+})
+
+/** 是否应处于播放态（悬停播 + 自动播放档 + 滚动暂停三者合成） */
+const shouldPlay = computed(() => {
+  if (scrolling.value && settings.videoCoverPauseOnScroll) return false
+  if (autoplayOn.value) return true
+  return !!props.hovered && settings.videoCoverHoverPlay
+})
+
+watch(shouldPlay, (play) => {
+  const v = videoEl.value
+  if (!v) return
+  if (play) Promise.resolve(v.play()).catch(() => {})
+  else {
+    v.pause()
+    if (!autoplayOn.value) v.currentTime = 0.1 // 非自动档回到首帧
   }
 })
 </script>
@@ -56,6 +124,9 @@ const coverStyle = computed(() => {
   height: 110px;
   object-fit: cover;
   display: block;
+}
+.card-cover-live {
+  height: 110px;
 }
 .card-cover-overlay {
   position: absolute;

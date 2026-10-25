@@ -1,4 +1,4 @@
-export type { FieldSchema, EntityTypeSchema, Entity } from './entity'
+export type { FieldSchema, EntityTypeSchema, Entity, PortraitKind, EntityPortraitMeta, ModelActionConfig, MotionRegion, MotionTrack, MotionKeyframe, MotionConfig, CoverSource } from './entity'
 
 export type { RelationTypeSchema, RelationTypeSchemaV2, Relation } from './relation'
 

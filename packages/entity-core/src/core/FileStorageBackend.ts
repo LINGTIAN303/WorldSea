@@ -145,6 +145,22 @@ export class FileStorageBackend implements StorageBackend {
   }
 
   /**
+   * boot 竞态防护（2026-10-25 修复）：Tauri 环境下 isReady=false 多为 boot 竞态窗
+   * （useProjectSwitcher 尚未 setProjectDir）。此窗口内的写若立即落 fallback（SQLite），
+   * 会与后续文件库分裂——实体更新进了 SQLite、磁盘 JSON 保持旧值，切换视图重载后
+   * 「字段消失」（形象图批 A 走查实测：portrait 不落盘而 portraitKind/coverSource 落盘）。
+   * 写路径先等一等（默认 5s）；真无项目（浏览器/未绑定）才降级 fallback。
+   */
+  private async ensureFileReady(timeoutMs = 5000): Promise<boolean> {
+    if (this.isReady) return true
+    const deadline = Date.now() + timeoutMs
+    while (!this.isReady && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 50))
+    }
+    return this.isReady
+  }
+
+  /**
    * 标记自身写入开始，设置静默期。
    * 使用 Math.max 避免后续短窗口缩短已有长窗口。
    */
@@ -179,9 +195,15 @@ export class FileStorageBackend implements StorageBackend {
   /**
    * 设置项目目录并加载索引。
    * 传入 null 表示取消目录绑定，降级到 fallback。
+   *
+   * 路径形态归一（2026-10-25 修复）：dir 统一 `\`→`/`。此前 _projectDir 保留调用方
+   * 原始形态（Windows 反斜杠），entityFilePath 拼出混合斜杠 newPath，与 loadIndex 索引
+   * 存的 Rust 路径（全反斜杠）字符串不等但**物理同文件**——updateEntity 的「写新删旧」
+   * 判断 oldPath!==newPath 恒真 → 写完随即删除同一物理文件，实体文件自删（靠后续写
+   * 偶然救回，否则永久丢失）。归一后两侧同为正斜杠，字符串相等性恢复物理含义。
    */
   async setProjectDir(dir: string | null): Promise<void> {
-    this._projectDir = dir
+    this._projectDir = dir ? dir.replace(/\\/g, '/') : null
     this._entityIndex.clear()
     this._entityCache.clear()
     this._relations = []
@@ -297,18 +319,19 @@ export class FileStorageBackend implements StorageBackend {
           const files = await listDir(typeDir.path)
           for (const file of files) {
             if (file.isDir || !file.name.endsWith('.json')) continue
-            // 读取实体文件获取 ID（首次加载）
+            // 读取实体文件获取 ID（首次加载）；path 归一正斜杠（与 entityFilePath 输出同形态，见 setProjectDir 注释）。
+            // 解析失败（如历史截断文件）告警留痕而非静默——GIF 丢失排查可诊断（原子写落地后不应再现）
             try {
               const content = await readTextFile(file.path)
               const entity: Entity = JSON.parse(content)
               this._entityIndex.set(entity.id, {
                 type: entityType,
                 name: entity.name,
-                path: file.path,
+                path: file.path.replace(/\\/g, '/'),
               })
               this._entityCache.set(entity.id, entity)
-            } catch {
-              // 单个文件解析失败不影响整体
+            } catch (err) {
+              console.warn('[FileStorageBackend] 实体文件解析失败（跳过，文件保留待查）:', file.path, err)
             }
           }
         } catch {
@@ -424,7 +447,7 @@ export class FileStorageBackend implements StorageBackend {
   }
 
   async putEntity(entity: Entity): Promise<void> {
-    if (!this.isReady) return this._fallback!.putEntity(entity)
+    if (!(await this.ensureFileReady())) return this._fallback!.putEntity(entity)
     this.markSelfWrite()
     // 先更新内存索引和缓存（同步，零延迟）
     const filePath = this.entityFilePath(entity)
@@ -452,9 +475,18 @@ export class FileStorageBackend implements StorageBackend {
   }
 
   async updateEntity(id: string, changes: Partial<Entity>): Promise<void> {
-    if (!this.isReady) return this._fallback!.updateEntity(id, changes)
+    if (!(await this.ensureFileReady())) return this._fallback!.updateEntity(id, changes)
     this.markSelfWrite()
-    const existing = await this.getEntity(id)
+    // 读改写竞态防护（2026-10-25 二轮走查定位）：背靠背 update（AssetField 一次上传连发 value+kind
+    // 两个 emit）在 `await getEntity` 的 microtask 窗口交错——后发者用旧缓存覆盖先发者的 changes
+    // （实测：portrait 落盘丢失而 portraitKind 在；封面图链路单 emit 所以从未触发）。
+    // 优先**同步**读缓存消灭交错窗口（loadIndex/putEntity 后缓存必有值）；miss 慢路径先等
+    // 该实体写队列完成再读（队列串行完成后磁盘/缓存均为最新）。
+    let existing = this._entityCache.get(id)
+    if (!existing) {
+      await this.waitEntityWrites(id)
+      existing = this._entityCache.get(id) ?? (await this.getEntity(id))
+    }
     if (!existing) throw new Error(`实体 ${id} 不存在`)
     const updated = { ...existing, ...changes }
     // 保存旧值用于写盘失败时回滚
@@ -473,8 +505,8 @@ export class FileStorageBackend implements StorageBackend {
     const write = this.enqueueEntityWrite(id, async () => {
       try {
         await writeTextFile(newPath, content, true)
-        // 写入成功后删除旧路径文件
-        if (oldPath && oldPath !== newPath) {
+        // 写入成功后删除旧路径文件（归一比较双保险：斜杠形态差异不代表物理不同文件，见 setProjectDir 注释）
+        if (oldPath && oldPath.replace(/\\/g, '/') !== newPath.replace(/\\/g, '/')) {
           try { await deleteFile(oldPath) } catch { /* 旧文件删除失败可忽略 */ }
         }
       } catch (err) {
@@ -487,7 +519,7 @@ export class FileStorageBackend implements StorageBackend {
   }
 
   async deleteEntity(id: string): Promise<void> {
-    if (!this.isReady) return this._fallback!.deleteEntity(id)
+    if (!(await this.ensureFileReady())) return this._fallback!.deleteEntity(id)
     this.markSelfWrite()
     // 保存旧值用于删除失败时回滚
     const path = this.entityFilePathById(id)
@@ -516,7 +548,7 @@ export class FileStorageBackend implements StorageBackend {
   }
 
   async deleteEntityAtomic(id: string): Promise<{ success: boolean; error?: string }> {
-    if (!this.isReady) return this._fallback!.deleteEntityAtomic(id)
+    if (!(await this.ensureFileReady())) return this._fallback!.deleteEntityAtomic(id)
     try {
       // 删除关联关系
       await this.deleteRelationsByEntity(id)
@@ -538,7 +570,7 @@ export class FileStorageBackend implements StorageBackend {
   }
 
   async clearEntities(): Promise<void> {
-    if (!this.isReady) return this._fallback!.clearEntities()
+    if (!(await this.ensureFileReady())) return this._fallback!.clearEntities()
     // 删除所有实体文件
     for (const entry of this._entityIndex.values()) {
       try { await deleteFile(entry.path) } catch { /* 忽略 */ }
@@ -548,7 +580,7 @@ export class FileStorageBackend implements StorageBackend {
   }
 
   async importEntities(entities: Entity[]): Promise<number> {
-    if (!this.isReady) return this._fallback!.importEntities(entities)
+    if (!(await this.ensureFileReady())) return this._fallback!.importEntities(entities)
     for (const entity of entities) {
       await this.putEntity(entity)
     }
@@ -576,7 +608,7 @@ export class FileStorageBackend implements StorageBackend {
   }
 
   async putRelation(relation: Relation): Promise<void> {
-    if (!this.isReady) return this._fallback!.putRelation(relation)
+    if (!(await this.ensureFileReady())) return this._fallback!.putRelation(relation)
     this.markSelfWrite()
     if (!this._relationsLoaded) {
       await this.loadRelations()
@@ -593,7 +625,7 @@ export class FileStorageBackend implements StorageBackend {
   }
 
   async updateRelation(id: string, changes: Partial<Relation>): Promise<void> {
-    if (!this.isReady) return this._fallback!.updateRelation(id, changes)
+    if (!(await this.ensureFileReady())) return this._fallback!.updateRelation(id, changes)
     this.markSelfWrite()
     if (!this._relationsLoaded) {
       await this.loadRelations()
@@ -606,7 +638,7 @@ export class FileStorageBackend implements StorageBackend {
   }
 
   async deleteRelation(id: string): Promise<void> {
-    if (!this.isReady) return this._fallback!.deleteRelation(id)
+    if (!(await this.ensureFileReady())) return this._fallback!.deleteRelation(id)
     this.markSelfWrite()
     if (!this._relationsLoaded) {
       await this.loadRelations()
@@ -616,7 +648,7 @@ export class FileStorageBackend implements StorageBackend {
   }
 
   async deleteRelationsByEntity(entityId: string): Promise<number> {
-    if (!this.isReady) return this._fallback!.deleteRelationsByEntity(entityId)
+    if (!(await this.ensureFileReady())) return this._fallback!.deleteRelationsByEntity(entityId)
     this.markSelfWrite()
     if (!this._relationsLoaded) {
       await this.loadRelations()
@@ -633,14 +665,14 @@ export class FileStorageBackend implements StorageBackend {
   }
 
   async clearRelations(): Promise<void> {
-    if (!this.isReady) return this._fallback!.clearRelations()
+    if (!(await this.ensureFileReady())) return this._fallback!.clearRelations()
     this.markSelfWrite()
     this._relations = []
     this.flushRelationsAsync()
   }
 
   async importRelations(relations: Relation[]): Promise<number> {
-    if (!this.isReady) return this._fallback!.importRelations(relations)
+    if (!(await this.ensureFileReady())) return this._fallback!.importRelations(relations)
     this.markSelfWrite()
     if (!this._relationsLoaded) {
       await this.loadRelations()
@@ -704,7 +736,7 @@ export class FileStorageBackend implements StorageBackend {
   }
 
   async kvSet(key: string, value: string): Promise<void> {
-    if (!this.isReady) return this._fallback!.kvSet(key, value)
+    if (!(await this.ensureFileReady())) return this._fallback!.kvSet(key, value)
     if (!this._kvLoaded) {
       await this.loadKv()
     }
@@ -715,7 +747,7 @@ export class FileStorageBackend implements StorageBackend {
   }
 
   async kvDelete(key: string): Promise<void> {
-    if (!this.isReady) return this._fallback!.kvDelete(key)
+    if (!(await this.ensureFileReady())) return this._fallback!.kvDelete(key)
     if (!this._kvLoaded) {
       await this.loadKv()
     }
@@ -813,7 +845,7 @@ export class FileStorageBackend implements StorageBackend {
   }
 
   async putFile(file: ProjectFile, content: ProjectFileContent): Promise<void> {
-    if (!this.isReady) return this._fallback!.putFile(file, content)
+    if (!(await this.ensureFileReady())) return this._fallback!.putFile(file, content)
     if (!this._filesMetaLoaded) {
       await this.loadFilesMeta()
     }
@@ -848,7 +880,7 @@ export class FileStorageBackend implements StorageBackend {
   }
 
   async updateFile(id: string, changes: Partial<ProjectFile>): Promise<void> {
-    if (!this.isReady) return this._fallback!.updateFile(id, changes)
+    if (!(await this.ensureFileReady())) return this._fallback!.updateFile(id, changes)
     if (!this._filesMetaLoaded) {
       await this.loadFilesMeta()
     }
@@ -862,7 +894,7 @@ export class FileStorageBackend implements StorageBackend {
   }
 
   async deleteFile(id: string): Promise<void> {
-    if (!this.isReady) return this._fallback!.deleteFile(id)
+    if (!(await this.ensureFileReady())) return this._fallback!.deleteFile(id)
     if (!this._filesMetaLoaded) {
       await this.loadFilesMeta()
     }

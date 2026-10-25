@@ -209,8 +209,8 @@ function onAssetSelect(node: { name: string; path: string; size: number }): void
 
 // ── 孤儿资产清理（2026-09-14 挂账：删笔记后 assets/ 图片残留无人回收）──
 // assets/ 兼作素材库（用户手动放的未引用图不能被自动删）→ 不做自动惰性清理，
-// 改显式按钮 + confirm 列表。引用集 = 全部实体 properties（不限于笔记，文稿
-// 正文同样引用资产）；宽限期 24h 在 imageAssets.findOrphanAssets 内判定。
+// 改显式按钮 + confirm 列表。引用集 = 全部实体 properties + 顶层资产字段（形象图批 A 起顶层也引用磁盘资产，
+// 漏扫会误删在用形象图）；宽限期 24h 在 imageAssets.findOrphanAssets 内判定。
 const { confirm } = useConfirm()
 const assetTreeRef = ref<{ refresh: () => Promise<void> } | null>(null)
 const cleaningAssets = ref(false)
@@ -219,7 +219,7 @@ async function onCleanOrphanAssets(): Promise<void> {
   if (!filesRoot.value || cleaningAssets.value) return
   cleaningAssets.value = true
   try {
-    const texts = entityStore.entities.map((e) => JSON.stringify(e.properties ?? {}))
+    const texts = entityStore.entities.map((e) => JSON.stringify([e.properties, e.portrait, e.videoAsset, e.coverImage, e.avatar]))
     const refs = collectAssetDiskPaths(texts)
     const files = await listAssetFiles(filesRoot.value)
     const orphans = findOrphanAssets(files, refs, Date.now())

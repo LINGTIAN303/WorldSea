@@ -57,6 +57,13 @@ const STORAGE_KEY_AUTO_CREATE_SELECTOR = 'worldsea_auto_create_selector'
 const STORAGE_KEY_AUTO_CREATE_ENTITY_REF = 'worldsea_auto_create_entity_ref'
 const STORAGE_KEY_HIGHLIGHT_PULSE_ENABLED = 'worldsea_highlight_pulse_enabled'
 const STORAGE_KEY_HIGHLIGHT_DIMMING_ENABLED = 'worldsea_highlight_dimming_enabled'
+const STORAGE_KEY_CARD_HOVER_PREVIEW = 'worldsea_card_hover_preview'
+const STORAGE_KEY_HOVER_PREVIEW_FRAMELESS = 'worldsea_hover_preview_frameless'
+const STORAGE_KEY_VIDEO_COVER_AUTOPLAY = 'worldsea_video_cover_autoplay'
+const STORAGE_KEY_VIDEO_AUTOPLAY_ENTITIES = 'worldsea_video_autoplay_entities'
+const STORAGE_KEY_VIDEO_HOVER_PLAY = 'worldsea_video_hover_play'
+const STORAGE_KEY_VIDEO_PAUSE_ON_SCROLL = 'worldsea_video_pause_on_scroll'
+const STORAGE_KEY_PORTRAIT_FOLLOW_MOUSE = 'worldsea_portrait_follow_mouse'
 const STORAGE_KEY_HIGHLIGHT_DIMMING_MODE = 'worldsea_highlight_dimming_mode'
 const STORAGE_KEY_HIGHLIGHT_DIM_OPACITY = 'worldsea_highlight_dim_opacity'
 const STORAGE_KEY_HIGHLIGHT_SPREAD_HOPS = 'worldsea_highlight_spread_hops'
@@ -245,6 +252,20 @@ function persistedRef<T extends string | number | boolean>(key: string, defaultV
   return val
 }
 
+/** JSON 持久化 ref（数组/对象值；解析失败回退默认，2026-10-25 形象图批 C：视频自动播放实体列表） */
+function persistedJsonRef<T>(key: string, defaultValue: T): Ref<T> {
+  let initial = defaultValue
+  try {
+    const raw = localStorage.getItem(key)
+    if (raw !== null) initial = JSON.parse(raw) as T
+  } catch { /* 回退默认 */ }
+  const val = ref(initial) as Ref<T>
+  watch(val, (v) => {
+    localStorage.setItem(key, JSON.stringify(v))
+  })
+  return val
+}
+
 function deriveKeyStoreId(baseUrl: string): string {
   if (!baseUrl || !baseUrl.trim()) return 'custom:_empty'
   try {
@@ -320,6 +341,18 @@ export const useSettingsStore = defineStore('settings', () => {
   const timelineCompactMode = persistedRef(STORAGE_KEY_TIMELINE_COMPACT_MODE, false)
   /** 图谱底色（2026-10-09 图谱批 D）：默认「深色星图」；切「跟随主题」后画布与浮层走主题令牌 */
   const graphBackgroundMode = persistedRef(STORAGE_KEY_GRAPH_BACKGROUND, 'dark' as string)
+  /** 实体卡片悬停形象预览（2026-10-25 形象图批 B）：默认开；无框模式默认关（有框） */
+  const entityCardHoverPreview = persistedRef(STORAGE_KEY_CARD_HOVER_PREVIEW, true)
+  const hoverPreviewFrameless = persistedRef(STORAGE_KEY_HOVER_PREVIEW_FRAMELESS, false)
+  /** 视频封面自动播放三档（批 C #15/#17）：off=默认不自动播放 / all=全部 / selected=仅指定实体 */
+  const videoCoverAutoplay = persistedRef(STORAGE_KEY_VIDEO_COVER_AUTOPLAY, 'off' as string)
+  const videoCoverAutoplayEntities = persistedJsonRef<string[]>(STORAGE_KEY_VIDEO_AUTOPLAY_ENTITIES, [])
+  /** 悬停卡片播放视频封面（批 C #18）：独立开关，进入播放/离开回首帧 */
+  const videoCoverHoverPlay = persistedRef(STORAGE_KEY_VIDEO_HOVER_PLAY, true)
+  /** 滚动网格时暂停视频封面（批 C 走查追加，多视频同播的帧率缓冲）：默认开 */
+  const videoCoverPauseOnScroll = persistedRef(STORAGE_KEY_VIDEO_PAUSE_ON_SCROLL, true)
+  /** 点击实体后形象图置顶浮层跟随鼠标（D1 #11）：默认不跟踪（固定左下角） */
+  const portraitFollowMouse = persistedRef(STORAGE_KEY_PORTRAIT_FOLLOW_MOUSE, false)
 
   watch(customProviders, v => saveCustomProviders(v))
 
@@ -446,5 +479,8 @@ export const useSettingsStore = defineStore('settings', () => {
             reduceMotion, animations, ANIMATION_GROUPS,
             sidebarPosition, detailPanelPosition, phonePreviewMode,
             timelineDragEnabled, timelineDefaultMode, timelineDefaultGroup, timelineCompactMode,
-            graphBackgroundMode }
+            graphBackgroundMode,
+            entityCardHoverPreview, hoverPreviewFrameless,
+            videoCoverAutoplay, videoCoverAutoplayEntities, videoCoverHoverPlay, videoCoverPauseOnScroll,
+            portraitFollowMouse }
 })

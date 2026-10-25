@@ -104,6 +104,7 @@
         </div>
       </template>
       <template #cover><EntityCoverPanel v-if="selectedEvent" :entity="selectedEvent" /></template>
+      <template #video><EntityVideoPanel v-if="selectedEvent" :entity="selectedEvent" /></template>
       <template #causal>
         <CausalGraph
           :event="selectedEvent"
@@ -157,7 +158,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useEntityStore, useRelationStore, useUIStore, useDetailLayoutStore } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
-import { AutoLinkSuggestions, CustomDropdown, EntityCoverPanel, CreateButton, DynamicFieldsAdder, UniversalRelationPanel, EntityRelationSelector, EntityPager, useDuplicateNameCheck, useSelectedFollow, useBatchDelete, useConfirm, useEntityEdit, useEntityPaging, useDetailCarrier, resolveDetailTabs, adjacentTabId } from '@worldsea/plugin-sdk'
+import { AutoLinkSuggestions, CustomDropdown, EntityCoverPanel, EntityVideoPanel, CreateButton, DynamicFieldsAdder, UniversalRelationPanel, EntityRelationSelector, EntityPager, useDuplicateNameCheck, useSelectedFollow, useBatchDelete, useConfirm, useEntityEdit, useEntityPaging, useDetailCarrier, resolveDetailTabs, adjacentTabId } from '@worldsea/plugin-sdk'
 import { toastSuccess, toastWithUndo, useUndoRedo, useAsyncTask } from '@worldsea/ui-kit'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { TuiButton, WsEmpty } from '@worldsea/ui-kit'

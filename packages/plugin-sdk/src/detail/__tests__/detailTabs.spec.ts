@@ -10,16 +10,16 @@ const extras = [{ id: 'causal', label: '因果链', icon: 'link' }]
 describe('resolveDetailTabs —— 组装序', () => {
   it('基础序：info → cover(有) → custom → extras → relations', () => {
     expect(resolveDetailTabs({ hasCover: true, customTabs: custom, extras }).map(t => t.id))
-      .toEqual(['info', 'cover', 'family', 'names', 'causal', 'relations'])
+      .toEqual(['info', 'cover', 'video', 'family', 'names', 'causal', 'relations'])
   })
 
   it('无封面则无 cover（其余不动）', () => {
     expect(resolveDetailTabs({ hasCover: false, customTabs: custom }).map(t => t.id))
-      .toEqual(['info', 'family', 'names', 'relations'])
+      .toEqual(['info', 'video', 'family', 'names', 'relations'])
   })
 
   it('最小输入＝info + relations（兜底恒在）', () => {
-    expect(resolveDetailTabs({ hasCover: false }).map(t => t.id)).toEqual(['info', 'relations'])
+    expect(resolveDetailTabs({ hasCover: false }).map(t => t.id)).toEqual(['info', 'video', 'relations'])
   })
 })
 
@@ -30,7 +30,7 @@ describe('resolveDetailTabs —— 用户覆写', () => {
       customTabs: custom,
       override: { hidden: ['family', 'info', 'relations'] },
     })
-    expect(tabs.map(t => t.id)).toEqual(['info', 'cover', 'names', 'relations'])
+    expect(tabs.map(t => t.id)).toEqual(['info', 'cover', 'video', 'names', 'relations'])
   })
 
   it('order 列出者按序前置，未列出者保持默认序尾随', () => {
@@ -39,7 +39,7 @@ describe('resolveDetailTabs —— 用户覆写', () => {
       customTabs: custom,
       override: { order: ['relations', 'family'] },
     })
-    expect(tabs.map(t => t.id)).toEqual(['relations', 'family', 'info', 'cover', 'names'])
+    expect(tabs.map(t => t.id)).toEqual(['relations', 'family', 'info', 'cover', 'video', 'names'])
   })
 
   it('order 里不存在的 id 被忽略（不产生幽灵 tab）', () => {
@@ -47,7 +47,7 @@ describe('resolveDetailTabs —— 用户覆写', () => {
       hasCover: false,
       override: { order: ['ghost', 'relations'] },
     })
-    expect(tabs.map(t => t.id)).toEqual(['relations', 'info'])
+    expect(tabs.map(t => t.id)).toEqual(['relations', 'info', 'video'])
   })
 
   it('hidden 与 order 同时生效（先剔后排）', () => {
@@ -56,7 +56,7 @@ describe('resolveDetailTabs —— 用户覆写', () => {
       customTabs: custom,
       override: { hidden: ['cover'], order: ['names'] },
     })
-    expect(tabs.map(t => t.id)).toEqual(['names', 'info', 'family', 'relations'])
+    expect(tabs.map(t => t.id)).toEqual(['names', 'info', 'video', 'family', 'relations'])
   })
 
   it('空覆写＝基础序（且不抖动对象）', () => {

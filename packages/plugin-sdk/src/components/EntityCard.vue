@@ -1,5 +1,6 @@
 <template>
   <div
+    ref="wrapperEl"
     class="entity-card-wrapper"
     :class="{
       'is-flipped': hasImageField && flipped,
@@ -9,11 +10,13 @@
       'dimmed': dimmed,
       'search-highlight': searchHighlighted,
     }"
+    @mouseover="onHoverOver"
+    @mouseout="onHoverOut"
   >
     <!-- 有封面字段时走双面卡：正面文字、背面图片（翻转态由卡片自持） -->
     <div v-if="hasImageField" class="entity-card-flipper">
       <div class="entity-card card-front" role="button" tabindex="0" :aria-label="activateLabel" :aria-pressed="batchMode ? batchSelected : undefined" @click="emit('activate')" @keydown.enter.prevent="emit('activate')" @keydown.space.prevent="emit('activate')">
-        <EntityCardCover :entity="entity" :cover-field-key="coverFieldKey" />
+        <EntityCardCover :entity="entity" :cover-field-key="coverFieldKey" :hovered="hovered" />
         <div class="card-header">
           <WsIcon class="card-icon" :name="icon" size="sm" />
           <div class="card-body">
@@ -69,6 +72,17 @@
         </div>
       </div>
     </div>
+
+    <!-- 悬停形象预览（需求 #1/#4/#13）：有形象图且设置开启时，延迟浮现（防扫卡误触） -->
+    <EntityCardHoverPreview
+      v-if="previewVisible"
+      :anchor="wrapperEl!"
+      :src="entity.portrait!"
+      :kind="entity.portraitKind || 'static'"
+      :frameless="settings.hoverPreviewFrameless"
+      :actions="entity.portraitMeta?.model"
+      :motion="entity.portraitMeta?.motion"
+    />
   </div>
 </template>
 
@@ -78,12 +92,13 @@
  * 卡片自己知道正面/背面，父级只需管选中与高亮。
  * 详细见 docs/details/注释/packages/plugin-sdk/实体详情表单.md
  */
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import { WsIcon } from '@worldsea/ui-kit'
-import type { Entity } from '@worldsea/entity-core'
+import { useSettingsStore, type Entity } from '@worldsea/entity-core'
 import type { CardFieldDef } from './types'
 import EntityCardCover from './EntityCardCover.vue'
 import EntityCardBack from './EntityCardBack.vue'
+import EntityCardHoverPreview from './EntityCardHoverPreview.vue'
 
 const props = withDefaults(defineProps<{
   entity: Entity
@@ -121,6 +136,55 @@ const flipped = ref(false)
 const subtext = computed(() => String(props.entity.properties[props.cardSubtitle] || ''))
 const typeText = computed(() => String(props.entity.properties[props.typeFieldKey] || ''))
 const activateLabel = computed(() => (props.batchMode ? `选择 ${props.entity.name}` : `打开 ${props.entity.name}`))
+
+// ── 悬停形象预览（形象图批 B）：设置开 + 有形象图才浮现；250ms 延迟防扫卡误触 ──
+// 事件判定用 mouseover/out + relatedTarget 包含检查（D3 走查修复）：model-viewer 内部
+// 元素切换会在指针静止时重派发 enter/leave 序列（实测 [over,enter,out,leave] 连发），
+// mouseenter/mouseleave 配对被冲垮致预览计时器被清——relatedTarget 仍在卡内即忽略；
+// leave 再经 150ms 确认 + matches(':hover') 浏览器真实态复核兜底。
+const settings = useSettingsStore()
+const wrapperEl = ref<HTMLElement | null>(null)
+const previewVisible = ref(false)
+/** 悬停态（即时，无延迟）：供视频封面悬停播（C 批）与预览门控共用 */
+const hovered = ref(false)
+let hoverTimer: ReturnType<typeof setTimeout> | undefined
+let leaveTimer: ReturnType<typeof setTimeout> | undefined
+
+/** relatedTarget 仍在卡内 = 内部元素切换，非真离开/进入 */
+function fromInside(e: MouseEvent): boolean {
+  const rt = e.relatedTarget
+  return !!rt && !!wrapperEl.value?.contains(rt as Node)
+}
+
+function onHoverOver(e: MouseEvent) {
+  if (fromInside(e)) return
+  clearTimeout(leaveTimer)
+  hovered.value = true
+  if (!settings.entityCardHoverPreview || !props.entity.portrait) return
+  // D4 走查终修：model-viewer 会反复重派 over/out 对（假 leave 的 relatedTarget 还会是
+  // 卡外元素，卡内检查防不住）——若每次 over 都重置 250ms 计时，预览永不出现。
+  // 在途计时不重置：真离开（150ms 确认 + :hover 复核）才清。
+  if (hoverTimer) return
+  hoverTimer = setTimeout(() => {
+    previewVisible.value = true
+    hoverTimer = undefined
+  }, 250)
+}
+function onHoverOut(e: MouseEvent) {
+  if (fromInside(e)) return
+  clearTimeout(leaveTimer)
+  leaveTimer = setTimeout(() => {
+    if (wrapperEl.value?.matches(':hover')) return // 伪 leave 兜底：浏览器真实 hover 态
+    hovered.value = false
+    clearTimeout(hoverTimer)
+    hoverTimer = undefined
+    previewVisible.value = false
+  }, 150)
+}
+onBeforeUnmount(() => {
+  clearTimeout(hoverTimer)
+  clearTimeout(leaveTimer)
+})
 </script>
 
 <style scoped>

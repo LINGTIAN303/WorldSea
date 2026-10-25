@@ -1,5 +1,7 @@
 {
   "extends": "@vue/tsconfig/tsconfig.dom.json",
+  // model-viewer 为 web component（形象图批 B），模板按自定义元素处理
+  "vueCompilerOptions": { "isCustomElement": ["model-viewer"] },
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.tsbuildinfo",
     "types": ["vite/client"],

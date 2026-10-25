@@ -8,6 +8,7 @@ use base64::Engine;
 use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
+use tauri::Emitter;
 
 /// 判断路径是否命中敏感目录（~/.ssh、~/.gnupg、/etc、/usr、/bin、/sbin）。
 /// 组件级前缀匹配，避免 `/etcetera` 误命中 `/etc`。
@@ -64,7 +65,26 @@ pub struct FsStat {
     pub mtime: Option<String>,
 }
 
-/// 写入文本文件（可递归创建父目录）
+/// 原子写：先写同目录临时文件再 rename 覆盖（2026-10-26 GIF 丢失排查加固）。
+/// 进程被强杀（更新/重编 taskkill /F）若恰逢 fs::write 会留下截断 JSON——
+/// 前端 loadIndex 解析失败即静默丢实体（GIF「重构建时丢失」的高嫌疑机制）。
+/// 同目录 .tmp + rename（std 在 Windows 带 REPLACE_EXISTING）：崩溃只留 .tmp 残留（无害），
+/// 目标文件要么旧要么新。tmp 命名用「原路径 + .tmp 后缀」（不用 with_extension——
+/// 会把 assets 的 .png 等误改为 .json.tmp）。
+fn atomic_write(path: &Path, bytes: Vec<u8>) -> Result<(), String> {
+    let tmp: PathBuf = {
+        let mut s = path.as_os_str().to_os_string();
+        s.push(".tmp");
+        PathBuf::from(s)
+    };
+    fs::write(&tmp, &bytes).map_err(|e| format!("临时文件写入失败: {e}"))?;
+    fs::rename(&tmp, path).map_err(|e| {
+        let _ = fs::remove_file(&tmp);
+        e.to_string()
+    })
+}
+
+/// 写入文本文件（可递归创建父目录；原子写防强杀截断）
 #[tauri::command]
 pub async fn cmd_fs_write(
     path: String,
@@ -86,9 +106,9 @@ pub async fn cmd_fs_write(
         let bytes = base64::engine::general_purpose::STANDARD
             .decode(content.as_bytes())
             .map_err(|e| format!("base64 解码失败: {e}"))?;
-        fs::write(&path, bytes).map_err(|e| e.to_string())
+        atomic_write(Path::new(&path), bytes)
     } else {
-        fs::write(&path, content).map_err(|e| e.to_string())
+        atomic_write(Path::new(&path), content.into_bytes())
     }
 }
 
@@ -245,6 +265,56 @@ pub async fn cmd_fs_copy(src: String, dest: String) -> Result<(), String> {
     }
     fs::copy(sp, &dest).map_err(|e| e.to_string())?;
     Ok(())
+}
+
+/// 复制文件（分块 + 进度事件；形象/视频资产导入用，2026-10-25 形象图批 C）。
+/// 每 8MB 块 emit `asset-copy-progress` { dest, copied, total }——大视频静默复制无反馈
+/// 的解法。与 cmd_fs_copy 同防护；进度事件按 dest 区分并发任务。
+#[tauri::command]
+pub async fn cmd_fs_copy_progress(
+    app: tauri::AppHandle,
+    src: String,
+    dest: String,
+) -> Result<(), String> {
+    use std::io::{Read, Write};
+    ensure_write_allowed(Path::new(&dest))?;
+    let sp = Path::new(&src);
+    if sp.is_dir() {
+        return Err("暂不支持复制目录".to_string());
+    }
+    let total = sp.metadata().map_err(|e| e.to_string())?.len();
+    let mut reader = std::fs::File::open(sp).map_err(|e| e.to_string())?;
+    // 分块写临时文件后原子 rename（与 cmd_fs_write 同防护：强杀不产生截断资产）
+    let tmp: PathBuf = {
+        let mut s = std::ffi::OsString::from(&dest);
+        s.push(".tmp");
+        PathBuf::from(s)
+    };
+    let mut writer = std::fs::File::create(&tmp).map_err(|e| e.to_string())?;
+    let mut buf = vec![0u8; 8 * 1024 * 1024];
+    let mut copied: u64 = 0;
+    let _ = app.emit(
+        "asset-copy-progress",
+        serde_json::json!({ "dest": dest, "copied": 0u64, "total": total }),
+    );
+    loop {
+        let n = reader.read(&mut buf).map_err(|e| e.to_string())?;
+        if n == 0 {
+            break;
+        }
+        writer.write_all(&buf[..n]).map_err(|e| e.to_string())?;
+        copied += n as u64;
+        let _ = app.emit(
+            "asset-copy-progress",
+            serde_json::json!({ "dest": dest, "copied": copied, "total": total }),
+        );
+    }
+    writer.flush().map_err(|e| e.to_string())?;
+    drop(writer);
+    fs::rename(&tmp, &dest).map_err(|e| {
+        let _ = fs::remove_file(&tmp);
+        e.to_string()
+    })
 }
 
 /// 递归复制目录（项目备份用；目标父目录自动创建；返回复制文件数与字节数）

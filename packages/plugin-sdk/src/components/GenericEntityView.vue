@@ -144,6 +144,18 @@
         <EntityCoverPanel v-if="entity" :entity="entity" />
       </template>
 
+      <template #video="{ entity }">
+        <EntityVideoPanel v-if="entity" :entity="entity" />
+      </template>
+
+      <!-- 追踪浮层（D1 #10/#11/#12）：详情打开且有形象图时置顶；关闭随 selectedEntity -->
+      <EntityFollower
+        v-if="selectedEntity?.portrait"
+        :key="selectedEntity.id"
+        :entity="selectedEntity"
+        @close="selectedEntity = null"
+      />
+
       <template v-for="ct in customTabs" :key="ct.id" #[ct.id]="{ entity }">
         <!-- 芽没给内容的自定义页 → 说明文案（消除「点进去啥也没有」的密室感），而不是空白 -->
         <slot :name="`tab-${ct.id}`" :entity="entity" :editing="isEditing">
@@ -180,6 +192,8 @@ import CreateButton from './CreateButton.vue'
 import UniversalRelationPanel from './UniversalRelationPanel.vue'
 import EntityFormModal from './EntityFormModal.vue'
 import EntityCoverPanel from './EntityCoverPanel.vue'
+import EntityVideoPanel from './EntityVideoPanel.vue'
+import EntityFollower from './EntityFollower.vue'
 import type { FormFieldDef, RelationTabDef, CardFieldDef, CustomTabDef, FilterDef } from './types'
 import { deriveFormFields } from './formFields'
 import { TuiButton, WsIcon, WsEmpty } from '@worldsea/ui-kit'

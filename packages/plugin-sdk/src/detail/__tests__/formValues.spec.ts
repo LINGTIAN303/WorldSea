@@ -26,7 +26,7 @@ const ENTITY = {
   name: '林渊',
   description: '少年剑客\n\n守夜人首领',
   tags: ['剑客', '守夜人'],
-  properties: { species: '人族', born: '1420-03-01', master: 'e2', mood: '', portrait: '/img/lin.png' },
+  properties: { species: '人族', born: '1420-03-01', master: 'e2', mood: '', photo: '/img/lin.png' },
 } as unknown as Entity
 
 const SRC = { entity: ENTITY, draft: {}, editing: false }
@@ -97,7 +97,7 @@ describe('取值与展示文本', () => {
   })
 
   it('image 字段在只读形态里报「已配图」而不是路径串', () => {
-    expect(textOfField(F('portrait', 'image'), SRC)).toBe('已配图')
+    expect(textOfField(F('photo', 'image'), SRC)).toBe('已配图')
   })
 })
 

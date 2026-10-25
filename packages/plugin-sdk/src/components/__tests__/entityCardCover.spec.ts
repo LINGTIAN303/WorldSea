@@ -7,6 +7,7 @@ import { mount, type VueWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 
 import EntityCardCover from '../EntityCardCover.vue'
+import PortraitRenderer from '../PortraitRenderer.vue'
 
 const baseEntity = {
   id: 'bld-1', type: 'building', name: '黑鸦堡', description: '', tags: [],
@@ -45,5 +46,62 @@ describe('EntityCardCover —— 封面随实体替换即时增删', () => {
 
     await w.setProps({ entity: { ...baseEntity } })
     await vi.waitFor(() => expect(w.find('img.card-cover').exists()).toBe(false))
+  })
+})
+
+describe('EntityCardCover —— coverSource 封面源优先级（2026-10-25 形象图批 A）', () => {
+  it('勾选形象作封面：静态形象 img.src = portrait（压过 coverImage）', async () => {
+    const w = mountCover({
+      ...baseEntity,
+      coverImage: 'https://x/cover.png',
+      portrait: 'https://asset.localhost/portrait_1.png',
+      portraitKind: 'static',
+      coverSource: 'portrait',
+    })
+    await vi.waitFor(() => {
+      const img = w.find('img.card-cover')
+      expect(img.exists()).toBe(true)
+      expect(img.attributes('src')).toBe('https://asset.localhost/portrait_1.png')
+    })
+  })
+
+  it('形象存在但未勾选：仍用封面图（默认封面图）', async () => {
+    const w = mountCover({
+      ...baseEntity,
+      coverImage: 'https://x/cover.png',
+      portrait: 'https://asset.localhost/portrait_1.png',
+      portraitKind: 'static',
+    })
+    await vi.waitFor(() => {
+      expect(w.find('img.card-cover').attributes('src')).toBe('https://x/cover.png')
+    })
+  })
+
+  it('模型/Lottie 形象作封面：PortraitRenderer 实时渲染（B 批接管 A 批占位）', () => {
+    const w = mountCover({
+      ...baseEntity,
+      portrait: 'https://asset.localhost/hero.glb',
+      portraitKind: 'model',
+      coverSource: 'portrait',
+    })
+    expect(w.find('img.card-cover').exists()).toBe(false)
+    expect(w.findComponent(PortraitRenderer).exists()).toBe(true)
+  })
+
+  it('形象作封面时的焦点取 portraitMeta.focus（无则回退默认）', async () => {
+    const w = mountCover({
+      ...baseEntity,
+      coverImage: 'https://x/cover.png',
+      coverPosition: '10% 90%',
+      portrait: 'https://asset.localhost/portrait_1.png',
+      portraitKind: 'static',
+      portraitMeta: { focus: { position: '30% 40%', zoom: 2 } },
+      coverSource: 'portrait',
+    })
+    await vi.waitFor(() => {
+      const style = w.find('img.card-cover').attributes('style') ?? ''
+      expect(style).toContain('30% 40%')
+      expect(style).toContain('scale(2)')
+    })
   })
 })

@@ -7,7 +7,7 @@
 #   那属 dsh 窗（Agent 空间）的命令面，两侧按窗口互斥授权；
 # - 授权面 = 仅工作台窗口（capabilities/workspace.json 的 windows 项）；dsh 窗（default.json）不含本权限；
 # - 新增命令的动作：先在产物里确认可达（grep cmd_xxx apps/tauri/workspace-dist/assets/*.js），再加进本表。
-# - **有意排除**（勿顺手补）：cmd_fs_copy · cmd_schema_get_entity_type · cmd_pattern_step_run ·
+# - **有意排除**（勿顺手补）：cmd_schema_get_entity_type · cmd_pattern_step_run ·
 #   cmd_agent_tool_result · cmd_mcp_{spawn,kill,list} · cmd_skills_* · cmd_secure_* ·
 #   cmd_semantic_* · cmd_workspace_index_*（面板随 AgentSpace 摘除而不可达）·
 #   cmd_get_app_data_dir / cmd_get_home_dir / cmd_list_workdirs（Agent 侧路径助手）。
@@ -36,8 +36,10 @@ commands.allow = [
     "cmd_clear_entities", "cmd_clear_relations", "cmd_count_entities_by_type", "cmd_delete_entity",
     "cmd_delete_file", "cmd_delete_relation", "cmd_delete_relations_by_entity",
     "cmd_font_read_file", "cmd_font_scan_system",
-    # cmd_fs_copy_dir：D 项「项目备份」（2026-10-02 立项）明确裁定放行——cmd_fs_copy 仍在有意排除清单
-    "cmd_fs_copy_dir", "cmd_fs_delete", "cmd_fs_list",
+    # cmd_fs_copy_dir：D 项「项目备份」（2026-10-02 立项）明确裁定放行
+    # cmd_fs_copy：形象图/视频资产对话框路径直传（2026-10-25 形象图批计划 A 批，产物可达，按口径放行）
+    # cmd_fs_copy_progress：同链路的分块复制 + 进度事件（批 C 走查追加，大视频导入反馈）
+    "cmd_fs_copy", "cmd_fs_copy_progress", "cmd_fs_copy_dir", "cmd_fs_delete", "cmd_fs_list",
     "cmd_fs_mkdir", "cmd_fs_read", "cmd_fs_rename", "cmd_fs_search",
     "cmd_fs_stat", "cmd_fs_usage", "cmd_fs_watch_start", "cmd_fs_watch_stop", "cmd_fs_write",
     "cmd_get_all_entities", "cmd_get_all_files", "cmd_get_all_relations", "cmd_get_entities_by_type",

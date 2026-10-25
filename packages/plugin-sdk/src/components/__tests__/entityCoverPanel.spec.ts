@@ -9,6 +9,7 @@ import { useEntityStore } from '@worldsea/entity-core'
 
 import EntityCoverPanel from '../EntityCoverPanel.vue'
 import ImageField from '../ImageField.vue'
+import AssetField from '../AssetField.vue'
 
 const entity = {
   id: 'bld-1', type: 'building', name: '黑鸦堡', description: '', tags: [],
@@ -43,5 +44,51 @@ describe('EntityCoverPanel —— 封面 Tab 即时持久化（顶层补丁）',
     w.findComponent(ImageField).vm.$emit('update:coverZoom', 1.5)
     expect(spy).toHaveBeenCalledWith('bld-1', { coverPosition: '30% 40%' })
     expect(spy).toHaveBeenCalledWith('bld-1', { coverZoom: 1.5 })
+  })
+})
+
+describe('EntityCoverPanel —— 形象图区（2026-10-25 形象图批 A）', () => {
+  it('AssetField 上传 → 顶层 portrait + portraitKind', () => {
+    const { wrapper: w, spy } = mountPanel()
+    w.findComponent(AssetField).vm.$emit('update:value', 'https://asset.localhost/p_1.png')
+    expect(spy).toHaveBeenCalledWith('bld-1', { portrait: 'https://asset.localhost/p_1.png' })
+    w.findComponent(AssetField).vm.$emit('update:kind', 'static')
+    expect(spy).toHaveBeenCalledWith('bld-1', { portraitKind: 'static' })
+  })
+
+  it('勾选「形象图作为卡片封面」→ coverSource=portrait；取消 → image', async () => {
+    setActivePinia(createPinia())
+    const store = useEntityStore()
+    const spy = vi.spyOn(store, 'update').mockResolvedValue(undefined)
+    wrapper = mount(EntityCoverPanel, {
+      props: {
+        entity: { ...entity, portrait: 'https://asset.localhost/p_1.png', portraitKind: 'static' },
+      },
+    })
+    const box = wrapper.find('.ecp-check input')
+    expect((box.element as HTMLInputElement).disabled).toBe(false)
+    await box.setValue(true)
+    expect(spy).toHaveBeenCalledWith('bld-1', { coverSource: 'portrait' })
+    await box.setValue(false)
+    expect(spy).toHaveBeenLastCalledWith('bld-1', { coverSource: 'image' })
+  })
+
+  it('移除形象图（null）→ portrait 清空；正作封面时 coverSource 回退 image', () => {
+    // 直接用「正在作封面」的实体挂载（props.entity 是共享常量，构造新对象）
+    setActivePinia(createPinia())
+    const store = useEntityStore()
+    const spy = vi.spyOn(store, 'update').mockResolvedValue(undefined)
+    wrapper = mount(EntityCoverPanel, {
+      props: {
+        entity: {
+          ...entity,
+          portrait: 'https://asset.localhost/p_1.png',
+          portraitKind: 'static',
+          coverSource: 'portrait',
+        },
+      },
+    })
+    wrapper.findComponent(AssetField).vm.$emit('update:value', null)
+    expect(spy).toHaveBeenCalledWith('bld-1', { portrait: '', coverSource: 'image' })
   })
 })

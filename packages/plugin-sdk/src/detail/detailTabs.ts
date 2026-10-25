@@ -28,7 +28,10 @@ export interface ResolveDetailTabsInput {
  */
 export function resolveDetailTabs(input: ResolveDetailTabsInput): DetailTab[] {
   const base: DetailTab[] = [{ id: 'info', label: '信息', icon: 'outline' }]
-  if (input.hasCover) base.push({ id: 'cover', label: '封面', icon: 'image' })
+  // 「形象」承载封面图 + 形象图（2026-10-25 形象图批计划 A 批更名；id 保持 cover 不动存量覆写）
+  if (input.hasCover) base.push({ id: 'cover', label: '形象', icon: 'image' })
+  // 视频页（批 C #14）：全实体通用能力，固定插形象之后
+  base.push({ id: 'video', label: '视频', icon: 'video' })
   base.push(...(input.customTabs ?? []))
   base.push(...(input.extras ?? []))
   base.push({ id: 'relations', label: '关联', icon: 'link' })

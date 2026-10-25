@@ -1,5 +1,5 @@
 <template>
-  <CardDeck :count="4" :flat="!!searchQuery" @change="(i) => emit('card-change', i)" ref="deckRef">
+  <CardDeck :count="5" :flat="!!searchQuery" @change="(i) => emit('card-change', i)" ref="deckRef">
     <template #card="{ idx, cls }">
       <div class="set-card deck-card" :class="cls" :data-index="idx"
         v-show="idx === 0 ? match('主题 theme 外观 底色 深色 浅色 跟随系统 强调色 颜色 编辑器 图谱 星图') : idx === 1 ? match('高亮 highlight 脉冲 动画 淡化 扩散 透明度') : true">
@@ -92,7 +92,7 @@
           </div>
         </template>
         <!-- 字体分层 -->
-        <template v-else>
+        <template v-else-if="idx === 3">
           <div class="sc-head">字体分层</div>
           <div class="set-hint" style="margin-bottom:8px">每层字体可独立设置，未设置则跟随上层默认值</div>
           <div v-for="fl in FONT_LAYERS" :key="fl.key" class="sf-layer-row">
@@ -113,6 +113,21 @@
             </div>
           </div>
         </template>
+        <!-- 卡片与预览（2026-10-25 形象图批 B/C）：悬停形象预览 + 视频封面播放策略。
+             注意：本卡只允许一个 sc-head（设置外壳左列目录按 sc-head 抓标题，多条会越位错卡）——
+             视频封面/形象图追踪用 set-theme-sub 组内小标题 -->
+        <template v-else>
+          <div class="sc-head">卡片与预览</div>
+          <div class="set-row"><span>悬停卡片显示形象图</span><label class="set-toggle"><input type="checkbox" v-model="store.entityCardHoverPreview" /><span class="set-toggle-slider"></span></label></div>
+          <div class="set-row" v-if="store.entityCardHoverPreview"><span>预览框无框模式</span><label class="set-toggle"><input type="checkbox" v-model="store.hoverPreviewFrameless" /><span class="set-toggle-slider"></span></label></div>
+          <div class="set-theme-sub" style="margin-top:10px">视频封面</div>
+          <div class="set-row"><span>卡片内自动播放</span><select v-model="store.videoCoverAutoplay" class="set-select"><option value="off">不自动播放（默认）</option><option value="all">全部实体</option><option value="selected">仅指定实体</option></select></div>
+          <div class="set-row" v-if="store.videoCoverAutoplay === 'selected'" style="flex-direction:column;align-items:stretch"><span style="margin-bottom:4px">自动播放的实体（{{ store.videoCoverAutoplayEntities.length }}）</span><EntityMultiSelect v-model="store.videoCoverAutoplayEntities" /></div>
+          <div class="set-row"><span>悬停卡片时播放</span><label class="set-toggle"><input type="checkbox" v-model="store.videoCoverHoverPlay" /><span class="set-toggle-slider"></span></label></div>
+          <div class="set-row"><span>滚动时暂停播放</span><label class="set-toggle"><input type="checkbox" v-model="store.videoCoverPauseOnScroll" /><span class="set-toggle-slider"></span></label></div>
+          <div class="set-theme-sub" style="margin-top:10px">形象图追踪</div>
+          <div class="set-row"><span>点击实体后浮层跟随鼠标</span><label class="set-toggle"><input type="checkbox" v-model="store.portraitFollowMouse" /><span class="set-toggle-slider"></span></label></div>
+        </template>
       </div>
     </template>
   </CardDeck>
@@ -126,6 +141,7 @@ import { installFromWsfont, installFromRawFont, installFromZip } from '@worldsea
 import WsIcon from '../../WsIcon.vue'
 import WsInlineLoading from '../../feedback/loading/WsInlineLoading.vue'
 import ColorPickerDialog from '../../editor/ColorPickerDialog.vue'
+import EntityMultiSelect from './EntityMultiSelect.vue'
 import { toastSuccess, toastWarn, CardDeck } from '@worldsea/ui-kit'
 import { matchKeywords, FONT_LAYERS, weightLabel, sourceLabel, formatSize } from '../utils'
 

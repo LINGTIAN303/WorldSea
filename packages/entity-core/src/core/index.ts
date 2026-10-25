@@ -4,6 +4,26 @@ export type { ModuleInstance, ProjectSetting } from './database'
 export { getProjectManager } from './ProjectManager'
 export type { ProjectInfo, ProjectManagerClass } from './ProjectManager'
 
+// 形象/视频资产导入（2026-10-25 形象图批计划 A 批）
+export {
+  resolveEntityDataDir,
+  detectAssetKind,
+  importAssetByDialog,
+  importAssetByPath,
+  importAssetByFile,
+  ASSET_KIND_EXTS,
+  ASSET_KIND_LABELS,
+  ASSET_KIND_LIMITS,
+  FILE_LINK_MAX_BYTES,
+  ASSET_DIR_NAME,
+  isAnimatedImageBytes,
+  isAnimatedAsset,
+} from './assetImport'
+export type { AssetKind, AssetImportResult } from './assetImport'
+
+// 区域运动坐标数学（2026-10-25 形象图批 D4）
+export { computeDisplayBox, regionToClip, boxPointToRegion, trackToKeyframes, type DisplayBox } from './motionMath'
+
 export { migrateIfNeeded } from './ProjectMigration'
 
 export type { StorageBackend } from './StorageBackend'

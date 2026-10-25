@@ -24,7 +24,7 @@ const SLOT_NAMES = new Set([...TIMELINE_SRC.matchAll(/<template\s+#([\w-]+)/g)].
 describe('detailTabSlots / 时间线详情槽位覆盖', () => {
   it('组装清单锚点：事件详情含恒尾「关联」页（防守卫因清单搬空而恒绿）', () => {
     const tabs = resolveDetailTabs({ hasCover: true, extras: DETAIL_TAB_DECLARATIONS.event?.extras })
-    expect(tabs.map(t => t.id)).toEqual(['info', 'cover', 'causal', 'relations'])
+    expect(tabs.map(t => t.id)).toEqual(['info', 'cover', 'video', 'causal', 'relations'])
   })
 
   it('提供的具名槽覆盖组装单点的全部 tab（缺一即点进空白）', () => {

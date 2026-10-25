@@ -54,11 +54,13 @@ describe('DetailTabsCard', () => {
     const idx = rowLabels(w).indexOf('家谱')
     // 前提：家谱初始排在「信息」之后（测试环境无 character schema ⇒ 无 cover）
     expect(idx).toBeGreaterThan(rowLabels(w).indexOf('信息'))
+    // 第一次上移后行位前移一格，第二次点击须用新行位（跨 video 与 信息）
     await w.findAll('.ds-tab-row')[idx].find('.ds-btn[title="上移"]').trigger('click')
+    await w.findAll('.ds-tab-row')[idx - 1].find('.ds-btn[title="上移"]').trigger('click')
     const save = w.findAll('.set-btn').find(b => b.text() === '保存')!
     await save.trigger('click')
     const order = useDetailLayoutStore().tabOverrides.character!.order!
-    // 上移一格后：家谱应排到「信息」之前
+    // 上移两格（跨 video 与 信息）后：家谱应排到「信息」之前
     expect(order.indexOf('family')).toBeLessThan(order.indexOf('info'))
   })
 

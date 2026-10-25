@@ -23,7 +23,7 @@ export default defineConfig({
   ...base,
   root: __dirname,
   base: './',
-  plugins: [vue(), wasm()],
+  plugins: [vue({ template: { compilerOptions: { isCustomElement: (tag) => tag === "model-viewer" } } }), wasm()],
   resolve: { ...(base.resolve ?? {}) },
   build: {
     ...(base.build ?? {}),
