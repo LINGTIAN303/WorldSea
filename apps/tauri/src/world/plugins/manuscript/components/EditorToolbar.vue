@@ -63,7 +63,7 @@ import type { Editor } from '@tiptap/vue-3'
 import { WsIcon, WsInlineLoading } from '@worldsea/ui-kit'
 import { insertImageFilesInto } from '@/composables/imageInsert'
 import { toastSuccess } from '@/composables/useToast'
-import { applyTypographyToEditor, type QuoteStyle } from '../composables/typographyRules'
+import { applyTypographyToEditor, type QuoteStyle } from '@/composables/typographyRules'
 import { msQuoteStyle } from '../composables/useWritingPrefs'
 
 const props = defineProps<{

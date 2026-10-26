@@ -12,12 +12,13 @@
  */
 
 /* ── 阅读宽度与基础 ───────────────────────────────────────── */
+/* 字号/行距走偏好变量（useNotePrefs 经 NotebookTipTapEditor 根节点绑定；默认 = 既有呈现） */
 .ws-nb-prose {
   max-width: 860px;
   margin-inline: auto;
   font-family: var(--font-family-content);
-  font-size: var(--font-size-base);
-  line-height: 1.75;
+  font-size: var(--nb-font-size, var(--font-size-base));
+  line-height: var(--nb-line-height, 1.75);
   color: var(--color-text-primary);
   word-break: break-word;
 }

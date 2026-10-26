@@ -1,11 +1,15 @@
 <template>
-  <div class="nb-tiptap-editor">
+  <div class="nb-tiptap-editor" :style="proseVars">
     <NotebookEditorToolbar
       :editor="editor"
       v-model:view-mode="viewMode"
       :save-status="saveStatus"
       :word-count="wordCount"
+      @open-find="findBarRef?.open(false)"
     />
+    <!-- 批2 平移：章内查找替换（就地条；scrollSelector = 笔记本滚动容器，closest 自编辑器
+         DOM 出发，分栏态天然定位到编辑侧 pane） -->
+    <FindReplaceBar ref="findBarRef" :editor="editor" scroll-selector=".nb-split-pane" />
     <!-- 定位锚层（批 3 走查修复）：TOC 按钮/面板挂这里（不随正文滚动）；滚动容器是各 pane -->
     <!-- 批 4 V8/I10 三态视图（编辑 / 分栏 / 预览）+ 块 3「源码」，按状态严格隔离（走查修正）：
          ① 预览 = v-if 按状态挂载——编辑态预览完全不渲染（DOM 不存在、previewHtml 不求值）。
@@ -71,11 +75,13 @@ import MentionPopover from './MentionPopover.vue'
 import SlashCommandMenu from './SlashCommandMenu.vue'
 import BubbleToolbar from './BubbleToolbar.vue'
 import BlockHandleLayer from './BlockHandleLayer.vue'
+import FindReplaceBar from '@/components/editor/FindReplaceBar.vue'
 import { useNoteEditor } from '../composables/useNoteEditor'
 import { useSplitScrollSync } from '../composables/useSplitScrollSync'
 import { findNoteLinkAnchor } from '../composables/noteLinkExt'
 import { SLASH_COMMANDS, type SlashCommandItem } from '../composables/slashCommandExtension'
 import { normalizeNoteContent } from '../contentNormalize'
+import { nbFontSize, nbLineHeight } from '../composables/useNotePrefs'
 import CodeEditor from '@/components/files/CodeEditor.vue'
 import { sourceAutocompleteExts } from './sourceAutocomplete'
 import '../prose.css'
@@ -149,11 +155,21 @@ const {
   setSlashCommandPopover,
   setSlashCommandCallback,
   onSlashCommandSelect,
+  setFindReplaceApi,
 } = useNoteEditor(
   computed(() => props.note),
   (html) => emit('contentChange', html),
   (noteId) => emit('navigate', noteId),
 )
+
+// ── 排版偏好（批2）：字号/行距 → CSS 变量（prose.css 的 .ws-nb-prose 消费，编辑/预览同源）──
+const proseVars = computed<Record<string, string>>(() => ({
+  '--nb-font-size': `${nbFontSize.value}px`,
+  '--nb-line-height': String(nbLineHeight.value),
+}))
+
+// 查找条（批2 平移）：容器内就地条，扩展快捷键（Ctrl+F/H/Esc）经 setFindReplaceApi 开合
+const findBarRef = ref<InstanceType<typeof FindReplaceBar> | null>(null)
 
 // 源码态补全（块 3 阶段 2，拍板并入一期）：`[[` 双链 / `@` mention——selfId 实时取
 const sourceExts = sourceAutocompleteExts(() => props.note?.id ?? null)
@@ -166,6 +182,7 @@ onMounted(() => {
   setMentionPopover(mentionPopoverRef.value)
   setNoteLinkPopover(noteLinkPopoverRef.value)
   setSlashCommandPopover(slashCommandMenuRef.value)
+  setFindReplaceApi(findBarRef.value)
   // 斜杠命令回调：`mention` 由 useNoteEditor 内部处理（插入 @），其余四条
   // （续写 / 润色 / 摘要 / 链接笔记）在笔记本芽尚无落地实现。此前从未注册回调 →
   // 点击后只删掉 "/" 而毫无反馈（静默失败），违反「禁用不留静默」铁律，故显式提示。

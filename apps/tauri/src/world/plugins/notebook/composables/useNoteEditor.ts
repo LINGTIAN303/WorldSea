@@ -5,6 +5,7 @@ import { normalizeNoteContent } from '../contentNormalize'
 import { recomputeNoteLinks } from '../backlinkDerive'
 import { useEntityStore } from '@worldsea/entity-core'
 import { buildNotebookExtensions, fireMentionCommand, fireSlashCommand, fireNoteLinkCommand, type MentionItem } from './editorExtensions'
+import { FindReplaceExtension, type FindReplaceBarApi } from '@/composables/findReplaceExtension'
 import { findNoteLinkAnchor } from './noteLinkExt'
 import type { SlashCommandItem } from './slashCommandExtension'
 import type { Entity } from '@worldsea/entity-core'
@@ -73,6 +74,18 @@ export function useNoteEditor(
     slashCommandCallback = cb
   }
 
+  // ── 查找条 API（批2 平移自正文写作：扩展快捷键 Mod-f/Mod-h/Esc 经此开合查找条）──
+  let findReplaceApi: FindReplaceBarApi | null = null
+
+  function setFindReplaceApi(api: FindReplaceBarApi | null) {
+    findReplaceApi = api
+  }
+
+  /** 查找条是否开着（视图层 Esc 类快捷键的让位守卫，供需要方取用） */
+  function isFindBarOpen(): boolean {
+    return findReplaceApi?.isVisible() ?? false
+  }
+
   function onSlashCommandSelect(item: SlashCommandItem) {
     fireSlashCommand(item)
     if (item.id === 'mention' && editor.value) {
@@ -104,28 +117,37 @@ export function useNoteEditor(
 
   onMounted(() => {
     editor.value = new Editor({
-      extensions: buildNotebookExtensions({
-        openMentionPopover: (rect) => { activePopoverKind = 'mention'; mentionPopoverRef?.open(rect) },
-        closeMentionPopover: () => mentionPopoverRef?.close(),
-        openSlashPopover: (rect, items) => slashCommandPopoverRef?.open(rect, items),
-        updateSlashPopover: (items) => slashCommandPopoverRef?.updateItems(items),
-        closeSlashPopover: () => slashCommandPopoverRef?.close(),
-        onSlashKeyDown: (event) => slashCommandPopoverRef?.onKeyDown(event) ?? false,
-        openNoteLinkPopover: (rect) => { activePopoverKind = 'noteLink'; noteLinkPopoverRef?.open(rect) },
-        updateNoteLinkPopover: () => { /* 弹层为独立查询模式（自管过滤），无需外部 items 更新 */ },
-        closeNoteLinkPopover: () => noteLinkPopoverRef?.close(),
-        onNoteLinkKeyDown: (event) => {
-          // 弹层自带输入框/键盘导航（与 mention 同模式）；Escape 收层由弹层自处理，这里仅让 suggestion 让路
-          if (event.key === 'Escape') {
-            noteLinkPopoverRef?.close()
-            return true
-          }
-          return false
-        },
-        // 块 2 阶段 2：onNoteLinkInsert 关系落库回调已退役——弹层选中仅插入 `[[名]]` 文本，
-        // 建联统一由保存后派生（recomputeNoteLinks，见 backlinkDerive §3.4「连接即内容的函数」）
-        currentNoteId: () => loadedNoteId ?? currentNote.value?.id ?? null,
-      }),
+      // 批2：查找替换扩展以 spread 追加（不进 buildNotebookExtensions——
+      // 快捷键回调闭包在本组合函数的查找条 API 上，接线就近可见）
+      extensions: [
+        ...buildNotebookExtensions({
+          openMentionPopover: (rect) => { activePopoverKind = 'mention'; mentionPopoverRef?.open(rect) },
+          closeMentionPopover: () => mentionPopoverRef?.close(),
+          openSlashPopover: (rect, items) => slashCommandPopoverRef?.open(rect, items),
+          updateSlashPopover: (items) => slashCommandPopoverRef?.updateItems(items),
+          closeSlashPopover: () => slashCommandPopoverRef?.close(),
+          onSlashKeyDown: (event) => slashCommandPopoverRef?.onKeyDown(event) ?? false,
+          openNoteLinkPopover: (rect) => { activePopoverKind = 'noteLink'; noteLinkPopoverRef?.open(rect) },
+          updateNoteLinkPopover: () => { /* 弹层为独立查询模式（自管过滤），无需外部 items 更新 */ },
+          closeNoteLinkPopover: () => noteLinkPopoverRef?.close(),
+          onNoteLinkKeyDown: (event) => {
+            // 弹层自带输入框/键盘导航（与 mention 同模式）；Escape 收层由弹层自处理，这里仅让 suggestion 让路
+            if (event.key === 'Escape') {
+              noteLinkPopoverRef?.close()
+              return true
+            }
+            return false
+          },
+          // 块 2 阶段 2：onNoteLinkInsert 关系落库回调已退役——弹层选中仅插入 `[[名]]` 文本，
+          // 建联统一由保存后派生（recomputeNoteLinks，见 backlinkDerive §3.4「连接即内容的函数」）
+          currentNoteId: () => loadedNoteId ?? currentNote.value?.id ?? null,
+        }),
+        FindReplaceExtension.configure({
+          onOpenFind: () => findReplaceApi?.open(false),
+          onOpenReplace: () => findReplaceApi?.open(true),
+          onClose: () => findReplaceApi?.close(),
+        }),
+      ],
       content: '',
       editorProps: {
         attributes: {
@@ -301,5 +323,7 @@ export function useNoteEditor(
     setSlashCommandPopover,
     setSlashCommandCallback,
     onSlashCommandSelect,
+    setFindReplaceApi,
+    isFindBarOpen,
   }
 }

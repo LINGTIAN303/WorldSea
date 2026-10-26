@@ -34,17 +34,23 @@
 
 <script setup lang="ts">
 /**
- * 章内查找替换条（批1）：编辑器容器内的就地条（非浮层），与 findReplaceExtension 配对——
- * 扩展管状态/装饰/快捷键，本组件只管输入与展示；开关经 defineExpose 供
- * useChapterEditor 的扩展回调（Ctrl+F/H/Esc）调用。
+ * 章内/笔记内查找替换条（正文写作/笔记本两芽共用）：编辑器容器内的就地条（非浮层），
+ * 与 findReplaceExtension（@/composables/）配对——扩展管状态/装饰/快捷键，本组件只管
+ * 输入与展示；开关经 defineExpose 供组合函数的扩展回调（Ctrl+F/H/Esc）调用。
+ * scrollSelector = 就近滚动容器选择器（正文写作 .editor-wrap / 笔记本 .nb-split-pane）；
  * stop.prevent 的 Esc：阻止冒泡到视图层「Esc 退出专注模式」。
  */
 import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
 import type { Editor } from '@tiptap/vue-3'
 import { WsIcon } from '@worldsea/ui-kit'
-import { getFindState } from '../composables/findReplaceExtension'
+import { getFindState } from '@/composables/findReplaceExtension'
 
-const props = defineProps<{ editor: Editor | null }>()
+const props = withDefaults(defineProps<{
+  /** useXxxEditor 的 editor 为 shallowRef，未就绪时为 undefined（两芽空态都要接受） */
+  editor: Editor | null | undefined
+  /** 当前匹配滚到可视区时的就近滚动容器（closest 自编辑器 DOM 向上找） */
+  scrollSelector?: string
+}>(), { scrollSelector: '.editor-wrap' })
 
 const visible = ref(false)
 const showReplace = ref(false)
@@ -91,7 +97,7 @@ function scrollToCurrent() {
   const st = getFindState(ed.state)
   const m = st?.matches[st.currentIdx]
   if (!m) return
-  const container = ed.view.dom.closest('.editor-wrap') as HTMLElement | null
+  const container = ed.view.dom.closest(props.scrollSelector) as HTMLElement | null
   if (!container) return
   const coords = ed.view.coordsAtPos(m.from)
   const rect = container.getBoundingClientRect()

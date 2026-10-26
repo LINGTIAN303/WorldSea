@@ -6,7 +6,7 @@ import type { Node as PMNode } from '@tiptap/pm/model'
 import type { EditorState } from '@tiptap/pm/state'
 
 /**
- * 章内查找替换（TipTap 无官方实现，自研装饰插件）。
+ * 章内/笔记内查找替换（TipTap 无官方实现，自研装饰插件；正文写作/笔记本两芽共用）。
  * 快捷键在扩展内注册（Mod-f / Mod-h / Escape）——useShortcuts 注册表对 contentEditable
  * 聚焦有 isInput 守卫（modal scope 才放行），编辑器内按键必须走 TipTap 自身接管。
  * 已知限制：跨文本节点的匹配不识别（同段内被 mark 拆开的文本），与排版规则同口径。
@@ -33,6 +33,13 @@ export interface FindReplaceOptions {
   onOpenReplace?: () => void
   /** Esc（搜索激活时）：清搜索并关条 */
   onClose?: () => void
+}
+
+/** 查找条对外 API（宿主组件的 FindReplaceBar 经 setFindReplaceApi 注册，快捷键回调经此开合） */
+export interface FindReplaceBarApi {
+  open: (focusReplace?: boolean) => void
+  close: () => void
+  isVisible: () => boolean
 }
 
 type FindMeta = { searchTerm?: string; move?: number }

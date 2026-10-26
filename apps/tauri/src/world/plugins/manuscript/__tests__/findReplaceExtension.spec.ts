@@ -11,7 +11,7 @@ import 'fake-indexeddb/auto'
 import { EditorContent } from '@tiptap/vue-3'
 import { useEntityStore, type Entity } from '@worldsea/entity-core'
 import { useChapterEditor } from '../composables/useChapterEditor'
-import { getFindState } from '../composables/findReplaceExtension'
+import { getFindState } from '@/composables/findReplaceExtension'
 
 function makeChapter(content: string): Entity {
   const now = new Date().toISOString()

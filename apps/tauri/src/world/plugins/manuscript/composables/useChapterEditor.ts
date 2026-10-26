@@ -6,7 +6,7 @@ import { TableKit } from '@tiptap/extension-table'
 import Image from '@tiptap/extension-image'
 import SlashCommandExtension, { SLASH_COMMANDS } from './slashCommandExtension'
 import type { SlashCommandItem } from './slashCommandExtension'
-import { FindReplaceExtension } from './findReplaceExtension'
+import { FindReplaceExtension, type FindReplaceBarApi } from '@/composables/findReplaceExtension'
 import { ParaDimExtension } from './paraDimExtension'
 import { recordChapterDelta } from './useWritingStats'
 import { msTypewriter, msParaDim } from './useWritingPrefs'
@@ -29,12 +29,8 @@ export interface MentionItem {
   icon: string
 }
 
-/** 查找条对外 API（ChapterEditor 内的 FindReplaceBar 经 setFindReplaceApi 注册） */
-export interface FindReplaceBarApi {
-  open: (focusReplace?: boolean) => void
-  close: () => void
-  isVisible: () => boolean
-}
+// 查找条对外 API 已上移共享模块（批2 与 notebook 共用）；此处保留类型转出口供组件引用
+export type { FindReplaceBarApi }
 
 export function useChapterEditor(currentChapter: Ref<Entity | null>) {
   const es = useEntityStore()

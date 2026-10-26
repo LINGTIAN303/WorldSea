@@ -3,7 +3,7 @@
  * 数字/英文语境不受半角转全角误伤；引号配对按开合交替；省略号/破折号归一。
  */
 import { describe, it, expect } from 'vitest'
-import { applyTypography } from '../composables/typographyRules'
+import { applyTypography } from '../typographyRules'
 
 function run(text: string, quoteStyle: 'off' | 'curly' | 'corner' = 'off') {
   return applyTypography(text, { quoteStyle })

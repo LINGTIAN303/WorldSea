@@ -2,9 +2,9 @@ import type { Editor } from '@tiptap/vue-3'
 import type { Mark } from '@tiptap/pm/model'
 
 /**
- * 一键排版规则：全部为纯函数（输入段文本 → 输出新文本 + 处理处数），在文本层面变换、
- * 不改段落结构。以「单个文本节点」为单位执行——跨文本节点的引号配对（如同一段里粗体
- * 拆开的半句）不处理，属 v1 已知限制。
+ * 一键排版规则（正文写作/笔记本两芽共用）：全部为纯函数（输入段文本 → 输出新文本 +
+ * 处理处数），在文本层面变换、不改段落结构。以「单个文本节点」为单位执行——跨文本节点
+ * 的引号配对（如同一段里粗体拆开的半句）不处理，属 v1 已知限制。
  */
 
 export type QuoteStyle = 'off' | 'curly' | 'corner'
@@ -107,7 +107,8 @@ export function applyTypography(text: string, options: TypographyOptions): Typog
 
 /**
  * 对整篇文档执行排版：逐文本节点跑规则（marks 保留），倒序替换防位移；
- * 代码块内不动。单事务提交 = 单个撤销步（Ctrl+Z 一次全退）。
+ * 代码块内不动（node 名 = codeBlock，notebook 的 CodeBlockEnhanced 经 extend 同名）。
+ * 单事务提交 = 单个撤销步（Ctrl+Z 一次全退）。
  * @returns 处理处数（0 = 无可排版项）
  */
 export function applyTypographyToEditor(editor: Editor, quoteStyle: QuoteStyle): number {
