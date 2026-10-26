@@ -1,5 +1,5 @@
 <template>
-  <div class="manuscript-view" :class="{ 'ms-focus': msFocusMode }">
+  <div class="manuscript-view" :class="{ 'ms-focus': msFocusMode && current }">
     <!-- 工具栏按控件类型分发到 R3 统一工具条各落点（筛选→收束条，动作→动作区，新建→新建区）；
          书籍列表层隐藏筛选/章节统计，新建按钮切换为「新建书籍」 -->
     <Teleport to="#view-toolbar-filter-body">
@@ -443,7 +443,9 @@ watch(current, (val, old) => {
 }
 .toolbar-info { font-size: var(--font-size-sm); color: var(--text-tertiary); margin-left: auto; white-space: nowrap; }
 
-/* 专注模式（批1）：侧栏退场、正文全区独占；窄栏由 --ms-page-width 决定（TypographyPanel） */
+/* 专注模式（批1）：侧栏退场、正文全区独占；窄栏由 --ms-page-width 决定（TypographyPanel）。
+   仅在已选中章节（current）时生效——跨视图返回/未选章节时若无侧栏与头部动作区，
+   用户既看不到章节列表也无法点退出（卡死空态），故退回普通形态让其可导航可退出 */
 .manuscript-view.ms-focus .ms-sidebar { display: none; }
 
 .ms-body { display: flex; flex: 1; gap: 0; overflow: hidden; }
