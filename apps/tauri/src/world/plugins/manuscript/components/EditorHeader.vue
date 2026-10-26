@@ -38,7 +38,7 @@
       :anchor="searchBtnRef"
       :chapters="bookChapters"
       @close="showBookSearch = false"
-      @book-search-jump="onBookSearchJump"
+      @jump="onBookSearchJump"
     />
   </div>
 </template>

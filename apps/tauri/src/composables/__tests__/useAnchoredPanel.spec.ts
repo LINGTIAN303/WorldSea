@@ -3,7 +3,7 @@
  * （bottomGuard 钳位）、面板外点击关闭/面板内与锚点上点击不关。
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { defineComponent, h, ref, nextTick } from 'vue'
+import { defineComponent, h, nextTick } from 'vue'
 import { mount } from '@vue/test-utils'
 import { useAnchoredPanel } from '../useAnchoredPanel'
 
