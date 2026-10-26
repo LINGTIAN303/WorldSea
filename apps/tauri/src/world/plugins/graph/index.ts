@@ -17,8 +17,8 @@ export function apply(_ctx: unknown, api: WorldPluginApi) {
     label: '全局图谱',
     icon: 'graph',
     component: GlobalGraph,
-    // 全屏画布：工具条悬浮胶囊，不占 44px，hover 顶部浮现
-    toolbar: 'overlay',
+    // 全屏地图：顶部 HUD 自带标题/搜索/筛选，不再叠一层视图工具条
+    toolbar: 'none',
   })
 }
 
