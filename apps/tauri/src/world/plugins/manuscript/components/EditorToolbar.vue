@@ -40,6 +40,11 @@
     </template>
     <div class="toolbar-divider"></div>
     <div class="toolbar-group">
+      <button class="tb-btn tb-btn--txt" title="一键排版（中文标点/引号/省略号归一，Ctrl+Z 可撤销）" aria-label="一键排版" @click="onTypography">排版</button>
+      <button class="tb-btn" title="查找与替换 (Ctrl+F)" aria-label="查找与替换" @click="$emit('open-find')"><WsIcon name="search" size="xs" /></button>
+    </div>
+    <div class="toolbar-divider"></div>
+    <div class="toolbar-group">
       <button class="tb-btn" @click="editor?.chain().focus().undo().run()" :disabled="!editor?.can().undo()" title="撤销" aria-label="撤销"><WsIcon name="undo" size="xs" /></button>
       <button class="tb-btn" @click="editor?.chain().focus().redo().run()" :disabled="!editor?.can().redo()" title="重做" aria-label="重做"><WsIcon name="redo" size="xs" /></button>
     </div>
@@ -58,12 +63,16 @@ import type { Editor } from '@tiptap/vue-3'
 import { WsIcon, WsInlineLoading } from '@worldsea/ui-kit'
 import { insertImageFilesInto } from '@/composables/imageInsert'
 import { toastSuccess } from '@/composables/useToast'
+import { applyTypographyToEditor, type QuoteStyle } from '../composables/typographyRules'
+import { msQuoteStyle } from '../composables/useWritingPrefs'
 
 const props = defineProps<{
   editor: Editor | null
   saveStatus: 'saved' | 'saving' | 'unsaved'
   wordCount: number
 }>()
+
+const emit = defineEmits<{ 'open-find': [] }>()
 
 // 图片插入（工具栏按钮 → 隐藏文件选择器）；粘贴 / 拖拽走 useChapterEditor 的 handlePaste/handleDrop
 const imageInput = ref<HTMLInputElement | null>(null)
@@ -74,6 +83,14 @@ async function onPickImages(e: Event) {
   if (!files.length) return
   const n = await insertImageFilesInto(props.editor, files)
   if (n > 0) toastSuccess(`已插入 ${n} 张图片（落盘项目资产，单张上限 2MB）`)
+}
+
+/** 一键排版（批1）：引号风格取写作偏好；0 处也给反馈，避免按钮「没反应」的观感 */
+function onTypography() {
+  if (!props.editor) return
+  const n = applyTypographyToEditor(props.editor, msQuoteStyle.value as QuoteStyle)
+  if (n > 0) toastSuccess(`已排版 ${n} 处（Ctrl+Z 可撤销）`)
+  else toastSuccess('没有需要排版的字符')
 }
 
 const headingLevel = computed(() => {

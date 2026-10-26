@@ -4,7 +4,9 @@
       :editor="editor"
       :save-status="saveStatus"
       :word-count="wordCount"
+      @open-find="findBarRef?.open(false)"
     />
+    <FindReplaceBar ref="findBarRef" :editor="editor" />
     <div v-if="editor" class="editor-wrap">
       <EditorContent :editor="editor" />
     </div>
@@ -22,9 +24,10 @@ import type { Editor } from '@tiptap/vue-3'
 import { EditorContent } from '@tiptap/vue-3'
 import { WsSkeleton } from '@worldsea/ui-kit'
 import EditorToolbar from './EditorToolbar.vue'
+import FindReplaceBar from './FindReplaceBar.vue'
 import MentionPopover from './MentionPopover.vue'
 import SlashCommandMenu from './SlashCommandMenu.vue'
-import type { MentionItem } from '../composables/useChapterEditor'
+import type { MentionItem, FindReplaceBarApi } from '../composables/useChapterEditor'
 import type { SlashCommandItem } from '../composables/slashCommandExtension'
 
 type SlashCommandPopoverApi = {
@@ -42,14 +45,18 @@ const props = defineProps<{
   onMentionSelect: (item: MentionItem) => void
   setSlashCommandPopover: (ref: SlashCommandPopoverApi | null) => void
   onSlashCommandSelect: (item: SlashCommandItem) => void
+  setFindReplaceApi: (api: FindReplaceBarApi | null) => void
 }>()
 
 const mentionPopoverRef = ref<{ open: (clientRect: (() => DOMRect | null) | null) => void; close: () => void } | null>(null)
 const slashCommandMenuRef = ref<SlashCommandPopoverApi | null>(null)
+const findBarRef = ref<InstanceType<typeof FindReplaceBar> | null>(null)
 
 onMounted(() => {
   props.setMentionPopover(mentionPopoverRef.value)
   props.setSlashCommandPopover(slashCommandMenuRef.value)
+  // 查找条 API 反注册给扩展快捷键（Ctrl+F/H/Esc）；FindReplaceBar 卸载随组件树一致，无需注销
+  props.setFindReplaceApi(findBarRef.value)
 })
 </script>
 
@@ -80,10 +87,23 @@ onMounted(() => {
   outline: none;
   min-height: 300px;
   font-family: var(--font-family-content);
-  font-size: var(--font-size-md);
-  line-height: 1.8;
+  /* 写作偏好（批1）：默认 14px/1.8/全宽 = 既有呈现（--font-size-md 未定义，继承 --fs-base） */
+  font-size: var(--ms-font-size, var(--fs-base));
+  line-height: var(--ms-line-height, 1.8);
+  max-width: var(--ms-page-width, none);
+  margin-inline: auto;
   color: var(--text-color);
 }
+.editor-wrap :deep(.tiptap p) {
+  margin: 0 0 8px;
+  /* 段首缩进为呈现层开关（排版偏好），不写入内容 */
+  text-indent: var(--ms-indent, 0);
+}
+/* 段落淡出（专注模式子项）：当前段之外的顶层块降透明度 */
+.editor-wrap :deep(.tiptap .ms-para--dimmed) { opacity: 0.35; }
+/* 查找高亮（批1）：普通匹配淡底、当前匹配强调 */
+.editor-wrap :deep(.ms-find-match) { background: var(--warning-soft, rgba(255, 193, 7, 0.25)); border-radius: 2px; }
+.editor-wrap :deep(.ms-find-match--current) { background: var(--primary-light); outline: 1px solid var(--primary); }
 .editor-wrap :deep(.tiptap h1) {
   font-size: var(--font-size-2xl);
   font-weight: var(--font-weight-bold);
@@ -98,9 +118,6 @@ onMounted(() => {
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
   margin: 12px 0 8px;
-}
-.editor-wrap :deep(.tiptap p) {
-  margin: 0 0 8px;
 }
 .editor-wrap :deep(.tiptap blockquote) {
   border-left: 3px solid var(--primary);

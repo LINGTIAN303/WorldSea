@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { enableAutoUnmount, mount } from '@vue/test-utils'
 import { nextTick, ref } from 'vue'
+import { createPinia, setActivePinia } from 'pinia'
 import { CardDeck } from '@worldsea/ui-kit'
 import { defaultHomeProfile } from '@/stores/homeProfileStore'
 
@@ -44,6 +45,8 @@ async function settleLoad() {
 
 beforeEach(() => {
   vi.useFakeTimers()
+  // CardDeck → useCardDeck 读 settingsStore：挂载无 app 级注入时需有活跃 pinia 兜底
+  setActivePinia(createPinia())
   profile.value = defaultHomeProfile()
   storeError.value = null
   currentProject.value = { id: 'p1', name: '项目一' }

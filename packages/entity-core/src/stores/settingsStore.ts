@@ -235,21 +235,13 @@ function persistedRef<T extends string | number | boolean>(key: string, defaultV
   const raw = localStorage.getItem(key)
   let initial: T = defaultValue
   if (raw !== null) {
-    if (typeof defaultValue === 'boolean') {
-      if (raw === 'true') initial = true as T
-      else if (raw === 'false') initial = false as T
-      // 无法识别的值回退到默认值
-    } else if (typeof defaultValue === 'number') {
-      const parsed = Number(raw)
-      initial = (Number.isFinite(parsed) ? parsed : defaultValue) as T
-    } else {
-      initial = raw as T
-    }
+    if (typeof defaultValue === 'boolean') initial = (raw === 'true' ? true : raw === 'false' ? false : defaultValue) as T
+    // 无法识别的值回退到默认值
+    else if (typeof defaultValue === 'number') initial = (Number.isFinite(Number(raw)) ? Number(raw) : defaultValue) as T
+    else initial = raw as T
   }
   const val = ref(initial) as Ref<T extends boolean ? boolean : T extends number ? number : string>
-  watch(val, (v) => {
-    localStorage.setItem(key, String(v))
-  })
+  watch(val, (v) => { localStorage.setItem(key, String(v)) })
   return val
 }
 
