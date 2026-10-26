@@ -1,5 +1,5 @@
 <template>
-  <div ref="panelRef" class="ms-stats-panel" :style="panelStyle">
+  <div :ref="panelRef" class="ms-stats-panel" :style="panelStyle">
     <div class="ms-stats-title">写作统计</div>
 
     <div class="ms-stats-today">
@@ -42,6 +42,7 @@
         <div class="ms-stats-bar" :style="{ height: barHeight(d.words) + '%' }" :class="{ empty: d.words === 0 }"></div>
       </div>
     </div>
+    <p v-if="unfiledCount > 0" class="ms-stats-hint">另有未归书 {{ unfiledCount }} 章 · 未计入统计（章节列表右键可归入书籍）</p>
     <p class="ms-stats-hint">未归书章节不计入统计</p>
   </div>
 </template>
@@ -52,8 +53,9 @@
  * 数据源 = 所属书 properties.writingStats（goal + daily 日键映射），经 useWritingStats 读写；
  * 目标编辑在 blur/Enter 时落库（skipUndo 不适用——用户主动改目标，允许进撤销栈）。
  */
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed } from 'vue'
 import { useEntityStore } from '@worldsea/entity-core'
+import { useAnchoredPanel } from '@/composables/useAnchoredPanel'
 import {
   readWritingStats, statsDayKey, calcStreak, recentDays,
 } from '../composables/useWritingStats'
@@ -97,32 +99,12 @@ function barHeight(words: number): number {
   return Math.round((words / chartMax.value) * 100)
 }
 
-const panelRef = ref<HTMLElement | null>(null)
-const panelStyle = ref<{ top: string; right: string }>({ top: '0px', right: '0px' })
+const { panelRef, panelStyle } = useAnchoredPanel(() => props.anchor, () => emit('close'), { bottomGuard: 300 })
 
-function position() {
-  const rect = props.anchor?.getBoundingClientRect()
-  if (!rect) return
-  panelStyle.value = {
-    top: `${Math.min(rect.bottom + 6, window.innerHeight - 300)}px`,
-    right: `${window.innerWidth - rect.right}px`,
-  }
-}
-
-function onDocMousedown(e: MouseEvent) {
-  const t = e.target as Node
-  if (panelRef.value?.contains(t)) return
-  if (props.anchor?.contains(t)) return
-  emit('close')
-}
-
-onMounted(() => {
-  position()
-  document.addEventListener('mousedown', onDocMousedown)
-})
-onBeforeUnmount(() => {
-  document.removeEventListener('mousedown', onDocMousedown)
-})
+// 未归书章节统计标注（批3）：有未归书章节时提示不计入
+const unfiledCount = computed(() =>
+  (es.entities ?? []).filter(e => e.type === 'manuscript' && !e.properties.bookId).length,
+)
 </script>
 
 <style scoped>

@@ -15,6 +15,7 @@
       <button class="ms-action-btn" title="手机预览" aria-label="手机预览" @click="$emit('preview')"><WsIcon name="smartphone" size="sm" /></button>
       <button class="ms-action-btn" title="导出" aria-label="导出" @click="$emit('export')"><WsIcon name="download" size="sm" /></button>
       <span class="ms-header-divider"></span>
+      <button ref="searchBtnRef" class="ms-action-btn" :class="{ active: showBookSearch }" title="全书搜索" aria-label="全书搜索" @click="showBookSearch = !showBookSearch"><WsIcon name="search" size="sm" /></button>
       <button ref="statsBtnRef" class="ms-action-btn" :class="{ active: showStats }" title="写作统计" aria-label="写作统计" @click="showStats = !showStats"><WsIcon name="chart" size="sm" /></button>
       <button ref="typoBtnRef" class="ms-action-btn ms-action-btn--aa" :class="{ active: showTypography }" title="排版偏好" aria-label="排版偏好" @click="showTypography = !showTypography">Aa</button>
       <button class="ms-action-btn" :class="{ active: msFocusMode }" title="专注模式（Esc 退出）" aria-label="专注模式" @click="msFocusMode = !msFocusMode"><WsIcon name="eye" size="sm" /></button>
@@ -32,6 +33,13 @@
       :anchor="statsBtnRef"
       @close="showStats = false"
     />
+    <BookSearchPanel
+      v-if="showBookSearch"
+      :anchor="searchBtnRef"
+      :chapters="bookChapters"
+      @close="showBookSearch = false"
+      @book-search-jump="onBookSearchJump"
+    />
   </div>
 </template>
 
@@ -44,11 +52,13 @@
  */
 import { ref } from 'vue'
 import type { Editor } from '@tiptap/vue-3'
+import type { Entity } from '@worldsea/entity-core'
 import { CustomDropdown } from '@worldsea/plugin-sdk'
 import { WsIcon } from '@worldsea/ui-kit'
 import { msFocusMode } from '../composables/useWritingPrefs'
 import TypographyPanel from './TypographyPanel.vue'
 import WritingStatsPanel from './WritingStatsPanel.vue'
+import BookSearchPanel from './BookSearchPanel.vue'
 
 defineProps<{
   title: string
@@ -56,6 +66,8 @@ defineProps<{
   showHistory: boolean
   bookId: string
   editor: Editor | null
+  /** 当前书内全部章节（全书搜索数据源） */
+  bookChapters: Entity[]
 }>()
 
 const emit = defineEmits<{
@@ -66,6 +78,7 @@ const emit = defineEmits<{
   'toggle-history': []
   preview: []
   export: []
+  'book-search-jump': [payload: { chapterId: string; term: string }]
 }>()
 
 const statusOptions = [
@@ -77,8 +90,16 @@ const statusOptions = [
 const titleInputRef = ref<HTMLInputElement | null>(null)
 const statsBtnRef = ref<HTMLElement | null>(null)
 const typoBtnRef = ref<HTMLElement | null>(null)
+const searchBtnRef = ref<HTMLElement | null>(null)
 const showStats = ref(false)
 const showTypography = ref(false)
+const showBookSearch = ref(false)
+
+/** 全书搜索命中跳转：转发给父级跳章，面板随跳转收起 */
+function onBookSearchJump(payload: { chapterId: string; term: string }) {
+  showBookSearch.value = false
+  emit('book-search-jump', payload)
+}
 
 function onTitleInput(e: Event) {
   emit('update:title', (e.target as HTMLInputElement).value)

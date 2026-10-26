@@ -19,10 +19,23 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 斜杠命令菜单（正文写作/笔记本两芽共用，notebook 超集版为唯一实现：
+ * 方向粘性定位 + rAF 逐帧跟随 + maxHeight 动态约束）。命令清单为芽域差异
+ * （各芽自己的 slashCommandExtension 传入），组件只承载展示与键盘导航；
+ * item.icon 须为合法 WsIcon 名（manuscript 的 '@' 已改 'at-sign'）。
+ */
 import { ref, nextTick, onBeforeUnmount } from 'vue'
 import { WsIcon } from '@worldsea/ui-kit'
-import { computePopoverPos, type PopoverDir } from '../composables/popoverPosition'
-import type { SlashCommandItem } from '../composables/slashCommandExtension'
+import { computePopoverPos, type PopoverDir } from '@/composables/popoverPosition'
+
+/** 斜杠命令项（两芽 SLASH_COMMANDS 的结构契约；icon = WsIcon 名） */
+export interface SlashCommandItem {
+  id: string
+  label: string
+  icon: string
+  description: string
+}
 
 const emit = defineEmits<{
   select: [item: SlashCommandItem]

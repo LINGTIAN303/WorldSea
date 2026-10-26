@@ -1,5 +1,5 @@
 <template>
-  <div ref="panelRef" class="ms-typo-panel" :style="panelStyle">
+  <div :ref="panelRef" class="ms-typo-panel" :style="panelStyle">
     <div class="ms-typo-title">排版偏好</div>
 
     <div class="ms-typo-row">
@@ -70,7 +70,7 @@
  * 全部偏好走 settingsStore localStorage 持久化；段首缩进/页宽为呈现层（CSS 变量，
  * ManuscriptView 绑定），不改文档内容；段落淡出切换后需 refreshParaDim 强制重算装饰。
  */
-import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
+import { watch } from 'vue'
 import type { Editor } from '@tiptap/vue-3'
 import TuiCheckbox from '@/components/ui/TuiCheckbox.vue'
 import {
@@ -78,9 +78,12 @@ import {
   msTypewriter, msParaDim,
 } from '../composables/useWritingPrefs'
 import { refreshParaDim } from '../composables/paraDimExtension'
+import { useAnchoredPanel } from '@/composables/useAnchoredPanel'
 
 const props = defineProps<{ anchor: HTMLElement | null; editor: Editor | null }>()
 const emit = defineEmits<{ close: [] }>()
+
+const { panelRef, panelStyle } = useAnchoredPanel(() => props.anchor, () => emit('close'), { bottomGuard: 320 })
 
 // 字号默认 14 = 既有呈现（--font-size-md 未定义，继承 body 的 --fs-base）
 const FONT_OPTIONS = [
@@ -110,33 +113,6 @@ const QUOTE_STYLE_OPTIONS: Array<{ value: 'off' | 'curly' | 'corner'; label: str
 // 段落淡出：装饰只在事务时重算，开关切换后强制刷新一次
 watch(msParaDim, () => {
   if (props.editor) refreshParaDim(props.editor)
-})
-
-const panelRef = ref<HTMLElement | null>(null)
-const panelStyle = ref<{ top: string; right: string }>({ top: '0px', right: '0px' })
-
-function position() {
-  const rect = props.anchor?.getBoundingClientRect()
-  if (!rect) return
-  panelStyle.value = {
-    top: `${Math.min(rect.bottom + 6, window.innerHeight - 320)}px`,
-    right: `${window.innerWidth - rect.right}px`,
-  }
-}
-
-function onDocMousedown(e: MouseEvent) {
-  const t = e.target as Node
-  if (panelRef.value?.contains(t)) return
-  if (props.anchor?.contains(t)) return
-  emit('close')
-}
-
-onMounted(() => {
-  position()
-  document.addEventListener('mousedown', onDocMousedown)
-})
-onBeforeUnmount(() => {
-  document.removeEventListener('mousedown', onDocMousedown)
 })
 </script>
 

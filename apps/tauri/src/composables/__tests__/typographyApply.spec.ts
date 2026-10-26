@@ -4,7 +4,7 @@
  * 既有 parent 判定直接适用——本测试用官方 StarterKit 的 codeBlock 同名锁定）。
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { Editor } from '@tiptap/core'
+import { Editor } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import { applyTypographyToEditor } from '../typographyRules'
 

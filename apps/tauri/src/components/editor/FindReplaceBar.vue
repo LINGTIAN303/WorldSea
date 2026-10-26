@@ -128,18 +128,24 @@ function onReplaceAll() {
   props.editor?.commands.replaceAll(replaceTerm.value)
 }
 
-function open(focusReplace = false) {
+function open(focusReplace = false, term?: string) {
   const ed = props.editor
   visible.value = true
   showReplace.value = focusReplace
-  // 预填选区文本（短且单行才填，跨段文本做搜索词没意义）
   if (ed) {
-    const { from, to, empty } = ed.state.selection
-    if (!empty && to - from <= 200) {
-      const selected = ed.state.doc.textBetween(from, to, '\n')
-      if (selected && !selected.includes('\n')) {
-        searchTerm.value = selected
-        ed.commands.setSearch(selected)
+    if (term) {
+      // 显式搜索词（全书搜索跳转链路）：直接扫描定位到首处
+      searchTerm.value = term
+      ed.commands.setSearch(term)
+    } else {
+      // 预填选区文本（短且单行才填，跨段文本做搜索词没意义）
+      const { from, to, empty } = ed.state.selection
+      if (!empty && to - from <= 200) {
+        const selected = ed.state.doc.textBetween(from, to, '\n')
+        if (selected && !selected.includes('\n')) {
+          searchTerm.value = selected
+          ed.commands.setSearch(selected)
+        }
       }
     }
   }

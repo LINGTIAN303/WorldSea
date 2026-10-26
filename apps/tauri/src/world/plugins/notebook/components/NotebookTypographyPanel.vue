@@ -1,5 +1,5 @@
 <template>
-  <div ref="panelRef" class="nb-typo-panel" :style="panelStyle">
+  <div :ref="panelRef" class="nb-typo-panel" :style="panelStyle">
     <div class="nb-typo-title">排版偏好</div>
 
     <div class="nb-typo-row">
@@ -45,11 +45,13 @@
  * 重复已登记挂账，待 UI 层统一时归一）。偏好走 useNotePrefs（worldsea_nb_* 键域），
  * 默认值 = 既有呈现（--font-size-base / 1.75）。
  */
-import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { nbFontSize, nbLineHeight, nbQuoteStyle } from '../composables/useNotePrefs'
+import { useAnchoredPanel } from '@/composables/useAnchoredPanel'
 
 const props = defineProps<{ anchor: HTMLElement | null }>()
 const emit = defineEmits<{ close: [] }>()
+
+const { panelRef, panelStyle } = useAnchoredPanel(() => props.anchor, () => emit('close'), { bottomGuard: 260 })
 
 // 字号默认 14 = 既有呈现（prose.css 的 --font-size-base）
 const FONT_OPTIONS = [
@@ -69,33 +71,6 @@ const QUOTE_STYLE_OPTIONS: Array<{ value: 'off' | 'curly' | 'corner'; label: str
   { value: 'curly', label: '“弯”' },
   { value: 'corner', label: '「直」' },
 ]
-
-const panelRef = ref<HTMLElement | null>(null)
-const panelStyle = ref<{ top: string; right: string }>({ top: '0px', right: '0px' })
-
-function position() {
-  const rect = props.anchor?.getBoundingClientRect()
-  if (!rect) return
-  panelStyle.value = {
-    top: `${Math.min(rect.bottom + 6, window.innerHeight - 260)}px`,
-    right: `${window.innerWidth - rect.right}px`,
-  }
-}
-
-function onDocMousedown(e: MouseEvent) {
-  const t = e.target as Node
-  if (panelRef.value?.contains(t)) return
-  if (props.anchor?.contains(t)) return
-  emit('close')
-}
-
-onMounted(() => {
-  position()
-  document.addEventListener('mousedown', onDocMousedown)
-})
-onBeforeUnmount(() => {
-  document.removeEventListener('mousedown', onDocMousedown)
-})
 </script>
 
 <style scoped>

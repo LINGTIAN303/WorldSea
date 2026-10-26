@@ -75,12 +75,14 @@
           :show-history="showHistory"
           :book-id="selectedBook?.id || ''"
           :editor="editor ?? null"
+          :book-chapters="viewChapters"
           @save-title="saveTitle"
           @status-change="onStatusChange"
           @snapshot="saveSnapshot"
           @toggle-history="showHistory = !showHistory"
           @preview="showPreview = true"
           @export="showExport = true"
+          @book-search-jump="onBookSearchJump"
         />
         <ChapterEditor
           :editor="editor ?? null"
@@ -184,7 +186,7 @@ const {
   editor, saveStatus, wordCount, loadChapter, flushSave,
   setMentionPopover, onMentionSelect,
   setSlashCommandPopover, onSlashCommandSelect,
-  setFindReplaceApi, isFindBarOpen,
+  setFindReplaceApi, isFindBarOpen, openFind,
 } = useChapterEditor(current)
 
 const { snapshots, showHistory, loadSnapshots, createSnapshot, restoreSnapshot, deleteSnapshot } = useChapterSnapshots(current)
@@ -312,6 +314,15 @@ async function saveTitle() {
 function onStatusChange(value: string) {
   editStatus.value = value
   void saveMeta()
+}
+
+/** 全书搜索命中跳转（批3）：跨书先落回书内 → 选中章节 → 自动开查找条高亮定位首处 */
+async function onBookSearchJump(payload: { chapterId: string; term: string }) {
+  const ch = manuscripts.value.find(m => m.id === payload.chapterId)
+  if (!ch) return
+  if (selectedBookId.value === null) await openBook((ch.properties.bookId as string) || '')
+  if (current.value?.id !== payload.chapterId) select(ch)
+  void nextTick(() => openFind(payload.term))
 }
 
 async function saveMeta() {

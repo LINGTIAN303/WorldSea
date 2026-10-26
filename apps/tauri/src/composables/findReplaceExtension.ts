@@ -37,7 +37,8 @@ export interface FindReplaceOptions {
 
 /** 查找条对外 API（宿主组件的 FindReplaceBar 经 setFindReplaceApi 注册，快捷键回调经此开合） */
 export interface FindReplaceBarApi {
-  open: (focusReplace?: boolean) => void
+  /** term = 预填搜索词（全书搜索跳转链路）；缺省时预填当前选区 */
+  open: (focusReplace?: boolean, term?: string) => void
   close: () => void
   isVisible: () => boolean
 }

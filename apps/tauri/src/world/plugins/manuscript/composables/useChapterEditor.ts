@@ -93,6 +93,11 @@ export function useChapterEditor(currentChapter: Ref<Entity | null>) {
     return findReplaceApi?.isVisible() ?? false
   }
 
+  /** 打开查找条并预填搜索词（批3 全书搜索跳转链路：跳章后高亮定位到首处命中） */
+  function openFind(term?: string): void {
+    findReplaceApi?.open(false, term)
+  }
+
   // ── 编辑器生命周期自管（勿改回 useEditor）──
   // 缺陷史：useEditor 内部 onBeforeUnmount 会先 destroy，且它注册早于本组合函数自己的
   // 卸载钩子 → 卸载钩子里对「已销毁编辑器」调 getHTML() 抛
@@ -364,5 +369,6 @@ export function useChapterEditor(currentChapter: Ref<Entity | null>) {
     onSlashCommandSelect,
     setFindReplaceApi,
     isFindBarOpen,
+    openFind,
   }
 }

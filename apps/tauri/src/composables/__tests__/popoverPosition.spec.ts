@@ -1,5 +1,5 @@
 /**
- * popoverPosition — 弹层定位纯函数契约（走查修复轮 3，2026-10-12）。
+ * popoverPosition — 弹层定位纯函数契约（走查修复轮 3，2026-10-12；批3 随共享化迁入）。
  *
  * 锁定策略：
  * - 下方优先；下方「完整放不下但够高（≥150px）」→ **缩高放下方**（不翻走，位置贴锚点）；
@@ -11,7 +11,7 @@
  * 两侧空间之和 = vh - 20（此消彼长，极端用例需用矮视口构造）。
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { computePopoverPos } from '../composables/popoverPosition'
+import { computePopoverPos } from '../popoverPosition'
 
 /** 光标行矩形（left, top；宽 80 高 20） */
 function caret(left: number, top: number): () => DOMRect {
