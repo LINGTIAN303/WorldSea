@@ -40,8 +40,9 @@
     </template>
     <div class="toolbar-divider"></div>
     <div class="toolbar-group">
-      <button class="tb-btn tb-btn--txt" title="一键排版（中文标点/引号/省略号归一，Ctrl+Z 可撤销）" aria-label="一键排版" @click="onTypography">排版</button>
+      <button class="tb-btn tb-btn--txt" title="一键排版（中文标点/引号/省略号归一，Ctrl+Z 可撤销）" aria-label="一键排版" @click="onTypography">一键排版</button>
       <button class="tb-btn" title="查找与替换 (Ctrl+F)" aria-label="查找与替换" @click="$emit('open-find')"><WsIcon name="search" size="xs" /></button>
+      <button ref="bookSearchBtnRef" class="tb-btn" :class="{ active: showBookSearch }" title="全书搜索（书内全部章节）" aria-label="全书搜索" @click="showBookSearch = !showBookSearch"><WsIcon name="book" size="xs" /></button>
     </div>
     <div class="toolbar-divider"></div>
     <div class="toolbar-group">
@@ -54,6 +55,13 @@
       {{ saveLabel }}
     </span>
     <span class="word-count">{{ wordCount }} 字</span>
+    <!-- 写作信息/呈现偏好簇（批4 微调：自编辑器头部迁入，挨着字数成簇） -->
+    <button ref="statsBtnRef" class="tb-btn" :class="{ active: showStats }" title="写作统计" aria-label="写作统计" @click="showStats = !showStats"><WsIcon name="chart" size="xs" /></button>
+    <button ref="typoBtnRef" class="tb-btn tb-btn--txt" :class="{ active: showTypography }" title="排版偏好" aria-label="排版偏好" @click="showTypography = !showTypography">Aa</button>
+
+    <WritingStatsPanel v-if="showStats" :book-id="bookId" :anchor="statsBtnRef" @close="showStats = false" />
+    <TypographyPanel v-if="showTypography" :anchor="typoBtnRef" :editor="editor ?? null" @close="showTypography = false" />
+    <BookSearchPanel v-if="showBookSearch" :anchor="bookSearchBtnRef" :chapters="bookChapters" @close="showBookSearch = false" @jump="onBookSearchJump" />
   </div>
 </template>
 
@@ -61,18 +69,38 @@
 import { computed, ref } from 'vue'
 import type { Editor } from '@tiptap/vue-3'
 import { WsIcon, WsInlineLoading } from '@worldsea/ui-kit'
+import type { Entity } from '@worldsea/entity-core'
 import { insertImageFilesInto } from '@/composables/imageInsert'
 import { toastSuccess } from '@/composables/useToast'
 import { applyTypographyToEditor, type QuoteStyle } from '@/composables/typographyRules'
 import { msQuoteStyle } from '../composables/useWritingPrefs'
+import TypographyPanel from './TypographyPanel.vue'
+import WritingStatsPanel from './WritingStatsPanel.vue'
+import BookSearchPanel from './BookSearchPanel.vue'
 
 const props = defineProps<{
   editor: Editor | null
   saveStatus: 'saved' | 'saving' | 'unsaved'
   wordCount: number
+  /** 全书搜索数据源（批4 自头部迁入：书内全部章节） */
+  bookChapters: Entity[]
+  bookId: string
 }>()
 
-const emit = defineEmits<{ 'open-find': [] }>()
+const emit = defineEmits<{ 'open-find': []; 'book-search-jump': [payload: { chapterId: string; term: string }] }>()
+
+// ── 批4 迁入的写作信息/偏好簇（面板随钮迁入，锚定各自工具条按钮）──
+const statsBtnRef = ref<HTMLElement | null>(null)
+const typoBtnRef = ref<HTMLElement | null>(null)
+const bookSearchBtnRef = ref<HTMLElement | null>(null)
+const showStats = ref(false)
+const showTypography = ref(false)
+const showBookSearch = ref(false)
+
+function onBookSearchJump(payload: { chapterId: string; term: string }) {
+  showBookSearch.value = false
+  emit('book-search-jump', payload)
+}
 
 // 图片插入（工具栏按钮 → 隐藏文件选择器）；粘贴 / 拖拽走 useChapterEditor 的 handlePaste/handleDrop
 const imageInput = ref<HTMLInputElement | null>(null)

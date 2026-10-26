@@ -73,16 +73,12 @@
           v-model:title="editTitle"
           :status="editStatus"
           :show-history="showHistory"
-          :book-id="selectedBook?.id || ''"
-          :editor="editor ?? null"
-          :book-chapters="viewChapters"
           @save-title="saveTitle"
           @status-change="onStatusChange"
           @snapshot="saveSnapshot"
           @toggle-history="showHistory = !showHistory"
           @preview="showPreview = true"
           @export="showExport = true"
-          @book-search-jump="onBookSearchJump"
         />
         <ChapterEditor
           :editor="editor ?? null"
@@ -93,6 +89,9 @@
           :set-slash-command-popover="setSlashCommandPopover"
           :on-slash-command-select="onSlashCommandSelect"
           :set-find-replace-api="setFindReplaceApi"
+          :book-chapters="viewChapters"
+          :book-id="selectedBook?.id || ''"
+          @book-search-jump="onBookSearchJump"
         />
         <div v-if="showHistory" class="ms-history">
           <div v-for="(snap, idx) in snapshots" :key="snap.time" class="ms-snap-item">

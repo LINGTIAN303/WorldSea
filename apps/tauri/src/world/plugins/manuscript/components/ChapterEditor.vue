@@ -4,7 +4,10 @@
       :editor="editor"
       :save-status="saveStatus"
       :word-count="wordCount"
+      :book-chapters="bookChapters"
+      :book-id="bookId"
       @open-find="findBarRef?.open(false)"
+      @book-search-jump="(p) => $emit('book-search-jump', p)"
     />
     <FindReplaceBar ref="findBarRef" :editor="editor" />
     <div v-if="editor" class="editor-wrap">
@@ -23,6 +26,7 @@ import { onMounted, ref } from 'vue'
 import type { Editor } from '@tiptap/vue-3'
 import { EditorContent } from '@tiptap/vue-3'
 import { WsSkeleton } from '@worldsea/ui-kit'
+import type { Entity } from '@worldsea/entity-core'
 import EditorToolbar from './EditorToolbar.vue'
 import FindReplaceBar from '@/components/editor/FindReplaceBar.vue'
 import MentionPopover from '@/components/editor/MentionPopover.vue'
@@ -46,7 +50,12 @@ const props = defineProps<{
   setSlashCommandPopover: (ref: SlashCommandPopoverApi | null) => void
   onSlashCommandSelect: (item: SlashCommandItem) => void
   setFindReplaceApi: (api: FindReplaceBarApi | null) => void
+  /** 全书搜索数据源 + 所属书 id（批4 随工具条迁入的搜索/统计面板透传） */
+  bookChapters: Entity[]
+  bookId: string
 }>()
+
+const emit = defineEmits<{ 'book-search-jump': [payload: { chapterId: string; term: string }] }>()
 
 const mentionPopoverRef = ref<{ open: (clientRect: (() => DOMRect | null) | null) => void; close: () => void } | null>(null)
 const slashCommandMenuRef = ref<SlashCommandPopoverApi | null>(null)
