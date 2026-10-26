@@ -1,6 +1,7 @@
 // 工作台（产品域）静态伺服——壳 `worldsea` 协议的 `/workspace` 前缀分支。
-// 口径：产物**不嵌入二进制**（22MB 级），运行时从磁盘读（`WORLDSEA_WORKSPACE_DIST` 可覆盖，缺省 dev 口径，
-// 目录缺失给可辨认错误页）；与 dsh 桥**无关**（宿主未就绪也能伺服）；与 dsh 页同源，localStorage 天然互通。
+// 口径：产物**不嵌入二进制**（22MB 级），运行时从磁盘读（`WORLDSEA_WORKSPACE_DIST` 可覆盖；
+// 安装形态 = exe 同级 `workspace-dist/`，dev = `apps/tauri/workspace-dist`，目录缺失给可辨认错误页）；
+// 与 dsh 桥**无关**（宿主未就绪也能伺服）；与 dsh 页同源，localStorage 天然互通。
 // 闸门：只服务 GET/HEAD；前缀内路径逐段拒绝越界段 + canonicalize 包含性复核（符号链接逃逸）；
 // 缓存：`assets/` 内容哈希名 → immutable，index 与其余 no-store；index 注入「不白屏」安全网——详见 docs/details/注释/tauri/workspace-dist.md。
 
@@ -35,9 +36,9 @@ fn serve_disk(request: &http::Request<Vec<u8>>) -> http::Response<Vec<u8>> {
     }
 }
 
-/// 产物根目录：`WORLDSEA_WORKSPACE_DIST` 优先；否则 dev 口径 `apps/tauri/workspace-dist`（打包形态的产物落位待收口定）。
+/// 产物根目录：`WORLDSEA_WORKSPACE_DIST` > debug 构建的实时产物 > 安装形态 exe 同级 `workspace-dist` > dev 口径。
 fn dist_root() -> Result<PathBuf, String> {
-    let build_hint = "先在 apps/tauri 执行 `node node_modules/vite/bin/vite.js build --config workspace/vite.config.ts`；或用 WORLDSEA_WORKSPACE_DIST 指定目录";
+    let build_hint = "先在 apps/tauri 执行 `node ../../node_modules/vite/bin/vite.js build --config workspace/vite.config.ts`；或用 WORLDSEA_WORKSPACE_DIST 指定目录";
     if let Some(raw) = std::env::var_os("WORLDSEA_WORKSPACE_DIST") {
         let candidate = crate::dsh_workspace::strip_verbatim_prefix(PathBuf::from(raw));
         return if candidate.join("index.html").exists() {
@@ -47,11 +48,22 @@ fn dist_root() -> Result<PathBuf, String> {
         };
     }
     let raw = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("workspace-dist");
-    let candidate = crate::dsh_workspace::strip_verbatim_prefix(raw.canonicalize().unwrap_or(raw));
-    if candidate.join("index.html").exists() {
-        Ok(candidate)
+    let dev_root = crate::dsh_workspace::strip_verbatim_prefix(raw.canonicalize().unwrap_or(raw));
+    // dev 下 Tauri 会把资源复制到 target/<profile>，实时产物必须优先，否则重建工作台后壳仍读旧副本
+    if cfg!(debug_assertions) && dev_root.join("index.html").exists() {
+        return Ok(dev_root);
+    }
+    // 安装形态：两个安装器都把产物释放到 exe 同级（Windows 的 resource_dir 即 exe 目录）
+    if let Some(dir) = std::env::current_exe().ok().and_then(|exe| exe.parent().map(Path::to_path_buf)) {
+        let candidate = crate::dsh_workspace::strip_verbatim_prefix(dir.join("workspace-dist"));
+        if candidate.join("index.html").exists() {
+            return Ok(candidate);
+        }
+    }
+    if dev_root.join("index.html").exists() {
+        Ok(dev_root)
     } else {
-        Err(format!("未找到工作台产物：{}（{build_hint}）", candidate.display()))
+        Err(format!("未找到工作台产物：{}（{build_hint}）", dev_root.display()))
     }
 }
 

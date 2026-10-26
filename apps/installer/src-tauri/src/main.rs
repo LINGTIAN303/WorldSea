@@ -45,6 +45,8 @@ fn app_data_dir() -> PathBuf {
 const MAIN_EXE_BYTES: &[u8] = include_bytes!("../payload/worldsea-tauri-app.exe");
 /// 内嵌 Agent 运行时（dsh 部署树 + node.exe，build-dsh-runtime.ps1 产物；同一构建链保证就位）
 const RUNTIME_ZIP_BYTES: &[u8] = include_bytes!("../payload/dsh-runtime.zip");
+/// 内嵌工作台前端产物（workspace-dist，构建链保证就位）
+const WORKSPACE_DIST_ZIP_BYTES: &[u8] = include_bytes!("../payload/workspace-dist.zip");
 
 fn start_menu_dir() -> Option<PathBuf> {
     dirs::data_dir().map(|d| d.join(r"Microsoft\Windows\Start Menu\Programs"))
@@ -137,7 +139,7 @@ fn perform_install(
         }
         let dest = PathBuf::from(&dest);
         let main_in_dest = dest.join(MAIN_EXE);
-        let total = 9usize;
+        let total = 10usize;
 
         if !step(&app, 0, total, &format!("解压程序文件到 {}", dest.display()), || {
             std::fs::create_dir_all(&dest).map_err(|e| e.to_string())?;
@@ -180,7 +182,11 @@ fn perform_install(
             if meta.len() == 0 { Err("主程序文件为空".into()) } else { Ok(()) }
         }) { return finish_install(&app, false); }
 
-        if !step(&app, 8, total, "写入卸载信息", || {
+        if !step(&app, 8, total, "部署工作台界面", || {
+            deploy_workspace_dist(&dest)
+        }) { return finish_install(&app, false); }
+
+        if !step(&app, 9, total, "写入卸载信息", || {
             write_uninstall_registry(&dest, &main_in_dest)
         }) { return finish_install(&app, false); }
 
@@ -196,32 +202,61 @@ fn finish_install(app: &tauri::AppHandle, ok: bool) {
     }
 }
 
-/// 释放内嵌运行时 zip 并解压到 `<dest>\dsh-runtime`。
-/// 解压引擎 = 系统 tar.exe（Windows 10 1803+ 自带 bsdtar，原生支持 zip），不引第三方解压依赖。
+/// 解压用 System32 的 bsdtar：PATH 里的 GNU tar（Git/MSYS）不支持 zip。
+fn tar_command() -> std::process::Command {
+    let tar = std::env::var_os("SystemRoot")
+        .map(PathBuf::from)
+        .map(|root| root.join("System32").join("tar.exe"))
+        .filter(|p| p.is_file())
+        .unwrap_or_else(|| PathBuf::from("tar"));
+    let mut cmd = std::process::Command::new(tar);
+    cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW：GUI 模式下不闪控制台窗口
+    cmd
+}
+
+/// 释放内嵌 zip 并用系统 tar.exe 解压到 dest（Windows 10 1803+ 自带 bsdtar，原生支持 zip）。
+fn extract_zip(bytes: &[u8], dest: &Path, temp_name: &str) -> Result<(), String> {
+    let zip = std::env::temp_dir().join(temp_name);
+    std::fs::write(&zip, bytes).map_err(|e| format!("释放压缩包失败：{e}"))?;
+    let out = tar_command()
+        .arg("-xf")
+        .arg(&zip)
+        .arg("-C")
+        .arg(dest)
+        .output()
+        .map_err(|e| format!("解压失败（tar 不可用？需 Windows 10 1803+）：{e}"))?;
+    let _ = std::fs::remove_file(&zip);
+    if !out.status.success() {
+        return Err(format!("压缩包解压失败：{}", String::from_utf8_lossy(&out.stderr).trim()));
+    }
+    Ok(())
+}
+
+/// 解压内嵌运行时到 `<dest>\dsh-runtime`。
 fn deploy_runtime(dest: &Path) -> Result<(), String> {
     let runtime_dir = dest.join("dsh-runtime");
     // 重装/覆盖安装：清掉旧运行时再解压，避免半新半旧
     if runtime_dir.exists() {
         std::fs::remove_dir_all(&runtime_dir).map_err(|e| format!("清理旧运行时失败：{e}"))?;
     }
-    let zip = std::env::temp_dir().join("worldsea-dsh-runtime.zip");
-    std::fs::write(&zip, RUNTIME_ZIP_BYTES).map_err(|e| format!("释放运行时包失败：{e}"))?;
-    let out = std::process::Command::new("tar")
-        .arg("-xf")
-        .arg(&zip)
-        .arg("-C")
-        .arg(dest)
-        .creation_flags(0x0800_0000) // CREATE_NO_WINDOW：GUI 模式下不闪控制台窗口
-        .output()
-        .map_err(|e| format!("解压运行时失败（tar 不可用？需 Windows 10 1803+）：{e}"))?;
-    let _ = std::fs::remove_file(&zip);
-    if !out.status.success() {
-        return Err(format!("运行时解压失败：{}", String::from_utf8_lossy(&out.stderr).trim()));
-    }
+    extract_zip(RUNTIME_ZIP_BYTES, dest, "worldsea-dsh-runtime.zip")?;
     let node = runtime_dir.join("node").join("node.exe");
     let bin = runtime_dir.join(r"dsh\node_modules\@deepseek-ai\dsh\lib\bin.js");
     if !node.is_file() || !bin.is_file() {
         return Err("运行时解压后缺少关键文件（node.exe / dsh bin.js）".into());
+    }
+    Ok(())
+}
+
+/// 解压内嵌工作台前端产物到 `<dest>\workspace-dist`。
+fn deploy_workspace_dist(dest: &Path) -> Result<(), String> {
+    let dist_dir = dest.join("workspace-dist");
+    if dist_dir.exists() {
+        std::fs::remove_dir_all(&dist_dir).map_err(|e| format!("清理旧工作台产物失败：{e}"))?;
+    }
+    extract_zip(WORKSPACE_DIST_ZIP_BYTES, dest, "worldsea-workspace-dist.zip")?;
+    if !dist_dir.join("index.html").is_file() {
+        return Err("工作台产物解压后缺少 index.html".into());
     }
     Ok(())
 }
@@ -267,9 +302,10 @@ fn write_uninstall_registry(dest: &Path, main_exe: &Path) -> Result<(), String> 
     set_s("InstallLocation", dest.display().to_string())?;
     set_s("DisplayIcon", main_exe.display().to_string())?;
     set_s("UninstallString", format!("\"{}\" --uninstall", dest.join(UNINSTALLER_NAME).display()))?;
-    // EstimatedSize 注册表要求 REG_DWORD（KB）；程序 + Agent 运行时（解压后实际占用）
+    // EstimatedSize 注册表要求 REG_DWORD（KB）；程序 + Agent 运行时 + 工作台产物（解压后实际占用）
     let size_kb = ((std::fs::metadata(main_exe).map(|m| m.len()).unwrap_or(0)
-        + dir_size_bytes(&dest.join("dsh-runtime"))) / 1024) as u32;
+        + dir_size_bytes(&dest.join("dsh-runtime"))
+        + dir_size_bytes(&dest.join("workspace-dist"))) / 1024) as u32;
     key.set_value("EstimatedSize", &size_kb).map_err(|e| e.to_string())?;
     key.set_value("NoModify", &1u32).map_err(|e| e.to_string())?;
     key.set_value("NoRepair", &1u32).map_err(|e| e.to_string())?;

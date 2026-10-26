@@ -5,7 +5,9 @@
 壳 `worldsea` 协议的 `/workspace` 前缀分支，设计口径如下：
 
 - **产物不嵌入二进制**（22MB 级）：运行时从磁盘目录读（`WORLDSEA_WORKSPACE_DIST` 可覆盖；
-  缺省 = dev 口径 `<crate>/../workspace-dist`）；目录缺失给可辨认错误页（非空白）。
+  安装形态 = exe 同级 `workspace-dist/`，dev = `<crate>/../workspace-dist`）；目录缺失给可辨认错误页（非空白）。
+  debug 构建优先仓内实时产物（Tauri 会把资源复制到 `target/<profile>`，避免 dev 读旧副本）；
+  release / 安装形态优先 exe 同级。
 - **与 dsh 桥无关**：宿主（dsh）未就绪也能伺服——路由在 lib.rs 的协议闭包里先判前缀。
 - **同源**：工作台页与 dsh 页同落 `worldsea://localhost`，主题等 localStorage 天然互通。
 - **闸门**：只服务 GET/HEAD；前缀内路径逐段拒绝越界段（`.`/`..`/`\`/盘符/NUL），

@@ -115,7 +115,8 @@ Step 'deploy（legacy hoisted 配方）'
 $deploy = Join-Path $env:TEMP ('worldsea-dsh-deploy-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
 Push-Location $stage
 try {
-    npx --yes pnpm@11.7.0 --filter worldsea-dsh-closure --prod deploy --legacy `
+    # 不走 npx：本机 npm 11.19 的 npx 会崩（minipass-flush），pnpm dlx 拉同一版本更稳
+    pnpm dlx pnpm@11.7.0 --filter worldsea-dsh-closure --prod deploy --legacy `
         --config.allow-unused-patches=true --config.node-linker=hoisted `
         --config.auto-install-peers=false --config.link-workspace-packages=true $deploy 2>&1 | ForEach-Object { Write-Verbose $_ }
     if ($LASTEXITCODE -ne 0) { throw "pnpm deploy 失败：$LASTEXITCODE" }
@@ -152,8 +153,41 @@ foreach ($name in @('cosmokit', 'schemastery')) {
     Remove-Item -Recurse -Force $dst -ErrorAction SilentlyContinue
     Copy-Item (Join-Path $stage "vendor\$name") $dst -Recurse -Force
 }
-$leftLinks = @(Get-ChildItem $deploy -Recurse -Attributes ReparsePoint -ErrorAction SilentlyContinue)
+# 与上游 materializeStagedLinks 同口径：workspace 包被部署为指回 staging 的链接，staging 删除后即失效。
+# 逐链接换实体拷贝（跳过嵌套 node_modules，保住根上的单例）；`.bin` 整目录丢弃；指回部署根自身的链接直接丢弃。
+Step '修正：链接实体化（部署树的 workspace / vendor 链接换实体拷贝）'
+$payload = [System.IO.Path]::GetFullPath($deploy)
+$materialized = 0
+for ($pass = 0; $pass -lt 10; $pass++) {
+    $links = @(Get-ChildItem $deployNm -Recurse -Force -Attributes ReparsePoint -ErrorAction SilentlyContinue)
+    if ($links.Count -eq 0) { break }
+    foreach ($link in $links) {
+        $segments = $link.FullName.Substring($deployNm.Length + 1).Split([System.IO.Path]::DirectorySeparatorChar)
+        $binIndex = [Array]::IndexOf($segments, '.bin')
+        if ($binIndex -ge 0) {
+            $binDir = Join-Path $deployNm (($segments[0..$binIndex]) -join '\')
+            Remove-Item -Recurse -Force $binDir -ErrorAction SilentlyContinue
+            $materialized++
+            continue
+        }
+        $target = $link.ResolveLinkTarget($true)
+        if (-not $target -or -not $target.Exists) { throw "链接目标不存在：$($link.FullName)" }
+        if ($payload -eq $target.FullName -or $payload.StartsWith($target.FullName + '\')) {
+            if ($link.PSIsContainer) { [System.IO.Directory]::Delete($link.FullName) } else { [System.IO.File]::Delete($link.FullName) }
+        } elseif ($target -is [System.IO.DirectoryInfo]) {
+            [System.IO.Directory]::Delete($link.FullName)
+            robocopy $target.FullName $link.FullName /E /XD node_modules /NFL /NDL /NJH /NJS /NP | Out-Null
+            if ($LASTEXITCODE -ge 8) { throw "链接实体化失败：$($link.FullName)（robocopy $LASTEXITCODE）" }
+        } else {
+            [System.IO.File]::Delete($link.FullName)
+            Copy-Item -LiteralPath $target.FullName -Destination $link.FullName -Force
+        }
+        $materialized++
+    }
+}
+$leftLinks = @(Get-ChildItem $deploy -Recurse -Force -Attributes ReparsePoint -ErrorAction SilentlyContinue)
 if ($leftLinks.Count -gt 0) { throw "部署树仍残留 $($leftLinks.Count) 个链接：$($leftLinks.FullName -join '; ')" }
+Step "实体化 $materialized 个链接（部署树已无链接）"
 
 # ---------- 4. node 便携版（dsh lock 锁定版本 + sha256 校验） ----------
 Step "node v$nodeVersion"
@@ -182,7 +216,8 @@ if (Test-Path $OutDir) { Remove-Item -Recurse -Force $OutDir }
 New-Item -ItemType Directory -Force (Join-Path $OutDir 'node') | Out-Null
 Copy-Item $nodeExeSrc (Join-Path $OutDir 'node\node.exe')
 Copy-Item (Join-Path (Get-ChildItem $nodeStage -Directory | Select-Object -First 1).FullName 'LICENSE') (Join-Path $OutDir 'node\LICENSE') -ErrorAction SilentlyContinue
-Copy-Item $deploy (Join-Path $OutDir 'dsh') -Recurse
+robocopy $deploy (Join-Path $OutDir 'dsh') /E /MT:16 /R:2 /W:1 /NFL /NDL /NJH /NJS /NP | Out-Null
+if ($LASTEXITCODE -ge 8) { throw "复制部署树失败：robocopy $LASTEXITCODE" }
 # overlay 随产物分发（壳 spawn 时 --patch 指向它；dev 口径 = 仓根 apps/tauri/dsh-overlay.yml）
 Copy-Item (Join-Path $repo 'apps\tauri\dsh-overlay.yml') (Join-Path $OutDir 'overlay.yml')
 Remove-Item -Recurse -Force $stage, $deploy, $nodeStage -ErrorAction SilentlyContinue
@@ -192,7 +227,9 @@ Step "产物体积 $size MB"
 $zipPath = "$OutDir.zip"
 Step "压缩 -> $zipPath"
 if (Test-Path $zipPath) { Remove-Item -Force $zipPath }
-Compress-Archive -Path $OutDir -DestinationPath $zipPath -Force
+# .NET ZipFile 比 Compress-Archive 快；includeBaseDirectory = 产物顶层保留 dsh-runtime/ 前缀（安装器按此解压）
+[System.IO.Compression.ZipFile]::CreateFromDirectory(
+    $OutDir, $zipPath, [System.IO.Compression.CompressionLevel]::Optimal, $true)
 $zipSize = [math]::Round((Get-Item $zipPath).Length / 1MB, 1)
 Step "压缩包体积 $zipSize MB"
 
