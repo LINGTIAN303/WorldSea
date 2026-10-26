@@ -77,6 +77,10 @@ pub(crate) fn inject_shell_scripts(
         scripts.push_str(SHELL_BRIDGE_SCRIPT);
         scripts.push_str("</script>");
     }
+    // 空间切换遮罩（双侧无缝动画的页面侧执行体；Agent 空间与工作台同款，见 workspace_window.rs 切换时序）
+    scripts.push_str("<script>");
+    scripts.push_str(SPACE_VEIL_SCRIPT);
+    scripts.push_str("</script>");
     // 窗口栏（无边框形态的壳件；`WORLDSEA_NO_TITLEBAR=1` 或 `WORLDSEA_FRAMED=1` 时不注入）
     if titlebar {
         scripts.push_str("<script>");
@@ -127,7 +131,7 @@ globalThis.__WORLDSEA_DARK__ = {}</script>",
         crate::app_prefs::dark_now()
     );
     let scripts = format!(
-        "{theme_script}{BOOT_ROOT_SCRIPT}<script>{WATCHDOG_SCRIPT}</script>{SPACE_SWITCH_BRIDGE}{THEME_SET_BRIDGE}"
+        "{theme_script}{BOOT_ROOT_SCRIPT}<script>{WATCHDOG_SCRIPT}</script>{SPACE_SWITCH_BRIDGE}{THEME_SET_BRIDGE}<script>{SPACE_VEIL_SCRIPT}</script>"
     );
     match find_head_end(html) {
         Some(at) => format!("{}{}{}", &html[..at], scripts, &html[at..]),
@@ -162,6 +166,8 @@ const SPACE_SWITCH_BRIDGE: &str = "<script>/* worldsea-shell:space-switch */glob
 const SHELL_BRIDGE_SCRIPT: &str = include_str!("dsh_shell_bridge.js");
 /// 窗口栏（无边框形态缺省注入；`WORLDSEA_NO_TITLEBAR=1` 反证关）：32px 壳级窗口栏 + 工作台占位页。
 const TITLEBAR_SCRIPT: &str = include_str!("dsh_titlebar.js");
+/// 空间切换遮罩（常驻双页注入）：`__wsSpaceVeil.show()/release()`——切换动画的页面侧执行体，见 dsh_space_veil.js 头注。
+const SPACE_VEIL_SCRIPT: &str = include_str!("dsh_space_veil.js");
 /// 流桥（管道模式随 transport 一起注入）：`__WORLDSEA_STREAM__` 的 `openStream` 钩子。
 const STREAM_BRIDGE_SCRIPT: &str = include_str!("dsh_stream_bridge.js");
 /// 页内诊断（`WORLDSEA_SHELL_DIAG=1` 才注入）：console/异常/资源错误 → 壳日志。

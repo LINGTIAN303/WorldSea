@@ -2,7 +2,7 @@
   <CardDeck :count="5" :flat="!!searchQuery" @change="(i) => emit('card-change', i)" ref="deckRef">
     <template #card="{ idx, cls }">
       <div class="set-card deck-card" :class="cls" :data-index="idx"
-        v-show="idx === 0 ? match('主题 theme 外观 底色 深色 浅色 跟随系统 强调色 颜色 编辑器 图谱 星图') : idx === 1 ? match('高亮 highlight 脉冲 动画 淡化 扩散 透明度') : true">
+        v-show="idx === 0 ? match('主题 theme 外观 底色 深色 浅色 跟随系统 强调色 颜色 编辑器 图谱 星图 眼睛 虹膜 iris') : idx === 1 ? match('高亮 highlight 脉冲 动画 淡化 扩散 透明度') : true">
         <!-- 主题（2026-09-13 收束：主题 = 底色 × 强调色 两轴，不再陈列六个预设主题卡） -->
         <template v-if="idx === 0">
           <div class="sc-head">主题</div>
@@ -32,6 +32,17 @@
             </div>
           </div>
           <ColorPickerDialog :show="customPickerOpen" :initial-color="customAccentColor ?? '#4f46e5'" :transform="quantizeAnchor" @confirm="onCustomAccentConfirm" @close="customPickerOpen = false" />
+          <div class="set-theme-sub">眼睛虹膜色</div>
+          <div class="set-accent-row" role="group" aria-label="眼睛虹膜色">
+            <button class="set-accent-dot" :class="{ on: !eyeIrisColor }" title="跟随强调色" aria-label="眼睛虹膜色：跟随强调色" @click="onEyeIrisFollow">
+              <span class="set-accent-core" :style="{ background: currentAccentSwatch }"></span>
+            </button>
+            <button class="set-accent-dot set-accent-dot--custom" :class="{ on: !!eyeIrisColor }" title="自定义眼睛虹膜色" aria-label="自定义眼睛虹膜色" @click="eyePickerOpen = true">
+              <span class="set-accent-core" :style="eyeIrisColor ? { background: eyeIrisColor } : undefined"></span>
+            </button>
+          </div>
+          <div class="set-accent-hint">{{ eyeIrisColor ? `固定虹膜色：${eyeIrisColor}（启动页与切换遮罩同步）` : '跟随强调色（随上方色板联动，深色下自动提亮）' }}</div>
+          <ColorPickerDialog :show="eyePickerOpen" :initial-color="eyeIrisColor ?? '#8b87f8'" @confirm="onEyeIrisConfirm" @close="eyePickerOpen = false" />
           <div class="set-theme-sub">图谱底色</div>
           <div class="set-row"><span>全局图谱</span><select v-model="store.graphBackgroundMode" class="set-select" aria-label="图谱底色"><option value="dark">深色星图</option><option value="theme">跟随主题</option></select></div>
           <button class="set-theme-editor-btn" @click="openThemeEditor">
@@ -259,6 +270,41 @@ function onSavedApply(hex: string) {
 }
 function onSavedRemove(hex: string) {
   removeSavedAccent(hex)
+}
+
+// 眼睛虹膜色（世界之眼品牌件独立配色，2026-10-26 走查反馈）：缺省跟随强调色，可固定任意色。
+// 直改 localStorage + 派发 'ws-set-eye-iris'（App 壳统一落根变量 --ws-eye-iris）——不经强调色管线（独立于色板轴）。
+// 键 worldsea-eye-iris 与 splash 独立入口 / dsh_space_veil.js 同源（启动页与切换遮罩同步生效）。
+const EYE_IRIS_STORAGE_KEY = 'worldsea-eye-iris'
+const eyeIrisColor = ref<string | null>(readEyeIris())
+const eyePickerOpen = ref(false)
+const currentAccentSwatch = computed(() => customAccentColor.value ?? ACCENT_PRESETS.find(a => a.id === currentThemeId.value)?.light ?? '#4f46e5')
+
+function readEyeIris(): string | null {
+  try {
+    return localStorage.getItem(EYE_IRIS_STORAGE_KEY)
+  } catch {
+    return null
+  }
+}
+
+function onEyeIrisFollow() {
+  eyeIrisColor.value = null
+  try {
+    localStorage.removeItem(EYE_IRIS_STORAGE_KEY)
+  } catch { /* 忽略 */ }
+  window.dispatchEvent(new CustomEvent('ws-set-eye-iris', { detail: { color: null } }))
+  emit('dirty')
+}
+
+function onEyeIrisConfirm(color: string) {
+  eyePickerOpen.value = false
+  eyeIrisColor.value = color
+  try {
+    localStorage.setItem(EYE_IRIS_STORAGE_KEY, color)
+  } catch { /* 忽略 */ }
+  window.dispatchEvent(new CustomEvent('ws-set-eye-iris', { detail: { color } }))
+  emit('dirty')
 }
 
 function match(keywords: string): boolean {

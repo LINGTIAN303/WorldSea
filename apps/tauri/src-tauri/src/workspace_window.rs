@@ -1,8 +1,10 @@
-// 工作台窗口——懒创建 + 与 Agent 空间（`main` 窗）互斥切换（位置/尺寸同步）。
+// 工作台窗口——启动预建 + 与 Agent 空间（`main` 窗）互斥切换（位置/尺寸同步）。
 // - 独立窗口（label=`workspace`）承载产品域页面（壳协议 `/workspace/`）——ACL 按窗口隔离；
-// - **懒创建**：点「工作台」才建窗；建成后常驻（隐藏不销毁——保住工作台内的编辑现场）；
-// - 切换 = 目标窗几何对齐（沿用来源窗位置/尺寸）→ 显示 + 聚焦 → 来源窗隐藏：观感等同同窗切换；
-// - 关闭键 = 隐藏 + 回 Agent 空间（见 lib.rs 的 CloseRequested 分支）；新窗挂壳级导航/新窗栅栏（策略与 dsh 窗一致）。
+// - **启动预建**：产品域是默认落地——启动即以隐藏态建窗，页面首帧（启动页挂载）经首绘门显示；
+//   建成后常驻（隐藏不销毁——保住工作台内的编辑现场）；
+// - 切换 = 目标窗几何对齐（沿用来源窗位置/尺寸）→ 双侧遮罩（`__wsSpaceVeil`，眼睛跨窗位置连续）→
+//   显示 + 聚焦 → 来源窗隐藏：观感等同同窗切换；
+// - 关闭键 = 隐藏到托盘（两窗同语义，见 lib.rs 的 CloseRequested 分支）；新窗挂壳级导航/新窗栅栏（策略与 dsh 窗一致）。
 
 use tauri::{Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
@@ -16,12 +18,31 @@ pub fn page_url() -> String {
     format!("{APP_URL}workspace/")
 }
 
+/// 当前所在空间（true = 工作台 / false = Agent 空间）：托盘左键、「显示窗口」菜单、
+/// 单实例二次启动、全局快捷键据此显示**当前所在**的窗口（此前硬编码指主窗，是「主窗=家」模型残留）。
+static CURRENT_SPACE_WORKBENCH: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+
+/// 启动首绘门：启动路径下工作台窗以隐藏态预建，等页面首帧（启动页挂载）调
+/// [`cmd_workspace_first_paint`] 再显示——窗口出现即已是启动页，全程无空白帧。
+/// 仅正常启动路径置位（`--autostart` 托盘常驻不弹窗，门不置；手动切换不走门）。
+static FIRST_SHOW_PENDING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 /// 空间切换互斥。
 /// 背景（实测）：`cmd_shell_space_switch` 是 async 命令——快速连切（连按 Ctrl+Tab、两窗交替触发）时
 /// 两次切换会**并发执行**，show/hide/unminimize 相互交错、完成序 ≠ 提交序（实测 6 连发多次终态违背
 /// 最后一条指令，现象「两个窗同时在」/「界面状态拧巴」）；修法：所有切换经本锁**串行化**（show/hide 原子成对）。
 /// ★ 死锁纪律：窗口操作要回主线程消息泵——主线程调用方（托盘菜单 / CloseRequested）绝不能阻塞等锁，一律用 [`request_space_switch`] 投递后台线程（async 命令线程与后台线程等锁安全）。
 static SPACE_SWITCH_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// 空间切换遮罩 eval（页面侧执行体 = 注入的 `dsh_space_veil.js`，两页同款）。
+/// action 为完整调用式（如 `show(true)` / `show()` / `release()`）：源窗侧 `show(true)` 淡入；
+/// 目标窗侧 `show()` **无过渡出现**——窗口可见首帧遮罩即全不透明，防另一侧界面闪现（走查修复）。
+/// 页面未载 / eval 失败一律静默——遮罩是观感增强，失败退化为原硬切，不影响切换正确性。
+fn veil(app: &tauri::AppHandle, label: &str, action: &str) {
+    if let Some(window) = app.get_webview_window(label) {
+        let _ = window.eval(&format!("globalThis.__wsSpaceVeil && __wsSpaceVeil.{action}"));
+    }
+}
 
 /// 页面侧入口（「Agent 空间⇄工作台」切换控件调用；经注入的 `__WORLDSEA_SPACE_SWITCH__` 桥）：
 /// `target` = `space`（Agent 空间）| `workbench`（工作台）。返回切换后的空间名（调用方可留痕）。
@@ -37,7 +58,7 @@ pub async fn cmd_shell_space_switch(app: tauri::AppHandle, target: String) -> Re
     }
 }
 
-/// 切到工作台：懒建（缺窗时创建）→ 几何平移来源窗 → 显示 + 聚焦 → 隐藏 Agent 空间窗。
+/// 切到工作台：预建窗（缺窗时兜底建）→ 几何平移来源窗 → 双侧遮罩（源浮现→底下换窗→目标续转）→ 隐藏 Agent 空间窗。
 /// 互斥与「主线程调用方不得直呼」见 [`SPACE_SWITCH_LOCK`] / [`request_space_switch`]。
 pub(crate) fn switch_to_workbench(app: &tauri::AppHandle) -> Result<(), String> {
     let _guard = SPACE_SWITCH_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -52,15 +73,25 @@ pub(crate) fn switch_to_workbench(app: &tauri::AppHandle) -> Result<(), String> 
         None => create(app)?,
     };
     apply_geometry(&workspace, &geometry);
+    // 双侧遮罩时序（eval 失败静默）：源浮现 220ms（观感=点击处眼睛亮起）→ 目标遮罩就位 150ms
+    // → show/focus/hide（硬切被完全遮蔽；几何已对齐故遮罩眼睛跨窗位置连续）→ 目标续转 650ms 后淡出。
+    veil(app, "main", "show(true)");
+    std::thread::sleep(std::time::Duration::from_millis(220));
+    veil(app, LABEL, "show()");
+    std::thread::sleep(std::time::Duration::from_millis(150));
     ensure_target_visible(&workspace, "工作台窗口")?;
     let _ = workspace.set_focus();
     let _ = main.hide();
+    CURRENT_SPACE_WORKBENCH.store(true, std::sync::atomic::Ordering::Relaxed);
+    std::thread::sleep(std::time::Duration::from_millis(650));
+    veil(app, LABEL, "release()");
+    veil(app, "main", "release()");
     println!("[DSH-SHELL] space: Agent 空间 → 工作台（窗口 {LABEL}；几何平移 {}）", geometry.describe());
     println!("[DSH-SHELL] space: 切换后 {}", state_pair(&main, &workspace));
     Ok(())
 }
 
-/// 切回 Agent 空间：工作台窗几何回写 → 显示 + 聚焦主窗 → 隐藏工作台窗。
+/// 切回 Agent 空间：工作台窗几何回写 → 双侧遮罩 → 显示 + 聚焦主窗 → 隐藏工作台窗。
 /// 互斥与「主线程调用方不得直呼」见 [`SPACE_SWITCH_LOCK`] / [`request_space_switch`]。
 pub(crate) fn switch_to_space(app: &tauri::AppHandle) -> Result<(), String> {
     let _guard = SPACE_SWITCH_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -70,9 +101,18 @@ pub(crate) fn switch_to_space(app: &tauri::AppHandle) -> Result<(), String> {
         .ok_or_else(|| "主窗口（Agent 空间）不存在".to_string())?;
     let geometry = snapshot(&workspace);
     apply_geometry(&main, &geometry);
+    // 双侧遮罩时序：与 [`switch_to_workbench`] 对称
+    veil(app, LABEL, "show(true)");
+    std::thread::sleep(std::time::Duration::from_millis(220));
+    veil(app, "main", "show()");
+    std::thread::sleep(std::time::Duration::from_millis(150));
     ensure_target_visible(&main, "Agent 空间")?;
     let _ = main.set_focus();
     let _ = workspace.hide();
+    CURRENT_SPACE_WORKBENCH.store(false, std::sync::atomic::Ordering::Relaxed);
+    std::thread::sleep(std::time::Duration::from_millis(650));
+    veil(app, "main", "release()");
+    veil(app, LABEL, "release()");
     println!("[DSH-SHELL] space: 工作台 → Agent 空间（窗口 main；几何平移 {}）", geometry.describe());
     println!("[DSH-SHELL] space: 切换后 {}", state_pair(&main, &workspace));
     Ok(())
@@ -230,33 +270,108 @@ pub(crate) fn sanitize_restored_geometry(window: &WebviewWindow) {
     let _ = window.center();
 }
 
-/// 关闭键语义（lib.rs 的 CloseRequested 分支调用）：回 Agent 空间；主窗缺失等异常态至少把工作台窗藏起。
-/// 本函数跑在**主线程**（窗口事件回调）——不得阻塞等 [`SPACE_SWITCH_LOCK`]，交给后台线程执行（死锁纪律见其注释）。
-pub(crate) fn hide_and_back_to_space(app: &tauri::AppHandle) {
+/// 主窗启动可见性裁决（产品域为默认落地后的口径）：
+/// 两形态都**预建工作台窗（隐藏）**——页面由磁盘伺服即刻可载，载入即眼睛启动页；
+/// 主窗（Agent 空间）保持隐藏，后台吃 dsh 就绪链（spawn/导航与可见性解耦，见 dsh_shell.rs）。
+/// - 正常启动：置首绘门 + 8s 兜底强显（产物缺失/加载异常时不无限黑）；首个页面首帧经
+///   [`cmd_workspace_first_paint`] 显示——窗口出现即已是启动页，全程无空白帧；
+/// - 开机自启（`--autostart`）：不置门不显示（托盘常驻，点托盘/快捷键经 [`show_current_space`] 唤起）。
+/// 调用时机 = 几何自检（sanitize）之后。★ 建窗走后台线程（`WebviewWindowBuilder::build()` 需事件泵，
+/// 与 `cmd_shell_space_switch` 必须 async 同理；setup 期直呼有自锁前科）。
+pub(crate) fn startup_visibility(app: &tauri::AppHandle) {
+    let autostart = std::env::args().any(|arg| arg == "--autostart");
     let app = app.clone();
     std::thread::spawn(move || {
-        if let Err(e) = switch_to_space(&app) {
-            eprintln!("[DSH-SHELL] space: 工作台关闭回切失败（{e}）——仅隐藏窗口");
+        if let Err(e) = create(&app) {
+            // 预建失败（理论不可达）→ 退回旧行为：显示主窗（Agent 空间）
+            eprintln!("[DSH-SHELL] workspace: 启动预建失败（{e}）→ 退回显示 Agent 空间");
+            CURRENT_SPACE_WORKBENCH.store(false, std::sync::atomic::Ordering::Relaxed);
+            if let Some(main) = app.get_webview_window("main") {
+                if !autostart {
+                    let _ = main.show();
+                    let _ = main.set_focus();
+                }
+            }
+            return;
+        }
+        println!("[DSH-SHELL] workspace: 启动预建完成（隐藏）——默认落地工作台，等待页面首帧");
+        // 几何对齐：工作台窗沿用主窗还原几何（window-state 插件恢复值，sanitize 已自检），
+        // 首显即在正确位置/尺寸；此后每次切换按来源窗几何平移（现状机制）。
+        if let (Some(main), Some(workspace)) = (app.get_webview_window("main"), app.get_webview_window(LABEL)) {
+            let geometry = snapshot(&main);
+            apply_geometry(&workspace, &geometry);
+            println!("[DSH-SHELL] workspace: 几何对齐主窗（{}）", geometry.describe());
+        }
+        if autostart {
+            println!("[DSH-SHELL] 启动形态：开机自启 → 托盘常驻（不自动显示窗口）");
+            return;
+        }
+        FIRST_SHOW_PENDING.store(true, std::sync::atomic::Ordering::SeqCst);
+        // 兜底：页面迟迟不就绪（产物缺失/加载异常 → 错误页无首绘回调）→ 强制显示，不无限黑
+        std::thread::sleep(std::time::Duration::from_secs(8));
+        if FIRST_SHOW_PENDING.swap(false, std::sync::atomic::Ordering::SeqCst) {
             if let Some(workspace) = app.get_webview_window(LABEL) {
-                let _ = workspace.hide();
+                println!("[DSH-SHELL] workspace: 首绘门 8s 超时 → 强制显示（页面可能异常）");
+                let _ = workspace.show();
+                let _ = workspace.set_focus();
             }
         }
     });
 }
 
-/// 主窗启动可见性裁决：主窗配置 `visible:false`——
-/// 正常启动显示 + 聚焦；开机自启（`--autostart`）→ 托盘常驻不弹窗（点托盘/快捷键唤起）。
-/// 调用时机 = 几何自检（sanitize）之后（show 时几何已就绪）。
-pub(crate) fn startup_visibility(window: &WebviewWindow) {
-    if std::env::args().any(|arg| arg == "--autostart") {
-        println!("[DSH-SHELL] 启动形态：开机自启 → 托盘常驻（不自动显示窗口）");
-        return;
+/// 启动首绘门命令：工作台页 `App.vue` 挂载首帧调用；仅正常启动预建路径持门——
+/// 门置位时显示 + 聚焦工作台窗（窗口出现即已是启动页）。其余调用（手动切换后的重挂载等）无门即 no-op。
+#[tauri::command]
+pub async fn cmd_workspace_first_paint(app: tauri::AppHandle) -> Result<(), String> {
+    if FIRST_SHOW_PENDING.swap(false, std::sync::atomic::Ordering::SeqCst) {
+        if let Some(workspace) = app.get_webview_window(LABEL) {
+            let _ = workspace.show();
+            let _ = workspace.set_focus();
+            println!("[DSH-SHELL] workspace: 页面首绘就绪 → 显示（启动首绘门）");
+        }
     }
-    let _ = window.show();
-    let _ = window.set_focus();
+    Ok(())
 }
 
-/// 建工作台窗（懒创建；尺寸/位置由调用方随后按来源窗几何对齐）：
+/// 显示「当前所在空间」的窗口（托盘左键 / 「显示窗口」菜单 / 单实例二次启动共用）：
+/// 工作台窗存在则直接显示聚焦（预建后常驻，理论恒存在）；缺失则投递完整切换兜底懒建。
+/// 本函数只做 show/unminimize/focus，**不含锁**——主线程调用方安全。
+pub(crate) fn show_current_space(app: &tauri::AppHandle) {
+    if CURRENT_SPACE_WORKBENCH.load(std::sync::atomic::Ordering::Relaxed) {
+        if let Some(workspace) = app.get_webview_window(LABEL) {
+            let _ = workspace.show();
+            if workspace.is_minimized().unwrap_or(false) {
+                let _ = workspace.unminimize();
+            }
+            let _ = workspace.set_focus();
+            return;
+        }
+        request_space_switch(app, "workbench");
+        return;
+    }
+    if let Some(main) = app.get_webview_window("main") {
+        let _ = main.show();
+        if main.is_minimized().unwrap_or(false) {
+            let _ = main.unminimize();
+        }
+        let _ = main.set_focus();
+    }
+}
+
+/// 唤起/隐藏「当前所在空间」的窗口（全局快捷键切换）：可见则隐藏（收进托盘），否则显示。
+/// 只做可见性读写，**不含锁**——主线程调用方安全。
+pub(crate) fn toggle_current_space(app: &tauri::AppHandle) {
+    let label = if CURRENT_SPACE_WORKBENCH.load(std::sync::atomic::Ordering::Relaxed) { LABEL } else { "main" };
+    if let Some(window) = app.get_webview_window(label) {
+        if window.is_visible().unwrap_or(false) {
+            let _ = window.hide();
+            return;
+        }
+    }
+    show_current_space(app);
+}
+
+/// 建工作台窗（启动预建 + 缺窗兜底；尺寸/位置由调用方随后按来源窗几何对齐）：
 /// 无边框 + 隐藏构建（先定位再显示，避免闪位）；挂壳级导航/新窗栅栏。
 fn create(app: &tauri::AppHandle) -> Result<WebviewWindow, String> {
     let url = page_url().parse().map_err(|e| format!("工作台 URL 解析失败（{}）：{e}", page_url()))?;
@@ -274,6 +389,8 @@ fn create(app: &tauri::AppHandle) -> Result<WebviewWindow, String> {
         .map_err(|e| format!("创建工作台窗口失败：{e}"))?;
     #[cfg(windows)]
     crate::nav_fence::install(&workspace);
+    // 工作台窗同款：禁 DWM 过渡 + 不透明底色（切换「整屏闪烁」修复的一半，见 window_transitions.rs）
+    crate::window_transitions::install(&workspace);
     // 主题跟随图标：新窗默认带 bundle 图标，按当前深浅对齐（顺带幂等刷新其余窗口/托盘）
     crate::theme_icon::apply(app);
     // 恢复该窗的缩放档位（prefs.json `zoom.workspace`；缺省 100% 不动）

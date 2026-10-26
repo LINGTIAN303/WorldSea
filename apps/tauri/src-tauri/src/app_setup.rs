@@ -4,7 +4,7 @@
 
 use tauri::Manager;
 
-use crate::{app_prefs, data_root, dsh_shell, entity_commands, menu, nav_fence, secure_store, theme_icon, tray, workspace_window, worldsea_manual};
+use crate::{app_prefs, data_root, dsh_shell, entity_commands, menu, nav_fence, secure_store, theme_icon, tray, window_transitions, workspace_window, worldsea_manual};
 
 /// 启动装配（lib.rs `.setup` 链的实体）。
 pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
@@ -20,6 +20,11 @@ pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
     if let Some(window) = app.get_webview_window("main") {
         nav_fence::install(&window);
     }
+    // 无过渡 + 不透明底色：空间切换不再播 DWM 窗口淡入（走查「整屏闪烁」根因），
+    // 且页面未出首帧时显示主题底色而非透出桌面（见 window_transitions.rs 头注）
+    if let Some(window) = app.get_webview_window("main") {
+        window_transitions::install(&window);
+    }
 
     // 几何自检——窗口状态插件会把「退出时最小化」的窗口按占位几何还原，
     // 使应用「打开即不可见」；主窗就位后校验一次，不可用则复位默认并居中。
@@ -27,8 +32,10 @@ pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
         workspace_window::sanitize_restored_geometry(&window);
         menu::restore_zoom(&window); // 缩放档位恢复
         worldsea_manual::ensure_for_app(app.handle()); // 说明书幂等生成
-        workspace_window::startup_visibility(&window); // 自启到托盘 / 正常显示
     }
+    // 启动可见性裁决（产品域为默认落地）：预建工作台窗（隐藏）+ 首绘门/兜底强显——
+    // 主窗不再自动显示，后台吃 dsh 就绪链；签名取 AppHandle（要在后台线程建窗）
+    workspace_window::startup_visibility(app.handle());
 
     // ── 壳接入与协议桥 ────────────────────────────────────────────────────
     // 装配全在 dsh_shell::install（spawn/就绪/守护）与 dsh_bridge::attach（协议页/回退）：
@@ -134,18 +141,14 @@ struct TrayActive(bool);
 /// 继续运行；托盘菜单「退出」才是真正退出。托盘未激活时保持默认（关闭即退出）。
 pub(crate) fn on_window_event(window: &tauri::Window, event: &tauri::WindowEvent) {
     if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-        // 工作台窗的 ✕ = 隐藏 + 回 Agent 空间（不销毁页面——保住工作台内的编辑现场；
-        // 托盘「退出」走 app.exit(0)，不经本分支，故不会挡真退出）
-        if window.label() == workspace_window::LABEL {
-            api.prevent_close();
-            workspace_window::hide_and_back_to_space(window.app_handle());
-            return;
-        }
         let active = window.state::<TrayActive>();
         if active.0 {
-            window.hide().ok();
+            // 两窗 ✕ 同语义 = 隐藏到托盘（进程与页面现场都保留；托盘「退出」走 app.exit(0) 不经本分支）。
+            // 工作台已是默认落地（主窗），✕ 回切 Agent 空间的旧语义随「主窗=家」模型一并退役
             api.prevent_close();
+            window.hide().ok();
         }
+        // 托盘未激活（构建失败回退态）：不拦截——关闭即退出（旧行为）
     }
     // 系统深浅色变化（真源 = `system` 时）→ 刷新壳自有面的亮暗（页面侧自行跟随系统）
     if let tauri::WindowEvent::ThemeChanged(theme) = event {

@@ -184,7 +184,8 @@ onUnmounted(() => {
   top: 33.37%;
   width: 28.66%;
   height: 43.24%;
-  background: var(--color-accent, #0891b2);
+  /* 独立虹膜色（--ws-eye-iris，设置-外观「眼睛虹膜色」）优先；缺省回落强调色轴 */
+  background: var(--ws-eye-iris, var(--color-accent, #0891b2));
   will-change: transform;
   -webkit-mask-image: url('@/assets/eye/eye-iris.webp');
   mask-image: url('@/assets/eye/eye-iris.webp');

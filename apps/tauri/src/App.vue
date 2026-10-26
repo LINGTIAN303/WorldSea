@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, watch } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
 import Shell from './ui/layout/Shell.vue'
 import { useUIStore } from './stores/uiStore'
 import { useTheme } from './components/ui/useTheme'
@@ -90,6 +91,27 @@ function onSetTheme(e: Event) {
 const { on: onGlobalEvent } = useGlobalEvents()
 onGlobalEvent('ws-set-theme', onSetTheme)
 
+/**
+ * 眼睛虹膜色（世界之眼品牌件独立配色，2026-10-26 走查反馈）：
+ * 根变量 --ws-eye-iris 供 WorldEye 消费；color=null = 回落强调色轴。
+ * 键 worldsea-eye-iris 与 splash 独立入口 / dsh_space_veil.js 同源（启动页与切换遮罩同步生效）。
+ */
+function onSetEyeIris(e: Event) {
+  const color = (e as CustomEvent).detail?.color
+  try {
+    if (typeof color === 'string' && color) {
+      localStorage.setItem('worldsea-eye-iris', color)
+      document.documentElement.style.setProperty('--ws-eye-iris', color)
+    } else {
+      localStorage.removeItem('worldsea-eye-iris')
+      document.documentElement.style.removeProperty('--ws-eye-iris')
+    }
+  } catch (err) {
+    console.error('[ws-set-eye-iris] 处理失败:', err)
+  }
+}
+onGlobalEvent('ws-set-eye-iris', onSetEyeIris)
+
 // 视图上下文注入：view 快捷键跟随当前视图（未装载视图=null 时 view 层失效；
 // 旧 Agent 空间壳已随本体删除，2026-09-27 E7）
 watch(
@@ -148,6 +170,9 @@ async function runBoot(): Promise<void> {
 }
 
 onMounted(() => {
+  // 启动首绘门回报（workspace_window.rs）：启动预建的工作台窗由此显示——窗口出现即已是启动页，
+  // 全程无空白帧。仅预建路径持门；主窗/浏览器预览等无门场景为 no-op，命令缺失（旧壳）静默。
+  invoke('cmd_workspace_first_paint').catch(() => {})
   // 全局 Tooltip 接管：摘除全站原生 title，统一为自定义浮层（2026-09-06 方案A）
   enableGlobalTooltips()
   // 全局拦截浏览器原生右键菜单（2026-09-06 桌面应用惯例）：事件仍正常传播，
@@ -162,6 +187,11 @@ onMounted(() => {
   } catch (err) {
     console.error('[App] 主题恢复失败:', err)
   }
+  // 眼睛虹膜色恢复（根变量直设；缺省无键 = 回落强调色轴，不动）
+  try {
+    const eyeIris = localStorage.getItem('worldsea-eye-iris')
+    if (eyeIris) document.documentElement.style.setProperty('--ws-eye-iris', eyeIris)
+  } catch { /* localStorage 不可用忽略 */ }
   void runBoot()
 })
 </script>

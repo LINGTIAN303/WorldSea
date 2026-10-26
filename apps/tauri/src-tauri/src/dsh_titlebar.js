@@ -60,7 +60,7 @@
       '#worldsea-titlebar{position:fixed;inset:0 0 auto 0;height:' + HEIGHT + 'px;z-index:2147483000;display:flex;align-items:center;',
       'background:var(--dsw-specific-sidebar-fill,#1b1b1c);color:var(--dsw-alias-label-secondary,#9aa0a6);',
       'font-family:var(--dsw-font-family,system-ui,-apple-system,"Segoe UI",sans-serif);font-size:12px;line-height:1;',
-      'user-select:none;-webkit-user-select:none;border-bottom:1px solid rgba(127,127,127,.22);}',
+      'user-select:none;-webkit-user-select:none;}',
       '#worldsea-titlebar .wstb-toggle{position:relative;display:inline-flex;align-items:center;gap:6px;height:24px;margin:0 2px 0 8px;padding:0 10px;',
       'border:none;border-radius:999px;background:rgba(127,127,127,.16);color:var(--dsw-alias-label-primary,#e6e9ee);',
       'font:inherit;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0;',

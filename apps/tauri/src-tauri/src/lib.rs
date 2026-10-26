@@ -43,6 +43,8 @@ mod dsh_inject;
 mod workspace_dist;
 // 工作台窗口（懒创建 + 与 Agent 空间互斥切换 + 几何同步）
 mod workspace_window;
+
+mod window_transitions;
 // 应用级偏好真源（主题）——壳持有，两窗读写，dsh 经设置通道对齐
 mod app_prefs;
 // 启动装配（setup 链 + 窗口事件 + 托盘激活态）——原 lib.rs 内联
@@ -96,9 +98,9 @@ pub fn run() {
     // 对策：崩溃后重启实例；如要传 WebView2 启动参数，须用 WebviewWindowBuilder::additional_browser_args()
     // 显式建窗（config 自动建窗无此通道），完整记录见 docs/details/注释/tauri/lib.md。
     tauri::Builder::default()
-        // 单实例：防多开，二次启动聚焦已有主窗口（须最先注册）
+        // 单实例：防多开，二次启动唤起当前所在空间的窗口（须最先注册）
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            tray::show_main_window(app);
+            tray::show_current_space(app);
         }))
         // 窗口状态记忆：恢复上次窗口位置/大小（桌面应用基础体验）
         .plugin(tauri_plugin_window_state::Builder::default().build())
@@ -107,7 +109,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         // 系统通知：Agent 长任务完成/失败等（前端 cmd_notify 触发）
         .plugin(tauri_plugin_notification::init())
-        // 全局快捷键：Ctrl+Shift+W 唤起/隐藏主窗口
+        // 全局快捷键：Ctrl+Shift+W 唤起/隐藏当前所在空间的窗口
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
@@ -116,7 +118,7 @@ pub fn run() {
                         && shortcut
                             .matches(Modifiers::CONTROL | Modifiers::SHIFT, Code::KeyW)
                     {
-                        tray::toggle_main_window(app);
+                        tray::toggle_current_space(app);
                     }
                 })
                 .build(),
@@ -157,8 +159,10 @@ pub fn run() {
             // 窗口栏（最小化/最大化⇄还原/关闭/起拖/查询）+ 「⋯」popup 菜单
             shell_bridge::cmd_shell_window_action,
             menu::cmd_shell_popup_menu,
-            // 空间切换（Agent 空间⇄工作台，双窗互斥 + 几何同步；工作台窗懒创建）
+            // 空间切换（Agent 空间⇄工作台，双窗互斥 + 几何同步 + 双侧遮罩动画；工作台窗启动预建）
             workspace_window::cmd_shell_space_switch,
+            // 启动首绘门（工作台页首帧回报 → 显示预建窗，启动无空白帧）
+            workspace_window::cmd_workspace_first_paint,
             // 应用级偏好（主题真源：读写 + 同步 dsh + 广播两窗）
             app_prefs::cmd_theme_get,
             app_prefs::cmd_theme_set,

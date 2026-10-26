@@ -323,6 +323,8 @@ pub fn install(app: &tauri::AppHandle, window: Option<&WebviewWindow>) {
             if let Some(window) = &window {
                 show_error(window, "dsh 未能启动", &e);
             }
+            // 错误页打在主窗（Agent 空间）——默认落地是工作台（主窗隐藏），不切过去用户看不见
+            crate::workspace_window::request_space_switch(&app_handle, "space");
         }
     });
 }
@@ -371,6 +373,8 @@ pub fn watch_child(app: tauri::AppHandle) {
                     "与 Agent 内核的连接已中断。请退出应用后重新启动以恢复。\n（详细日志见应用日志与 DSH_HOME 下的 startup 诊断报告。）",
                 );
             }
+            // 错误页打在主窗（Agent 空间）——当前若停在工作台（主窗隐藏）则切过去让错误页可见
+            crate::workspace_window::request_space_switch(&app, "space");
             return;
         }
     });

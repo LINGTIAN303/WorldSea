@@ -1,5 +1,5 @@
 //! 系统托盘：
-//! - 菜单：显示主窗口 / 打开工作台 / 最近项目(子菜单) / 打开设置 / 退出；动态状态 = 最近项目列表
+//! - 菜单：显示窗口 / 打开工作台 / 最近项目(子菜单) / 打开设置 / 退出；动态状态 = 最近项目列表
 //!   （前端 `cmd_tray_set_recent_projects` 同步；项目 = dsh 工作区）
 //! - 菜单动作 → emit 事件（tray:open-settings / tray:open-project）由前端监听分发；「打开工作台」壳内直切不派事件。
 //! - 功能项先**切到工作台窗**（懒创建 + 显示 + 聚焦）再派发；页面未就绪时入积压队列，`cmd_tray_page_ready` 补投。
@@ -42,7 +42,7 @@ pub struct ProjectItem {
 
 /// 重建完整托盘菜单（菜单是原子的：任何状态变化都整份重建）
 fn build_menu(app: &AppHandle, state: &TrayState) -> tauri::Result<Menu<Wry>> {
-    let show = MenuItem::with_id(app, "show", "显示主窗口", true, None::<&str>)?;
+    let show = MenuItem::with_id(app, "show", "显示窗口", true, None::<&str>)?;
     // 项目 = dsh 工作区（同源）——「打开项目文件夹选择器」随产品域建项目入口退役；
     // 托盘该项演进为「打开工作台」（壳内直切工作台窗，不派事件——项目选择在 dsh 界面/工作台下拉开）
     let new_project = MenuItem::with_id(app, "open-workbench", "打开工作台", true, None::<&str>)?;
@@ -108,18 +108,18 @@ pub fn build_tray(app: &AppHandle) -> tauri::Result<TrayIcon> {
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_tray_icon_event(|tray, event| {
-            // 左键单击托盘图标 → 显示主窗口（单击/双击均有反应，避免"托盘失效"错觉）
+            // 左键单击托盘图标 → 显示「当前所在空间」的窗口（单击/双击均有反应，避免"托盘失效"错觉）
             if let TrayIconEvent::Click {
                 button: MouseButton::Left,
                 button_state: MouseButtonState::Up,
                 ..
             } = event
             {
-                show_main_window(tray.app_handle());
+                show_current_space(tray.app_handle());
             }
         })
         .on_menu_event(|app, event| match event.id.as_ref() {
-            "show" => show_main_window(app),
+            "show" => show_current_space(app),
             // 功能菜单项的监听方在工作台窗 → 先切到工作台（懒创建 + 显示 + 聚焦）再派发
             // 「打开工作台」= 壳内直切（不派事件——项目选择在 dsh 界面/工作台下拉开）
             // 主线程只投递（空间切换经互斥串行、后台线程执行——主线程等锁会与窗口操作互锁）
@@ -218,24 +218,12 @@ fn rebuild_tray_menu(app: &AppHandle) {
     }
 }
 
-/// 显示并聚焦主窗口（托盘/快捷键/单实例共用）
-pub fn show_main_window(app: &AppHandle) {
-    if let Some(w) = app.get_webview_window("main") {
-        w.show().ok();
-        w.unminimize().ok();
-        w.set_focus().ok();
-    }
+/// 显示并聚焦「当前所在空间」的窗口（托盘/快捷键/单实例共用；当前空间状态见 workspace_window.rs）
+pub fn show_current_space(app: &AppHandle) {
+    crate::workspace_window::show_current_space(app);
 }
 
-/// 唤起/隐藏主窗口（全局快捷键切换）
-pub fn toggle_main_window(app: &AppHandle) {
-    if let Some(w) = app.get_webview_window("main") {
-        if w.is_visible().unwrap_or(false) {
-            let _ = w.hide();
-        } else {
-            w.show().ok();
-            w.unminimize().ok();
-            w.set_focus().ok();
-        }
-    }
+/// 唤起/隐藏「当前所在空间」的窗口（全局快捷键切换）
+pub fn toggle_current_space(app: &AppHandle) {
+    crate::workspace_window::toggle_current_space(app);
 }

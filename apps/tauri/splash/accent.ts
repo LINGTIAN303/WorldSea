@@ -46,3 +46,13 @@ export function applySplashAccent(): void {
   }
   el.textContent = `:root { ${accentCssBlock(preset, 'light')}; }\n[data-theme='dark'] { ${accentCssBlock(preset, 'dark')}; }`
 }
+
+/** 首帧前同步恢复眼睛虹膜色（设置-外观「眼睛虹膜色」，键与 App.vue / dsh_space_veil.js 同源；缺省=跟随强调色不动） */
+export function applySplashEyeIris(): void {
+  try {
+    const iris = localStorage.getItem('worldsea-eye-iris')
+    if (iris) document.documentElement.style.setProperty('--ws-eye-iris', iris)
+  } catch {
+    /* localStorage 不可用忽略 */
+  }
+}
