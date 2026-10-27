@@ -10,6 +10,17 @@
       <div class="ef-stage" :title="follow ? '' : '点击形象图播放'" @click.stop="onPlay">
         <PortraitRenderer ref="rendererEl" :src="entity.portrait!" :kind="entity.portraitKind || 'static'" :autoplay="true" :actions="entity.portraitMeta?.model" :motion="entity.portraitMeta?.motion" />
       </div>
+      <!-- Lottie 微型控制条（F4）：仅 lottie 形象显示 -->
+      <div v-if="entity.portraitKind === 'lottie'" class="ef-controls">
+        <button
+          class="ef-play"
+          :aria-label="lottiePaused ? '播放' : '暂停'"
+          :title="lottiePaused ? '播放' : '暂停'"
+          @click.stop="toggleLottie"
+        >
+          <WsIcon :name="lottiePaused ? 'play' : 'pause'" size="xs" />
+        </button>
+      </div>
       <span class="ef-name">{{ entity.name }}</span>
       <button class="ef-close" aria-label="关闭形象浮层" @click.stop="$emit('close')">×</button>
     </div>
@@ -25,8 +36,9 @@
  * 点击浮层形象触发 PortraitRenderer.play()（#12：模型随机/指定动作、动图/Lottie 重头播、静态 no-op）。
  * 生命周期绑定详情（selectedEntity 置空即卸载），Esc / 关闭按钮即时退出。
  */
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useSettingsStore, type Entity } from '@worldsea/entity-core'
+import { WsIcon } from '@worldsea/ui-kit'
 import PortraitRenderer from './PortraitRenderer.vue'
 
 const props = defineProps<{ entity: Entity }>()
@@ -60,7 +72,7 @@ let dragBase = { px: 0, py: 0, x: 0, y: 0 }
 const boxEl = ref<HTMLElement | null>(null)
 
 function onPointerDown(e: PointerEvent) {
-  if (follow.value || (e.target as HTMLElement).closest('.ef-close, .ef-stage')) return // 跟踪态/点播放区不拖
+  if (follow.value || (e.target as HTMLElement).closest('.ef-close, .ef-stage, .ef-controls')) return // 跟踪态/点播放区/控制条不拖
   dragging.value = true
   dragBase = { px: e.clientX, py: e.clientY, x: pos.value.x, y: pos.value.y }
   boxEl.value?.setPointerCapture(e.pointerId)
@@ -88,7 +100,23 @@ const boxStyle = computed(() => {
 
 function onPlay() {
   rendererEl.value?.play('click')
+  lottiePaused.value = false // 点形象播放时同步控制条状态
 }
+
+/** Lottie 暂停/恢复（F4）：按钮状态与渲染器实例同步 */
+const lottiePaused = ref(false)
+function toggleLottie() {
+  if (lottiePaused.value) {
+    rendererEl.value?.resume()
+    lottiePaused.value = false
+  } else {
+    rendererEl.value?.pause()
+    lottiePaused.value = true
+  }
+}
+
+// 切换实体（浮层复用）时控制条复位到播放态
+watch(() => props.entity.id, () => { lottiePaused.value = false })
 function onEsc(e: KeyboardEvent) {
   if (e.key === 'Escape') emit('close')
 }
@@ -146,6 +174,27 @@ onBeforeUnmount(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.ef-controls {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  display: flex;
+  gap: 4px;
+}
+.ef-play {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.4);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ef-play:hover { background: rgba(0, 0, 0, 0.6); }
 .ef-close {
   position: absolute;
   top: 2px;

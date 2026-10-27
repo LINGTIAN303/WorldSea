@@ -40,8 +40,9 @@
  * 动图/Lottie 重头播固定动画、静态 no-op。
  */
 import { ref, watch, onBeforeUnmount, onMounted } from 'vue'
-import type { PortraitKind, MotionConfig } from '@worldsea/entity-core'
+import type { PortraitKind, MotionConfig, ModelActionConfig } from '@worldsea/entity-core'
 import MotionStage from './MotionStage.vue'
+import { createModelSequence } from './modelSequence'
 
 const props = withDefaults(
   defineProps<{
@@ -50,8 +51,8 @@ const props = withDefaults(
     alt?: string
     /** 挂载即播（悬停预览场景）；关则等 play() 调用 */
     autoplay?: boolean
-    /** 模型动作绑定（D2）：hover/click 触发时播放指定动作或随机（缺省 random） */
-    actions?: { hover?: string | 'random'; click?: string | 'random' }
+    /** 模型动作绑定（D2/F4）：hover/click 单动作或序列（序列优先） */
+    actions?: ModelActionConfig
     /** 区域运动编排（D3）：静态/动态图的区域动效 */
     motion?: MotionConfig
   }>(),
@@ -91,9 +92,21 @@ function readAnimations() {
   availableAnimations.value = mv?.availableAnimations ? [...mv.availableAnimations] : []
 }
 
+/** 播单个动作（序列/单动作共用；currentTime 归零保证重复触发从头） */
+function playAnimationName(name: string) {
+  const mv = mvEl.value as (HTMLElement & { play: () => void; currentTime?: number }) | null
+  if (!mv) return
+  mv.setAttribute('animation-name', name)
+  if (typeof mv.currentTime === 'number') mv.currentTime = 0
+  mv.play()
+}
+
+const sequence = createModelSequence(playAnimationName)
+
 function watchMvLoad() {
   const mv = mvEl.value as (HTMLElement & { availableAnimations?: readonly string[]; addEventListener: (t: string, l: () => void) => void }) | null
   mv?.addEventListener('load', readAnimations)
+  mv?.addEventListener('finished', () => sequence.finished())
 }
 
 if (props.kind === 'model') {
@@ -114,6 +127,13 @@ function pickAction(trigger: 'hover' | 'click'): string {
 function playModel(trigger: 'hover' | 'click') {
   const mv = mvEl.value as (HTMLElement & { play: () => void }) | null
   if (!mv) return
+  // F4：序列优先（仅取模型实际拥有的动作；全部失配时回落单动作）
+  const seq = (props.actions?.sequence ?? []).filter(name => availableAnimations.value.includes(name))
+  if (seq.length) {
+    sequence.start(seq)
+    return
+  }
+  sequence.cancel()
   const pick = pickAction(trigger)
   if (pick) mv.setAttribute('animation-name', pick)
   mv.play()
@@ -121,7 +141,12 @@ function playModel(trigger: 'hover' | 'click') {
 
 // ── lottie：fetch JSON + lottie-web 实例生命周期 ──
 const lottieBox = ref<HTMLElement | null>(null)
-let lottieInstance: { destroy: () => void; goToAndPlay: (frame: number, isFrame: boolean) => void } | null = null
+let lottieInstance: {
+  destroy: () => void
+  goToAndPlay: (frame: number, isFrame: boolean) => void
+  pause: () => void
+  play: () => void
+} | null = null
 
 async function loadLottie() {
   if (!lottieBox.value) return
@@ -157,7 +182,15 @@ function play(trigger: 'hover' | 'click' = 'click') {
   stageRef.value?.playTrigger(trigger)
 }
 
-defineExpose({ play, availableAnimations })
+/** Lottie 控制（F4）：lottie-web 用 pause/play 映射暂停/恢复 */
+function pause() {
+  if (props.kind === 'lottie') lottieInstance?.pause()
+}
+function resume() {
+  if (props.kind === 'lottie') lottieInstance?.play()
+}
+
+defineExpose({ play, availableAnimations, pause, resume })
 
 // autoplay 对 motion 图=挂载即播 hover 轨（悬停框场景出现即动；loop 轨自动）
 onMounted(() => {

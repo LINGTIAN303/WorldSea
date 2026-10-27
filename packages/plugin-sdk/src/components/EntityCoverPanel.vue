@@ -41,6 +41,32 @@
             <option v-for="a in modelActions" :key="a" :value="a">{{ a }}</option>
           </select>
         </label>
+        <!-- 动作序列（F4）：有序标签，点击标签移除；序列优先于单动作绑定 -->
+        <div class="ecp-seq">
+          <span class="ecp-seq-label">动作序列（优先）</span>
+          <div v-if="modelSequence.length" class="ecp-seq-tags">
+            <button
+              v-for="(a, i) in modelSequence"
+              :key="`${a}-${i}`"
+              type="button"
+              class="ecp-seq-tag"
+              :aria-label="`移除动作 ${a}`"
+              @click="removeSequenceAt(i)"
+            >{{ a }}<span aria-hidden="true">×</span></button>
+          </div>
+          <p v-else class="ecp-hint">
+            尚未配置——从下方按播放顺序添加动作。
+          </p>
+          <div v-if="modelActions.length" class="ecp-seq-add">
+            <select aria-label="添加动作到序列" value="" @change="appendSequence($event)">
+              <option value="">添加动作…</option>
+              <option v-for="a in modelActions" :key="a" :value="a">{{ a }}</option>
+            </select>
+          </div>
+          <p v-if="modelSequence.length" class="ecp-hint">
+            序列优先于上面的单动作绑定；播完停在末帧。
+          </p>
+        </div>
       </div>
       <!-- 区域动效（D3 机制 + D4 画布编辑器）：编辑入口与摘要，表单进编辑器 -->
       <div v-if="is2DKind && entity.portrait" class="ecp-actions">
@@ -110,6 +136,32 @@ function onActionChange(trigger: 'hover' | 'click', e: Event) {
   entityStore.update(props.entity.id, {
     portraitMeta: { ...props.entity.portraitMeta, model: next },
   })
+}
+
+// ── 动作序列（F4）：有序标签，序列优先于单动作绑定 ──
+const modelSequence = computed(() => props.entity.portraitMeta?.model?.sequence ?? [])
+
+function writeModel(next: ModelActionConfig) {
+  const meta = { ...props.entity.portraitMeta }
+  if (Object.keys(next).length) meta.model = next
+  else delete meta.model
+  entityStore.update(props.entity.id, { portraitMeta: meta })
+}
+
+function appendSequence(e: Event) {
+  const sel = e.target as HTMLSelectElement
+  const name = sel.value
+  sel.value = ''
+  if (!name) return
+  writeModel({ ...props.entity.portraitMeta?.model, sequence: [...modelSequence.value, name] })
+}
+
+function removeSequenceAt(idx: number) {
+  const next = modelSequence.value.filter((_, i) => i !== idx)
+  const model: ModelActionConfig = { ...props.entity.portraitMeta?.model }
+  if (next.length) model.sequence = next
+  else delete model.sequence
+  writeModel(model)
 }
 
 /** ImageField 移除时 emit null —— 归一为空串清空顶层封面 */
@@ -198,6 +250,38 @@ function onPortraitCover(e: Event) {
   gap: 6px;
   font-size: var(--font-size-xs);
   color: var(--text-secondary);
+}
+/* 动作序列（F4）：有序可删标签 */
+.ecp-seq {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--border-color);
+}
+.ecp-seq-label { font-size: var(--font-size-xs); color: var(--text-secondary); }
+.ecp-seq-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.ecp-seq-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: var(--input-bg);
+  color: var(--text-color);
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+}
+.ecp-seq-tag:hover { border-color: var(--danger, #dc2626); color: var(--danger, #dc2626); }
+.ecp-seq-add select {
+  width: 100%;
+  padding: 3px 6px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  background: var(--input-bg);
+  color: var(--text-color);
 }
 .ecp-motion-row {
   display: flex;

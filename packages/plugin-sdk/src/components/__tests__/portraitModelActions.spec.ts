@@ -26,6 +26,13 @@ describe('PortraitRenderer —— play(trigger) 动作绑定（#7/#12/#13）', (
     expect(() => w.vm.play('click')).not.toThrow()
     w.unmount()
   })
+
+  it('暴露 pause/resume（F4 Lottie 控制；实例未就绪不抛错）', () => {
+    const w = mount(PortraitRenderer, { props: { src: 'https://x/a.json', kind: 'lottie' } })
+    expect(() => w.vm.pause()).not.toThrow()
+    expect(() => w.vm.resume()).not.toThrow()
+    w.unmount()
+  })
 })
 
 describe('EntityCoverPanel —— 模型动作配置区（D2）', () => {

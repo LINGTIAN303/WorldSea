@@ -37,6 +37,8 @@ export type PortraitKind = 'static' | 'animated' | 'lottie' | 'model'
 export interface ModelActionConfig {
   hover?: string | 'random'
   click?: string | 'random'
+  /** 动作序列（F4）：存在时 hover/click 按序播放，优先于单动作绑定 */
+  sequence?: string[]
 }
 
 /** 运动区域（D3/D4）：百分比坐标（x/y/w/h ∈ 0-100，相对图面 contain 后的显示区） */
