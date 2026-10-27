@@ -15,8 +15,11 @@
       <button class="ms-action-btn" title="手机预览" aria-label="手机预览" @click="$emit('preview')"><WsIcon name="smartphone" size="sm" /></button>
       <button class="ms-action-btn" title="导出" aria-label="导出" @click="$emit('export')"><WsIcon name="download" size="sm" /></button>
       <span class="ms-header-divider"></span>
+      <button ref="typoBtnRef" class="ms-action-btn ms-action-btn--aa" :class="{ active: showTypography }" title="排版偏好" aria-label="排版偏好" @click="showTypography = !showTypography">Aa</button>
       <button class="ms-action-btn" :class="{ active: msFocusMode }" title="专注模式（Esc 退出）" aria-label="专注模式" @click="msFocusMode = !msFocusMode"><WsIcon name="eye" size="sm" /></button>
     </div>
+
+    <TypographyPanel v-if="showTypography" :anchor="typoBtnRef" :editor="editor" @close="showTypography = false" />
   </div>
 </template>
 
@@ -28,14 +31,17 @@
  * 图标语义顺手校正：历史 manuscript→timeline、导出 item→download。
  */
 import { ref } from 'vue'
+import type { Editor } from '@tiptap/vue-3'
 import { CustomDropdown } from '@worldsea/plugin-sdk'
 import { WsIcon } from '@worldsea/ui-kit'
 import { msFocusMode } from '../composables/useWritingPrefs'
+import TypographyPanel from './TypographyPanel.vue'
 
-defineProps<{
+const props = defineProps<{
   title: string
   status: string
   showHistory: boolean
+  editor: Editor | null
 }>()
 
 const emit = defineEmits<{
@@ -55,6 +61,8 @@ const statusOptions = [
 ]
 
 const titleInputRef = ref<HTMLInputElement | null>(null)
+const typoBtnRef = ref<HTMLElement | null>(null)
+const showTypography = ref(false)
 
 function onTitleInput(e: Event) {
   emit('update:title', (e.target as HTMLInputElement).value)
@@ -105,4 +113,5 @@ defineExpose({ focusTitle })
 }
 .ms-action-btn:hover { background: var(--hover-bg); color: var(--primary); }
 .ms-action-btn.active { background: var(--primary-light); color: var(--primary); }
+.ms-action-btn--aa { font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); font-family: var(--font-family-editor-ui); }
 </style>

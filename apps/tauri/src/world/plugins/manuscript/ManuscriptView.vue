@@ -7,6 +7,9 @@
     </Teleport>
     <Teleport to="#view-toolbar-actions">
       <span v-if="inBook" class="toolbar-info">共 {{ viewChapters.length }} 章</span>
+      <!-- 书级功能（批4 微调终态：自编辑器头部/工具条迁入 R3 视图工具条，与其他芽视图级功能同位） -->
+      <TuiButton v-if="inBook" variant="secondary" size="sm" :active="showBookSearch" icon="book" title="全书搜索（书内全部章节）" aria-label="全书搜索" @click="showBookSearch = !showBookSearch" />
+      <TuiButton v-if="inBook" variant="secondary" size="sm" :active="showStats" icon="chart" title="写作统计" aria-label="写作统计" @click="showStats = !showStats" />
     </Teleport>
     <Teleport to="#view-toolbar-create">
       <CreateButton :label="inBook ? '新建章节' : '新建书籍'" @click="inBook ? newManuscript() : startCreateBook()" />
@@ -73,6 +76,7 @@
           v-model:title="editTitle"
           :status="editStatus"
           :show-history="showHistory"
+          :editor="editor ?? null"
           @save-title="saveTitle"
           @status-change="onStatusChange"
           @snapshot="saveSnapshot"
@@ -134,6 +138,21 @@
       :next-sort-order="books.length"
       @close="showBookInfo = false"
     />
+
+    <!-- 书级面板（批4 终态：锚定 R3 工具条按钮；fixed 定位挂视图层根） -->
+    <BookSearchPanel
+      v-if="showBookSearch"
+      :anchor="r3SearchBtnRef"
+      :chapters="viewChapters"
+      @close="showBookSearch = false"
+      @jump="onBookSearchJump"
+    />
+    <WritingStatsPanel
+      v-if="showStats"
+      :book-id="selectedBook?.id || ''"
+      :anchor="r3StatsBtnRef"
+      @close="showStats = false"
+    />
   </div>
 </template>
 
@@ -149,6 +168,8 @@ import EditorHeader from './components/EditorHeader.vue'
 import PhonePreview from './components/PhonePreview.vue'
 import ExportDialog from './components/ExportDialog.vue'
 import BookInfoDialog from './components/BookInfoDialog.vue'
+import BookSearchPanel from './components/BookSearchPanel.vue'
+import WritingStatsPanel from './components/WritingStatsPanel.vue'
 import { useChapterEditor } from './composables/useChapterEditor'
 import { useAutoSnapshot } from './composables/useAutoSnapshot'
 import { msFontSize, msLineHeight, msPageWidth, msIndent, msFocusMode } from './composables/useWritingPrefs'
@@ -187,6 +208,12 @@ const {
   setSlashCommandPopover, onSlashCommandSelect,
   setFindReplaceApi, isFindBarOpen, openFind,
 } = useChapterEditor(current)
+
+// ── 书级面板（批4 终态：锚定 R3 视图工具条按钮）──
+const r3SearchBtnRef = ref<HTMLElement | null>(null)
+const r3StatsBtnRef = ref<HTMLElement | null>(null)
+const showBookSearch = ref(false)
+const showStats = ref(false)
 
 const { snapshots, showHistory, loadSnapshots, createSnapshot, restoreSnapshot, deleteSnapshot } = useChapterSnapshots(current)
 
