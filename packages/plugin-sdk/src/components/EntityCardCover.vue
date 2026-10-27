@@ -1,5 +1,5 @@
 <template>
-  <div v-if="hasCover" class="card-cover-wrap">
+  <div v-if="hasCover" ref="coverWrap" class="card-cover-wrap">
     <!-- 视频封面（C 批 #15/#16/#17/#18）：首帧静默；三档自动播放；悬停播独立开关 -->
     <video
       v-if="usingVideo"
@@ -12,13 +12,14 @@
       preload="metadata"
       :autoplay="autoplayOn"
     ></video>
-    <!-- 形象作封面且为模型/Lottie：PortraitRenderer 实时渲染（B 批接管 A 批占位） -->
+    <!-- 形象作封面且为模型/Lottie：视口内实时渲染（F3 离屏卸载释放 WebGL/动画资源） -->
     <PortraitRenderer
-      v-else-if="portraitLive"
+      v-else-if="portraitLive && inViewport"
       :src="entity.portrait!"
       :kind="entity.portraitKind!"
       class="card-cover-live"
     />
+    <div v-else-if="portraitLive" class="card-cover-placeholder"></div>
     <img v-else-if="coverUrl" :src="coverUrl" class="card-cover" :alt="entity.name" :style="coverStyle" />
     <div class="card-cover-overlay"></div>
   </div>
@@ -30,6 +31,7 @@ import { useEntityImage } from '@worldsea/entity-core/composables'
 import { useSettingsStore, type Entity } from '@worldsea/entity-core'
 import PortraitRenderer from './PortraitRenderer.vue'
 import { useCardVideoScrollPause } from '../composables/useCardVideoScrollPause'
+import { useInViewport } from '../composables/useInViewport'
 
 const props = defineProps<{
   entity: Entity
@@ -39,6 +41,9 @@ const props = defineProps<{
 }>()
 
 const settings = useSettingsStore()
+/** F3：观察封面容器；模型/Lottie 离屏时卸载 PortraitRenderer（占位保高度） */
+const coverWrap = ref<HTMLElement | null>(null)
+const inViewport = useInViewport(coverWrap)
 
 /** 形象图作封面（coverSource 勾选生效且资产在）：优先级 image < portrait < video（视频源 C 批接入） */
 const usingVideo = computed(() => props.entity.coverSource === 'video' && !!props.entity.videoAsset)
@@ -127,6 +132,11 @@ watch(shouldPlay, (play) => {
 }
 .card-cover-live {
   height: 110px;
+}
+.card-cover-placeholder {
+  width: 100%;
+  height: 110px;
+  background: var(--bg-secondary, #f3f4f6);
 }
 .card-cover-overlay {
   position: absolute;
