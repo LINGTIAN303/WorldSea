@@ -43,7 +43,14 @@ export function boxPointToRegion(px: number, py: number, box: DisplayBox): { x: 
 }
 
 // ── E 批多关键帧：轨迹 → WAAPI 关键帧序列（单段/多帧统一换算，可纯函数测试） ──
-import type { MotionTrack, MotionKeyframe } from '../types/entity'
+import type { MotionTrack, MotionKeyframe, MotionEasing } from '../types/entity'
+
+/** WAAPI 关键帧（easing 为轨迹级缓动，挂在每帧上作用于其后区间） */
+export interface WaapiKeyframe {
+  offset: number
+  transform: string
+  easing?: MotionEasing
+}
 
 function kfTransform(k: Pick<MotionKeyframe, 'dx' | 'dy' | 'rotate' | 'scale'>): string {
   const parts = [`translate(${k.dx ?? 0}%, ${k.dy ?? 0}%)`]
@@ -56,21 +63,25 @@ function kfTransform(k: Pick<MotionKeyframe, 'dx' | 'dy' | 'rotate' | 'scale'>):
  * 轨迹 → WAAPI 关键帧数组（offset 0-1）：
  * - 有 keyframes：按 t 升序，t=0 恒等帧自动补，offset=t/duration（末帧不足 1 由 fill 承接）
  * - 无 keyframes：单段两帧（0 恒等 → 1 终值）——D3 数据等价路径
+ * - easing 为非 linear 时逐帧透传（每段区间同缓动；linear 省略保持旧产物）
  * duration ≤0 防御回退单帧恒等。
  */
-export function trackToKeyframes(track: MotionTrack): { offset: number; transform: string }[] {
+export function trackToKeyframes(track: MotionTrack): WaapiKeyframe[] {
   const dur = Math.max(0.1, track.duration)
+  const easing = track.easing && track.easing !== 'linear' ? track.easing : undefined
+  const withEasing = (frames: WaapiKeyframe[]): WaapiKeyframe[] =>
+    easing ? frames.map((f) => ({ ...f, easing })) : frames
   if (Array.isArray(track.keyframes) && track.keyframes.length) {
     const sorted = [...track.keyframes].sort((a, b) => a.t - b.t)
-    const out: { offset: number; transform: string }[] = []
+    const out: WaapiKeyframe[] = []
     if (sorted[0].t > 0) out.push({ offset: 0, transform: 'translate(0%, 0%)' })
     for (const k of sorted) {
       out.push({ offset: Math.max(0, Math.min(1, k.t / dur)), transform: kfTransform(k) })
     }
-    return out
+    return withEasing(out)
   }
-  return [
+  return withEasing([
     { offset: 0, transform: 'translate(0%, 0%)' },
     { offset: 1, transform: kfTransform(track) },
-  ]
+  ])
 }

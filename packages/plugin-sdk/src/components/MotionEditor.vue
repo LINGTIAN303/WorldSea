@@ -8,6 +8,10 @@
             <button :class="{ on: mode === 'region' }" @click="mode = 'region'">区域编辑</button>
             <button :class="{ on: mode === 'focus' }" @click="mode = 'focus'">焦点编辑</button>
           </div>
+          <div class="me-history">
+            <button class="me-undo" :disabled="undoStack.length <= 1 && !pendingSnapshot" aria-label="撤销" title="撤销 (Ctrl+Z)" @click="undo">↺</button>
+            <button class="me-redo" :disabled="!redoStack.length" aria-label="重做" title="重做 (Ctrl+Y)" @click="redo">↷</button>
+          </div>
           <button v-if="dirty" class="me-save" @click="save">保存改动</button>
           <button class="me-close" aria-label="关闭编辑器" @click="$emit('close')">×</button>
         </header>
@@ -69,34 +73,21 @@
  * 「保存改动」一次性写 portraitMeta（对齐 DetailTabsCard 的 commit 模式，避免拖动
  * 中高频写库刷 undo）。坐标口径=图面显示区（motionMath 换算，与渲染层像素对齐）。
  */
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
-import { useEntityStore, type Entity, type MotionRegion } from '@worldsea/entity-core'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import type { Entity, MotionRegion } from '@worldsea/entity-core'
 import { computeDisplayBox, boxPointToRegion, type DisplayBox } from '@worldsea/entity-core/core'
 import MotionEditorSide from './MotionEditorSide.vue'
+import { useMotionDraft } from '../composables/useMotionDraft'
+import { useMotionHistoryKeys } from '../composables/useMotionHistoryKeys'
 
 const props = defineProps<{ entity: Entity }>()
 const emit = defineEmits<{ close: [] }>()
 
-const entityStore = useEntityStore()
 const uid = () => Math.random().toString(36).slice(2, 8)
-
-// ── 草稿（保存时一次性写库） ──
-const draft = reactive({
-  regions: (props.entity.portraitMeta?.motion?.regions ?? []).map(r => ({ ...r })),
-  tracks: (props.entity.portraitMeta?.motion?.tracks ?? []).map(t => ({ ...t })),
-})
-const draftFocus = reactive({
-  position: props.entity.portraitMeta?.focus?.position,
-  zoom: props.entity.portraitMeta?.focus?.zoom,
-})
-const dirty = ref(false)
-
-function save() {
-  const motion = draft.tracks.length ? { regions: draft.regions, tracks: draft.tracks } : undefined
-  const focus = (draftFocus.position || draftFocus.zoom) ? { position: draftFocus.position, zoom: draftFocus.zoom } : undefined
-  entityStore.update(props.entity.id, { portraitMeta: { ...props.entity.portraitMeta, motion, focus } })
-  dirty.value = false
-}
+const {
+  draft, draftFocus, dirty, selectedRegionId, save,
+  undoStack, redoStack, pendingSnapshot, undo, redo, cancelPendingSnapshot,
+} = useMotionDraft(props.entity)
 
 // ── 画布几何：显示区换算（与 MotionStage 同口径） ──
 const canvasEl = ref<HTMLElement | null>(null)
@@ -132,7 +123,6 @@ function toRegionPoint(e: PointerEvent): { x: number; y: number } {
 
 // ── 区域编辑交互 ──
 const mode = ref<'region' | 'focus'>('region')
-const selectedRegionId = ref<string | null>(draft.regions[0]?.id ?? null)
 type DragState =
   | { kind: 'draw'; startX: number; startY: number }
   | { kind: 'move'; region: MotionRegion; grabX: number; grabY: number }
@@ -238,8 +228,12 @@ function onKey(e: KeyboardEvent) {
   }
 }
 
+useMotionHistoryKeys(undo, redo)
 onMounted(() => window.addEventListener('keydown', onKey))
-onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
+onBeforeUnmount(() => {
+  cancelPendingSnapshot()
+  window.removeEventListener('keydown', onKey)
+})
 </script>
 
 <style scoped>
@@ -253,8 +247,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   justify-content: center;
 }
 .me-dialog {
-  width: min(920px, 94vw);
-  max-height: 90vh;
+  width: min(1180px, 96vw);
+  max-height: 92vh;
   display: flex;
   flex-direction: column;
   background: var(--bg-surface, #fff);
@@ -281,6 +275,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   cursor: pointer;
 }
 .me-modes button.on { border-color: var(--primary); color: var(--primary); }
+.me-history { display: flex; gap: 2px; }
+.me-history button {
+  width: 24px; height: 22px; border: 1px solid var(--border-color); border-radius: var(--radius-sm);
+  background: none; color: var(--text-secondary); font-size: 13px; line-height: 1; cursor: pointer;
+}
+.me-history button:disabled { opacity: 0.35; cursor: default; }
 .me-save {
   margin-left: auto;
   padding: 3px 12px;
@@ -303,7 +303,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   position: relative;
   flex: 1;
   min-width: 0;
-  height: 420px;
+  height: clamp(560px, 74vh, 860px);
   background: var(--bg-secondary, #f3f4f6);
   touch-action: none;
   user-select: none;

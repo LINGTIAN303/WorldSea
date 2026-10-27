@@ -42,8 +42,18 @@
             <input v-model.number="t.dy" type="number" step="1" aria-label="竖移%" placeholder="竖移" @change="touch" />
             <input v-model.number="t.rotate" type="number" step="1" aria-label="旋转度" placeholder="转°" @change="touch" />
             <input v-model.number="t.scale" type="number" step="0.1" aria-label="缩放" placeholder="缩放" @change="touch" />
+            <select class="me-easing" aria-label="缓动" :value="t.easing ?? 'linear'" @change="setEasing(t, $event)">
+              <option value="linear">线性</option>
+              <option value="ease-in">缓入</option>
+              <option value="ease-out">缓出</option>
+              <option value="ease-in-out">缓入缓出</option>
+            </select>
           </template>
           <button class="me-del" aria-label="删除轨迹" @click="removeTrack(t.id)">×</button>
+          <select v-if="t.trigger !== 'mouse'" class="me-template" aria-label="动效模板" @change="applyTemplate(t, $event)">
+            <option value="">模板…</option>
+            <option v-for="tpl in MOTION_TEMPLATES" :key="tpl.id" :value="tpl.id">{{ tpl.label }}</option>
+          </select>
           <!-- 多关键帧时间轴（E 批）：非 mouse 轨专属（内容追踪是连续跟随无时间轴） -->
           <MotionTimeline v-if="t.trigger !== 'mouse'" :track="t" @change="touch" />
         </div>
@@ -69,7 +79,7 @@
  * reactive 引用直接 mutate（编辑器私有子组件，耦合限定在本对），变更经 change 上报置脏。
  */
 import { computed } from 'vue'
-import type { MotionConfig, MotionRegion } from '@worldsea/entity-core'
+import type { MotionConfig, MotionEasing, MotionRegion, MotionTrack } from '@worldsea/entity-core'
 import MotionStage from './MotionStage.vue'
 import MotionTimeline from './MotionTimeline.vue'
 
@@ -88,6 +98,25 @@ const selectedRegion = computed(() => props.draft.regions.find(r => r.id === pro
 const uid = () => Math.random().toString(36).slice(2, 8)
 const touch = () => emit('change')
 
+type TemplateParams = Partial<Omit<MotionTrack, 'id' | 'regionId' | 'trigger'>>
+/** 动效模板（F2）：一键覆盖选中轨迹参数；应用时清空多关键帧（单段语义） */
+const MOTION_TEMPLATES: { id: string; label: string; params: TemplateParams }[] = [
+  { id: 'head-sway', label: '头部摆动', params: { duration: 2.4, loop: true, alternate: true, dx: 0, dy: 3, rotate: 0, scale: 1, easing: 'ease-in-out' } },
+  { id: 'breathe', label: '呼吸', params: { duration: 3, loop: true, alternate: true, dx: 0, dy: 0, rotate: 0, scale: 1.04, easing: 'ease-in-out' } },
+  { id: 'float', label: '漂浮', params: { duration: 4, loop: true, alternate: true, dx: 0, dy: -6, rotate: 0, scale: 1, easing: 'ease-in-out' } },
+  { id: 'blink', label: '眨眼', params: { duration: 0.28, loop: false, alternate: false, dx: 0, dy: 2, rotate: 0, scale: 1, easing: 'ease-in-out' } },
+]
+
+function applyTemplate(t: MotionTrack, e: Event) {
+  const sel = e.target as HTMLSelectElement
+  const tpl = MOTION_TEMPLATES.find(x => x.id === sel.value)
+  sel.value = ''
+  if (!tpl) return
+  delete t.keyframes
+  Object.assign(t, tpl.params)
+  touch()
+}
+
 function regionTracks(regionId: string) {
   return props.draft.tracks.filter(t => t.regionId === regionId)
 }
@@ -97,6 +126,12 @@ function addTrack(regionId: string) {
 }
 function removeTrack(id: string) {
   props.draft.tracks = props.draft.tracks.filter(t => t.id !== id)
+  touch()
+}
+/** 轨迹级缓动（F2）：linear 归省缺，不落字段 */
+function setEasing(t: MotionTrack, e: Event) {
+  const v = (e.target as HTMLSelectElement).value as MotionEasing
+  t.easing = v === 'linear' ? undefined : v
   touch()
 }
 function removeRegion(id: string) {
@@ -114,7 +149,7 @@ function resetFocus() {
 
 <style scoped>
 .me-side {
-  width: 300px;
+  width: 320px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;

@@ -57,6 +57,9 @@ export interface MotionKeyframe {
   scale?: number
 }
 
+/** 轨迹缓动（F2；缺省 linear）——映射 WAAPI 关键帧级 easing，作用于每段区间 */
+export type MotionEasing = 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out'
+
 /** 区域运动轨迹（D3 单段参数 + E 批多关键帧；keyframes 存在时优先生效，单段字段忽略） */
 export interface MotionTrack {
   id: string
@@ -70,6 +73,8 @@ export interface MotionTrack {
   loop: boolean
   /** 往返（去程+回程各 duration 秒；false=去程后跳回） */
   alternate?: boolean
+  /** 缓动（轨迹级，作用于每段区间；缺省 linear） */
+  easing?: MotionEasing
   /** 向哪动/动多少：位移取区域自身尺寸的百分比，rotate 度，scale 倍；
    *  trigger=mouse 时 dx/dy=朝指针的最大跟随偏移（区域尺寸百分比） */
   dx?: number

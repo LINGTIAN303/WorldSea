@@ -52,9 +52,9 @@ const layers = computed(() =>
     .filter((l): l is { track: MotionTrack; region: MotionRegion } => Boolean(l.region)),
 )
 
-/** WAAPI 关键帧：trackToKeyframes 统一换算（E 批起单段/多关键帧同路径） */
+/** WAAPI 关键帧：trackToKeyframes 统一换算（E 批起单段/多关键帧同路径；F2 透传轨迹级 easing） */
 function keyframesOf(track: MotionTrack) {
-  return trackToKeyframes(track).map(k => ({ offset: k.offset, transform: k.transform }))
+  return trackToKeyframes(track).map(k => ({ offset: k.offset, transform: k.transform, easing: k.easing }))
 }
 
 const running = new Map<string, Animation>()

@@ -11,21 +11,26 @@
     </div>
     <div
       v-else-if="!value"
-      class="asset-drop-zone"
-      :class="{ 'drop-active': isDragging }"
-      role="button"
-      tabindex="0"
-      :aria-label="`选择或拖拽${categoryLabel}`"
-      @click="pickByDialog"
-      @keydown.enter.prevent="pickByDialog"
-      @keydown.space.prevent="pickByDialog"
-      @dragover.prevent="isDragging = true"
-      @dragleave="isDragging = false"
-      @drop.prevent="onDrop"
+      class="asset-empty"
     >
-      <WsIcon :name="categoryIcon" size="lg" />
-      <p>拖拽{{ categoryLabel }}到此处</p>
-      <p>或点击选择文件（支持大文件）</p>
+      <div
+        class="asset-drop-zone"
+        :class="{ 'drop-active': isDragging }"
+        role="button"
+        tabindex="0"
+        :aria-label="`选择或拖拽${categoryLabel}`"
+        @click="pickByDialog"
+        @keydown.enter.prevent="pickByDialog"
+        @keydown.space.prevent="pickByDialog"
+        @dragover.prevent="isDragging = true"
+        @dragleave="isDragging = false"
+        @drop.prevent="onDrop"
+      >
+        <WsIcon :name="categoryIcon" size="lg" />
+        <p>拖拽{{ categoryLabel }}到此处</p>
+        <p>或点击选择文件（支持大文件）</p>
+      </div>
+      <TuiButton class="asset-library-btn" variant="secondary" size="sm" @click="openLibrary">从资产库选</TuiButton>
     </div>
     <template v-else>
       <div class="asset-preview" :class="`kind-${kind || 'static'}`">
@@ -35,6 +40,7 @@
         <PortraitRenderer v-else-if="liveKind" ref="liveRef" :src="value" :kind="liveKind" class="asset-live-preview" />
       </div>
       <div class="asset-field-actions">
+        <TuiButton class="asset-library-btn" variant="secondary" size="sm" @click="openLibrary">从资产库选</TuiButton>
         <TuiButton variant="secondary" size="sm" @click="pickByDialog">重新选择</TuiButton>
         <TuiButton variant="danger-ghost" size="sm" @click="removeAsset">移除</TuiButton>
         <label v-if="category === 'portrait'" class="asset-kind-select">
@@ -45,6 +51,13 @@
         </label>
       </div>
     </template>
+    <AssetLibraryPicker
+      v-if="libraryOpen"
+      :kinds="libraryKinds"
+      :category="category"
+      @select="onLibrarySelect"
+      @close="libraryOpen = false"
+    />
   </div>
 </template>
 
@@ -56,6 +69,7 @@
  * 上传时按扩展名自动判定 kind，误判（APNG/动图 WebP 扩展名与静态同）可下拉改判。
  */
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { convertFileSrc } from '@tauri-apps/api/core'
 import {
   importAssetByDialog,
   importAssetByFile,
@@ -63,10 +77,12 @@ import {
   isAnimatedAsset,
   ASSET_KIND_LABELS,
   type AssetKind,
+  type ProjectAssetInfo,
 } from '@worldsea/entity-core/core'
 import { getToastApi } from '@worldsea/entity-core/core'
 import { TuiButton, WsIcon } from '@worldsea/ui-kit'
 import PortraitRenderer from './PortraitRenderer.vue'
+import AssetLibraryPicker from './AssetLibraryPicker.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -119,6 +135,25 @@ async function refineKind(kind: AssetKind, assetUrl: string): Promise<AssetKind>
   const ext = assetUrl.split('.').pop()?.toLowerCase() ?? ''
   if (ext !== 'png' && ext !== 'webp') return kind
   return (await isAnimatedAsset(assetUrl)) ? 'animated' : kind
+}
+
+// ── 资产库复用（F1）：列同类全部资产（形象=四类并集），选中自动判定类别 ──
+const libraryOpen = ref(false)
+const libraryKinds = computed<AssetKind[]>(() =>
+  props.category === 'video' ? ['video'] : ['static', 'animated', 'lottie', 'model'],
+)
+
+function openLibrary() {
+  if (importing.value) return
+  libraryOpen.value = true
+}
+
+/** 选中库内资产：路径 → asset URL；kind 以库内判定为准（png/webp 动图再修正） */
+async function onLibrarySelect(asset: ProjectAssetInfo): Promise<void> {
+  libraryOpen.value = false
+  const src = convertFileSrc(asset.path.replace(/\\/g, '/'))
+  emit('update:value', src)
+  emit('update:kind', await refineKind(asset.kind, src))
 }
 
 /** 对话框路径直传（主链路，支持大文件）；选择结果含 kind 判定，一并 emit */
@@ -240,6 +275,12 @@ onUnmounted(() => document.removeEventListener('paste', onDocumentPaste))
 .asset-drop-zone.drop-active {
   border-color: var(--primary);
   background: var(--primary-light);
+}
+.asset-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
 }
 .asset-preview {
   border-radius: var(--radius-md);

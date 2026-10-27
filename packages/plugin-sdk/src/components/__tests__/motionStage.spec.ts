@@ -61,6 +61,32 @@ describe('MotionStage —— 区域分层（#8 动哪里/动多少处）', () =>
     expect(layers[0].style.clipPath).toContain('inset(25% 25% 25% 25%)')
     el.remove()
   })
+
+  it('轨迹 easing 透传到 WAAPI 关键帧（F2）', async () => {
+    const captured: Keyframe[][] = []
+    const proto = HTMLElement.prototype as unknown as { animate?: (k: Keyframe[]) => Animation }
+    const original = proto.animate
+    proto.animate = (k: Keyframe[]) => {
+      captured.push(k)
+      return { cancel: () => {} } as Animation
+    }
+    try {
+      const withEasing: MotionConfig = {
+        ...motion,
+        tracks: [{ ...motion.tracks[0], easing: 'ease-in-out' }],
+      }
+      const el = document.createElement('div')
+      document.body.appendChild(el)
+      wrapper = mount(MotionStage, { props: { src: 'https://x/p.png', motion: withEasing }, attachTo: el })
+      await new Promise((r) => setTimeout(r))
+      expect(captured.length).toBeGreaterThan(0)
+      expect(captured.at(-1)?.every((k) => k.easing === 'ease-in-out')).toBe(true)
+      el.remove()
+    } finally {
+      if (original) proto.animate = original
+      else delete proto.animate
+    }
+  })
 })
 
 describe('EntityCoverPanel —— 区域动效表单（D3）', () => {

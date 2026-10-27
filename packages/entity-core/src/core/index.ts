@@ -18,8 +18,10 @@ export {
   ASSET_DIR_NAME,
   isAnimatedImageBytes,
   isAnimatedAsset,
+  listProjectAssets,
+  selectProjectAssets,
 } from './assetImport'
-export type { AssetKind, AssetImportResult } from './assetImport'
+export type { AssetKind, AssetImportResult, AssetDirEntry, ProjectAssetInfo } from './assetImport'
 
 // 区域运动坐标数学（2026-10-25 形象图批 D4）
 export { computeDisplayBox, regionToClip, boxPointToRegion, trackToKeyframes, type DisplayBox } from './motionMath'

@@ -64,6 +64,48 @@ export function detectAssetKind(filename: string): AssetKind | null {
   return null
 }
 
+/** cmd_fs_list 目录项形状（Rust fs_commands） */
+export interface AssetDirEntry {
+  name: string
+  path: string
+  isDir: boolean
+  size: number
+  modified?: string
+}
+
+/** 资产库条目（F1：跨实体复用已导入资产） */
+export interface ProjectAssetInfo {
+  path: string
+  name: string
+  size: number
+  modified?: number
+  kind: AssetKind
+}
+
+/** 落盘命名 `{kind}_{ts}_{rand}.{ext}` 的前缀优先（动图 webp/png 与静态同扩展，靠前缀区分） */
+function kindFromAssetName(name: string): AssetKind | null {
+  const prefix = name.split('_')[0] as AssetKind
+  return Object.hasOwn(ASSET_KIND_EXTS, prefix) ? prefix : null
+}
+
+/** 目录项 → 资产库条目（类别并集过滤 + 类别判定 + mtime 降序；纯函数供单测） */
+export function selectProjectAssets(entries: AssetDirEntry[], kinds: AssetKind[]): ProjectAssetInfo[] {
+  const allowed = new Set(kinds)
+  const exts = new Set(kinds.flatMap((k) => ASSET_KIND_EXTS[k]))
+  return entries
+    .filter((e) => !e.isDir)
+    .flatMap((e) => {
+      const ext = e.name.split('.').pop()?.toLowerCase() ?? ''
+      if (!exts.has(ext)) return []
+      const prefixed = kindFromAssetName(e.name)
+      const detected = detectAssetKind(e.name)
+      const kind = prefixed && allowed.has(prefixed) ? prefixed : detected && allowed.has(detected) ? detected : null
+      if (!kind) return []
+      return [{ path: e.path, name: e.name, size: e.size, modified: e.modified ? Number(e.modified) : undefined, kind }]
+    })
+    .sort((a, b) => (b.modified ?? -1) - (a.modified ?? -1) || a.name.localeCompare(b.name))
+}
+
 /**
  * 文件头判动图（2026-10-25 形象图批 D3，走查确认项）：APNG=PNG 含 acTL chunk、
  * 动图 WebP=含 ANIM/ANMF chunk——两者扩展名与静态相同，detectAssetKind 归 static，
@@ -134,6 +176,18 @@ export async function resolveEntityDataDir(): Promise<string | null> {
     return await pm.getCurrentProjectDir()
   } catch {
     return null
+  }
+}
+
+/** 列出资产库中指定类别的资产（目录不存在 / 项目未就绪 → 空数组，不抛错） */
+export async function listProjectAssets(kinds: AssetKind[]): Promise<ProjectAssetInfo[]> {
+  const root = await resolveEntityDataDir()
+  if (!root) return []
+  try {
+    const entries = await invoke<AssetDirEntry[]>('cmd_fs_list', { path: `${root}/${ASSET_DIR_NAME}` })
+    return selectProjectAssets(entries, kinds)
+  } catch {
+    return []
   }
 }
 
