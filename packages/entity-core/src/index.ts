@@ -6,6 +6,8 @@
 import './relations'
 // 节点 ↔ 节点横向关系（2026-10-18 Q3-A）：单独文件注册，避免继续膨胀已冻结的 relations/index.ts
 import './relations/outlineLateral'
+// 生物关系域（2026-10-28 三芽批）：同款拆分
+import './relations/creature'
 import { syncToLegacyRegistry } from './core/RelationshipRegistry'
 syncToLegacyRegistry()
 export * from './types'

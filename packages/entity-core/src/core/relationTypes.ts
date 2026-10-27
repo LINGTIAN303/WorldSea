@@ -30,6 +30,10 @@ export const RelationTypes = {
   SPOUSE_OF: 'spouse_of',
   SIBLING_OF: 'sibling_of',
   MENTOR_OF: 'mentor_of',
+  INHABITS: 'inhabits',
+  DROPS: 'drops',
+  HUNTS: 'hunts',
+  TAMES: 'tames',
 } as const
 
 export type RelationType = (typeof RelationTypes)[keyof typeof RelationTypes]
@@ -66,6 +70,10 @@ export const RelationTypeLabels: Record<RelationType, string> = {
   [RelationTypes.SPOUSE_OF]: '配偶',
   [RelationTypes.SIBLING_OF]: '兄弟姐妹',
   [RelationTypes.MENTOR_OF]: '师徒',
+  [RelationTypes.INHABITS]: '栖息于',
+  [RelationTypes.DROPS]: '产出',
+  [RelationTypes.HUNTS]: '猎杀',
+  [RelationTypes.TAMES]: '驯服/契约',
 }
 
 export function getRelationLabel(type: string): string {
@@ -131,3 +139,11 @@ inverseRegistry.register(RelationTypes.RESIDES_IN, RelationTypes.LOCATED_IN)
 inverseRegistry.register(RelationTypes.SPOUSE_OF, RelationTypes.SPOUSE_OF)
 inverseRegistry.register(RelationTypes.SIBLING_OF, RelationTypes.SIBLING_OF)
 inverseRegistry.register(RelationTypes.MENTOR_OF, RelationTypes.MENTOR_OF)
+inverseRegistry.register(RelationTypes.INHABITS, 'habitat_of')
+inverseRegistry.register('habitat_of', RelationTypes.INHABITS)
+inverseRegistry.register(RelationTypes.DROPS, 'dropped_by')
+inverseRegistry.register('dropped_by', RelationTypes.DROPS)
+inverseRegistry.register(RelationTypes.HUNTS, 'hunted_by')
+inverseRegistry.register('hunted_by', RelationTypes.HUNTS)
+inverseRegistry.register(RelationTypes.TAMES, 'tamed_by')
+inverseRegistry.register('tamed_by', RelationTypes.TAMES)

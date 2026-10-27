@@ -113,18 +113,18 @@ describe('R1/R2 芽语义域', () => {
     }
   })
 
-  it('27 个内置芽均声明主域，且主域已登记', () => {
-    expect(manifests).toHaveLength(27)
-    expect(new Set(manifests.map(manifest => manifest.id)).size).toBe(27)
+  it('30 个内置芽均声明主域，且主域已登记', () => {
+    expect(manifests).toHaveLength(30)
+    expect(new Set(manifests.map(manifest => manifest.id)).size).toBe(30)
     for (const manifest of manifests) {
       expect(manifest.domain, `${manifest.id} 缺 domain（${manifest.file}）`).toBeTruthy()
       expect(isSproutDomain(manifest.domain!), `${manifest.id} 的 domain=${manifest.domain} 未登记`).toBe(true)
     }
   })
 
-  it('副域合法、不重复、不等于主域；16 个芽有副域', () => {
+  it('副域合法、不重复、不等于主域；18 个芽有副域', () => {
     const withSecondary = manifests.filter(manifest => manifest.secondaryDomains?.length)
-    expect(withSecondary).toHaveLength(16)
+    expect(withSecondary).toHaveLength(18)
     for (const manifest of withSecondary) {
       const secondary = manifest.secondaryDomains!
       expect(new Set(secondary).size, `${manifest.id} 副域重复`).toBe(secondary.length)
@@ -135,18 +135,18 @@ describe('R1/R2 芽语义域', () => {
     }
   })
 
-  it('8 个域各至少 1 个芽；分布为 2/3/4/3/3/1/4/7', () => {
+  it('8 个域各至少 1 个芽；分布为 2/4/4/3/3/1/4/9', () => {
     const counts = Object.fromEntries(SPROUT_DOMAINS.map(domain => [domain.id, 0]))
     for (const manifest of manifests) counts[manifest.domain!] += 1
     expect(counts).toEqual({
       geo: 2,
-      life: 3,
+      life: 4,
       society: 4,
       knowledge: 3,
       goods: 3,
       time: 1,
       narrative: 4,
-      tool: 7,
+      tool: 9,
     })
   })
 
@@ -185,8 +185,8 @@ function registeredEntityTypes(file: string): string[] {
 }
 
 describe('R5 芽实体类型声明', () => {
-  it('27 个内置芽声明 entityTypes，且与实际 registerEntityV2 一致', () => {
-    expect(manifests).toHaveLength(27)
+  it('30 个内置芽声明 entityTypes，且与实际 registerEntityV2 一致', () => {
+    expect(manifests).toHaveLength(30)
     const owners = new Map<string, string>()
     for (const manifest of manifests) {
       expect(manifest.entityTypes, `${manifest.id} 缺 entityTypes（${manifest.file}）`).toBeDefined()
@@ -209,8 +209,10 @@ describe('R5 芽实体类型声明', () => {
       .sort()
     expect(pureView).toEqual([
       'official.apparel',
+      'official.codex',
       'official.custom',
       'official.field-matrix',
+      'official.gallery',
       'official.graph',
       'official.mindmap',
       'official.weapons',

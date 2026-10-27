@@ -46,7 +46,7 @@ defineRelation({
 
 defineRelation({
   type: 'belongs_to', label: '属于', inverseType: 'has_member', inverseLabel: '拥有成员',
-  sourceTypes: ['character'], targetTypes: ['species', 'organization'], symmetric: false, domain: 'person',
+  sourceTypes: ['character', 'creature'], targetTypes: ['species', 'organization'], symmetric: false, domain: 'person',
 })
 
 defineRelation({

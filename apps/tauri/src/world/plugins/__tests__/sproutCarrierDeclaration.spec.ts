@@ -18,10 +18,11 @@ import { getCarrier } from '@worldsea/plugin-sdk'
 const PLUGINS = join(__dirname, '..')
 
 /** 档 B 均衡 9 枚（判据见 §七之七）+ 战术棋盘 1 枚：它原本就是常驻右栏，
- *  接载体时缺省必须还是分栏，否则"接入"会顺手把观感改成浮层抽屉（§七之十） */
+ *  接载体时缺省必须还是分栏，否则"接入"会顺手把观感改成浮层抽屉（§七之十）
+ *  + 生物图鉴 1 枚（2026-10-28 三芽批）：字段形态与 plants/species 同类（能力/弱点等多段文本），随姊妹芽取栏式 */
 const COLUMN_SPROUTS = [
   'buildings', 'characters', 'combat_stats', 'conflict', 'culture',
-  'languages', 'magic', 'plants', 'species', 'tactical-board',
+  'languages', 'magic', 'plants', 'species', 'tactical-board', 'creatures',
 ]
 
 interface SproutFile { sprout: string; file: string; src: string }

@@ -112,3 +112,12 @@ scope: 芽（侧栏插件）生态
 - 批计划：[2026-10-20-R6a-大纲正文关系化批计划](../../../plans/已完成/2026-10-20-R6a-大纲正文关系化批计划.md)。
 - 真机走查通过（2026-10-20）；门禁：全量 176 文件 / 1427 通过 / 1 跳过、`vue-tsc` 0、`arch:check` 0、双构建成功、断链 0。
 - 待办：R6-b 笔记本文件夹实体化；R6-c 编排步骤保留 JSON 并显式标注工具内部结构。
+
+## 十一、2026-10-28 三芽批复核记录
+
+- 芽类（侧栏入口）：27 → **30**（+ `official.gallery` 图库 / `official.codex` 设定集 / `official.creatures` 生物图鉴，均默认启用，图标 `image`/`book-open`/`paw`）。
+- 域分布：life 3→4（creature 主域）、tool 7→9（图库/设定集）；纯视图芽 6→8（+gallery/codex，显式 `[]`）。
+- 关系类型：105 → **109**（+ `inhabits`/`drops`/`hunts`/`tames`，落 `relations/creature.ts` 包入口加载）；`belongs_to` 源端扩展 `+ creature`。
+- 实体类型：23 → **24**（+ `creature`）；字段实例 274 → **283**（creature 9 ownFields）。
+- 图中新增节点：三芽均为纯视图/新类型芽，gallery/codex 入孤岛群（真孤岛，设计上不产关系），creature 以 4 关系入网。
+- 依据：[2026-10-28-三芽批计划](../../../plans/已完成/2026-10-28-三芽批计划-图库设定集生物图鉴.md)；`芽字段矩阵.md` 快照待重生成（生成器未跑）。
