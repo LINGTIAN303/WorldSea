@@ -95,7 +95,17 @@
             <div class="set-plugin-item">
               <span class="sp-grip" title="域内拖拽排序"><WsIcon name="grip" size="xs" /></span>
               <span v-if="p.source" class="sp-source">{{ sourceLabel(p) }}</span>
-              <label class="sp-toggle"><input type="checkbox" :checked="p.active" @change="onSproutToggle(p.id)" /><span class="sp-icon"><WsIcon v-if="hasIcon(p.icon)" :name="p.icon" size="sm" /><span v-else>{{ p.icon }}</span></span><span class="sp-label">{{ p.label }}</span></label>
+              <span
+                class="sp-icon-btn"
+                role="button"
+                tabindex="0"
+                :title="`换图标：${p.label}`"
+                :aria-label="`${p.label}图标，点击更换`"
+                @click.stop="emit('edit-icon', p.id)"
+                @keydown.enter.prevent="emit('edit-icon', p.id)"
+                @keydown.space.prevent="emit('edit-icon', p.id)"
+              ><WsIcon v-if="hasIcon(resolvedIcon(p))" :name="resolvedIcon(p)" size="sm" /><span v-else>{{ resolvedIcon(p) }}</span></span>
+              <label class="sp-toggle"><input type="checkbox" :checked="p.active" @change="onSproutToggle(p.id)" /><span class="sp-label">{{ p.label }}</span></label>
               <button
                 type="button"
                 class="sp-info"
@@ -113,7 +123,17 @@
         <div v-else class="set-plugin-list">
           <div v-for="p in group.items" :key="p.id" class="set-plugin-item">
             <span v-if="p.source" class="sp-source">{{ sourceLabel(p) }}</span>
-            <label class="sp-toggle"><input type="checkbox" :checked="p.active" @change="onSproutToggle(p.id)" /><span class="sp-icon"><WsIcon v-if="hasIcon(p.icon)" :name="p.icon" size="sm" /><span v-else>{{ p.icon }}</span></span><span class="sp-label">{{ p.label }}</span></label>
+            <span
+                class="sp-icon-btn"
+                role="button"
+                tabindex="0"
+                :title="`换图标：${p.label}`"
+                :aria-label="`${p.label}图标，点击更换`"
+                @click.stop="emit('edit-icon', p.id)"
+                @keydown.enter.prevent="emit('edit-icon', p.id)"
+                @keydown.space.prevent="emit('edit-icon', p.id)"
+              ><WsIcon v-if="hasIcon(resolvedIcon(p))" :name="resolvedIcon(p)" size="sm" /><span v-else>{{ resolvedIcon(p) }}</span></span>
+              <label class="sp-toggle"><input type="checkbox" :checked="p.active" @change="onSproutToggle(p.id)" /><span class="sp-label">{{ p.label }}</span></label>
             <button
               type="button"
               class="sp-info"
@@ -151,12 +171,15 @@ const props = withDefaults(defineProps<{
   domainOf?: (pluginId: string) => string
   /** 需要提示状态异常的芽 id（已启用但未装载/被拒/无入口视图） */
   attentionIds?: string[]
+  /** 图标解析口（应用侧注入覆盖层；缺省原样返回芽默认） */
+  iconOf?: (sproutId: string, fallback: string) => string
 }>(), {
   domainOf: () => () => UNCLASSIFIED_DOMAIN,
   attentionIds: () => [],
+  iconOf: () => (_id: string, fallback: string) => fallback,
 })
 
-const emit = defineEmits<{ dirty: []; inspect: [id: string] }>()
+const emit = defineEmits<{ dirty: []; inspect: [id: string]; 'edit-icon': [id: string] }>()
 
 const store = useSettingsStore()
 const uiStore = useUIStore()
@@ -207,6 +230,10 @@ function domainKey(pluginId: string): string {
 
 function sourceLabel(p: SproutToggle): string {
   return p.source === 'builtin' ? '内置' : p.source === 'local' ? '本地' : p.source === 'external' ? '外部' : '远程'
+}
+
+function resolvedIcon(p: SproutToggle): string {
+  return props.iconOf(p.id, p.icon)
 }
 
 function syncSproutList() {

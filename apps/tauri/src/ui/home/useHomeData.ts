@@ -80,7 +80,11 @@ export function useHomeData() {
     // 不读 version 就建立不起响应式依赖——首屏（挂载早于 installWorldTree）会把空表永久缓存。
     void fieldRegistry.version.value
     const typeMeta = new Map(
-      entitySchemaRegistry.getAll().map(s => [s.typeKey, { label: s.label, icon: s.icon ?? 'entity', pluginId: s.pluginId }]),
+      entitySchemaRegistry.getAll().map(s => [s.typeKey, {
+        label: s.label,
+        icon: entitySchemaRegistry.getIconName(s.typeKey),
+        pluginId: s.pluginId,
+      }]),
     )
     return buildHomeData({
       projectName: projectName.value,

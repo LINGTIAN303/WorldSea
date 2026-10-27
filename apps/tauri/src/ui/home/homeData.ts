@@ -213,7 +213,7 @@ export function buildHomeData(input: HomeDataInput): HomeData {
     for (const { sprout } of domainSprouts) {
       for (const type of pluginTypes.get(sprout.id) ?? []) typeSet.add(type)
       const v = firstView(sprout.id, visibleViews)
-      if (v) active.push({ id: sprout.id, label: sprout.label, icon: sprout.icon, viewId: v.id })
+      if (v) active.push({ id: sprout.id, label: sprout.label, icon: v.icon, viewId: v.id })
     }
     // 无启用芽的域为 null（区分「未启用」与「空」）
     const entityCount = domainSprouts.length === 0

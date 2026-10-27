@@ -33,6 +33,14 @@ export { isTauri, hasTauriInvoke, getStorageBackend, storage, StorageError, setS
 export { FileStorageBackend } from './FileStorageBackend'
 
 export { entitySchemaRegistry } from './EntitySchema'
+export {
+  sproutIconSlot,
+  entityTypeIconSlot,
+  setEffectiveIconOverrides,
+  getEffectiveIconOverride,
+  clearEffectiveIconOverrides,
+  iconOverrideVersion,
+} from './iconOverrides'
 export { validateSchemaOverlay, applySchemaOverlay, setSchemaOverlays, getSchemaOverlay, schemaOverlayCount } from './schemaOverlay'
 export type { EntitySchemaOverlay, SchemaOverlayBase, SchemaOverlayResult } from './schemaOverlay'
 

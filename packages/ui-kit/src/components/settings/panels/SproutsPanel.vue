@@ -4,7 +4,7 @@
        本组件保持对外 API 不变（props / card-change / expose），SettingsDialog 兼容层无感。 -->
   <CardDeck :count="1" :flat="!!searchQuery" @change="(i) => emit('card-change', i)" ref="deckRef">
     <template #card="{ idx, cls }">
-      <SproutsCardContent v-if="idx === 0" :class="cls" :search-query="searchQuery" @dirty="(v: boolean) => emit('dirty', v)" ref="contentRef" />
+      <SproutsCardContent v-if="idx === 0" :class="cls" :search-query="searchQuery" @dirty="emit('dirty')" ref="contentRef" />
     </template>
   </CardDeck>
 </template>

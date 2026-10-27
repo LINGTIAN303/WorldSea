@@ -18,6 +18,20 @@ export type {
 export { useUIStore, SPROUT_NAV_MODES, normalizeSproutNavMode, normalizeSproutDomainFilter, normalizeSplitSidebarOrder } from './uiStore'
 export type { SproutNavMode, SproutDomainFilter, SplitSidebarOrder, SettingsTarget } from './uiStore'
 export { useSettingsStore, SPROUT_CATEGORIES, ANIMATION_GROUPS } from './settingsStore'
+export {
+  useIconOverrideStore,
+  ICON_GLOBAL_STORAGE_KEY,
+  ICON_PROJECT_SETTING_KEY,
+  ICON_PROJECT_FALLBACK_PREFIX,
+  sanitizeOverrides,
+  buildEffectiveMap,
+  pickNewerProjectState,
+} from './iconOverrideStore'
+export type {
+  IconOverrideSource,
+  IconOverrideMapState,
+  ProjectIconOverrideState,
+} from './iconOverrideStore'
 export type {
   SproutToggle,
   SproutCategory,

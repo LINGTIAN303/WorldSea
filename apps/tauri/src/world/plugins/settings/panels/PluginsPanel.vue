@@ -96,8 +96,10 @@
         :search-query="searchQuery"
         :domain-of="domainOf"
         :attention-ids="attentionIds"
+        :icon-of="iconOf"
         @dirty="emit('dirty')"
         @inspect="refreshInsights"
+        @edit-icon="onEditIcon"
         ref="sproutsContentRef"
       >
         <template #sprout-detail="{ id }">
@@ -109,6 +111,14 @@
       <SproutGroupsCardContent v-else-if="idx === 3" :class="cls" :search-query="searchQuery" @dirty="emit('dirty')" />
     </template>
   </CardDeck>
+
+  <IconPicker
+    :show="pickerOpen"
+    :target="pickerTarget"
+    @close="closeIconPicker"
+    @confirm="confirmIcon"
+    @reset="resetIcon"
+  />
 </template>
 
 <script setup lang="ts">
@@ -121,6 +131,8 @@ import TuiModal from '@/components/ui/TuiModal.vue'
 import { availablePlugins, externalPluginStates, reloadExternalPlugins, collectSproutInsights, externalDomainText } from '@/world'
 import type { ExternalPluginState, SproutInsight } from '@/world'
 import SproutDetailPanel from './SproutDetailPanel.vue'
+import IconPicker from './IconPicker.vue'
+import { useIconSlotEditor } from './useIconSlotEditor'
 
 const props = defineProps<{ searchQuery?: string }>()
 const emit = defineEmits<{ dirty: []; 'card-change': [index: number] }>()
@@ -157,6 +169,19 @@ let stopViewWatch: (() => void) | null = null
 function refreshInsights(): void {
   insights.value = collectSproutInsights(settings.sprouts)
 }
+
+const {
+  iconOf,
+  pickerOpen,
+  pickerTarget,
+  openForSprout: onEditIcon,
+  close: closeIconPicker,
+  confirm: confirmIcon,
+  reset: resetIcon,
+} = useIconSlotEditor({
+  plugins: () => treePlugins.value,
+  onApplied: () => refreshInsights(),
+})
 
 /** 非芽类（utility）内置插件：manifest 自声明 kind，常驻装载（无启停——批5 对齐 dsh 内置语义）。
  *  外部 utility 插件在「外部插件」卡管理，不重复。 */

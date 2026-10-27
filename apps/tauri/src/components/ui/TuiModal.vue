@@ -9,6 +9,7 @@
  */
 import { ref, watch, onBeforeUnmount, nextTick } from 'vue'
 import { WsIcon, setShortcutModalActive } from '@worldsea/ui-kit'
+import { createModalLayerId, isTopModalLayer, popModalLayer, pushModalLayer } from '@/composables/modalStack'
 
 // 注册表弹窗深度守卫标记（本实例是否已入栈，防重复/泄漏）
 let modalGuardActive = false
@@ -42,12 +43,12 @@ let returnFocusEl: HTMLElement | null = null
    模块级计数器 + 打开栈：每个实例唯一 id；仅栈顶弹窗响应 Esc/Tab，
    避免一次 Esc 关闭全部弹窗、多个弹窗 aria-labelledby 指向同一标题。 */
 let modalSeq = 0
-const openStack: number[] = []
 const instanceId = ++modalSeq
 const instanceLabelId = `tui-modal-title-${instanceId}`
+const layerId = createModalLayerId()
 
-/** 当前实例是否栈顶（最后打开的弹窗） */
-const isTop = () => openStack[openStack.length - 1] === instanceId
+/** 当前实例是否栈顶（最后打开的弹层） */
+const isTop = () => isTopModalLayer(layerId)
 
 function onKeydown(e: KeyboardEvent) {
   if (!props.show || !isTop()) return
@@ -91,7 +92,7 @@ watch(
       const ae = document.activeElement
       if (ae && !panelEl.value?.contains(ae)) returnFocusEl = ae as HTMLElement | null
       // 入栈：本实例成为栈顶
-      if (!openStack.includes(instanceId)) openStack.push(instanceId)
+      pushModalLayer(layerId)
       window.addEventListener('keydown', onKeydown)
       // 注册表弹窗深度 +1：弹窗打开期间 view/global 层快捷键失效（modal 优先）
       if (!modalGuardActive) { setShortcutModalActive(true); modalGuardActive = true }
@@ -106,8 +107,7 @@ watch(
     } else {
       window.removeEventListener('keydown', onKeydown)
       // 出栈
-      const i = openStack.indexOf(instanceId)
-      if (i >= 0) openStack.splice(i, 1)
+      popModalLayer(layerId)
       if (modalGuardActive) { setShortcutModalActive(false); modalGuardActive = false }
       // 关闭后还原焦点到打开前位置（Esc/遮罩/取消按钮等关闭路径统一还原）
       returnFocusEl?.focus?.({ preventScroll: true })
@@ -119,6 +119,7 @@ watch(
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown)
+  popModalLayer(layerId)
   // 卸载时若仍在弹窗态需出栈，防止注册表弹窗深度泄漏
   if (modalGuardActive) { setShortcutModalActive(false); modalGuardActive = false }
 })

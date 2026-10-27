@@ -8,6 +8,8 @@ import {
   pluginAPI,
   relationshipRegistry,
   SPROUT_DOMAINS,
+  sproutIconSlot,
+  useIconOverrideStore,
 } from '@worldsea/entity-core'
 import { availablePlugins, externalPluginStates, worldTreeState } from './tree'
 import type { WorldPluginManifest } from './manifest'
@@ -74,7 +76,7 @@ export interface SproutInsightInput {
     domain?: string
     secondaryDomains?: string[]
   }>
-  views: ReadonlyArray<{ pluginId?: string }>
+  views: ReadonlyArray<{ pluginId?: string; icon?: string }>
   /** 运行时 schema 归属（外部插件未声明 entityTypes 时的回退） */
   runtimeTypeOwners?: Readonly<Record<string, string>>
 }
@@ -207,10 +209,11 @@ export function buildSproutInsights(input: SproutInsightInput): SproutInsight[] 
       runtime = 'loaded'
     }
 
+    const view = input.views.find(item => item.pluginId === sprout.id)
     return {
       id: sprout.id,
       label: manifest?.name ?? sprout.label,
-      icon: sprout.icon ?? 'puzzle',
+      icon: view?.icon ?? sprout.icon ?? 'puzzle',
       domain: manifest?.domain ?? external?.domain ?? 'unclassified',
       secondaryDomains: manifest?.secondaryDomains ?? external?.secondaryDomains ?? [],
       source: sprout.source === 'external' ? 'external' : 'builtin',
@@ -235,6 +238,10 @@ export function collectSproutInsights(
   for (const schema of entitySchemaRegistryV2.getAll()) {
     if (schema.pluginId) runtimeTypeOwners[schema.type] = schema.pluginId
   }
+  const iconStore = useIconOverrideStore()
+  const views = pluginAPI.getViews().map(view => view.pluginId
+    ? { ...view, icon: iconStore.resolve(sproutIconSlot(view.pluginId), view.icon) }
+    : view)
   return buildSproutInsights({
     sprouts,
     plugins: availablePlugins(),
@@ -247,7 +254,7 @@ export function collectSproutInsights(
       domain: state.domain,
       secondaryDomains: state.secondaryDomains,
     })),
-    views: pluginAPI.getViews(),
+    views,
     runtimeTypeOwners,
   })
 }

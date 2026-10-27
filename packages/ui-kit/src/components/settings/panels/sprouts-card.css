@@ -213,6 +213,7 @@
   padding: 2px 2px;
   user-select: none;
   flex-shrink: 0;
+  order: 0;
   transition: color 0.1s;
 }
 .sp-grip:hover {
@@ -238,15 +239,18 @@
   padding: 1px 4px;
   border-radius: 3px;
   margin-right: 4px;
+  order: 1;
 }
 .sp-toggle {
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
   cursor: pointer;
   font-size: var(--font-size-sm);
   padding: 2px 6px;
   border-radius: var(--radius-sm);
+  order: 3;
   transition: background 0.1s;
 }
 .sp-toggle:hover {
@@ -256,15 +260,39 @@
   margin: 0;
   accent-color: var(--primary, var(--color-primary));
 }
-.sp-icon {
-  font-size: var(--font-size-lg);
+.sp-icon-btn {
+  order: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  flex-shrink: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary, var(--color-text-secondary));
+  cursor: pointer;
+  transition: border-color 0.1s, color 0.1s, background 0.1s;
+}
+.sp-icon-btn:hover,
+.sp-icon-btn:focus-visible {
+  border-color: var(--primary, var(--color-primary));
+  background: var(--hover-bg, var(--color-bg-hover));
+  color: var(--primary, var(--color-primary));
 }
 .sp-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: var(--font-size-sm);
 }
 .sp-info {
   margin-left: auto;
   flex-shrink: 0;
+  order: 4;
   display: inline-flex;
   align-items: center;
   justify-content: center;

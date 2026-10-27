@@ -1,4 +1,5 @@
 import type { EntityTypeSchema } from '../types'
+import { entityTypeIconSlot, getEffectiveIconOverride } from './iconOverrides'
 
 const FALLBACK_TYPE_LABELS: Record<string, string> = {
   character: '角色',
@@ -52,7 +53,7 @@ const TYPE_ICON: Record<string, string> = {
   apparel: 'apparel',
 }
 
-class EntitySchemaRegistry {
+export class EntitySchemaRegistry {
   private schemas = new Map<string, EntityTypeSchema>()
 
   register(schema: EntityTypeSchema): void {
@@ -73,8 +74,13 @@ class EntitySchemaRegistry {
     return FALLBACK_TYPE_LABELS[type] || type
   }
 
+  getDefaultIconName(type: string): string {
+    const schema = this.schemas.get(type)
+    return schema?.icon || TYPE_ICON[type] || 'manuscript'
+  }
+
   getIconName(type: string): string {
-    return TYPE_ICON[type] || 'manuscript'
+    return getEffectiveIconOverride(entityTypeIconSlot(type)) ?? this.getDefaultIconName(type)
   }
 
   unregister(type: string): void {

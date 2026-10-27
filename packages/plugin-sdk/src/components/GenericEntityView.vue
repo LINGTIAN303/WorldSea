@@ -185,7 +185,7 @@
 import { toastSuccess, toastWarn, toastWithUndo } from '@worldsea/ui-kit'
 import { useEntityEdit, useBatchDelete, useDuplicateNameCheck, useShortcuts, useConfirm, useHighlight, useEntityPaging, useSelectedFollow } from '../composables'
 import { ref, computed, onMounted, onBeforeUnmount, reactive, useSlots, watch } from 'vue'
-import { useEntityStore, useRelationStore, entitySchemaRegistry, fieldRegistry, useUIStore, useDetailLayoutStore } from '@worldsea/entity-core'
+import { useEntityStore, useRelationStore, entitySchemaRegistry, entityTypeIconSlot, getEffectiveIconOverride, fieldRegistry, useUIStore, useDetailLayoutStore } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
 import CustomDropdown from './CustomDropdown.vue'
 import CreateButton from './CreateButton.vue'
@@ -304,7 +304,12 @@ const { selectedIds, selecting, toggleSelect, clearSelection, toggleSelectMode, 
 
 const entityLabel = computed(() => props.entityLabel || props.entityType)
 const idPrefix = computed(() => props.idPrefix || `${props.entityType.slice(0, 3)}-`)
-const resolvedIconFn = computed(() => props.iconFn || (() => entitySchemaRegistry.getIconName(props.entityType)))
+/** 用户覆盖 > 视图 iconFn > schema 图标；实体类型覆盖必须落到所有卡片与详情头。 */
+const resolvedIconFn = computed(() => {
+  const override = getEffectiveIconOverride(entityTypeIconSlot(props.entityType))
+  if (override) return () => override
+  return props.iconFn || (() => entitySchemaRegistry.getIconName(props.entityType))
+})
 
 const typeFieldKey = computed(() => {
   const schema = entitySchemaRegistry.get(props.entityType)

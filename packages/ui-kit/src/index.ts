@@ -20,6 +20,15 @@ export type {
   IconCategory,
 } from './assets/iconRegistry'
 
+// 世界观精选图标目录（图标库选择器的内容层）
+export {
+  ICON_CATALOG,
+  ICON_DOMAIN_IDS,
+  isCatalogIconAvailable,
+  searchIconCatalog,
+} from './assets/iconCatalog'
+export type { IconCatalogEntry, IconDomain } from './assets/iconCatalog'
+
 // settings 模块共用工具与类型（从根 src/ui/settings/utils.ts 下沉）
 export {
   matchKeywords,

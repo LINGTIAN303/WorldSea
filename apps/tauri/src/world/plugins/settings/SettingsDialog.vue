@@ -39,6 +39,7 @@
         <template v-if="searchQuery">
           <template v-for="cat in matchedCategories" :key="cat.id">
             <AppearancePanel v-if="cat.id === 'appearance'" :search-query="searchQuery" @dirty="onDirty" />
+            <IconsPanel v-if="cat.id === 'icons'" :search-query="searchQuery" @card-change="onPanelCardChange" />
             <HomePanel v-if="cat.id === 'home'" :search-query="searchQuery" @card-change="onPanelCardChange" />
             <PluginsPanel v-if="cat.id === 'plugins'" :search-query="searchQuery" @dirty="onDirty" />
             <EditorPanel v-if="cat.id === 'editor'" :search-query="searchQuery" @dirty="onDirty" />
@@ -57,6 +58,7 @@
         <!-- 正常模式：只渲染当前激活的分类（均接入 CardDeck 叠放翻卡，左列标题点击翻卡） -->
         <template v-else>
           <AppearancePanel v-if="activeSection === 'appearance'" ref="appearanceRef" @dirty="onDirty" @card-change="onPanelCardChange" />
+          <IconsPanel v-else-if="activeSection === 'icons'" ref="iconsRef" :search-query="searchQuery" @card-change="onPanelCardChange" />
           <HomePanel v-else-if="activeSection === 'home'" ref="homeRef" @card-change="onPanelCardChange" />
           <PluginsPanel v-else-if="activeSection === 'plugins'" ref="pluginsRef" :search-query="searchQuery" @dirty="onDirty" @card-change="onPanelCardChange" />
           <EditorPanel v-else-if="activeSection === 'editor'" ref="editorRef" @dirty="onDirty" @card-change="onPanelCardChange" />
@@ -88,6 +90,7 @@ import { useFocusTrap } from '@/composables/useFocusTrap'
 import StorageManagementTab from './data/StorageManagementTab.vue'
 // 设置子面板（已迁移到 ui-kit，通过 re-export 兼容层导入）
 import AppearancePanel from './panels/AppearancePanel.vue'
+import IconsPanel from './panels/IconsPanel.vue'
 import PluginsPanel from './panels/PluginsPanel.vue'
 import EditorPanel from './panels/EditorPanel.vue'
 import LayoutPanel from './panels/LayoutPanel.vue'
@@ -226,6 +229,7 @@ const activeRail = ref(-1)
 const railVisible = computed(() => !searchQuery.value && activeSection.value !== null && railItems.value.length > 0)
 /** 各分类面板实例（均暴露 goToCard，供左列标题点击翻卡；@card-change 上报左列高亮） */
 const appearanceRef = ref<InstanceType<typeof AppearancePanel> | null>(null)
+const iconsRef = ref<InstanceType<typeof IconsPanel> | null>(null)
 const homeRef = ref<InstanceType<typeof HomePanel> | null>(null)
 const pluginsRef = ref<InstanceType<typeof PluginsPanel> | null>(null)
 const editorRef = ref<InstanceType<typeof EditorPanel> | null>(null)
@@ -239,6 +243,7 @@ const accessibilityRef = ref<InstanceType<typeof AccessibilityPanel> | null>(nul
 const aboutRef = ref<InstanceType<typeof AboutPanel> | null>(null)
 const panelRefs: Record<string, { value: any }> = {
   appearance: appearanceRef,
+  icons: iconsRef,
   home: homeRef,
   plugins: pluginsRef,
   editor: editorRef,

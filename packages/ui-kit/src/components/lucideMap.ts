@@ -33,7 +33,7 @@ import {
 } from 'lucide-vue-next'
 // Tabler 图标混编：个别芽的图标由用户点名采用 Tabler（@tabler/icons-vue），与本表混编（2026-09-13）。
 // 组件 API 兼容：两者都接受 size / stroke-width（Tabler 的 stroke-width 经 attrs 落到 svg）。
-import { IconMoodNeutral, IconUsersGroup, IconMoodAngryFilled, IconBrandTerraform } from '@tabler/icons-vue'
+import { IconMoodNeutral, IconUsersGroup } from '@tabler/icons-vue'
 
 const LUCIDE_MAP: Record<string, Component> = {
   user: User,
@@ -193,7 +193,7 @@ const LUCIDE_MAP: Record<string, Component> = {
   building: Building2,
   species: Dna,
   weapon: Swords,
-  combat: IconMoodAngryFilled,
+  combat: Swords,
   plant: Flower2,
   culture: Landmark,
   language: Languages,
@@ -201,7 +201,7 @@ const LUCIDE_MAP: Record<string, Component> = {
   smartphone: Smartphone,
   outline: LayoutList,
   magic: Wand2,
-  concept: IconBrandTerraform,
+  concept: Brain,
   mindmap: Network,
   inspiration: Lightbulb,
   organization: IconUsersGroup,
@@ -248,7 +248,18 @@ const LUCIDE_MAP: Record<string, Component> = {
   notepad: StickyNote,
   paperclip: Paperclip,
   puzzle: Puzzle,
+  flame: Flame,
+  printer: Printer,
+  'pen-tool': PenTool,
+  type: Type,
+  earth: Earth,
+  orbit: Orbit,
+  tent: Tent,
+  mountain: Mountain,
+  dna: Dna,
+  droplet: Droplet,
   sunglasses: Glasses,
+  glasses: Glasses,
   wizard: Wand2,
   coin: Coins,
   handshake: Handshake,

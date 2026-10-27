@@ -8,7 +8,7 @@
  *
  * 口径收敛：**渲染与切换都从这里取**，两处不再各写一份。
  */
-import { isViewVisible, usePluginStore } from '@worldsea/entity-core'
+import { isViewVisible, sproutIconSlot, useIconOverrideStore, usePluginStore } from '@worldsea/entity-core'
 import type { PluginView } from '@worldsea/entity-core/types'
 
 import { useUIStore } from '@/stores/uiStore'
@@ -20,10 +20,14 @@ export function allVisibleViewsInSidebarOrder(): PluginView[] {
   const order = useUIStore().sidebarOrder
   const orderMap = new Map<string, number>()
   for (let i = 0; i < order.length; i++) orderMap.set(order[i], i)
+  const iconStore = useIconOverrideStore()
   return usePluginStore().views
     .filter(view => isViewVisible(view.pluginId))
     .slice()
     .sort((a, b) => (orderMap.get(a.id) ?? 999) - (orderMap.get(b.id) ?? 999))
+    .map(view => view.pluginId
+      ? { ...view, icon: iconStore.resolve(sproutIconSlot(view.pluginId), view.icon) }
+      : view)
 }
 
 /** 侧栏/快捷键共用顺序；split 模式下按当前语义域过滤，其余模式返回全量。 */

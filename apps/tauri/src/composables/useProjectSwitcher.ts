@@ -9,7 +9,7 @@ import { useAsyncTask } from '@worldsea/ui-kit/composables/useAsyncTask'
 import { getProjectManager, setStorageProjectDir } from '@worldsea/entity-core/core'
 import type { ProjectInfo } from '@worldsea/entity-core/core'
 import { entitySchemaRegistry, relationSchemaRegistry, entitySchemaRegistryV2 } from '@worldsea/entity-core/core'
-import { usePluginStore, useEntityStore, useRelationStore, useFileStore } from '@worldsea/entity-core/stores'
+import { usePluginStore, useEntityStore, useRelationStore, useFileStore, useIconOverrideStore } from '@worldsea/entity-core/stores'
 
 import { pluginAPI } from '@worldsea/entity-core'
 import { bootstrapShell } from '@/plugins/boot'
@@ -147,6 +147,9 @@ export function useProjectSwitcher() {
     // 6. 加载当前项目信息与列表
     currentProject.value = current
     projectList.value = synced ?? (await pm.listProjects())
+
+    // 7. 图标覆盖（项目库为主，分键 localStorage 回退）
+    await useIconOverrideStore().loadProjectIconOverrides()
 
     return current?.id ?? ''
   }
@@ -286,6 +289,9 @@ export function useProjectSwitcher() {
     if (projectSproutGroups) {
       settings.sproutGroups = projectSproutGroups
     }
+
+    // 图标覆盖（项目级；切项目必须重读，避免沿用上一项目）
+    await useIconOverrideStore().loadProjectIconOverrides()
 
     // 重载思维导图文档（项目级隔离：文档索引与内容都在项目 DB；C 批起模块在第二棵树内）
     const { useMindmapDocStore } = await import('@/world/plugins/mindmap/mindmapStore')

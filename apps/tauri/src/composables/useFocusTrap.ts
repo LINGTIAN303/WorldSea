@@ -1,5 +1,6 @@
 import { ref, watch, onBeforeUnmount, type Ref } from 'vue'
 import { setShortcutModalActive } from '@worldsea/ui-kit'
+import { createModalLayerId, isTopModalLayer, popModalLayer, pushModalLayer } from './modalStack'
 
 // 注册表弹窗深度守卫标记（本实例是否已入栈，防重复/泄漏）
 let modalGuardActive = false
@@ -41,6 +42,7 @@ export function useFocusTrap(containerRef: Ref<HTMLElement | null>, options: {
 
   let previouslyFocusedElement: HTMLElement | null = null
   const isTrapping = ref(false)
+  const layerId = createModalLayerId()
 
   function saveFocus() {
     previouslyFocusedElement = document.activeElement as HTMLElement | null
@@ -68,6 +70,8 @@ export function useFocusTrap(containerRef: Ref<HTMLElement | null>, options: {
 
   function onKeydown(e: KeyboardEvent) {
     if (!isTrapping.value) return
+    // 嵌套弹层（如设置里的 TuiModal）在栈顶时，Esc/Tab 交给它处理
+    if (!isTopModalLayer(layerId)) return
 
     if (e.key === 'Escape' && escapeDeactivates) {
       e.preventDefault()
@@ -108,6 +112,7 @@ export function useFocusTrap(containerRef: Ref<HTMLElement | null>, options: {
     if (isTrapping.value) return
     saveFocus()
     isTrapping.value = true
+    pushModalLayer(layerId)
     document.addEventListener('keydown', onKeydown, true)
     // 注册表弹窗深度 +1：弹窗打开期间 view/global 层快捷键失效（modal 优先）
     if (!modalGuardActive) { setShortcutModalActive(true); modalGuardActive = true }
@@ -119,6 +124,7 @@ export function useFocusTrap(containerRef: Ref<HTMLElement | null>, options: {
   function deactivate() {
     if (!isTrapping.value) return
     isTrapping.value = false
+    popModalLayer(layerId)
     document.removeEventListener('keydown', onKeydown, true)
     if (modalGuardActive) { setShortcutModalActive(false); modalGuardActive = false }
     restoreFocus()

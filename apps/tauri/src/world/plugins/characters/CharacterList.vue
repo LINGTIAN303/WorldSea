@@ -19,7 +19,7 @@
       </template>
 
       <template #detail-header="{ entity }">
-        <span class="dp-avatar"><template v-if="entity?.avatar">{{ entity?.avatar }}</template><WsIcon v-else name="character" :size="22" /></span>
+        <span class="dp-avatar"><template v-if="entity?.avatar">{{ entity?.avatar }}</template><WsIcon v-else :name="entitySchemaRegistry.getIconName('character')" :size="22" /></span>
         <div class="dp-title-area">
           <h3>{{ entity?.name || '' }}</h3>
           <span class="dp-type-label">角色</span>

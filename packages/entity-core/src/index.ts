@@ -23,6 +23,11 @@ export {
   fieldRegistry,
   pluginAPI,
   inverseRegistry,
+  // 图标槽位与覆盖解析
+  sproutIconSlot,
+  entityTypeIconSlot,
+  getEffectiveIconOverride,
+  iconOverrideVersion,
   RelationTypes,
   RelationTypeLabels,
   InverseRelation,
