@@ -1,4 +1,11 @@
-import { SPROUT_DOMAINS, isSproutDomain, type SproutDomainFilter, type SproutDomainId } from '@worldsea/entity-core'
+import {
+  SPROUT_DOMAINS,
+  domainIconSlot,
+  getEffectiveIconOverride,
+  isSproutDomain,
+  type SproutDomainFilter,
+  type SproutDomainId,
+} from '@worldsea/entity-core'
 import type { PluginView } from '@worldsea/entity-core/types'
 
 /** 域归视图：manifest 的 domain；缺省/未声明 → unclassified（只在「全部」出现）。 */
@@ -59,7 +66,12 @@ export function buildSproutNavigation(
     { id: 'all', label: '全部', icon: 'menu', count: views.length },
     ...SPROUT_DOMAINS
       .filter(domain => (counts.get(domain.id) ?? 0) > 0)
-      .map(domain => ({ id: domain.id, label: domain.label, icon: domain.icon, count: counts.get(domain.id) ?? 0 })),
+      .map(domain => ({
+        id: domain.id,
+        label: domain.label,
+        icon: getEffectiveIconOverride(domainIconSlot(domain.id)) ?? domain.icon,
+        count: counts.get(domain.id) ?? 0,
+      })),
   ]
 
   return {

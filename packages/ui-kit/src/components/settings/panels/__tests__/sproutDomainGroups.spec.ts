@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
+import { clearEffectiveIconOverrides, domainIconSlot, setEffectiveIconOverrides } from '@worldsea/entity-core/core'
 import { groupSproutsByDomain, mergeDomainOrder } from '../sproutDomainGroups'
 
 describe('sproutDomainGroups', () => {
@@ -22,4 +23,12 @@ describe('sproutDomainGroups', () => {
   it('新 id 不在全局顺序时追加到末尾', () => {
     expect(mergeDomainOrder(['a', 'b'], ['b', 'a', 'z'])).toEqual(['b', 'a', 'z'])
   })
+
+  it('域分组头图标跟随覆盖层', () => {
+    setEffectiveIconOverrides(new Map([[domainIconSlot('geo'), 'flame']]))
+    const groups = groupSproutsByDomain([{ id: 'a' }], () => 'geo')
+    expect(groups[0].icon).toBe('flame')
+  })
 })
+
+afterEach(() => clearEffectiveIconOverrides())

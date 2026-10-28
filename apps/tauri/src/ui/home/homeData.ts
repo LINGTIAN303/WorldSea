@@ -3,7 +3,7 @@
  * 口径：域归属 = manifest.domain / secondaryDomains；域卡/最近/写作只看启用芽；
  * 矩阵摘要取当前注册 Schema（不受芽启用影响）；域计数按类型去重。
  */
-import { SPROUT_DOMAINS } from '@worldsea/entity-core'
+import { SPROUT_DOMAINS, domainIconSlot, getEffectiveIconOverride } from '@worldsea/entity-core'
 import type { Entity, PluginView, Relation, SproutToggle } from '@worldsea/entity-core'
 import type { WorldPlugin } from '@/world/manifest'
 import type { FieldMatrixModel, FieldMatrixStats } from '@/world/plugins/field-matrix/model/types'
@@ -235,7 +235,7 @@ export function buildHomeData(input: HomeDataInput): HomeData {
     return {
       id: domain.id,
       label: domain.label,
-      icon: domain.icon,
+      icon: getEffectiveIconOverride(domainIconSlot(domain.id)) ?? domain.icon,
       question: domain.question,
       entityCount,
       activeSprouts: active,

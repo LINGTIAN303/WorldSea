@@ -469,6 +469,7 @@ const hasCoverTab = computed(() => {
 const resolvedTabs = computed(() => {
   const tabs = resolveDetailTabs({
     hasCover: hasCoverTab.value,
+    entityType: props.entityType,
     customTabs: props.customTabs || [],
     override: detailPrefs.tabOverrides[props.entityType],
   })

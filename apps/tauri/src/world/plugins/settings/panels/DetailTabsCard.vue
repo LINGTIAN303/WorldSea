@@ -2,7 +2,7 @@
   <div class="sc-head"><span>Tab 管理</span><span class="ds-type">{{ typeLabel }}</span></div>
 
   <div v-for="(row, i) in draft" :key="row.id" class="set-row ds-tab-row">
-    <WsIcon :name="row.icon || 'outline'" size="xs" class="ds-tab-icon" />
+    <WsIcon :name="tabIcon(row)" size="xs" class="ds-tab-icon" />
     <span class="ds-label ds-tab-label">{{ row.label }}</span>
     <span v-if="row.pinned" class="ds-count" title="信息与关联是兜底入口，不可隐藏">固定</span>
     <button class="ds-btn" type="button" title="上移" aria-label="上移" :disabled="i === 0" @click="move(i, -1)"><WsIcon name="arrow-up" size="xs" /></button>
@@ -37,8 +37,13 @@
  */
 import { computed, ref, watch } from 'vue'
 import { WsIcon } from '@worldsea/ui-kit'
-import { entitySchemaRegistry, useDetailLayoutStore } from '@worldsea/entity-core'
-import { resolveDetailTabs, PINNED_TAB_IDS } from '@worldsea/plugin-sdk'
+import {
+  detailTabIconSlot,
+  entitySchemaRegistry,
+  getEffectiveIconOverride,
+  useDetailLayoutStore,
+} from '@worldsea/entity-core'
+import { resolveDetailTabs, PINNED_TAB_IDS, SHARED_DETAIL_TABS } from '@worldsea/plugin-sdk'
 import { DETAIL_TAB_DECLARATIONS } from '@/world/detailTabDeclarations'
 
 const props = defineProps<{
@@ -78,6 +83,15 @@ function build(): TabRow[] {
     visible: !hidden.has(t.id),
     pinned: PINNED_TAB_IDS.includes(t.id),
   }))
+}
+
+const SHARED_TAB_IDS = new Set<string>(SHARED_DETAIL_TABS.map(tab => tab.id))
+
+/** 行图标实时读覆盖层，避免「图标中心换完、本卡仍是旧图标」。 */
+function tabIcon(row: TabRow): string {
+  const exact = getEffectiveIconOverride(detailTabIconSlot(props.entityType, row.id))
+  const shared = SHARED_TAB_IDS.has(row.id) ? getEffectiveIconOverride(detailTabIconSlot('*', row.id)) : undefined
+  return exact ?? shared ?? (row.icon || 'outline')
 }
 
 function revert(): void {

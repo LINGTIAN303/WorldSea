@@ -1,4 +1,4 @@
-import { SPROUT_DOMAINS } from '@worldsea/entity-core'
+import { SPROUT_DOMAINS, domainIconSlot, getEffectiveIconOverride } from '@worldsea/entity-core'
 
 export const UNCLASSIFIED_DOMAIN = 'unclassified'
 
@@ -25,7 +25,7 @@ export function groupSproutsByDomain<T extends { id: string }>(
   const groups: SproutDomainGroup<T>[] = SPROUT_DOMAINS.map(domain => ({
     id: domain.id,
     label: domain.label,
-    icon: domain.icon,
+    icon: getEffectiveIconOverride(domainIconSlot(domain.id)) ?? domain.icon,
     items: byDomain.get(domain.id) ?? [],
   }))
   const known = new Set<string>(SPROUT_DOMAINS.map(domain => domain.id))

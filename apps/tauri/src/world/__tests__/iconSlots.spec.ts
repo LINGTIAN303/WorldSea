@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { buildIconSlots, entityTypeSlotsOf } from '../iconSlots'
+import {
+  buildDetailTabIconSlots,
+  buildDomainIconSlots,
+  buildIconSlots,
+  buildRegionTypeIconSlots,
+  entityTypeSlotsOf,
+} from '../iconSlots'
 
 describe('buildIconSlots', () => {
   it('芽槽位默认取视图图标，缺视图回退芽默认', () => {
@@ -50,5 +56,41 @@ describe('buildIconSlots', () => {
       ],
     })
     expect(entityTypeSlotsOf(slots, 'official.manuscript').map(slot => slot.key)).toEqual(['entityType:book'])
+  })
+})
+
+describe('扩展槽位', () => {
+  it('语义域只 8 个，key 与默认图标来自 SPROUT_DOMAINS', () => {
+    const slots = buildDomainIconSlots()
+    expect(slots).toHaveLength(8)
+    expect(slots.map(slot => slot.key)).toContain('domain:life')
+    expect(slots.find(slot => slot.key === 'domain:geo')?.defaultIcon).toBe('region')
+    expect(slots.every(slot => slot.kind === 'domain')).toBe(true)
+  })
+
+  it('详情页通用 4 页共享 + 芽自定义页 15 个', () => {
+    const slots = buildDetailTabIconSlots([
+      { type: 'character', label: '角色', icon: 'character', pluginId: 'official.characters' },
+    ])
+    expect(slots.filter(slot => slot.entityType === '*')).toHaveLength(4)
+    expect(slots.find(slot => slot.key === 'detailTab:*:info')?.defaultIcon).toBe('outline')
+    expect(slots.filter(slot => slot.entityType === 'character')).toHaveLength(6)
+    expect(slots.find(slot => slot.key === 'detailTab:character:family')).toMatchObject({
+      kind: 'detailTab',
+      label: '家谱',
+      defaultIcon: 'tree',
+      entityTypeLabel: '角色',
+    })
+    // V2 未注册的类型回退旧注册表中文名，设置分组不露英文 type key
+    expect(slots.find(slot => slot.key === 'detailTab:organization:members')?.entityTypeLabel).toBe('势力')
+    expect(slots).toHaveLength(19)
+  })
+
+  it('区域类型覆盖已知全集 18 个，星海题材值也在列', () => {
+    const slots = buildRegionTypeIconSlots()
+    expect(slots).toHaveLength(18)
+    expect(slots.find(slot => slot.key === 'regionType:星海')?.defaultIcon).toBe('sparkle')
+    expect(slots.find(slot => slot.key === 'regionType:城市')?.defaultIcon).toBe('city')
+    expect(slots.every(slot => slot.kind === 'regionType' && slot.domain === 'geo')).toBe(true)
   })
 })

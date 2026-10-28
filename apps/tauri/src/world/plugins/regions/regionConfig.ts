@@ -1,3 +1,4 @@
+import { getEffectiveIconOverride, regionTypeIconSlot } from '@worldsea/entity-core'
 import type { FormFieldDef } from '@worldsea/plugin-sdk'
 
 export const regionFields: FormFieldDef[] = [
@@ -39,6 +40,20 @@ export const typeIconMap: Record<string, string> = {
   '星河': 'galaxy', '星域': 'galaxy', '星球': 'globe', '大陆': 'map',
   '帝国': 'sword', '城': 'castle', '镇': 'city', '村': 'village', '家': 'home',
   '国家': 'flag', '行省': 'landscape', '城市': 'city', '地标': 'monument', '区域': 'location',
+}
+
+const formRegionTypes = regionFields.find(field => field.key === 'regionType')?.options ?? []
+
+/** 区域类型图标可覆盖的全集：星海题材旧值 + 表单下拉值，去重保序。 */
+export const regionTypeValues = Array.from(new Set([
+  ...regionTypeOptions,
+  ...formRegionTypes.map(option => option.value),
+  ...Object.keys(typeIconMap),
+]))
+
+export function regionTypeIcon(type: string | undefined): string {
+  const fallback = (type && typeIconMap[type]) || 'region'
+  return type ? getEffectiveIconOverride(regionTypeIconSlot(type)) ?? fallback : fallback
 }
 
 export const fieldOrder = ['climate', 'population', 'area', 'government']

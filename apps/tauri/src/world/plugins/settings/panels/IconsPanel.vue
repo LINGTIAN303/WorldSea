@@ -1,61 +1,30 @@
 <template>
-  <CardDeck :count="3" :flat="!!searchQuery" @change="(i) => emit('card-change', i)" ref="deckRef">
+  <CardDeck :count="iconCards.length + 1" :flat="!!searchQuery" @change="(i) => emit('card-change', i)" ref="deckRef">
     <template #card="{ idx, cls }">
-      <div
-        v-if="idx === 0"
-        class="set-card deck-card ic-card"
-        :class="cls"
-        v-show="match('芽 sprout 图标 icon 侧栏 视图 sprout')"
-      >
-        <div class="sc-head">
-          <span>芽图标</span>
-          <span class="ic-sub">侧栏 / 快捷访问 / 首页跟随</span>
-        </div>
-        <div class="ic-search-row">
-          <input v-model="sproutSearch" class="set-input ic-input" type="text" placeholder="搜索芽..." aria-label="搜索芽图标" />
-          <label class="ic-filter"><input v-model="onlyChanged" type="checkbox" />只看已改</label>
-        </div>
-        <IconSlotList
-          :groups="filteredSproutGroups"
+      <template v-for="(card, i) in iconCards" :key="card.kind">
+        <IconSlotCard
+          v-if="idx === i"
+          :class="cls"
+          :title="card.title"
+          :subtitle="card.subtitle"
+          :placeholder="card.placeholder"
+          :keywords="card.keywords"
+          :search-query="searchQuery"
+          :groups="groupsByKind[card.kind]"
           :icon-of="iconOf"
           :source-of="sourceOf"
           :has-global="hasGlobal"
-          empty-text="没有匹配的芽图标"
+          :empty-text="card.emptyText"
           @edit="openPicker"
           @reset="resetSlot"
         />
-      </div>
+      </template>
 
       <div
-        v-else-if="idx === 1"
+        v-if="idx === iconCards.length"
         class="set-card deck-card ic-card"
         :class="cls"
-        v-show="match('实体类型 图标 icon 实体 entity 卡片 关联 详情')"
-      >
-        <div class="sc-head">
-          <span>实体类型图标</span>
-          <span class="ic-sub">卡片 / 关联 / 提及 / 详情头跟随</span>
-        </div>
-        <div class="ic-search-row">
-          <input v-model="entitySearch" class="set-input ic-input" type="text" placeholder="搜索实体类型..." aria-label="搜索实体类型图标" />
-          <label class="ic-filter"><input v-model="onlyChanged" type="checkbox" />只看已改</label>
-        </div>
-        <IconSlotList
-          :groups="filteredEntityGroups"
-          :icon-of="iconOf"
-          :source-of="sourceOf"
-          :has-global="hasGlobal"
-          empty-text="没有匹配的实体类型图标"
-          @edit="openPicker"
-          @reset="resetSlot"
-        />
-      </div>
-
-      <div
-        v-else
-        class="set-card deck-card ic-card"
-        :class="cls"
-        v-show="match('作用范围 全局 项目 跟随 图标 icon global project')"
+        v-show="match(scopeKeywords)"
       >
         <IconScopeCard
           :follow-global="iconStore.project.followGlobal"
@@ -87,17 +56,82 @@ import { CardDeck, matchKeywords, toastSuccess, useConfirm, ICON_DOMAIN_IDS, typ
 import { availablePlugins } from '@/world'
 import {
   defaultSyncFor,
+  groupDetailTabSlots,
+  groupDomainSlots,
   groupEntityTypeSlots,
+  groupRegionTypeSlots,
   groupSproutSlots,
   syncTargetKeys,
   type IconPickerConfirm,
   type IconPickerTarget,
   type IconSlotListGroup,
 } from '@/world/iconPanelModel'
-import { buildIconSlots, entityTypeSlotsOf, type IconSlot } from '@/world/iconSlots'
-import IconSlotList from './IconSlotList.vue'
+import {
+  buildDetailTabIconSlots,
+  buildDomainIconSlots,
+  buildIconSlots,
+  buildRegionTypeIconSlots,
+  entityTypeSlotsOf,
+  type IconSlot,
+  type IconSlotKind,
+} from '@/world/iconSlots'
+import IconSlotCard from './IconSlotCard.vue'
 import IconScopeCard from './IconScopeCard.vue'
 import IconPicker from './IconPicker.vue'
+
+interface IconCardConfig {
+  kind: IconSlotKind
+  title: string
+  subtitle: string
+  placeholder: string
+  keywords: string
+  emptyText: string
+}
+
+const iconCards: IconCardConfig[] = [
+  {
+    kind: 'sprout',
+    title: '芽图标',
+    subtitle: '侧栏 / 快捷访问 / 首页跟随',
+    placeholder: '搜索芽...',
+    keywords: '芽 sprout 图标 icon 侧栏 视图 sprout',
+    emptyText: '没有匹配的芽图标',
+  },
+  {
+    kind: 'entityType',
+    title: '实体类型图标',
+    subtitle: '卡片 / 关联 / 提及 / 详情头跟随',
+    placeholder: '搜索实体类型...',
+    keywords: '实体类型 图标 icon 实体 entity 卡片 关联 详情',
+    emptyText: '没有匹配的实体类型图标',
+  },
+  {
+    kind: 'domain',
+    title: '语义域图标',
+    subtitle: '侧栏域导航 / 首页资产地图 / 设置分组',
+    placeholder: '搜索语义域...',
+    keywords: '语义域 域 domain 地理 生命 社会 知识 物产 时间 叙事 工具 图标',
+    emptyText: '没有匹配的语义域',
+  },
+  {
+    kind: 'detailTab',
+    title: '详情页签图标',
+    subtitle: '通用页签一次设置，全部实体类型跟随',
+    placeholder: '搜索页签或实体类型...',
+    keywords: '详情 页签 tab 信息 形象 视频 关联 关系图 家谱 成员 外交 子区域 因果链 detail tab',
+    emptyText: '没有匹配的详情页签',
+  },
+  {
+    kind: 'regionType',
+    title: '区域类型图标',
+    subtitle: '区域树 / 卡片 / 子区域 / 飞地',
+    placeholder: '搜索区域类型...',
+    keywords: '区域 类型 region 大陆 国家 城市 地标 星球 星系 regionType',
+    emptyText: '没有匹配的区域类型',
+  },
+]
+
+const scopeKeywords = '作用范围 全局 项目 跟随 图标 icon global project'
 
 const props = defineProps<{ searchQuery?: string }>()
 const emit = defineEmits<{ 'card-change': [index: number] }>()
@@ -108,9 +142,6 @@ const settings = useSettingsStore()
 const iconStore = useIconOverrideStore()
 const { confirm } = useConfirm()
 
-const sproutSearch = ref('')
-const entitySearch = ref('')
-const onlyChanged = ref(false)
 const revision = ref(0)
 const sproutSignature = computed(() => settings.sprouts
   .map(sprout => `${sprout.id}:${sprout.icon}:${sprout.label}:${sprout.active}`)
@@ -122,12 +153,18 @@ const slots = computed(() => {
   void revision.value
   void pluginStore.views.length
   void sproutSignature.value
-  return buildIconSlots({
-    views: pluginStore.views,
-    sprouts: settings.sprouts,
-    plugins: availablePlugins(),
-    schemas: entitySchemaRegistryV2.getAll(),
-  })
+  const schemas = entitySchemaRegistryV2.getAll()
+  return [
+    ...buildIconSlots({
+      views: pluginStore.views,
+      sprouts: settings.sprouts,
+      plugins: availablePlugins(),
+      schemas,
+    }),
+    ...buildDomainIconSlots(),
+    ...buildDetailTabIconSlots(schemas),
+    ...buildRegionTypeIconSlots(),
+  ]
 })
 
 const sproutIconByPlugin = computed(() => {
@@ -140,18 +177,18 @@ const sproutIconByPlugin = computed(() => {
   return map
 })
 
-const sproutGroups = computed(() => groupSproutSlots(slots.value))
-const entityGroups = computed<IconSlotListGroup[]>(() =>
-  groupEntityTypeSlots(slots.value, availablePlugins()).map(group => ({
+const groupsByKind = computed<Record<IconSlotKind, IconSlotListGroup[]>>(() => ({
+  sprout: groupSproutSlots(slots.value),
+  entityType: groupEntityTypeSlots(slots.value, availablePlugins()).map(group => ({
     id: group.pluginId || 'unclassified',
     label: group.label,
     icon: sproutIconByPlugin.value.get(group.pluginId),
     items: group.items,
   })),
-)
-
-const filteredSproutGroups = computed(() => filterGroups(sproutGroups.value, sproutSearch.value))
-const filteredEntityGroups = computed(() => filterGroups(entityGroups.value, entitySearch.value))
+  domain: groupDomainSlots(slots.value),
+  detailTab: groupDetailTabSlots(slots.value),
+  regionType: groupRegionTypeSlots(slots.value),
+}))
 
 const projectCount = computed(() => Object.keys(iconStore.project.overrides).length)
 const globalCount = computed(() => Object.keys(iconStore.global.overrides).length)
@@ -192,20 +229,6 @@ function sourceOf(slot: IconSlot) {
 
 function hasGlobal(slot: IconSlot): boolean {
   return iconStore.hasGlobal(slot.key)
-}
-
-function filterGroups(groups: IconSlotListGroup[], query: string): IconSlotListGroup[] {
-  const q = query.trim().toLowerCase()
-  return groups
-    .map(group => ({
-      ...group,
-      items: group.items.filter(slot => {
-        if (onlyChanged.value && iconStore.sourceOf(slot.key) === 'default') return false
-        if (!q) return true
-        return slot.label.toLowerCase().includes(q) || slot.key.toLowerCase().includes(q)
-      }),
-    }))
-    .filter(group => group.items.length > 0)
 }
 
 function openPicker(slot: IconSlot): void {
@@ -321,9 +344,4 @@ defineExpose({
 
 <style scoped>
 .ic-card { gap: 8px; }
-.ic-sub { font-size: var(--text-micro-font-size, 10px); color: var(--text-tertiary); text-transform: none; letter-spacing: normal; font-weight: var(--font-weight-normal, 400); }
-.ic-search-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-.ic-input { flex: 1; min-width: 0; }
-.ic-filter { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; font-size: var(--font-size-xs, 12px); color: var(--text-secondary); cursor: pointer; }
-.ic-filter input { accent-color: var(--primary, var(--color-primary)); }
 </style>

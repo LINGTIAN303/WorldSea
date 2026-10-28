@@ -1,10 +1,22 @@
-import { SPROUT_DOMAINS, type IconOverrideSource } from '@worldsea/entity-core'
+import { SPROUT_DOMAINS, domainIconSlot, getEffectiveIconOverride, type IconOverrideSource } from '@worldsea/entity-core'
 import type { IconDomain } from '@worldsea/ui-kit'
-import type { IconSlot, IconSlotManifest } from './iconSlots'
+import type { IconSlot, IconSlotKind, IconSlotManifest } from './iconSlots'
+
+const KIND_LABELS: Record<IconSlotKind, string> = {
+  sprout: '芽',
+  entityType: '实体类型',
+  domain: '语义域',
+  detailTab: '详情页签',
+  regionType: '区域类型',
+}
+
+export function iconSlotKindLabel(kind: IconSlotKind): string {
+  return KIND_LABELS[kind]
+}
 
 export interface IconPickerTarget {
   key: string
-  kind: 'sprout' | 'entityType'
+  kind: IconSlotKind
   label: string
   current: string
   source: IconOverrideSource
@@ -63,7 +75,7 @@ export function groupSproutSlots(slots: ReadonlyArray<IconSlot>): SproutSlotGrou
     .map(domain => ({
       id: domain.id,
       label: domain.label,
-      icon: domain.icon,
+      icon: getEffectiveIconOverride(domainIconSlot(domain.id)) ?? domain.icon,
       items: sortSlots(byDomain.get(domain.id) ?? []),
     }))
   const extra = byDomain.get(UNCLASSIFIED_SLOT_DOMAIN)
@@ -97,6 +109,38 @@ export function groupEntityTypeSlots(
     if (!b.pluginId) return -1
     return a.label.localeCompare(b.label, 'zh-CN')
   })
+}
+
+/** 语义域单组：8 域保持 SPROUT_DOMAINS 顺序。 */
+export function groupDomainSlots(slots: ReadonlyArray<IconSlot>): IconSlotListGroup[] {
+  const items = slots.filter(slot => slot.kind === 'domain')
+  return items.length ? [{ id: 'domain', label: '语义域', icon: 'globe', items }] : []
+}
+
+/** 详情页签：通用页先列，其余按实体类型声明顺序分组。 */
+export function groupDetailTabSlots(slots: ReadonlyArray<IconSlot>): IconSlotListGroup[] {
+  const shared = slots.filter(slot => slot.kind === 'detailTab' && slot.entityType === '*')
+  const groups: IconSlotListGroup[] = shared.length
+    ? [{ id: 'shared', label: '通用页签', icon: 'outline', items: shared }]
+    : []
+  const byType = new Map<string, IconSlot[]>()
+  for (const slot of slots) {
+    if (slot.kind !== 'detailTab' || slot.entityType === '*') continue
+    const type = slot.entityType ?? ''
+    const list = byType.get(type) ?? []
+    list.push(slot)
+    byType.set(type, list)
+  }
+  for (const [type, items] of byType) {
+    groups.push({ id: type, label: items[0]?.entityTypeLabel ?? type, items })
+  }
+  return groups
+}
+
+/** 区域类型单组：保持 regionConfig 的类型顺序。 */
+export function groupRegionTypeSlots(slots: ReadonlyArray<IconSlot>): IconSlotListGroup[] {
+  const items = slots.filter(slot => slot.kind === 'regionType')
+  return items.length ? [{ id: 'regionType', label: '区域类型', icon: 'region', items }] : []
 }
 
 /** 同步控件默认只在「唯一实体类型且仍为默认/仍跟随本芽」时勾选。 */

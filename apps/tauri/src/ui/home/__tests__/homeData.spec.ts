@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
+import { clearEffectiveIconOverrides, domainIconSlot, setEffectiveIconOverrides } from '@worldsea/entity-core/core'
 import type { Entity, PluginView, Relation, SproutToggle } from '@worldsea/entity-core'
 import type { WorldPlugin } from '@/world/manifest'
 import type { FieldMatrixModel } from '@/world/plugins/field-matrix/model/types'
@@ -104,6 +105,13 @@ describe('buildHomeData', () => {
     expect(d.domains.find(x => x.id === 'life')?.activeSprouts[0].viewId).toBe('characters')
     expect(d.domains.find(x => x.id === 'life')?.recentEntities.map(e => e.name)).toEqual(['乔2', '乔'])
     expect(d.domains.find(x => x.id === 'narrative')?.recentEntities).toHaveLength(2)
+  })
+
+  it('域图标跟随覆盖层，未覆盖域保持默认', () => {
+    setEffectiveIconOverrides(new Map([[domainIconSlot('life'), 'flame']]))
+    const d = buildHomeData(base)
+    expect(d.domains.find(x => x.id === 'life')?.icon).toBe('flame')
+    expect(d.domains.find(x => x.id === 'knowledge')?.icon).toBe('concept')
   })
 
   it('最近动态按 updatedAt 倒序、只取可见类型', () => {
@@ -240,3 +248,5 @@ describe('relativeTime', () => {
     expect(relativeTime('2026-10-20T11:00:00.000Z', now)).toBe('10-20')
   })
 })
+
+afterEach(() => clearEffectiveIconOverrides())

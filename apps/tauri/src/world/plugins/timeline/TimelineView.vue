@@ -334,7 +334,7 @@ useTimelineKeyboard({
  *  用户覆写（排序/隐藏）按 'event' 类型生效；「关联」徽标＝选中事件的关系总数（与 GEV 同口径） */
 const detailPrefs = useDetailLayoutStore()
 const detailTabs = computed(() => {
-  const tabs = resolveDetailTabs({ hasCover: true, extras: DETAIL_TAB_DECLARATIONS.event?.extras, override: detailPrefs.tabOverrides['event'] })
+  const tabs = resolveDetailTabs({ hasCover: true, entityType: 'event', extras: DETAIL_TAB_DECLARATIONS.event?.extras, override: detailPrefs.tabOverrides['event'] })
   const evId = selectedEvent.value?.id, assoc = tabs.find(t => t.id === 'relations')
   if (assoc && evId) assoc.count = relationStore.relations.filter(r => r.sourceId === evId || r.targetId === evId).length
   return tabs

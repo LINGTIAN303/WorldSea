@@ -36,6 +36,9 @@ export { entitySchemaRegistry } from './EntitySchema'
 export {
   sproutIconSlot,
   entityTypeIconSlot,
+  domainIconSlot,
+  detailTabIconSlot,
+  regionTypeIconSlot,
   setEffectiveIconOverrides,
   getEffectiveIconOverride,
   clearEffectiveIconOverrides,

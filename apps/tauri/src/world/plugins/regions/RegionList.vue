@@ -149,7 +149,7 @@ import { GenericEntityView, type FilterDef, type CardFieldDef, type CustomTabDef
 import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
 import { EntityRelationSelector } from '@worldsea/plugin-sdk'
 import { RegionMap, WsIcon, WsEmpty } from '@worldsea/ui-kit'
-import { regionFields, typeIconMap } from './regionConfig'
+import { regionFields, regionTypeIcon } from './regionConfig'
 import { DETAIL_TAB_DECLARATIONS } from '../../detailTabDeclarations'
 
 const entityStore = useEntityStore()
@@ -167,7 +167,7 @@ function toggleExpand(id: string) {
 
 // ── Icon function ──
 function iconFn() { return 'region' }
-function typeIcon(r: any) { return typeIconMap[r.properties?.regionType as string] || 'region' }
+function typeIcon(r: any) { return regionTypeIcon(r.properties?.regionType as string | undefined) }
 
 // ── Form fields ──
 const fields = regionFields

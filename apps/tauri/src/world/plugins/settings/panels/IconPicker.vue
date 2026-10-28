@@ -106,7 +106,7 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { SPROUT_DOMAINS } from '@worldsea/entity-core'
 import { searchIconCatalog, WsIcon, type IconCatalogEntry, type IconDomain } from '@worldsea/ui-kit'
 import TuiModal from '@/components/ui/TuiModal.vue'
-import { iconSourceLabel, type IconPickerConfirm, type IconPickerTarget } from '@/world/iconPanelModel'
+import { iconSlotKindLabel, iconSourceLabel, type IconPickerConfirm, type IconPickerTarget } from '@/world/iconPanelModel'
 
 type CategoryId = 'recommended' | 'all' | IconDomain
 
@@ -138,8 +138,7 @@ const categories = computed<Array<{ id: CategoryId; label: string }>>(() => [
 
 const pickerTitle = computed(() => {
   if (!props.target) return '选择图标'
-  const kind = props.target.kind === 'sprout' ? '芽' : '实体类型'
-  return `为${kind}「${props.target.label}」选择图标`
+  return `为${iconSlotKindLabel(props.target.kind)}「${props.target.label}」选择图标`
 })
 
 const currentInCatalog = computed(() => Boolean(

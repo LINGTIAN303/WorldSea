@@ -1,12 +1,19 @@
 import {
+  SPROUT_DOMAINS,
+  detailTabIconSlot,
+  domainIconSlot,
   entitySchemaRegistry,
   entityTypeIconSlot,
+  regionTypeIconSlot,
   sproutIconSlot,
 } from '@worldsea/entity-core'
 import type { SproutToggle } from '@worldsea/entity-core'
 import type { PluginView } from '@worldsea/entity-core/types'
+import { SHARED_DETAIL_TABS } from '@worldsea/plugin-sdk'
+import { DETAIL_TAB_DECLARATIONS, type DetailTabDeclaration } from './detailTabDeclarations'
+import { regionTypeValues, typeIconMap } from './plugins/regions/regionConfig'
 
-export type IconSlotKind = 'sprout' | 'entityType'
+export type IconSlotKind = 'sprout' | 'entityType' | 'domain' | 'detailTab' | 'regionType'
 
 export interface IconSlot {
   key: string
@@ -17,6 +24,12 @@ export interface IconSlot {
   domain?: string
   /** 芽槽位：该芽声明的实体类型（含未注册的，用于同步计数）。 */
   entityTypes: string[]
+  /** 详情页签：所属实体类型；通用页签为 `*`。 */
+  entityType?: string
+  /** 详情页签：分组显示名。 */
+  entityTypeLabel?: string
+  /** 区域类型：原始值。 */
+  value?: string
 }
 
 export interface IconSlotManifest {
@@ -87,4 +100,62 @@ export function buildIconSlots(input: BuildIconSlotsInput): IconSlot[] {
 export function entityTypeSlotsOf(slots: ReadonlyArray<IconSlot>, pluginId: string | undefined): IconSlot[] {
   if (!pluginId) return []
   return slots.filter(slot => slot.kind === 'entityType' && slot.pluginId === pluginId)
+}
+
+/** 8 个语义域；「全部」是筛选聚合，不进槽位。 */
+export function buildDomainIconSlots(): IconSlot[] {
+  return SPROUT_DOMAINS.map(domain => ({
+    key: domainIconSlot(domain.id),
+    kind: 'domain',
+    label: domain.label,
+    defaultIcon: domain.icon,
+    domain: domain.id,
+    entityTypes: [],
+  }))
+}
+
+/** 通用 4 页共享槽位 + 芽声明的自定义 / 附加页槽位（按实体类型）。 */
+export function buildDetailTabIconSlots(
+  schemas: ReadonlyArray<SchemaLike>,
+  declarations: Readonly<Record<string, DetailTabDeclaration>> = DETAIL_TAB_DECLARATIONS,
+): IconSlot[] {
+  const labels = new Map(schemas.map(schema => [schema.type, schema.label]))
+  const shared: IconSlot[] = SHARED_DETAIL_TABS.map(tab => ({
+    key: detailTabIconSlot('*', tab.id),
+    kind: 'detailTab',
+    label: tab.label,
+    defaultIcon: tab.icon ?? 'outline',
+    entityType: '*',
+    entityTypeLabel: '通用页签',
+    entityTypes: [],
+  }))
+
+  const own: IconSlot[] = []
+  for (const [entityType, declaration] of Object.entries(declarations)) {
+    for (const tab of [...(declaration.custom ?? []), ...(declaration.extras ?? [])]) {
+      own.push({
+        key: detailTabIconSlot(entityType, tab.id),
+        kind: 'detailTab',
+        label: tab.label,
+        defaultIcon: tab.icon || 'outline',
+        entityType,
+        entityTypeLabel: labels.get(entityType) ?? entitySchemaRegistry.getLabel(entityType) ?? entityType,
+        entityTypes: [entityType],
+      })
+    }
+  }
+  return [...shared, ...own]
+}
+
+/** 区域类型全集；未登记的新值渲染时回退 `region`，但可另存覆盖。 */
+export function buildRegionTypeIconSlots(): IconSlot[] {
+  return regionTypeValues.map(value => ({
+    key: regionTypeIconSlot(value),
+    kind: 'regionType',
+    label: value,
+    defaultIcon: typeIconMap[value] || 'region',
+    domain: 'geo',
+    value,
+    entityTypes: [],
+  }))
 }

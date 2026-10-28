@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
   defaultSyncFor,
+  groupDetailTabSlots,
+  groupDomainSlots,
   groupEntityTypeSlots,
+  groupRegionTypeSlots,
   groupSproutSlots,
+  iconSlotKindLabel,
   iconSourceLabel,
   syncTargetKeys,
   UNCLASSIFIED_SLOT_DOMAIN,
@@ -43,6 +47,45 @@ describe('groupEntityTypeSlots', () => {
     ])
     expect(groups.map(group => group.label)).toEqual(['概念/设定库', '正文写作', '未分类'])
     expect(groups[0].items[0].label).toBe('概念')
+  })
+})
+
+describe('扩展槽位分组', () => {
+  it('语义域单组，保持域顺序', () => {
+    const groups = groupDomainSlots([
+      slot({ key: 'domain:life', kind: 'domain', label: '生命与族群' }),
+      slot({ key: 'domain:geo', kind: 'domain', label: '地理与场所' }),
+    ])
+    expect(groups).toHaveLength(1)
+    expect(groups[0]).toMatchObject({ id: 'domain', label: '语义域', icon: 'globe' })
+    expect(groups[0].items.map(item => item.key)).toEqual(['domain:life', 'domain:geo'])
+  })
+
+  it('详情页通用页在首，其余按实体类型分组', () => {
+    const groups = groupDetailTabSlots([
+      slot({ key: 'detailTab:*:info', kind: 'detailTab', label: '信息', entityType: '*', entityTypeLabel: '通用页签' }),
+      slot({ key: 'detailTab:character:family', kind: 'detailTab', label: '家谱', entityType: 'character', entityTypeLabel: '角色' }),
+      slot({ key: 'detailTab:character:names', kind: 'detailTab', label: '称呼', entityType: 'character', entityTypeLabel: '角色' }),
+      slot({ key: 'detailTab:region:subregions', kind: 'detailTab', label: '子区域', entityType: 'region', entityTypeLabel: '区域' }),
+    ])
+    expect(groups.map(group => group.id)).toEqual(['shared', 'character', 'region'])
+    expect(groups[0].label).toBe('通用页签')
+    expect(groups[1].items).toHaveLength(2)
+  })
+
+  it('区域类型单组', () => {
+    const groups = groupRegionTypeSlots([
+      slot({ key: 'regionType:大陆', kind: 'regionType', label: '大陆' }),
+    ])
+    expect(groups[0]).toMatchObject({ id: 'regionType', label: '区域类型', icon: 'region' })
+  })
+
+  it('选择器标题文案覆盖五种槽位', () => {
+    expect(iconSlotKindLabel('sprout')).toBe('芽')
+    expect(iconSlotKindLabel('entityType')).toBe('实体类型')
+    expect(iconSlotKindLabel('domain')).toBe('语义域')
+    expect(iconSlotKindLabel('detailTab')).toBe('详情页签')
+    expect(iconSlotKindLabel('regionType')).toBe('区域类型')
   })
 })
 

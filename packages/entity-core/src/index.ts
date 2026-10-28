@@ -28,6 +28,9 @@ export {
   // 图标槽位与覆盖解析
   sproutIconSlot,
   entityTypeIconSlot,
+  domainIconSlot,
+  detailTabIconSlot,
+  regionTypeIconSlot,
   getEffectiveIconOverride,
   iconOverrideVersion,
   RelationTypes,

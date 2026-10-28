@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
+import { clearEffectiveIconOverrides, domainIconSlot, setEffectiveIconOverrides } from '@worldsea/entity-core/core'
 import type { PluginView } from '@worldsea/entity-core/types'
 import { buildDomainMap, buildSproutNavigation, filterForView, filterViewsByDomain, makeDomainOfPlugin } from '../sproutNavigation'
 import { normalizeSproutDomainFilter, normalizeSproutNavMode } from '@/stores/uiStore'
@@ -74,3 +75,15 @@ describe('导航状态归一', () => {
     expect(normalizeSproutDomainFilter('nope')).toBe('all')
   })
 })
+
+describe('域图标覆盖', () => {
+  it('域图标跟随覆盖层；「全部」与未覆盖域保持默认', () => {
+    setEffectiveIconOverrides(new Map([[domainIconSlot('life'), 'flame']]))
+    const nav = buildSproutNavigation(views, domainOf, 'all')
+    expect(nav.domains[0].icon).toBe('menu')
+    expect(nav.domains.find(domain => domain.id === 'life')?.icon).toBe('flame')
+    expect(nav.domains.find(domain => domain.id === 'time')?.icon).toBe('timeline')
+  })
+})
+
+afterEach(() => clearEffectiveIconOverrides())
