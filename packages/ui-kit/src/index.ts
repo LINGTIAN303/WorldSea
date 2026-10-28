@@ -33,6 +33,18 @@ export {
 } from './assets/iconCatalog'
 export type { IconCatalogEntry, IconDomain } from './assets/iconCatalog'
 
+// 多风格内置图标包（精选生成，命名 `<packId>:<iconName>`）
+export {
+  ICON_PACKS,
+  getIconPack,
+  packIconFullName,
+  parsePackIconName,
+  resolvePackIcon,
+  hasPackIcon,
+  searchPackIcons,
+} from './assets/iconPacks'
+export type { IconPackDef, PackIconDef, IconPackColorMode, PackSearchEntry } from './assets/iconPacks'
+
 // settings 模块共用工具与类型（从根 src/ui/settings/utils.ts 下沉）
 export {
   matchKeywords,

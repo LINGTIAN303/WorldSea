@@ -2,7 +2,7 @@
   <span
     v-if="customIcon"
     class="ws-icon ws-icon--custom"
-    :class="[`ws-icon--${resolvedSize}`]"
+    :class="[sizeClass]"
     :style="{
       '--ws-icon-src': `url('${customIcon.src}')`,
       width: `${resolvedPixelSize}px`,
@@ -10,6 +10,20 @@
     }"
     aria-hidden="true"
   />
+  <svg
+    v-else-if="packIcon"
+    class="ws-icon"
+    :class="[sizeClass]"
+    :width="resolvedPixelSize"
+    :height="resolvedPixelSize"
+    :viewBox="`0 0 ${packIcon.icon.width} ${packIcon.icon.height}`"
+    :fill="packIcon.pack.colorMode === 'mono' ? 'currentColor' : undefined"
+    aria-hidden="true"
+    focusable="false"
+  >
+    <!-- 静态生成的内置包 SVG body（生成时已做脚本拒绝与 id 去重），不是用户输入 -->
+    <g v-html="packIcon.icon.body" />
+  </svg>
   <svg
     v-else-if="iconDef"
     :class="['ws-icon', `ws-icon--${resolvedSize}`, { 'ws-icon--fill': iconDef.fill }]"
@@ -32,7 +46,7 @@
     :size="resolvedPixelSize"
     :stroke-width="resolvedStrokeWidth"
     class="ws-icon ws-icon--lucide"
-    :class="[`ws-icon--${resolvedSize}`]"
+    :class="[sizeClass]"
   />
   <span v-else-if="fallback" class="ws-icon-fallback">{{ fallback }}</span>
 </template>
@@ -40,6 +54,7 @@
 <script setup lang="ts">
 import { computed, type Component } from 'vue'
 import { getIcon } from '../assets/iconRegistry'
+import { resolvePackIcon } from '../assets/iconPacks'
 import { resolveLucideIcon } from './lucideMap'
 import { resolveCustomIcon } from './customIconResolver'
 
@@ -64,13 +79,16 @@ const props = withDefaults(defineProps<{
   fallback: '',
 })
 
-/** 图标解析：自定义资产 > Lucide 标准图标 > 注册表路径图标。 */
+/** 图标解析：自定义资产 > 内置包 > Lucide 标准图标 > 注册表路径图标。 */
 const customIcon = computed(() => resolveCustomIcon(props.name))
+const packIcon = computed(() => customIcon.value ? null : resolvePackIcon(props.name))
 
-const lucideIcon = computed<Component | null>(() => customIcon.value ? null : resolveLucideIcon(props.name))
+const lucideIcon = computed<Component | null>(() =>
+  customIcon.value || packIcon.value ? null : resolveLucideIcon(props.name),
+)
 
 const iconDef = computed(() => {
-  if (customIcon.value || lucideIcon.value) return null
+  if (customIcon.value || packIcon.value || lucideIcon.value) return null
   return getIcon(props.name)
 })
 
@@ -80,6 +98,8 @@ const resolvedSize = computed<IconSize | 'custom'>(() => {
   if (typeof props.size === 'string' && props.size in SIZE_MAP) return props.size as IconSize
   return 'custom'
 })
+
+const sizeClass = computed(() => resolvedSize.value === 'custom' ? '' : `ws-icon--${resolvedSize.value}`)
 
 const resolvedPixelSize = computed(() => {
   if (typeof props.size === 'string' && props.size in SIZE_MAP) return SIZE_MAP[props.size as IconSize]

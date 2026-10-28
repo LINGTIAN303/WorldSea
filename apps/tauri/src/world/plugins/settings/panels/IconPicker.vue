@@ -21,20 +21,34 @@
         aria-label="搜索图标"
       />
 
-      <div class="ip-chips" role="tablist" aria-label="图标分类">
+      <div class="ip-chips ip-pack-chips" role="tablist" aria-label="图标库分类">
         <button
-          v-for="category in categories"
-          :key="category.id"
+          v-for="pack in packOptions"
+          :key="pack.id"
           type="button"
           class="ip-chip"
-          :class="{ active: activeDomain === category.id }"
+          :class="{ active: packFilter === pack.id }"
           role="tab"
-          :aria-selected="activeDomain === category.id"
-          @click="activeDomain = category.id"
-        >{{ category.label }}</button>
+          :aria-selected="packFilter === pack.id"
+          :title="pack.hint"
+          @click="choosePack(pack.id)"
+        >{{ pack.label }}</button>
       </div>
 
-      <div v-if="activeDomain === 'custom'" class="ip-custom-tools">
+      <div v-if="packFilter !== 'custom'" class="ip-chips" role="tablist" aria-label="图标语义域">
+        <button
+          v-for="domain in domains"
+          :key="domain.id"
+          type="button"
+          class="ip-chip"
+          :class="{ active: domainFilter === domain.id }"
+          role="tab"
+          :aria-selected="domainFilter === domain.id"
+          @click="domainFilter = domain.id"
+        >{{ domain.label }}</button>
+      </div>
+
+      <div v-if="packFilter === 'custom'" class="ip-custom-tools">
         <input ref="uploadInput" class="ip-file" type="file" accept=".svg,.png,.webp,image/svg+xml,image/png,image/webp" @change="onUploadChange" />
         <button class="ip-upload" type="button" :disabled="!available || uploading" @click="chooseUpload">
           {{ uploading ? '上传中…' : '上传图标' }}
@@ -66,7 +80,7 @@
         >
           <WsIcon :name="entry.name" size="md" />
         </button>
-        <div v-if="filtered.length === 0" class="ip-empty">{{ activeDomain === 'custom' ? '还没有自定义图标，点击上方上传' : '没有匹配的图标' }}</div>
+        <div v-if="filtered.length === 0" class="ip-empty">{{ packFilter === 'custom' ? '还没有自定义图标，点击上方上传' : '没有匹配的图标' }}</div>
       </div>
 
       <div class="ip-preview" aria-live="polite">
@@ -94,6 +108,7 @@
           </label>
         </div>
         <div class="ip-actions">
+          <button type="button" class="ip-license-link" @click="licenseOpen = true">图标来源与许可</button>
           <button
             v-if="target?.canResetProject"
             type="button"
@@ -107,18 +122,33 @@
       </div>
     </template>
   </TuiModal>
+
+  <IconLicenseDialog :show="licenseOpen" @close="licenseOpen = false" />
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 import { SPROUT_DOMAINS, customIconId, customIconValue, isCustomIconValue, useIconAssetStore } from '@worldsea/entity-core'
 import { isTauri } from '@worldsea/entity-core/core'
-import { searchIconCatalog, toastSuccess, toastWarn, WsIcon, type IconCatalogEntry, type IconDomain } from '@worldsea/ui-kit'
+import {
+  ICON_PACKS,
+  parsePackIconName,
+  resolvePackIcon,
+  searchIconCatalog,
+  searchPackIcons,
+  toastSuccess,
+  toastWarn,
+  WsIcon,
+  type IconCatalogEntry,
+  type IconDomain,
+  type IconPackDef,
+} from '@worldsea/ui-kit'
 import TuiModal from '@/components/ui/TuiModal.vue'
+import IconLicenseDialog from './IconLicenseDialog.vue'
 import { iconSlotKindLabel, iconSourceLabel, type IconPickerConfirm, type IconPickerTarget } from '@/world/iconPanelModel'
 import { uploadIconFile } from '@/world/iconAssetUpload'
 
-type CategoryId = 'recommended' | 'custom' | 'all' | IconDomain
+type DomainFilter = IconDomain | 'all'
 
 const props = defineProps<{
   show: boolean
@@ -132,7 +162,8 @@ const emit = defineEmits<{
 }>()
 
 const query = ref('')
-const activeDomain = ref<CategoryId>('recommended')
+const packFilter = ref('world')
+const domainFilter = ref<DomainFilter>('all')
 const selected = ref('')
 const activeIndex = ref(0)
 const syncTypes = ref(false)
@@ -142,12 +173,22 @@ const iconAssets = useIconAssetStore()
 const uploadInput = ref<HTMLInputElement | null>(null)
 const uploading = ref(false)
 const available = computed(() => isTauri())
+const licenseOpen = ref(false)
 
-const categories = computed<Array<{ id: CategoryId; label: string }>>(() => [
-  { id: 'recommended', label: '推荐' },
+function packChipLabel(pack: IconPackDef): string {
+  return `${pack.label} ${pack.style}`.trim()
+}
+
+const packOptions = computed<Array<{ id: string; label: string; hint?: string }>>(() => [
+  { id: 'world', label: '世界精选' },
+  ...ICON_PACKS.map(pack => ({ id: pack.id, label: packChipLabel(pack), hint: `${pack.label} · ${pack.style} · ${pack.license}` })),
+  { id: 'all', label: '全部图标' },
   { id: 'custom', label: '我的图标' },
+])
+
+const domains = computed<Array<{ id: DomainFilter; label: string }>>(() => [
   { id: 'all', label: '全部' },
-  ...SPROUT_DOMAINS.map(domain => ({ id: domain.id as CategoryId, label: domain.label })),
+  ...SPROUT_DOMAINS.map(domain => ({ id: domain.id as IconDomain, label: domain.label })),
   { id: 'general', label: '通用' },
 ])
 
@@ -168,51 +209,57 @@ function customAssetOf(value: string) {
   return id ? iconAssets.assetById(id) : null
 }
 
+function labelOf(value: string): string {
+  if (isCustomIconValue(value)) return customAssetOf(value)?.asset.name ?? value
+  const packIcon = resolvePackIcon(value)?.icon
+  if (packIcon) return packIcon.label
+  return searchIconCatalog(value).find(entry => entry.name === value)?.label ?? value
+}
+
 const currentInCatalog = computed(() => {
   const target = props.target
   if (!target) return false
   if (isCustomIconValue(target.current)) return Boolean(customAssetOf(target.current))
+  if (resolvePackIcon(target.current)) return true
   return searchIconCatalog(target.current).some(entry => entry.name === target.current)
 })
 
 const currentLabel = computed(() => {
   const target = props.target
-  if (!target) return ''
-  if (isCustomIconValue(target.current)) return customAssetOf(target.current)?.asset.name ?? target.current
-  return searchIconCatalog(target.current).find(entry => entry.name === target.current)?.label ?? target.current
+  return target ? labelOf(target.current) : ''
 })
 
-const selectedLabel = computed(() => {
-  if (isCustomIconValue(selected.value)) return customAssetOf(selected.value)?.asset.name ?? selected.value
-  return searchIconCatalog(selected.value).find(entry => entry.name === selected.value)?.label ?? selected.value
-})
+const selectedLabel = computed(() => labelOf(selected.value))
 
 const filtered = computed<IconCatalogEntry[]>(() => {
-  const target = props.target
-  if (!target) return []
-  if (activeDomain.value === 'custom') {
+  if (!props.target) return []
+  if (packFilter.value === 'custom') {
     const q = query.value.trim().toLowerCase()
     if (!q) return customEntries.value
     return customEntries.value.filter(entry => (
       entry.label.toLowerCase().includes(q) || entry.keywords.toLowerCase().includes(q)
     ))
   }
-  if (activeDomain.value === 'all') return searchIconCatalog(query.value)
-  if (activeDomain.value === 'recommended') {
-    const primary = searchIconCatalog(query.value, target.domain ?? 'general')
-    if (!target.domain || target.domain === 'general') return primary
-    const general = searchIconCatalog(query.value, 'general')
-    const seen = new Set(primary.map(entry => entry.name))
-    return [...primary, ...general.filter(entry => !seen.has(entry.name))]
+  if (packFilter.value === 'world') return searchIconCatalog(query.value, domainFilter.value)
+  if (packFilter.value === 'all') {
+    return [
+      ...searchIconCatalog(query.value, domainFilter.value),
+      ...searchPackIcons(query.value, 'all', domainFilter.value),
+    ]
   }
-  return searchIconCatalog(query.value, activeDomain.value)
+  return searchPackIcons(query.value, packFilter.value, domainFilter.value)
 })
 
 watch(() => [props.show, props.target?.key] as const, () => {
   if (!props.show || !props.target) return
-  selected.value = props.target.current
+  const current = props.target.current
+  selected.value = current
   query.value = ''
-  activeDomain.value = isCustomIconValue(props.target.current) ? 'custom' : 'recommended'
+  const parsed = parsePackIconName(current)
+  packFilter.value = isCustomIconValue(current) ? 'custom' : parsed ? parsed.pack.id : 'world'
+  domainFilter.value = parsed || isCustomIconValue(current)
+    ? 'all'
+    : (props.target.domain && props.target.domain !== 'general' ? props.target.domain : 'all')
   activeIndex.value = 0
   syncTypes.value = props.target.syncDefault
   applyGlobal.value = false
@@ -222,7 +269,7 @@ watch(() => [props.show, props.target?.key] as const, () => {
   })
 }, { immediate: true })
 
-watch([query, activeDomain], () => {
+watch([query, packFilter, domainFilter], () => {
   activeIndex.value = 0
 })
 
@@ -250,6 +297,11 @@ function onGridKeydown(event: KeyboardEvent): void {
   })
 }
 
+function choosePack(id: string): void {
+  packFilter.value = id
+  domainFilter.value = 'all'
+}
+
 function chooseUpload(): void {
   uploadInput.value?.click()
 }
@@ -266,7 +318,8 @@ async function onUploadChange(event: Event): Promise<void> {
       toastWarn(result.reason ?? '图标上传失败')
       return
     }
-    activeDomain.value = 'custom'
+    packFilter.value = 'custom'
+    domainFilter.value = 'all'
     selected.value = customIconValue(result.asset.id)
     toastSuccess('已上传到本项目')
     await nextTick()
@@ -302,6 +355,7 @@ function onReset(): void {
 .ip-search { width: 100%; box-sizing: border-box; padding: 7px 10px; font-size: var(--font-size-sm); color: var(--text-color, var(--color-text)); background: var(--content-bg, var(--color-bg-surface)); border: 1px solid var(--border, var(--color-border)); border-radius: var(--radius-sm); outline: none; }
 .ip-search:focus { border-color: var(--primary, var(--color-primary)); }
 .ip-chips { display: flex; gap: 4px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: thin; }
+.ip-pack-chips { padding-bottom: 6px; border-bottom: 1px dashed var(--border, var(--color-border)); }
 .ip-chip { flex-shrink: 0; padding: 4px 8px; border: 1px solid transparent; border-radius: var(--radius-sm); background: transparent; color: var(--text-secondary); font-size: var(--font-size-xs, 12px); cursor: pointer; }
 .ip-chip:hover { background: var(--hover-bg, var(--color-bg-hover)); color: var(--text-color, var(--color-text)); }
 .ip-chip.active { color: var(--primary, var(--color-primary)); border-color: var(--primary, var(--color-primary)); }
@@ -327,6 +381,8 @@ function onReset(): void {
 .ip-footer { display: flex; flex-direction: column; gap: 8px; width: 100%; }
 .ip-actions { display: flex; align-items: center; gap: 8px; width: 100%; }
 .ip-footer-spacer { flex: 1; }
+.ip-license-link { padding: 0; border: none; background: transparent; color: var(--text-tertiary); font-size: var(--text-micro-font-size, 10px); cursor: pointer; }
+.ip-license-link:hover { color: var(--primary, var(--color-primary)); text-decoration: underline; }
 .ip-btn { padding: 5px 12px; border: 1px solid var(--border, var(--color-border)); border-radius: var(--radius-sm); background: var(--content-bg, var(--color-bg-surface)); color: var(--text-primary, var(--color-text)); font-size: var(--font-size-xs, 12px); cursor: pointer; }
 .ip-btn:hover:not(:disabled) { border-color: var(--primary, var(--color-primary)); color: var(--primary, var(--color-primary)); }
 .ip-btn:disabled { opacity: 0.5; cursor: default; }

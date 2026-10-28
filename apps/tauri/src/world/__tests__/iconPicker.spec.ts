@@ -76,6 +76,15 @@ describe('IconPicker', () => {
     expect(w.text()).toContain('不在精选库')
   })
 
+  it('切换图标库显示对应包图标', async () => {
+    const w = mountPicker()
+    const chip = w.findAll('.ip-chip').find(item => item.text() === 'Phosphor Regular')
+    expect(chip).toBeTruthy()
+    await chip!.trigger('click')
+    await nextTick()
+    expect(w.findAll('.ip-tile').some(item => item.attributes('title')?.includes('ph:house'))).toBe(true)
+  })
+
   it('我的图标分类展示已登记的自定义资产', async () => {
     localStorage.setItem('worldsea_icon_assets_global', JSON.stringify({
       version: 1,
