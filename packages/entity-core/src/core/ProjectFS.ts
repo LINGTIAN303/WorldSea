@@ -5,6 +5,7 @@ import { useEntityStore, useRelationStore, useSettingsStore } from '../stores'
 import { getProjectSwitcherApi } from './ProjectSwitcherApi'
 import { getProjectExtraProviders } from './projectExtras'
 import { getFileStorageBackend } from './StorageBackend'
+import { exportProjectIcons, importProjectIcons } from './projectIconsFS'
 import { createBatchIpc } from '@worldsea/perf-kit/io'
 
 /* ════════════════════════════════════════
@@ -46,7 +47,7 @@ export type ExportProgressCallback = (
 
 /** 导入进度回调 */
 export type ImportProgressCallback = (
-  phase: 'manifest' | 'entities' | 'relations' | 'settings',
+  phase: 'manifest' | 'entities' | 'relations' | 'settings' | 'assets',
   current: number,
   total: number,
 ) => void
@@ -231,6 +232,13 @@ export async function exportProjectToDir(
     }
   }
 
+  // 5c. 自定义图标与项目图标覆盖（可选分区；失败不阻断主体）
+  try {
+    await exportProjectIcons(projectDir, (done, total) => onProgress?.('assets', done, total))
+  } catch (err) {
+    console.warn('[ProjectFS] 自定义图标导出失败（不影响主体）:', err)
+  }
+
   // 6. 导出首页 profile（`.worldsea/home.json`，设计 §5.3 白名单）：可选文件，缺失即跳过
   const homeSourcePath = currentHomeProfilePath()
   if (homeSourcePath) {
@@ -359,6 +367,13 @@ export async function importProjectFromDir(
     } catch {
       // 附加文件可能不存在
     }
+  }
+
+  // 7c. 自定义图标与项目图标覆盖（可选分区；缺失即跳过）
+  try {
+    await importProjectIcons(sourceDir, (done, total) => onProgress?.('assets', done, total))
+  } catch (err) {
+    console.warn('[ProjectFS] 自定义图标导入失败（不影响主体）:', err)
   }
 
   // 8. 导入首页 profile（可选文件：缺失即跳过；写入新项目实体根的 `.worldsea/`）

@@ -15,6 +15,7 @@ import {
   createViewSerializer,
   customFieldSerializer,
   homeProfileSerializer,
+  iconAssetsSerializer,
 } from '../serializers'
 import { getExtraPackSerializers } from '../projectExtras'
 
@@ -32,6 +33,7 @@ function initSerializers(
   serializerRegistry.register(relationTypeSerializer)
   serializerRegistry.register(customFieldSerializer)
   serializerRegistry.register(homeProfileSerializer)
+  serializerRegistry.register(iconAssetsSerializer)
 
   if (pluginStore) {
     serializerRegistry.register(createViewSerializer(

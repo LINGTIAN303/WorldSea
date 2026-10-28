@@ -1,7 +1,11 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import {
+  customIconId,
+  customIconValue,
   entitySchemaRegistryV2,
+  isCustomIconValue,
   pluginAPI,
+  useIconAssetStore,
   useIconOverrideStore,
   usePluginStore,
   useSettingsStore,
@@ -23,6 +27,7 @@ export function useIconSlotEditor(options: {
   const pluginStore = usePluginStore()
   const settings = useSettingsStore()
   const iconStore = useIconOverrideStore()
+  const iconAssets = useIconAssetStore()
   const revision = ref(0)
   const sproutSignature = computed(() => settings.sprouts
     .map(sprout => `${sprout.id}:${sprout.icon}:${sprout.label}:${sprout.active}`)
@@ -95,15 +100,25 @@ export function useIconSlotEditor(options: {
     else iconStore.setProjectIcon(key, icon)
   }
 
-  function confirm(payload: IconPickerConfirm): void {
+  async function confirm(payload: IconPickerConfirm): Promise<void> {
     const slot = pickerSlot.value
     if (!slot) return
+    let icon = payload.icon
+    if (payload.applyGlobal && isCustomIconValue(icon)) {
+      const id = customIconId(icon)
+      const promoted = id ? await iconAssets.promoteToGlobal(id) : null
+      if (!promoted) {
+        toastWarn('自定义图标同步到全局失败，请重试')
+        return
+      }
+      icon = customIconValue(promoted.id)
+    }
     const oldIcon = iconStore.resolve(slot.key, slot.defaultIcon)
-    applyIcon(slot.key, payload.icon, payload.applyGlobal)
+    applyIcon(slot.key, icon, payload.applyGlobal)
     let synced = 0
     if (payload.syncTypes) {
       for (const key of syncTargetKeys(entityTypeSlotsOf(iconSlots.value, slot.pluginId), iconStore.sourceOf, s => iconStore.resolve(s.key, s.defaultIcon), oldIcon)) {
-        applyIcon(key, payload.icon, payload.applyGlobal)
+        applyIcon(key, icon, payload.applyGlobal)
         synced++
       }
     }

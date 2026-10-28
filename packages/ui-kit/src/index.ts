@@ -20,6 +20,10 @@ export type {
   IconCategory,
 } from './assets/iconRegistry'
 
+// 自定义图标解析位（应用启动时注册 id → 文件 URL）
+export { registerCustomIconResolver, resolveCustomIcon, hasCustomIcon } from './components/customIconResolver'
+export type { CustomIconRender } from './components/customIconResolver'
+
 // 世界观精选图标目录（图标库选择器的内容层）
 export {
   ICON_CATALOG,

@@ -1,6 +1,7 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { nextTick } from 'vue'
+import { createPinia, setActivePinia } from 'pinia'
 import IconPicker from '../plugins/settings/panels/IconPicker.vue'
 import type { IconPickerTarget } from '../iconPanelModel'
 
@@ -26,6 +27,11 @@ function mountPicker(overrides: Partial<IconPickerTarget> = {}): VueWrapper {
   })
   return wrapper
 }
+
+beforeEach(() => {
+  setActivePinia(createPinia())
+  localStorage.clear()
+})
 
 afterEach(() => {
   wrapper?.unmount()
@@ -68,6 +74,20 @@ describe('IconPicker', () => {
   it('当前图标不在精选库时显式提示', async () => {
     const w = mountPicker({ current: 'ws.custom-icon' })
     expect(w.text()).toContain('不在精选库')
+  })
+
+  it('我的图标分类展示已登记的自定义资产', async () => {
+    localStorage.setItem('worldsea_icon_assets_global', JSON.stringify({
+      version: 1,
+      assets: [{ id: 'g1', name: '徽章', ext: 'svg', bytes: 4, createdAt: 1 }],
+    }))
+    const w = mountPicker()
+    const chip = w.findAll('.ip-chip').find(item => item.text() === '我的图标')
+    expect(chip).toBeTruthy()
+    await chip!.trigger('click')
+    await nextTick()
+    expect(w.findAll('.ip-tile').some(item => item.attributes('aria-label') === '徽章')).toBe(true)
+    expect(w.find('.ip-upload').exists()).toBe(true)
   })
 
   it('按域过滤只显示该域图标', async () => {

@@ -4,8 +4,8 @@ import { invoke } from '@tauri-apps/api/core'
 import Shell from './ui/layout/Shell.vue'
 import { useUIStore } from './stores/uiStore'
 import { useTheme } from './components/ui/useTheme'
-import { useTheme as useEntityTheme, useSettingsStore } from '@worldsea/entity-core'
-import { useGlobalEvents, setActiveViewId, enableGlobalTooltips } from '@worldsea/ui-kit'
+import { useTheme as useEntityTheme, useSettingsStore, useIconAssetStore } from '@worldsea/entity-core'
+import { useGlobalEvents, setActiveViewId, enableGlobalTooltips, registerCustomIconResolver } from '@worldsea/ui-kit'
 import { bootstrapShell } from './plugins/boot'
 import { startBackendBoot } from './boot/backendBoot'
 import { useProjectSwitcher } from './composables/useProjectSwitcher'
@@ -39,6 +39,12 @@ const { setup: setupSystemBridge } = useSystemBridge()
 
 const uiStore = useUIStore()
 const projectSwitcher = useProjectSwitcher()
+// 自定义图标：store 负责项目/全局登记，WsIcon 只认这个运行时 URL 解析位
+const iconAssets = useIconAssetStore()
+registerCustomIconResolver(id => {
+  const src = iconAssets.resolveRuntimeUrl(id)
+  return src ? { src } : null
+})
 /** Splash 显式离场窗口：ready 后保留 750ms 让 600ms 淡出真正播放 */
 const splashVisible = ref(true)
 let splashHideTimer: ReturnType<typeof setTimeout> | null = null

@@ -1,6 +1,17 @@
 <template>
+  <span
+    v-if="customIcon"
+    class="ws-icon ws-icon--custom"
+    :class="[`ws-icon--${resolvedSize}`]"
+    :style="{
+      '--ws-icon-src': `url('${customIcon.src}')`,
+      width: `${resolvedPixelSize}px`,
+      height: `${resolvedPixelSize}px`,
+    }"
+    aria-hidden="true"
+  />
   <svg
-    v-if="iconDef"
+    v-else-if="iconDef"
     :class="['ws-icon', `ws-icon--${resolvedSize}`, { 'ws-icon--fill': iconDef.fill }]"
     :width="resolvedPixelSize"
     :height="resolvedPixelSize"
@@ -30,6 +41,7 @@
 import { computed, type Component } from 'vue'
 import { getIcon } from '../assets/iconRegistry'
 import { resolveLucideIcon } from './lucideMap'
+import { resolveCustomIcon } from './customIconResolver'
 
 type IconSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl'
 
@@ -52,11 +64,13 @@ const props = withDefaults(defineProps<{
   fallback: '',
 })
 
-/** 图标解析：优先 Lucide 标准图标，回退到注册表路径图标（主题图标覆盖已随 theme-kit 风格包退役，2026-09-13） */
-const lucideIcon = computed<Component | null>(() => resolveLucideIcon(props.name))
+/** 图标解析：自定义资产 > Lucide 标准图标 > 注册表路径图标。 */
+const customIcon = computed(() => resolveCustomIcon(props.name))
+
+const lucideIcon = computed<Component | null>(() => customIcon.value ? null : resolveLucideIcon(props.name))
 
 const iconDef = computed(() => {
-  if (lucideIcon.value) return null
+  if (customIcon.value || lucideIcon.value) return null
   return getIcon(props.name)
 })
 
@@ -107,6 +121,19 @@ const iconStrokeLinejoin = computed(() => {
 
 .ws-icon--lucide {
   color: currentColor;
+}
+
+.ws-icon--custom {
+  display: inline-block;
+  background-color: currentColor;
+  -webkit-mask-image: var(--ws-icon-src);
+  mask-image: var(--ws-icon-src);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
 }
 
 .ws-icon--xs { width: var(--icon-size-xs, 14px); height: var(--icon-size-xs, 14px); }

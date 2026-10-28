@@ -44,6 +44,22 @@ export {
   clearEffectiveIconOverrides,
   iconOverrideVersion,
 } from './iconOverrides'
+export {
+  CUSTOM_ICON_PREFIX,
+  ICON_ASSET_EXTS,
+  ICON_ASSET_LIMITS,
+  customIconValue,
+  isCustomIconValue,
+  customIconId,
+  iconExtOf,
+  iconDisplayName,
+  isSafeIconAssetId,
+  validateIconAsset,
+  bytesToBase64,
+  base64ToBytes,
+  formatIconBytes,
+} from './customIcons'
+export type { IconAsset, IconAssetExt, IconAssetExportEntry, IconAssetValidation } from './customIcons'
 export { validateSchemaOverlay, applySchemaOverlay, setSchemaOverlays, getSchemaOverlay, schemaOverlayCount } from './schemaOverlay'
 export type { EntitySchemaOverlay, SchemaOverlayBase, SchemaOverlayResult } from './schemaOverlay'
 

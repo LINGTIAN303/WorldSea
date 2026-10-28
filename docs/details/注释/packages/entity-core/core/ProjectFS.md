@@ -30,8 +30,13 @@
  * │   └── _index.json            # 所有关系集中存储
  * ├── settings/
  * │   └── plugins.json           # 插件开关（当前仅此一项，视图排序/配置未落盘）
- * └── .worldsea/               # 内部元数据
- *     └── cache.json             # 版本/校验信息
+ * ├── icons/                     # 自定义图标文件（id.ext，可选）
+ * ├── settings/
+ * │   ├── plugins.json
+ * │   ├── icon-assets.json       # 自定义图标登记（可选）
+ * │   └── icon-overrides.json    # 项目图标覆盖（可选）
+ * └── .worldsea/                 # 内部元数据
+ *     └── cache.json              # 版本/校验信息
  * ```
  */
 ````

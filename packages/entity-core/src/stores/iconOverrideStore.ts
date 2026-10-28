@@ -171,6 +171,27 @@ export const useIconOverrideStore = defineStore('iconOverrides', () => {
     project.value = pickNewerProjectState(fromDb, fallback) ?? defaultProjectState()
   }
 
+  /** 导出当前项目的覆盖状态（导入/导出分区共用）。 */
+  function exportProjectState(): ProjectIconOverrideState {
+    return {
+      version: 1,
+      followGlobal: project.value.followGlobal,
+      overrides: { ...project.value.overrides },
+      updatedAt: project.value.updatedAt,
+    }
+  }
+
+  /** 导入后整体替换当前项目覆盖状态（先确保 loadProjectIconOverrides 已执行）。 */
+  function replaceProjectState(next: { followGlobal?: unknown; overrides?: unknown } | null | undefined): void {
+    project.value = {
+      version: 1,
+      followGlobal: next?.followGlobal !== false,
+      overrides: sanitizeOverrides(next?.overrides),
+      updatedAt: Date.now(),
+    }
+    persistProject()
+  }
+
   function resolve(slotKey: string, fallback: string): string {
     return effective.value.get(slotKey) ?? fallback
   }
@@ -266,6 +287,8 @@ export const useIconOverrideStore = defineStore('iconOverrides', () => {
     project,
     effective,
     loadProjectIconOverrides,
+    exportProjectState,
+    replaceProjectState,
     resolve,
     sourceOf,
     hasGlobal,

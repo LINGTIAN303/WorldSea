@@ -32,6 +32,22 @@ export type {
   IconOverrideMapState,
   ProjectIconOverrideState,
 } from './iconOverrideStore'
+export {
+  useIconAssetStore,
+  ICON_ASSETS_GLOBAL_KEY,
+  ICON_ASSETS_PROJECT_KEY,
+  ICON_ASSETS_PROJECT_FALLBACK_PREFIX,
+  ICON_ASSETS_DIR_NAME,
+  sanitizeIconAssets,
+  pickNewerIconAssetState,
+} from './iconAssetStore'
+export type {
+  IconAssetScope,
+  IconAssetState,
+  ScopedIconAsset,
+  IconAssetWriteResult,
+  IconAssetUsage,
+} from './iconAssetStore'
 export type {
   SproutToggle,
   SproutCategory,

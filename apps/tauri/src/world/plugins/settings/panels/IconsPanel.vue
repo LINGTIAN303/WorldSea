@@ -1,5 +1,5 @@
 <template>
-  <CardDeck :count="iconCards.length + 1" :flat="!!searchQuery" @change="(i) => emit('card-change', i)" ref="deckRef">
+  <CardDeck :count="iconCards.length + 2" :flat="!!searchQuery" @change="(i) => emit('card-change', i)" ref="deckRef">
     <template #card="{ idx, cls }">
       <template v-for="(card, i) in iconCards" :key="card.kind">
         <IconSlotCard
@@ -20,8 +20,14 @@
         />
       </template>
 
-      <div
+      <IconAssetsCard
         v-if="idx === iconCards.length"
+        :class="cls"
+        :search-query="searchQuery"
+      />
+
+      <div
+        v-if="idx === iconCards.length + 1"
         class="set-card deck-card ic-card"
         :class="cls"
         v-show="match(scopeKeywords)"
@@ -51,8 +57,18 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { entitySchemaRegistryV2, pluginAPI, useIconOverrideStore, usePluginStore, useSettingsStore } from '@worldsea/entity-core'
-import { CardDeck, matchKeywords, toastSuccess, useConfirm, ICON_DOMAIN_IDS, type IconDomain } from '@worldsea/ui-kit'
+import {
+  customIconId,
+  customIconValue,
+  entitySchemaRegistryV2,
+  isCustomIconValue,
+  pluginAPI,
+  useIconAssetStore,
+  useIconOverrideStore,
+  usePluginStore,
+  useSettingsStore,
+} from '@worldsea/entity-core'
+import { CardDeck, matchKeywords, toastSuccess, toastWarn, useConfirm, ICON_DOMAIN_IDS, type IconDomain } from '@worldsea/ui-kit'
 import { availablePlugins } from '@/world'
 import {
   defaultSyncFor,
@@ -76,6 +92,7 @@ import {
   type IconSlotKind,
 } from '@/world/iconSlots'
 import IconSlotCard from './IconSlotCard.vue'
+import IconAssetsCard from './IconAssetsCard.vue'
 import IconScopeCard from './IconScopeCard.vue'
 import IconPicker from './IconPicker.vue'
 
@@ -140,6 +157,7 @@ const deckRef = ref<InstanceType<typeof CardDeck> | null>(null)
 const pluginStore = usePluginStore()
 const settings = useSettingsStore()
 const iconStore = useIconOverrideStore()
+const iconAssets = useIconAssetStore()
 const { confirm } = useConfirm()
 
 const revision = ref(0)
@@ -244,16 +262,26 @@ function applyIcon(key: string, icon: string, applyGlobal: boolean): void {
   else iconStore.setProjectIcon(key, icon)
 }
 
-function confirmPicker(payload: IconPickerConfirm): void {
+async function confirmPicker(payload: IconPickerConfirm): Promise<void> {
   const slot = pickerSlot.value
   if (!slot) return
+  let icon = payload.icon
+  if (payload.applyGlobal && isCustomIconValue(icon)) {
+    const id = customIconId(icon)
+    const promoted = id ? await iconAssets.promoteToGlobal(id) : null
+    if (!promoted) {
+      toastWarn('自定义图标同步到全局失败，请重试')
+      return
+    }
+    icon = customIconValue(promoted.id)
+  }
   const oldIcon = iconStore.resolve(slot.key, slot.defaultIcon)
-  applyIcon(slot.key, payload.icon, payload.applyGlobal)
+  applyIcon(slot.key, icon, payload.applyGlobal)
   let synced = 0
   if (slot.kind === 'sprout' && payload.syncTypes) {
     const typeSlots = entityTypeSlotsOf(slots.value, slot.pluginId)
     for (const key of syncTargetKeys(typeSlots, iconStore.sourceOf, s => iconStore.resolve(s.key, s.defaultIcon), oldIcon)) {
-      applyIcon(key, payload.icon, payload.applyGlobal)
+      applyIcon(key, icon, payload.applyGlobal)
       synced++
     }
   }

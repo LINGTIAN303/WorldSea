@@ -10,7 +10,7 @@
         <span class="ip-current-icon"><WsIcon :name="target.current" size="md" /></span>
         <span class="ip-current-text">当前：{{ currentLabel }} · {{ iconSourceLabel(target.source) }}</span>
         <span v-if="target.source === 'global'" class="ip-current-hint">继承全局</span>
-        <span v-else-if="!currentInCatalog" class="ip-current-hint">不在精选库</span>
+        <span v-else-if="!currentInCatalog" class="ip-current-hint">{{ isCustomIconValue(target.current) ? '图标文件缺失' : '不在精选库' }}</span>
       </div>
 
       <input
@@ -32,6 +32,14 @@
           :aria-selected="activeDomain === category.id"
           @click="activeDomain = category.id"
         >{{ category.label }}</button>
+      </div>
+
+      <div v-if="activeDomain === 'custom'" class="ip-custom-tools">
+        <input ref="uploadInput" class="ip-file" type="file" accept=".svg,.png,.webp,image/svg+xml,image/png,image/webp" @change="onUploadChange" />
+        <button class="ip-upload" type="button" :disabled="!available || uploading" @click="chooseUpload">
+          {{ uploading ? '上传中…' : '上传图标' }}
+        </button>
+        <span class="ip-upload-hint">项目内上传；确定时可勾选「应用到全局」</span>
       </div>
 
       <div
@@ -58,7 +66,7 @@
         >
           <WsIcon :name="entry.name" size="md" />
         </button>
-        <div v-if="filtered.length === 0" class="ip-empty">没有匹配的图标</div>
+        <div v-if="filtered.length === 0" class="ip-empty">{{ activeDomain === 'custom' ? '还没有自定义图标，点击上方上传' : '没有匹配的图标' }}</div>
       </div>
 
       <div class="ip-preview" aria-live="polite">
@@ -103,12 +111,14 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
-import { SPROUT_DOMAINS } from '@worldsea/entity-core'
-import { searchIconCatalog, WsIcon, type IconCatalogEntry, type IconDomain } from '@worldsea/ui-kit'
+import { SPROUT_DOMAINS, customIconId, customIconValue, isCustomIconValue, useIconAssetStore } from '@worldsea/entity-core'
+import { isTauri } from '@worldsea/entity-core/core'
+import { searchIconCatalog, toastSuccess, toastWarn, WsIcon, type IconCatalogEntry, type IconDomain } from '@worldsea/ui-kit'
 import TuiModal from '@/components/ui/TuiModal.vue'
 import { iconSlotKindLabel, iconSourceLabel, type IconPickerConfirm, type IconPickerTarget } from '@/world/iconPanelModel'
+import { uploadIconFile } from '@/world/iconAssetUpload'
 
-type CategoryId = 'recommended' | 'all' | IconDomain
+type CategoryId = 'recommended' | 'custom' | 'all' | IconDomain
 
 const props = defineProps<{
   show: boolean
@@ -128,36 +138,65 @@ const activeIndex = ref(0)
 const syncTypes = ref(false)
 const applyGlobal = ref(false)
 const gridRef = ref<HTMLElement | null>(null)
+const iconAssets = useIconAssetStore()
+const uploadInput = ref<HTMLInputElement | null>(null)
+const uploading = ref(false)
+const available = computed(() => isTauri())
 
 const categories = computed<Array<{ id: CategoryId; label: string }>>(() => [
   { id: 'recommended', label: '推荐' },
+  { id: 'custom', label: '我的图标' },
   { id: 'all', label: '全部' },
   ...SPROUT_DOMAINS.map(domain => ({ id: domain.id as CategoryId, label: domain.label })),
   { id: 'general', label: '通用' },
 ])
+
+const customEntries = computed<IconCatalogEntry[]>(() => iconAssets.allAssets.map(({ asset, scope }) => ({
+  name: customIconValue(asset.id),
+  label: asset.name,
+  keywords: `自定义 图标 ${asset.name} ${scope === 'global' ? '全局' : '项目'}`,
+  domains: ['general'],
+})))
 
 const pickerTitle = computed(() => {
   if (!props.target) return '选择图标'
   return `为${iconSlotKindLabel(props.target.kind)}「${props.target.label}」选择图标`
 })
 
-const currentInCatalog = computed(() => Boolean(
-  props.target && searchIconCatalog(props.target.current).some(entry => entry.name === props.target?.current),
-))
+function customAssetOf(value: string) {
+  const id = customIconId(value)
+  return id ? iconAssets.assetById(id) : null
+}
 
-const currentLabel = computed(() => {
-  if (!props.target) return ''
-  return searchIconCatalog(props.target.current).find(entry => entry.name === props.target?.current)?.label
-    ?? props.target.current
+const currentInCatalog = computed(() => {
+  const target = props.target
+  if (!target) return false
+  if (isCustomIconValue(target.current)) return Boolean(customAssetOf(target.current))
+  return searchIconCatalog(target.current).some(entry => entry.name === target.current)
 })
 
-const selectedLabel = computed(() =>
-  searchIconCatalog(selected.value).find(entry => entry.name === selected.value)?.label ?? selected.value,
-)
+const currentLabel = computed(() => {
+  const target = props.target
+  if (!target) return ''
+  if (isCustomIconValue(target.current)) return customAssetOf(target.current)?.asset.name ?? target.current
+  return searchIconCatalog(target.current).find(entry => entry.name === target.current)?.label ?? target.current
+})
+
+const selectedLabel = computed(() => {
+  if (isCustomIconValue(selected.value)) return customAssetOf(selected.value)?.asset.name ?? selected.value
+  return searchIconCatalog(selected.value).find(entry => entry.name === selected.value)?.label ?? selected.value
+})
 
 const filtered = computed<IconCatalogEntry[]>(() => {
   const target = props.target
   if (!target) return []
+  if (activeDomain.value === 'custom') {
+    const q = query.value.trim().toLowerCase()
+    if (!q) return customEntries.value
+    return customEntries.value.filter(entry => (
+      entry.label.toLowerCase().includes(q) || entry.keywords.toLowerCase().includes(q)
+    ))
+  }
   if (activeDomain.value === 'all') return searchIconCatalog(query.value)
   if (activeDomain.value === 'recommended') {
     const primary = searchIconCatalog(query.value, target.domain ?? 'general')
@@ -173,7 +212,7 @@ watch(() => [props.show, props.target?.key] as const, () => {
   if (!props.show || !props.target) return
   selected.value = props.target.current
   query.value = ''
-  activeDomain.value = 'recommended'
+  activeDomain.value = isCustomIconValue(props.target.current) ? 'custom' : 'recommended'
   activeIndex.value = 0
   syncTypes.value = props.target.syncDefault
   applyGlobal.value = false
@@ -211,6 +250,32 @@ function onGridKeydown(event: KeyboardEvent): void {
   })
 }
 
+function chooseUpload(): void {
+  uploadInput.value?.click()
+}
+
+async function onUploadChange(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  uploading.value = true
+  try {
+    const result = await uploadIconFile(file)
+    if (!result.ok || !result.asset) {
+      toastWarn(result.reason ?? '图标上传失败')
+      return
+    }
+    activeDomain.value = 'custom'
+    selected.value = customIconValue(result.asset.id)
+    toastSuccess('已上传到本项目')
+    await nextTick()
+    activeIndex.value = Math.max(0, filtered.value.findIndex(entry => entry.name === selected.value))
+  } finally {
+    uploading.value = false
+  }
+}
+
 function close(): void {
   emit('close')
 }
@@ -240,6 +305,12 @@ function onReset(): void {
 .ip-chip { flex-shrink: 0; padding: 4px 8px; border: 1px solid transparent; border-radius: var(--radius-sm); background: transparent; color: var(--text-secondary); font-size: var(--font-size-xs, 12px); cursor: pointer; }
 .ip-chip:hover { background: var(--hover-bg, var(--color-bg-hover)); color: var(--text-color, var(--color-text)); }
 .ip-chip.active { color: var(--primary, var(--color-primary)); border-color: var(--primary, var(--color-primary)); }
+.ip-custom-tools { display: flex; align-items: center; gap: 8px; }
+.ip-file { display: none; }
+.ip-upload { padding: 4px 10px; border: 1px solid var(--border, var(--color-border)); border-radius: var(--radius-sm); background: var(--content-bg, var(--color-bg-surface)); color: var(--text-primary, var(--color-text)); font-size: var(--font-size-xs, 12px); cursor: pointer; }
+.ip-upload:hover:not(:disabled) { border-color: var(--primary, var(--color-primary)); color: var(--primary, var(--color-primary)); }
+.ip-upload:disabled { opacity: 0.5; cursor: default; }
+.ip-upload-hint { font-size: var(--text-micro-font-size, 10px); color: var(--text-tertiary); }
 .ip-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; max-height: 30vh; overflow-y: auto; padding: 2px; border: 1px solid var(--border, var(--color-border)); border-radius: var(--radius-md); }
 .ip-tile { display: inline-flex; align-items: center; justify-content: center; aspect-ratio: 1; border: 1px solid transparent; border-radius: var(--radius-sm); background: transparent; color: var(--text-secondary); cursor: pointer; }
 .ip-tile:hover { background: var(--hover-bg, var(--color-bg-hover)); color: var(--text-color, var(--color-text)); }

@@ -31,6 +31,19 @@ export {
   domainIconSlot,
   detailTabIconSlot,
   regionTypeIconSlot,
+  CUSTOM_ICON_PREFIX,
+  ICON_ASSET_EXTS,
+  ICON_ASSET_LIMITS,
+  customIconValue,
+  isCustomIconValue,
+  customIconId,
+  iconExtOf,
+  iconDisplayName,
+  isSafeIconAssetId,
+  validateIconAsset,
+  bytesToBase64,
+  base64ToBytes,
+  formatIconBytes,
   getEffectiveIconOverride,
   iconOverrideVersion,
   RelationTypes,
@@ -196,6 +209,7 @@ export type { AutoLinkDecision, AutoLinkDecisionValue } from './core/AutoLinkDec
 export { autoLinkRuntime, recordAutoLinkEvent, clearAutoLinkEvents } from './core/AutoLinkRuntime'
 export type { AutoLinkRuntimeEvent, AutoLinkRuntimeEventKind } from './core/AutoLinkRuntime'
 export type { EntitySchemaOverlay, SchemaOverlayBase, SchemaOverlayResult } from './core/schemaOverlay'
+export type { IconAsset, IconAssetExt, IconAssetExportEntry, IconAssetValidation } from './core/customIcons'
 export {
   registerIngestNormalizer,
   unregisterIngestNormalizer,
