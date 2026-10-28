@@ -8,6 +8,8 @@ import './relations'
 import './relations/outlineLateral'
 // 生物关系域（2026-10-28 三芽批）：同款拆分
 import './relations/creature'
+// 芽关系 Tab 引用的补充类型（2026-10-28 死关系 Tab 修复批）：同款拆分
+import './relations/sproutTabs'
 import { syncToLegacyRegistry } from './core/RelationshipRegistry'
 syncToLegacyRegistry()
 export * from './types'

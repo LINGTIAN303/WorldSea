@@ -32,9 +32,9 @@ function isWeaponItem(entity: any): boolean {
 }
 
 const weaponTabs: RelationTabDef[] = [
-  { id: 'wielded_by', label: '持有者', icon: 'user', relationType: 'wielded_by', reverseDirection: true },
+  { id: 'wielded_by', label: '持有者', icon: 'user', relationType: 'wields', reverseDirection: true },
   { id: 'related_weapon', label: '关联武器', icon: 'link', relationType: 'related_weapon' },
-  { id: 'used_in_battle', label: '关联战役', icon: 'shield', relationType: 'used_in_battle', reverseDirection: true },
+  { id: 'used_in_battle', label: '关联战役', icon: 'shield', relationType: 'used_in' },
 ]
 </script>
 

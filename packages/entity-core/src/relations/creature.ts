@@ -4,7 +4,7 @@ import { defineRelation } from '../core/RelationshipRegistry'
 
 defineRelation({
   type: 'inhabits', label: '栖息于', inverseType: 'habitat_of', inverseLabel: '栖息地',
-  sourceTypes: ['creature'], targetTypes: ['region'], symmetric: false, domain: 'geography',
+  sourceTypes: ['creature', 'species'], targetTypes: ['region'], symmetric: false, domain: 'geography',
 })
 
 defineRelation({

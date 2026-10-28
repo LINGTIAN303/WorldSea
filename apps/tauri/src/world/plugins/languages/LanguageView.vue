@@ -26,7 +26,7 @@ const loadEntityTypeSchema = (k: string) => schemaGetEntityType(k)
 const viewMode = ref<'list' | 'tree'>('list')
 const languageTabs: RelationTabDef[] = [
   { id: 'derived_from', label: '分支来源', icon: 'link', relationType: 'derived_from' },
-  { id: 'spoken_by', label: '使用者', icon: 'user', relationType: 'spoken_by', reverseDirection: true },
+  { id: 'spoken_by', label: '使用者', icon: 'user', relationType: 'spoken_by' },
 ]
 </script>
 <style scoped>

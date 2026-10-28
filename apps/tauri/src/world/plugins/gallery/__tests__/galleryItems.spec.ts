@@ -57,4 +57,13 @@ describe('collectGalleryItems 三源聚合', () => {
     ])
     expect(items.map(i => i.source).sort()).toEqual(['cover', 'portrait'])
   })
+
+  it('视频源：videoAsset 出「视频」卡；已勾选视频作封面的不重复出卡', () => {
+    const items = collectGalleryItems([
+      makeEntity({ id: 'h', videoAsset: 'file:///h.mp4' }),
+      makeEntity({ id: 'i', videoAsset: 'file:///i.mp4', coverSource: 'video' }),
+    ])
+    expect(items.map(i => `${i.source}:${i.entity.id}`)).toEqual(['video:h', 'cover:i'])
+    expect(items[0]!.entity.coverSource).toBe('video')
+  })
 })

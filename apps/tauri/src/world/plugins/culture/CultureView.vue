@@ -26,8 +26,8 @@ const loadEntityTypeSchema = (k: string) => schemaGetEntityType(k)
 const viewMode = ref<'list' | 'calendar'>('list')
 const cultureTabs: RelationTabDef[] = [
   { id: 'practiced_in', label: '流行地区', icon: 'location', relationType: 'practiced_in' },
-  { id: 'practiced_by', label: '所属物种', icon: 'user', relationType: 'practiced_by', reverseDirection: true },
-  { id: 'promoted_by', label: '推行势力', icon: 'building', relationType: 'promoted_by', reverseDirection: true },
+  { id: 'practiced_by', label: '所属物种', icon: 'user', relationType: 'practiced_by' },
+  { id: 'promoted_by', label: '推行势力', icon: 'building', relationType: 'promoted_by' },
 ]
 </script>
 <style scoped>

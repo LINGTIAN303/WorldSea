@@ -121,3 +121,11 @@ scope: 芽（侧栏插件）生态
 - 实体类型：23 → **24**（+ `creature`）；字段实例 274 → **283**（creature 9 ownFields）。
 - 图中新增节点：三芽均为纯视图/新类型芽，gallery/codex 入孤岛群（真孤岛，设计上不产关系），creature 以 4 关系入网。
 - 依据：[2026-10-28-三芽批计划](../../../plans/已完成/2026-10-28-三芽批计划-图库设定集生物图鉴.md)；`芽字段矩阵.md` 快照待重生成（生成器未跑）。
+
+## 十二、2026-10-28 收尾批复核记录
+
+- 关系类型：109 → **116**（+ `derived_from`/`evolved_from`/`symbiosis`/`grows_in`/`related_weapon`/`resides_at`/`wields`，落 `relations/sproutTabs.ts`；`used_in` 系既有类型复用未计）；`inhabits` 源端 +species、`owns`/`owned_by` 镜像一致化（遮蔽修复，见收尾批计划 §四）。
+- 关系域：language 域首次有类型入账（derived_from）。
+- 孤岛与网络：8 个原「Tab 引用不存在」的芽（languages/species/plants/buildings/weapons）的关系 Tab 全部可产 typed 关系；新守卫 `sproutTabRelations.spec` 锁死「引用存在 + 方向覆盖」。
+- 字段矩阵快照已重生成：**293 字段实例 / 162 唯一键**（22 芽 / 24 实体，见 §十一 的待办清账）。
+- 依据：[2026-10-28-收尾批](../../../plans/已完成/2026-10-28-收尾批-死关系Tab修复与三芽挂账.md)。

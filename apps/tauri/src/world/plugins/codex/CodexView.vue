@@ -64,6 +64,7 @@ import {
 } from '@worldsea/entity-core'
 import { toPlainText } from '@worldsea/plugin-sdk'
 import { availablePlugins } from '../../tree'
+import { useProjectSwitcher } from '@/composables/useProjectSwitcher'
 import {
   buildCodexHtml,
   buildCodexMarkdown,
@@ -87,6 +88,14 @@ const SYSTEM_FIELD_KEYS = new Set([
 
 const entityStore = useEntityStore()
 const keyword = ref('')
+
+/** 导出标题/文件名带项目名（挂账①：固定「WorldSea 设定集」退役） */
+const { currentProject } = useProjectSwitcher()
+const exportTitle = computed(() => `${currentProject.value?.name?.trim() || 'WorldSea'} 设定集`)
+const exportBaseName = computed(() => {
+  const name = currentProject.value?.name?.trim() || 'worldsea'
+  return `${name.replace(/[\\/:*?"<>|]/g, '')}-设定集`
+})
 
 /** 类型 → 域映射（真源 = 各芽 manifest.entityTypes；未命中归「未分类」） */
 const typeDomain = computed(() => {
@@ -175,11 +184,11 @@ function download(content: string, mime: string, filename: string) {
 }
 
 function exportMarkdown() {
-  download(buildCodexMarkdown('WorldSea 设定集', allSections.value), 'text/markdown', 'worldsea-codex.md')
+  download(buildCodexMarkdown(exportTitle.value, allSections.value), 'text/markdown', `${exportBaseName.value}.md`)
 }
 
 function exportHtml() {
-  download(buildCodexHtml('WorldSea 设定集', allSections.value), 'text/html', 'worldsea-codex.html')
+  download(buildCodexHtml(exportTitle.value, allSections.value), 'text/html', `${exportBaseName.value}.html`)
 }
 </script>
 <style scoped>

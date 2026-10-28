@@ -4,7 +4,7 @@
     <Teleport to="#view-toolbar-filter-body">
       <CustomDropdown v-model="sourceFilter" :options="SOURCE_OPTIONS" />
       <CustomDropdown v-model="typeFilter" :options="typeOptions" />
-      <input v-model="keyword" class="gg-search" type="text" placeholder="搜索实体名…">
+      <input v-model="keyword" class="gg-search" type="text" placeholder="搜索名称…">
     </Teleport>
     <!-- 动作 → R3 动作落点 -->
     <Teleport to="#view-toolbar-actions">
@@ -17,7 +17,7 @@
         :key="item.key"
         class="gg-card"
         :title="`${item.entity.name} · ${item.sourceLabel}`"
-        @click="openEntity(item.entity)"
+        @click="openItem(item)"
       >
         <EntityCardCover :entity="item.entity" cover-field-key="coverImage" />
         <span class="gg-badge">{{ item.sourceLabel }}</span>
@@ -28,20 +28,34 @@
       <WsIcon name="image" :size="28" :stroke-width="1.5" />
       <p>暂无图片——为实体设置封面或形象图、在画板创作后，这里会汇总展示</p>
     </div>
+
+    <!-- 资产预览浮层：FilePreview 与笔记本素材 tab 同款（path 直读，四渲染器分发） -->
+    <div v-if="previewPath" class="gg-preview-overlay" @click.self="previewPath = null">
+      <div class="gg-preview-panel">
+        <button class="gg-preview-close" title="关闭预览" @click="previewPath = null"><WsIcon name="close" size="sm" /></button>
+        <FilePreview :path="previewPath" :name="previewName" :size="0" @close="previewPath = null" />
+      </div>
+    </div>
   </div>
 </template>
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { invoke, convertFileSrc } from '@tauri-apps/api/core'
 import { WsIcon } from '@worldsea/ui-kit'
 import { useEntityStore, entitySchemaRegistry, type Entity } from '@worldsea/entity-core'
 import { CustomDropdown, EntityCardCover } from '@worldsea/plugin-sdk'
-import { collectGalleryItems } from './galleryItems'
+import { collectGalleryItems, type GalleryItem } from './galleryItems'
+import { mimeFromExt } from '@/composables/imageAssets'
+import { resolveEntityDataDir } from '@/composables/workspace'
+import FilePreview from '@/components/files/FilePreview.vue'
 
 const SOURCE_OPTIONS = [
   { value: 'all', label: '全部来源' },
   { value: 'cover', label: '封面' },
   { value: 'portrait', label: '形象图' },
+  { value: 'video', label: '视频' },
   { value: 'drawing', label: '画板作品' },
+  { value: 'asset', label: '资产文件' },
 ]
 
 const entityStore = useEntityStore()
@@ -60,9 +74,38 @@ const typeOptions = computed(() => {
 
 const allItems = computed(() => collectGalleryItems(entityStore.entities))
 
+/** assets/ 目录图片资产（挂账②：与实体条目合并展示；id 存磁盘路径供预览） */
+const assetItems = ref<GalleryItem[]>([])
+
+onMounted(() => { void loadAssetItems() })
+
+async function loadAssetItems(): Promise<void> {
+  try {
+    const root = await resolveEntityDataDir()
+    if (!root) return
+    const entries = await invoke<Array<{ name: string; path: string; isDir: boolean; size: number; modified: string | null }>>(
+      'cmd_fs_list', { path: `${root}/assets`, recursive: false },
+    )
+    assetItems.value = entries
+      .filter(e => !e.isDir && mimeFromExt(e.name) !== '')
+      .map(e => ({
+        key: `asset:${e.path}`,
+        entity: {
+          id: e.path, type: '__asset__', name: e.name, description: '', properties: {}, tags: [],
+          coverImage: convertFileSrc(e.path), createdAt: e.modified ?? '', updatedAt: e.modified ?? '',
+        } as Entity,
+        source: 'asset' as const,
+        sourceLabel: '资产',
+      }))
+      .sort((a, b) => a.entity.name.localeCompare(b.entity.name, 'zh'))
+  } catch {
+    // assets 目录不存在 / 未就绪 → 无资产条目（非致命）
+  }
+}
+
 const items = computed(() => {
   const kw = keyword.value.trim().toLowerCase()
-  return allItems.value.filter(item => {
+  return [...allItems.value, ...assetItems.value].filter(item => {
     if (sourceFilter.value !== 'all' && item.source !== sourceFilter.value) return false
     if (typeFilter.value !== 'all' && item.entity.type !== typeFilter.value) return false
     if (kw && !item.entity.name.toLowerCase().includes(kw)) return false
@@ -70,9 +113,17 @@ const items = computed(() => {
   })
 })
 
-/** 点卡跳源实体（Shell 单点导航：切视图 + 选中） */
-function openEntity(entity: Entity) {
-  window.dispatchEvent(new CustomEvent('ws-navigate', { detail: { entityType: entity.type, entityId: entity.id } }))
+/** 实体卡跳源实体；资产卡开内嵌预览（无实体可跳） */
+const previewPath = ref<string | null>(null)
+const previewName = ref('')
+
+function openItem(item: GalleryItem) {
+  if (item.source === 'asset') {
+    previewPath.value = item.entity.id
+    previewName.value = item.entity.name
+    return
+  }
+  window.dispatchEvent(new CustomEvent('ws-navigate', { detail: { entityType: item.entity.type, entityId: item.entity.id } }))
 }
 </script>
 <style scoped>
@@ -117,4 +168,22 @@ function openEntity(entity: Entity) {
   gap: 8px; color: var(--color-text-tertiary); font-size: var(--font-size-sm); text-align: center;
   padding: 32px;
 }
+
+/* 资产预览浮层（notebook 素材 tab 同款形态） */
+.gg-preview-overlay {
+  position: fixed; inset: 0; z-index: var(--z-modal, 1000);
+  display: flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--color-bg, #000) 62%, transparent);
+}
+.gg-preview-panel {
+  position: relative; width: min(880px, 86vw); max-height: 86vh; overflow: auto;
+  background: var(--color-bg-elevated); border: 1px solid var(--color-border);
+  border-radius: var(--radius-md); padding: 12px;
+}
+.gg-preview-close {
+  position: absolute; top: 8px; right: 8px; z-index: 1;
+  display: inline-flex; padding: 4px; border: 1px solid var(--color-border); border-radius: var(--radius-xs);
+  background: var(--color-bg-elevated); color: var(--color-text-secondary); cursor: pointer;
+}
+.gg-preview-close:hover { color: var(--color-text-primary); border-color: var(--color-text-secondary); }
 </style>

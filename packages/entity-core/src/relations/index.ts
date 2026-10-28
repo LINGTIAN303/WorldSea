@@ -178,7 +178,7 @@ defineRelation({
 
 defineRelation({
   type: 'owns', label: '拥有', inverseType: 'owned_by', inverseLabel: '被拥有',
-  sourceTypes: ['character'], targetTypes: ['item'], symmetric: false, domain: 'ownership',
+  sourceTypes: ['character', 'organization'], targetTypes: ['item', 'building'], symmetric: false, domain: 'ownership',
 })
 
 defineRelation({

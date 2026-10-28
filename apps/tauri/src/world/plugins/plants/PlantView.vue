@@ -26,7 +26,7 @@ const loadEntityTypeSchema = (k: string) => schemaGetEntityType(k)
 const viewMode = ref<'list' | 'recipe'>('list')
 const plantTabs: RelationTabDef[] = [
   { id: 'grows_in', label: '生长区域', icon: 'location', relationType: 'grows_in' },
-  { id: 'used_by', label: '用途关联', icon: 'user', relationType: 'used_by', reverseDirection: true },
+  { id: 'used_by', label: '用途关联', icon: 'user', relationType: 'used_by' },
 ]
 </script>
 <style scoped>

@@ -30,7 +30,7 @@ export function guessRelationType(srcType: string, tgtType: string): string {
     [`region_organization`]: 'controls',
     [`organization_item`]: 'owns',
     [`event_item`]: 'associated_with',
-    [`item_event`]: 'associated_with',
+    [`item_event`]: 'used_in',
     [`concept_character`]: 'associated_with',
     [`concept_region`]: 'associated_with',
     [`concept_organization`]: 'associated_with',
@@ -44,6 +44,11 @@ export function guessRelationType(srcType: string, tgtType: string): string {
     [`creature_character`]: 'hunted_by',
     [`creature_species`]: 'belongs_to',
     [`creature_organization`]: 'belongs_to',
+    [`character_building`]: 'resides_at',
+    [`plant_region`]: 'grows_in',
+    [`language_language`]: 'derived_from',
+    [`species_species`]: 'evolved_from',
+    [`species_region`]: 'inhabits',
   }
   const pairKey = `${srcType}_${tgtType}`
   return map[pairKey] || 'associated_with'
@@ -101,6 +106,7 @@ export const RELATION_TYPE_OPTIONS: Record<string, Array<{ type: string; label: 
     { type: 'associated_with', label: '关联' },
   ],
   'character_item': [
+    { type: 'wields', label: '持有武器' },
     { type: 'owns', label: '拥有' },
     { type: 'owned_by', label: '归属' },
     { type: 'associated_with', label: '关联' },
@@ -159,11 +165,13 @@ export const RELATION_TYPE_OPTIONS: Record<string, Array<{ type: string; label: 
     { type: 'associated_with', label: '关联' },
   ],
   'item_item': [
+    { type: 'related_weapon', label: '关联武器' },
     { type: 'associated_with', label: '关联' },
     { type: 'inspired_by', label: '启发' },
     { type: 'contains', label: '包含' },
   ],
   'item_event': [
+    { type: 'used_in', label: '用于' },
     { type: 'associated_with', label: '关联' },
     { type: 'involved_in', label: '涉及' },
   ],
@@ -247,6 +255,40 @@ export const RELATION_TYPE_OPTIONS: Record<string, Array<{ type: string; label: 
   ],
   'organization_creature': [
     { type: 'has_member', label: '拥有成员' },
+  ],
+  // 死关系 Tab 修复批（2026-10-28）：languages/species/plants/buildings Tab 定向添加的配对候选
+  'character_building': [
+    { type: 'resides_at', label: '驻留于' },
+    { type: 'associated_with', label: '关联' },
+  ],
+  'building_character': [
+    { type: 'resident_of', label: '驻留者' },
+    { type: 'associated_with', label: '关联' },
+  ],
+  'plant_region': [
+    { type: 'grows_in', label: '生长于' },
+    { type: 'associated_with', label: '关联' },
+  ],
+  'region_plant': [
+    { type: 'growing_site', label: '生长区域' },
+    { type: 'associated_with', label: '关联' },
+  ],
+  'language_language': [
+    { type: 'derived_from', label: '分支来源' },
+    { type: 'associated_with', label: '关联' },
+  ],
+  'species_species': [
+    { type: 'evolved_from', label: '进化自' },
+    { type: 'symbiosis', label: '共生/天敌' },
+    { type: 'associated_with', label: '关联' },
+  ],
+  'species_region': [
+    { type: 'inhabits', label: '栖息于' },
+    { type: 'associated_with', label: '关联' },
+  ],
+  'region_species': [
+    { type: 'habitat_of', label: '栖息地' },
+    { type: 'associated_with', label: '关联' },
   ],
 }
 
