@@ -1,4 +1,5 @@
 <template>
+  <Transition name="ws-fade" appear>
   <aside v-if="visible" class="dp-shell detail-column" :style="{ width: panelWidth + 'px' }">
     <div class="resize-handle-left" @mousedown="onResizeStart" />
 
@@ -22,6 +23,7 @@
       </template>
     </DetailShell>
   </aside>
+  </Transition>
 </template>
 
 <script setup lang="ts">
@@ -97,7 +99,24 @@ defineExpose({ switchTab, activeTab })
   overflow: hidden;
   height: 100%;
   min-height: 0;
+  min-width: 0;
   background: var(--color-bg-surface);
   border-left: 1px solid var(--color-border);
 }
+/* 分栏载体：宽度随淡入淡出收缩/展开，避免父级 split 布局在关闭瞬间先塌 */
+.ws-fade-enter-active,
+.ws-fade-leave-active {
+  transition: opacity var(--dur-fast) var(--ease), width var(--dur-fast) var(--ease-out),
+              border-left-width var(--dur-fast) var(--ease-out);
+}
+.ws-fade-enter-from,
+.ws-fade-leave-to {
+  opacity: 0;
+  width: 0 !important;
+  border-left-width: 0;
+}
+:root[data-anim-panels='off'] .ws-fade-enter-active,
+:root[data-anim-panels='off'] .ws-fade-leave-active,
+:root[data-reduce-motion='on'] .ws-fade-enter-active,
+:root[data-reduce-motion='on'] .ws-fade-leave-active { transition: none; }
 </style>

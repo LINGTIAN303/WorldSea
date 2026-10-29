@@ -124,7 +124,7 @@
               <h2>最近动态</h2>
               <span class="home-section-note">最近 10 条 · 当前启用的芽</span>
             </header>
-            <ul v-if="data.recent.length" id="home-recent-list" class="home-recent-list">
+            <TransitionGroup v-if="data.recent.length" name="ws-list" tag="ul" id="home-recent-list" class="home-recent-list">
               <li v-for="item in visibleRecent" :key="item.id">
                 <button type="button" class="home-recent-row" :title="item.description || item.name" @click="onEnterEntity(item.viewId, item.id)">
                   <span class="home-recent-time">{{ relativeTime(item.updatedAt) }}</span>
@@ -136,7 +136,7 @@
                   </span>
                 </button>
               </li>
-            </ul>
+            </TransitionGroup>
             <WsEmpty v-else title="还没有最近修改" description="在工作台写下第一条内容后，这里会出现动态。" />
             <button
               v-if="data.recent.length > 6"

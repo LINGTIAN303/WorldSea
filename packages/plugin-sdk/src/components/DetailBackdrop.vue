@@ -1,5 +1,7 @@
 <template>
-  <div v-if="visible" class="dp-backdrop" :class="{ 'is-blocking': blocking }" @click="onClick" />
+  <Transition name="ws-fade" appear>
+    <div v-if="visible" class="dp-backdrop" :class="{ 'is-blocking': blocking }" @click="onClick" />
+  </Transition>
 </template>
 
 <script setup lang="ts">

@@ -4,6 +4,7 @@
  */
 export const SETTINGS_CATEGORIES = [
   { id: 'appearance', icon: 'cat-appearance', label: '外观' },
+  { id: 'accessibility', icon: 'motion', label: '动画效果' },
   { id: 'icons', icon: 'image', label: '图标' },
   { id: 'home', icon: 'home', label: '首页' },
   { id: 'plugins', icon: 'cat-plugins', label: '插件' },
@@ -14,7 +15,6 @@ export const SETTINGS_CATEGORIES = [
   { id: 'relations', icon: 'cat-relations', label: '关系' },
   { id: 'shortcuts', icon: 'cat-shortcuts', label: '快捷键' },
   { id: 'storage', icon: 'cat-storage', label: '存储' },
-  { id: 'accessibility', icon: 'motion', label: '无障碍' },
   { id: 'about', icon: 'info', label: '关于' },
 ] as const
 

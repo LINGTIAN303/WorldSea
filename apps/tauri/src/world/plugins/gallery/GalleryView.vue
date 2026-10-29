@@ -11,7 +11,7 @@
       <span class="gg-count">{{ items.length }} 项</span>
     </Teleport>
 
-    <div v-if="items.length > 0" class="gg-grid">
+    <div v-if="items.length > 0" class="gg-grid" :class="{ 'is-grid-entering': gridEntering }">
       <button
         v-for="item in items"
         :key="item.key"
@@ -41,7 +41,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { invoke, convertFileSrc } from '@tauri-apps/api/core'
-import { WsIcon } from '@worldsea/ui-kit'
+import { WsIcon, useViewEntering } from '@worldsea/ui-kit'
 import { useEntityStore, entitySchemaRegistry, type Entity } from '@worldsea/entity-core'
 import { CustomDropdown, EntityCardCover } from '@worldsea/plugin-sdk'
 import { collectGalleryItems, type GalleryItem } from './galleryItems'
@@ -62,6 +62,9 @@ const entityStore = useEntityStore()
 const sourceFilter = ref('all')
 const typeFilter = ref('all')
 const keyword = ref('')
+
+/** 只在来源/类型筛选变化时淡入；关键词逐字输入不做动画，避免高频闪烁 */
+const gridEntering = useViewEntering(() => `${sourceFilter.value}|${typeFilter.value}`, 150)
 
 /** 实体类型选项（仅收录当前存在实体的类型，按注册表 label 展示） */
 const typeOptions = computed(() => {
@@ -142,6 +145,9 @@ function openItem(item: GalleryItem) {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 12px;
   align-content: start; flex: 1;
 }
+.gg-grid.is-grid-entering { animation: ws-view-in var(--dur-fast) var(--ease-out); }
+:root[data-anim-content='off'] .gg-grid.is-grid-entering,
+:root[data-reduce-motion='on'] .gg-grid.is-grid-entering { animation: none; }
 .gg-card {
   position: relative; display: flex; flex-direction: column; align-items: stretch; gap: 0;
   padding: 0; border: 1px solid var(--color-border); border-radius: var(--radius-sm);

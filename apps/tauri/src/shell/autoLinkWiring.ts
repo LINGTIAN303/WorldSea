@@ -28,6 +28,9 @@ export function installAutoLinkWiring(): void {
     get undoHistoryLimit() { return useSettingsStore().undoHistoryLimit },
     get highlight_spreadHops() { return useSettingsStore().highlight_spreadHops },
     get highlight_dimmingEnabled() { return useSettingsStore().highlight_dimmingEnabled },
+    get highlight_dimmingMode() { return useSettingsStore().highlight_dimmingMode as 'simple' | 'spread' },
+    get highlight_dimOpacity() { return useSettingsStore().highlight_dimOpacity },
+    get highlight_pulseEnabled() { return useSettingsStore().highlight_pulseEnabled },
   })
 
   // ③ 确认桥：接到 ui-kit 全局确认弹窗（WsConfirmDialog 经 Shell 全局挂载）

@@ -7,9 +7,11 @@
       'batch-selected': batchSelected,
       'batch-mode': batchMode,
       'active': active,
+      'hl-pulse': active && settings.highlight_pulseEnabled,
       'dimmed': dimmed,
       'search-highlight': searchHighlighted,
     }"
+    :style="{ '--hl-dim-opacity': settings.highlight_dimOpacity }"
     @mouseover="onHoverOver"
     @mouseout="onHoverOut"
   >
@@ -197,7 +199,8 @@ onBeforeUnmount(() => {
   background: var(--bg-surface, #ffffff);
   overflow: hidden;
   transition: border-color var(--dur-fast, 0.15s) var(--ease, ease),
-              box-shadow var(--dur-fast, 0.15s) var(--ease, ease);
+              box-shadow var(--dur-fast, 0.15s) var(--ease, ease),
+              opacity var(--dur-fast, 0.15s) var(--ease, ease);
 }
 .entity-card-wrapper:hover {
   border-color: var(--border-strong, #d9d9de);
@@ -216,7 +219,18 @@ onBeforeUnmount(() => {
 /* 搜索命中高亮 */
 .entity-card-wrapper.search-highlight { border-color: var(--warning, #d97706); }
 /* 关系高亮过滤时未命中项变暗 */
-.entity-card-wrapper.dimmed { opacity: 0.45; }
+.entity-card-wrapper.dimmed { opacity: var(--hl-dim-opacity, 0.45); }
+
+/* 选中卡片脉冲（设置「脉冲动画」）：外圈涟漪，不动布局 */
+@keyframes hl-card-pulse {
+  0% { box-shadow: 0 0 0 1px var(--accent, #4f46e5), 0 0 0 0 color-mix(in srgb, var(--accent, #4f46e5) 35%, transparent); }
+  50% { box-shadow: 0 0 0 1px var(--accent, #4f46e5), 0 0 0 6px color-mix(in srgb, var(--accent, #4f46e5) 0%, transparent); }
+  100% { box-shadow: 0 0 0 1px var(--accent, #4f46e5), 0 0 0 0 color-mix(in srgb, var(--accent, #4f46e5) 35%, transparent); }
+}
+.entity-card-wrapper.active.hl-pulse { animation: hl-card-pulse 1.6s var(--ease, ease) infinite; }
+:root[data-anim-content='off'] .entity-card-wrapper.dimmed { transition: none; }
+:root[data-anim-content='off'] .entity-card-wrapper.active.hl-pulse,
+:root[data-reduce-motion='on'] .entity-card-wrapper.active.hl-pulse { animation: none; }
 
 /* 卡片本体：可点击填充区 */
 .entity-card {

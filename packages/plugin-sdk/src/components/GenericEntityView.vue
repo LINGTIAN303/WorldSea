@@ -184,7 +184,7 @@
 <script setup lang="ts">
 import { toastSuccess, toastWarn, toastWithUndo } from '@worldsea/ui-kit'
 import { useEntityEdit, useBatchDelete, useDuplicateNameCheck, useShortcuts, useConfirm, useHighlight, useEntityPaging, useSelectedFollow } from '../composables'
-import { ref, computed, onMounted, onBeforeUnmount, reactive, useSlots, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, onDeactivated, reactive, useSlots, watch } from 'vue'
 import { useEntityStore, useRelationStore, entitySchemaRegistry, entityTypeIconSlot, getEffectiveIconOverride, fieldRegistry, useUIStore, useDetailLayoutStore } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
 import CustomDropdown from './CustomDropdown.vue'
@@ -201,7 +201,7 @@ import EntityPager from './EntityPager.vue'
 import EntityCard from './EntityCard.vue'
 import AutoLinkSuggestions from './AutoLinkSuggestions.vue'
 import EntityDetailForm from '../detail/EntityDetailForm.vue'
-import { useDetailCarrier } from '../detail/useDetailCarrier'
+import { useDetailCarrier, useCarrierOpenWindow } from '../detail/useDetailCarrier'
 import { resolveDetailTabs, adjacentTabId } from '../detail/detailTabs'
 import type { DetailFieldMeta } from '../detail/fieldMeta'
 import type { LayoutSource } from '../detail/detailLayout'
@@ -292,6 +292,12 @@ const filters = reactive<Record<string, string>>(
 const searchQuery = ref('')
 const typeFilter = ref('')
 const selectedEntity = ref<Entity | null>(null)
+
+/** 关闭详情 / 离开视图时清掉关联高亮，避免列表长期停留在变暗态 */
+watch(selectedEntity, (entity) => {
+  if (!entity) listHighlight.select(null)
+})
+onDeactivated(() => listHighlight.select(null))
 const showForm = ref(false)
 const editingEntity = ref<Entity | null>(null)
 const detailPanelRef = ref<{ switchTab: (tabId: string) => void; activeTab?: string } | null>(null)
@@ -368,8 +374,8 @@ const { carrierDef, detailPanelId, isSplit, isImmersive } = useDetailCarrier(
   () => props.entityType,
   () => props.detailCarrier,
 )
-const splitCarrierOpen = computed(() => isSplit.value && !!selectedEntity.value)
-const immersiveCarrierOpen = computed(() => isImmersive.value && !!selectedEntity.value)
+const splitCarrierOpen = useCarrierOpenWindow(() => isSplit.value, () => !!selectedEntity.value)
+const immersiveCarrierOpen = useCarrierOpenWindow(() => isImmersive.value, () => !!selectedEntity.value)
 
 const { layout: detailLayout, setContentForm } = useDetailLayout(
   () => props.entityType,
@@ -765,11 +771,13 @@ defineExpose({
 
 <style scoped>
 /* `position:relative` 是给沉浸页载体当定位父级的——它盖的是"这一块内容区"，不是整个窗口 */
-.gev-root { position: relative; display: flex; flex-direction: column; height: 100%; padding: 20px; }
+.gev-root { position: relative; display: flex; flex-direction: column; height: 100%; padding: 20px; transition: padding-right 180ms var(--ease-out); }
 /* 栏式整页：详情与列表同排分栏。子件根元素带本组件的 scope 属性，所以 :deep 只是保险 */
 .gev-root--split { flex-direction: row; padding-right: 0; }
 .gev-root--split .entity-grid { min-width: 0; }
 .gev-root--split :deep(.detail-column) { margin-top: -20px; margin-bottom: -20px; height: auto; }
+:root[data-anim-panels='off'] .gev-root,
+:root[data-reduce-motion='on'] .gev-root { transition: none; }
 /* 筛选条内控件：横向排列（收束在向右伸展的筛选条内，超宽滚轮左右移动） */
 .toolbar-filters {
   display: flex;

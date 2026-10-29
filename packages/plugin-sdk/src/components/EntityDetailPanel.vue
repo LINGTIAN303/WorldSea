@@ -1,5 +1,5 @@
 <template>
-  <Transition name="slide">
+  <Transition name="ws-slide-right" appear>
     <div v-if="visible" class="detail-panel dp-shell" :style="{ width: panelWidth + 'px' }">
       <div class="resize-handle-left" @mousedown="onResizeStart" />
 
@@ -112,13 +112,5 @@ defineExpose({ switchTab, activeTab })
   display: flex;
   flex-direction: column;
   overflow: hidden;
-}
-.slide-enter-active,
-.slide-leave-active {
-  transition: transform 0.25s ease;
-}
-.slide-enter-from,
-.slide-leave-to {
-  transform: translateX(100%);
 }
 </style>

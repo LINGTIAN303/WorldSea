@@ -1,5 +1,5 @@
 <template>
-  <Transition name="pop">
+  <Transition name="ws-scale-fade" appear>
     <div v-if="visible" class="dp-shell detail-modal" :style="{ width: panelWidth + 'px' }">
       <div class="resize-handle-left" @mousedown="onResizeStart" />
 
@@ -110,14 +110,5 @@ defineExpose({ switchTab, activeTab })
   border: 1px solid var(--color-border);
   border-radius: 8px;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.36);
-}
-.pop-enter-active,
-.pop-leave-active {
-  transition: opacity 0.16s ease, transform 0.16s ease;
-}
-.pop-enter-from,
-.pop-leave-to {
-  opacity: 0;
-  transform: translate(-50%, -50%) scale(0.97);
 }
 </style>

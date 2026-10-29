@@ -47,10 +47,11 @@ export function useHighlight(options: HighlightOptions) {
   function applyToList(items: { id: string }[]): { dimmed: boolean; active: boolean; searchHit: boolean }[] {
     const focusId = selectedId.value || hoveredId.value
     const dimmingEnabled = settings.highlight_dimmingEnabled
+    const mode = settings.highlight_dimmingMode ?? 'spread'
     const relations = options.getRelations()
 
     let dist: Map<string, number> | null = null
-    if (focusId && dimmingEnabled) {
+    if (focusId && dimmingEnabled && mode === 'spread') {
       dist = computeDistance(focusId, relations)
     }
 
@@ -58,8 +59,10 @@ export function useHighlight(options: HighlightOptions) {
       const active = item.id === selectedId.value
       const searchHit = searchIds.value.has(item.id)
       let dimmed = false
-      if (focusId && dimmingEnabled && dist) {
-        dimmed = !dist.has(item.id) && item.id !== focusId
+      if (focusId && dimmingEnabled) {
+        dimmed = mode === 'spread'
+          ? !!dist && !dist.has(item.id) && item.id !== focusId
+          : item.id !== focusId
       }
       return { dimmed, active, searchHit }
     })

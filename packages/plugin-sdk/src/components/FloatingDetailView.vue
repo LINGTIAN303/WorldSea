@@ -1,4 +1,5 @@
 <template>
+  <Transition name="ws-menu" appear>
   <aside
     v-if="visible"
     class="dp-shell detail-floating"
@@ -28,6 +29,7 @@
       </template>
     </DetailShell>
   </aside>
+  </Transition>
 </template>
 
 <script setup lang="ts">

@@ -1,4 +1,5 @@
 <template>
+  <Transition name="ws-fade" appear>
   <div v-if="visible" class="detail-immersive">
     <div class="di-inner dp-shell">
       <DetailShell
@@ -22,6 +23,7 @@
       </DetailShell>
     </div>
   </div>
+  </Transition>
 </template>
 
 <script setup lang="ts">

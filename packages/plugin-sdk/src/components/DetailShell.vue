@@ -111,11 +111,23 @@ function onWheel(e: WheelEvent): void {
   }
 }
 
+/** 只滚标签条，不用 scrollIntoView——详情抽屉入场时整体在视口外，scrollIntoView 会把整页横向滚走 */
+function scrollActiveTabIntoView(): void {
+  const el = tabsEl.value
+  if (!el) return
+  const tab = el.querySelector<HTMLElement>('.dp-tab.active')
+  if (!tab) return
+  const left = tab.offsetLeft
+  const right = left + tab.offsetWidth
+  if (left < el.scrollLeft) el.scrollLeft = left
+  else if (right > el.scrollLeft + el.clientWidth) el.scrollLeft = right - el.clientWidth
+}
+
 watch(
   () => [props.activeTab, props.tabs] as const,
   () => {
     void nextTick(() => {
-      tabsEl.value?.querySelector<HTMLElement>('.dp-tab.active')?.scrollIntoView({ inline: 'nearest', block: 'nearest' })
+      scrollActiveTabIntoView()
       updateEdges()
     })
   },
@@ -144,7 +156,7 @@ function onTabKeydown(e: KeyboardEvent, id: string): void {
   emit('tab-change', target.id)
   // 焦点随激活移动：等 active 类落到目标按钮后再聚焦（roving tabindex 的锚点）
   void nextTick(() => {
-    tabsEl.value?.querySelector<HTMLElement>('.dp-tab.active')?.focus()
+    tabsEl.value?.querySelector<HTMLElement>('.dp-tab.active')?.focus({ preventScroll: true })
   })
 }
 </script>

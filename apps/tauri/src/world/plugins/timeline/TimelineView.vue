@@ -158,7 +158,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useEntityStore, useRelationStore, useUIStore, useDetailLayoutStore } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
-import { AutoLinkSuggestions, CustomDropdown, EntityCoverPanel, EntityVideoPanel, CreateButton, DynamicFieldsAdder, UniversalRelationPanel, EntityRelationSelector, EntityPager, useDuplicateNameCheck, useSelectedFollow, useBatchDelete, useConfirm, useEntityEdit, useEntityPaging, useDetailCarrier, resolveDetailTabs, adjacentTabId } from '@worldsea/plugin-sdk'
+import { AutoLinkSuggestions, CustomDropdown, EntityCoverPanel, EntityVideoPanel, CreateButton, DynamicFieldsAdder, UniversalRelationPanel, EntityRelationSelector, EntityPager, useDuplicateNameCheck, useSelectedFollow, useBatchDelete, useConfirm, useEntityEdit, useEntityPaging, useDetailCarrier, useCarrierOpenWindow, resolveDetailTabs, adjacentTabId } from '@worldsea/plugin-sdk'
 import { toastSuccess, toastWithUndo, useUndoRedo, useAsyncTask } from '@worldsea/ui-kit'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { TuiButton, WsEmpty } from '@worldsea/ui-kit'
@@ -203,8 +203,8 @@ const selectedEvent = ref<Entity | null>(null)
 const conflictPeerIds = ref<Set<string>>(new Set())
 // 载体走与 GEV 同一套解析（用户按类型覆写 > 缺省抽屉）；时间线没有芽声明这一层
 const { carrierDef, detailPanelId, isSplit, isImmersive } = useDetailCarrier(() => 'event')
-const splitCarrierOpen = computed(() => isSplit.value && !!selectedEvent.value)
-const immersiveOpen = computed(() => isImmersive.value && !!selectedEvent.value)
+const splitCarrierOpen = useCarrierOpenWindow(() => isSplit.value, () => !!selectedEvent.value)
+const immersiveOpen = useCarrierOpenWindow(() => isImmersive.value, () => !!selectedEvent.value)
 const editingEvent = ref<Entity | null>(null)
 const formModalRef = ref<{ syncEntityRefAfterCreate: (id: string) => Promise<void> | void } | null>(null)
 
@@ -422,13 +422,15 @@ onBeforeUnmount(() => {
 <style scoped>
 .timeline-error { flex: 1; display: flex; align-items: center; justify-content: center; }
 
-.timeline-view { position: relative; padding: 20px; height: 100%; display: flex; flex-direction: column; }
+.timeline-view { position: relative; padding: 20px; height: 100%; display: flex; flex-direction: column; transition: padding-right 180ms var(--ease-out); }
 /* 沉浸页：详情盖住整块时间线区域（定位父级就是本件根容器） */
 .timeline-view--immersive { padding: 0; }
 /* 栏式载体：详情与时间线同排分栏。分栏柱靠负 margin 出血到窗口边（本件根容器自带 20px padding） */
 .timeline-view--split { flex-direction: row; padding-right: 0; }
 .timeline-view--split .timeline-chart { min-width: 0; }
 .timeline-view--split :deep(.detail-column) { margin-top: -20px; margin-bottom: -20px; height: auto; }
+:root[data-anim-panels='off'] .timeline-view,
+:root[data-reduce-motion='on'] .timeline-view { transition: none; }
 /* R3 单行适配：上移后控件基线样式（scoped，仅作用于本视图 teleport 内容） */
 .search-input { padding: 4px 10px; font-size: var(--font-size-sm); border: 1px solid var(--border-color, var(--color-border)); border-radius: var(--radius-sm); background: var(--color-bg-elevated); color: var(--text-color, var(--color-text-primary)); outline: none; min-width: 160px; }
 .search-input:focus { border-color: var(--primary); box-shadow: 0 0 0 2px var(--color-primary-subtle); }

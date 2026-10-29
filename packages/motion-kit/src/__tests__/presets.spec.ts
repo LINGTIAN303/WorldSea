@@ -24,9 +24,7 @@ const LEGACY_TRANSITION_NAMES = new Set([
   'dropdown',
   'fm-panel-switch',
   'g-panel',
-  'slide',
   'lightbox',
-  'pop',
   'ws-loading',
   'ws-toast',
   'panel-move',
@@ -164,5 +162,29 @@ describe('旧过渡名清退', () => {
       const src = readFileSync(resolve(process.cwd(), file), 'utf8')
       expect(src).not.toContain('.ws-menu-enter-active')
     }
+  })
+})
+
+describe('详情载体使用统一预设', () => {
+  const read = (p: string) => readFileSync(resolve(process.cwd(), p), 'utf8')
+  const base = 'packages/plugin-sdk/src/components/'
+
+  it('抽屉与居中弹层', () => {
+    expect(read(`${base}EntityDetailPanel.vue`)).toContain('<Transition name="ws-slide-right" appear>')
+    expect(read(`${base}ModalDetailView.vue`)).toContain('<Transition name="ws-scale-fade" appear>')
+  })
+
+  it('栏式 / 沉浸 / 浮窗 / 遮罩', () => {
+    expect(read(`${base}ColumnDetailView.vue`)).toContain('<Transition name="ws-fade" appear>')
+    expect(read(`${base}ImmersiveDetailView.vue`)).toContain('<Transition name="ws-fade" appear>')
+    expect(read(`${base}FloatingDetailView.vue`)).toContain('<Transition name="ws-menu" appear>')
+    expect(read(`${base}DetailBackdrop.vue`)).toContain('<Transition name="ws-fade" appear>')
+  })
+
+  it('栏式宽度随载体收展，关闭窗口保留 split 布局', () => {
+    const column = read(`${base}ColumnDetailView.vue`)
+    expect(column).toContain('width: 0 !important')
+    expect(read('packages/plugin-sdk/src/components/GenericEntityView.vue')).toContain('useCarrierOpenWindow')
+    expect(read('apps/tauri/src/world/plugins/timeline/TimelineView.vue')).toContain('useCarrierOpenWindow')
   })
 })

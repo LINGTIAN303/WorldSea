@@ -26,6 +26,8 @@ export interface DialogApi {
   prompt(message: string, title?: string, defaultValue?: string): Promise<string | null>
 }
 
+export type HighlightDimmingMode = 'simple' | 'spread'
+
 export interface SettingsApi {
   autoCreateEntityEnabled: boolean
   autoCreateEntityRefEnabled: boolean
@@ -34,6 +36,9 @@ export interface SettingsApi {
   undoHistoryLimit: number
   highlight_spreadHops: number
   highlight_dimmingEnabled: boolean
+  highlight_dimmingMode?: HighlightDimmingMode
+  highlight_dimOpacity?: number
+  highlight_pulseEnabled?: boolean
 }
 
 const noopEventBus: EventBus = {
@@ -69,6 +74,9 @@ const noopSettingsApi: SettingsApi = {
   get undoHistoryLimit() { return 20 },
   get highlight_spreadHops() { return 3 },
   get highlight_dimmingEnabled() { return false },
+  get highlight_dimmingMode() { return 'spread' as const },
+  get highlight_dimOpacity() { return 0.25 },
+  get highlight_pulseEnabled() { return true },
 }
 
 let _eventBus: EventBus | null = null

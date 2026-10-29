@@ -186,6 +186,7 @@ export {
   PANEL_LABELS,
   type ResizableOptions,
 } from './composables/useResizable'
+export { useViewEntering } from './composables/useViewEntering'
 export { useDialog } from './composables/useDialog'
 export { useCardDeck } from './composables/useCardDeck'
 export { useConfirm, type ConfirmType, type ConfirmExtraAction } from './composables/useConfirm'
