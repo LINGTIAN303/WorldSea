@@ -65,6 +65,7 @@
 
 .ws-surface-enter-active,
 .ws-surface-leave-active { transition: opacity var(--dur-surface) var(--ease); }
+.ws-surface-leave-active { pointer-events: none; }
 .ws-surface-enter-from,
 .ws-surface-leave-to { opacity: 0; }
 

@@ -1,49 +1,59 @@
-import { describe, expect, it, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
-import { defineComponent, h, onUnmounted } from 'vue'
+import { describe, it, expect, afterEach, vi } from 'vitest'
+import { mount, type VueWrapper } from '@vue/test-utils'
 import ShellSurface from '../ShellSurface.vue'
 
-describe('ShellSurface', () => {
-  it('首页/工作台互斥可见，main 唯一，inert/busy 透传', async () => {
-    const w = mount(ShellSurface, {
-      props: { surface: 'home' },
-      slots: { home: '<div class="home-slot">home</div>', workspace: '<div class="work-slot">work</div>' },
-    })
-    const main = w.find('main#main-content')
-    expect(main.exists()).toBe(true)
-    expect(main.classes()).toContain('is-home')
-    expect(w.find('[data-surface="home"]').attributes('style') ?? '').not.toContain('display: none')
-    expect(w.find('[data-surface="workspace"]').attributes('style') ?? '').toContain('display: none')
+const slots = {
+  home: '<div class="home-stub">home</div>',
+  workspace: '<div class="ws-stub">workspace</div>',
+}
 
-    await w.setProps({
-      surface: 'workspace',
-      inert: true,
-      busy: true,
-      workspaceClass: { 'sidebar-right': true },
-    })
-    const main2 = w.find('main#main-content')
-    expect(main2.classes()).toContain('shell-body')
-    expect(main2.classes()).toContain('sidebar-right')
-    expect(w.find('[data-surface="workspace"]').attributes('style') ?? '').not.toContain('display: none')
+function displayOf(w: VueWrapper, surface: string): string {
+  return (w.find(`[data-surface="${surface}"]`).element as HTMLElement).style.display
+}
+
+afterEach(() => {
+  vi.useRealTimers()
+  delete document.documentElement.dataset.reduceMotion
+  delete document.documentElement.dataset.animNav
+})
+
+describe('ShellSurface 表面切换', () => {
+  it('工作台启动：首页不挂载、工作台可见', () => {
+    const w = mount(ShellSurface, { props: { surface: 'workspace' }, slots })
     expect(w.find('[data-surface="home"]').exists()).toBe(false)
-    expect(main2.attributes('inert')).toBeDefined()
-    expect(main2.attributes('aria-busy')).toBe('true')
+    expect(displayOf(w, 'workspace')).not.toBe('none')
   })
 
-  it('切换表面不卸载工作台子树（ViewContainer 的 Teleport 目标须常驻）', async () => {
-    const unmounted = vi.fn()
-    const WorkspaceChild = defineComponent({
-      setup() {
-        onUnmounted(unmounted)
-        return () => h('div', { class: 'ws-child' })
-      },
-    })
-    const w = mount(ShellSurface, {
-      props: { surface: 'workspace' },
-      slots: { workspace: () => h(WorkspaceChild) },
-    })
+  it('切到首页：首页覆盖层出现，工作台延后隐藏', async () => {
+    vi.useFakeTimers()
+    const w = mount(ShellSurface, { props: { surface: 'workspace' }, slots })
     await w.setProps({ surface: 'home' })
-    expect(unmounted).not.toHaveBeenCalled()
-    expect(w.find('.ws-child').exists()).toBe(true)
+    expect(w.find('.shell-home-layer').exists()).toBe(true)
+    expect(displayOf(w, 'workspace')).not.toBe('none')
+    vi.advanceTimersByTime(180)
+    await w.vm.$nextTick()
+    expect(displayOf(w, 'workspace')).toBe('none')
+  })
+
+  it('切回工作台：立即显示，不等计时器', async () => {
+    vi.useFakeTimers()
+    const w = mount(ShellSurface, { props: { surface: 'workspace' }, slots })
+    await w.setProps({ surface: 'home' })
+    await w.setProps({ surface: 'workspace' })
+    expect(displayOf(w, 'workspace')).not.toBe('none')
+  })
+
+  it('减弱动效时立即隐藏工作台', async () => {
+    document.documentElement.dataset.reduceMotion = 'on'
+    const w = mount(ShellSurface, { props: { surface: 'workspace' }, slots })
+    await w.setProps({ surface: 'home' })
+    expect(displayOf(w, 'workspace')).toBe('none')
+  })
+
+  it('关闭导航动效时立即隐藏工作台', async () => {
+    document.documentElement.dataset.animNav = 'off'
+    const w = mount(ShellSurface, { props: { surface: 'workspace' }, slots })
+    await w.setProps({ surface: 'home' })
+    expect(displayOf(w, 'workspace')).toBe('none')
   })
 })

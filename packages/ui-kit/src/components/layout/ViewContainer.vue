@@ -8,7 +8,7 @@
          保证 ViewContainer 永不卸载，Teleport 目标 #view-toolbar-* 常驻，根治壳切换崩溃 -->
     <ViewToolbar />
     <!-- 视图画布（独立圆角块，随流位于工具条下方） -->
-    <div class="view-content">
+    <div class="view-content" :class="{ 'is-view-entering': viewEntering }">
       <div v-if="!hasView" class="view-empty">
         <WsIcon name="globe" :size="56" class="view-empty-icon" />
         <h2>WorldSea</h2>
@@ -37,10 +37,12 @@ import { useUIStore, useSettingsStore, usePluginStore } from '@worldsea/entity-c
 import WsIcon from '../WsIcon.vue'
 import WsInlineLoading from '../feedback/loading/WsInlineLoading.vue'
 import ViewToolbar from './ViewToolbar.vue'
+import { useViewEntering } from '../../composables/useViewEntering'
 
 const uiStore = useUIStore()
 const settingsStore = useSettingsStore()
 const pluginStore = usePluginStore()
+const viewEntering = useViewEntering(() => uiStore.currentView)
 
 /** split 的芽栏侧由双栏顺序决定；其余形态仍用「芽侧边栏位置」。 */
 const sidebarRight = computed(() => (
@@ -117,8 +119,8 @@ onBeforeUnmount(() => {
   contain: style;
   /* 固定最小高度防止空状态→内容切换时的布局偏移 */
   min-height: 0;
-  /* 性能优化:Sidebar 脱离 flex 文档流后,用 margin-left 占位 */
-  /* margin-left 瞬变(无 transition),仅 1 次 layout(Sidebar width 瞬变独立,不触发 flex 重排) */
+  /* 折叠过渡只动 margin；拖动/减弱动效时由根属性禁用 */
+  transition: margin-left 180ms var(--ease-out), margin-right 180ms var(--ease-out);
   /* 预留 region-gap 缝隙，与侧边栏圆角块形成双线分隔 */
   margin-left: calc(var(--layout-sidebar-width) + var(--region-gap, 8px));
 }
@@ -211,4 +213,6 @@ onBeforeUnmount(() => {
 .vc-ctx-item:hover {
   background: var(--hover-bg);
 }
+:root[data-anim-panels='off'] .view-container,
+:root[data-reduce-motion='on'] .view-container { transition: none; }
 </style>

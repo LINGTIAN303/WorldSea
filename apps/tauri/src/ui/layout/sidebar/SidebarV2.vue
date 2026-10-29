@@ -331,7 +331,7 @@ onBeforeUnmount(() => {
   right: var(--region-pad, 8px);
 }
 .sidebar:not(.dragging) {
-  transition: none;
+  transition: width 180ms var(--ease-out);
 }
 .sidebar.dragging .sidebar-btn {
   cursor: grabbing;
@@ -409,11 +409,13 @@ onBeforeUnmount(() => {
   overflow: hidden;
   contain: layout paint style;
   will-change: transform, opacity;
-  transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1),
-              opacity 0.15s ease;
+  transition: opacity 120ms var(--ease);
 }
 .sidebar.collapsed .sidebar-inner {
-  display: none;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 120ms var(--ease), visibility 0s linear 120ms;
 }
 .sidebar-carousel {
   display: flex;
@@ -493,4 +495,8 @@ onBeforeUnmount(() => {
 :root[data-anim-status='off'] .sidebar-inner {
   transition: none;
 }
+:root[data-anim-panels='off'] .sidebar,
+:root[data-reduce-motion='on'] .sidebar { transition: none; }
+:root[data-anim-panels='off'] .sidebar-inner,
+:root[data-reduce-motion='on'] .sidebar-inner { transition: none; }
 </style>
