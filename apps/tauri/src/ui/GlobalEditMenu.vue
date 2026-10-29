@@ -5,11 +5,12 @@
        粘贴经 navigator.clipboard.readText + insertText（保留 undo 栈）。
        详见 docs/details/架构/快捷键系统.md §3「系统级行为」。 -->
   <Teleport to="body">
+    <Transition name="ws-menu">
     <div
       v-if="open"
       ref="menuRef"
       class="gedit-menu"
-      :style="{ left: x + 'px', top: y + 'px' }"
+      :style="{ left: x + 'px', top: y + 'px', '--ws-origin': '0 0' }"
       role="menu"
       @contextmenu.prevent
     >
@@ -26,6 +27,7 @@
         <kbd v-if="item.keys" class="gedit-kbd">{{ item.keys }}</kbd>
       </button>
     </div>
+    </Transition>
   </Teleport>
 </template>
 

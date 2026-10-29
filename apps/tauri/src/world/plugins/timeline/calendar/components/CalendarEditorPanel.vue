@@ -1,9 +1,9 @@
 <template>
   <Teleport to="body">
-    <Transition name="ws-detail-backdrop">
+    <Transition name="ws-fade">
       <div v-if="show" class="cp-backdrop" @click="emit('close')"></div>
     </Transition>
-    <Transition name="ws-detail-slide">
+    <Transition name="ws-slide-right">
       <div v-if="show" class="cp-panel" role="dialog" aria-modal="true" aria-label="时间体系">
         <header class="cp-header">
           <h3>时间体系</h3>

@@ -7,6 +7,7 @@ import { wsBasicSetup } from './components/files/cmBasicSetup'
 import './styles/theme.css'
 // Web 端变量名 → Tauri 令牌桥接（必须在 theme.css 之后，覆盖其 A2UI 区同名变量）
 import './styles/web-tokens-bridge.css'
+import '@worldsea/motion-kit/presets.css'
 
 import { startBackendBoot } from './boot/backendBoot'
 

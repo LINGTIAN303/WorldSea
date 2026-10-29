@@ -12,6 +12,8 @@ export default defineConfig({
       'packages/entity-core/**/__tests__/**/*.spec.ts',
       'packages/shared-composables/**/__tests__/**/*.spec.ts',
       'packages/shared-ui/**/__tests__/**/*.spec.ts',
+      // 2026-10-29 纳入（动效机制批 0）：motion-kit 令牌/预设/降级契约测试
+      'packages/motion-kit/**/__tests__/**/*.spec.ts',
       // 2026-09-20 纳入（Q1 提问工具）：ui-kit composable 此前无测试目录；
       // useAsk 批量提问状态机（五态）为纯逻辑，适宜 jsdom 直测
       'packages/ui-kit/**/__tests__/**/*.spec.ts',

@@ -277,13 +277,4 @@ onBeforeUnmount(() => {
   margin: 4px 6px;
   background: var(--border-color);
 }
-.ws-menu-enter-active,
-.ws-menu-leave-active {
-  transition: opacity var(--transition-fast), transform var(--transition-fast);
-}
-.ws-menu-enter-from,
-.ws-menu-leave-to {
-  opacity: 0;
-  transform: translateY(-4px);
-}
 </style>

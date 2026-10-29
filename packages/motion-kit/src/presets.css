@@ -1,0 +1,151 @@
+/* 产品域动效预设：唯一实现处。
+   组件只写预设名；减弱动效与分组开关只在这里处理。 */
+
+/* ── 基础预设 ─────────────────────────────────────────── */
+
+.ws-fade-enter-active { transition: opacity var(--dur-fast) var(--ease-out); }
+.ws-fade-leave-active { transition: opacity var(--dur-instant) var(--ease-in); }
+.ws-fade-enter-from,
+.ws-fade-leave-to { opacity: 0; }
+
+.ws-scale-fade-enter-active { transition: opacity var(--dur-base) var(--ease); }
+.ws-scale-fade-leave-active { transition: opacity var(--dur-fast) var(--ease-in); }
+.ws-scale-fade-enter-active > * {
+  transition: transform var(--dur-base) var(--ease-out), opacity var(--dur-base) var(--ease);
+}
+.ws-scale-fade-leave-active > * {
+  transition: transform var(--dur-fast) var(--ease-in), opacity var(--dur-fast) var(--ease-in);
+}
+.ws-scale-fade-enter-from,
+.ws-scale-fade-leave-to { opacity: 0; }
+.ws-scale-fade-enter-from > *,
+.ws-scale-fade-leave-to > * { opacity: 0; transform: translateY(6px) scale(0.98); }
+
+.ws-menu-enter-active,
+.ws-menu-leave-active { transform-origin: var(--ws-origin, center); }
+.ws-menu-enter-active {
+  transition: opacity var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
+}
+.ws-menu-leave-active {
+  transition: opacity var(--dur-instant) var(--ease-in), transform var(--dur-instant) var(--ease-in);
+}
+.ws-menu-enter-from,
+.ws-menu-leave-to { opacity: 0; transform: scale(0.96); }
+
+.ws-slide-right-enter-active,
+.ws-slide-right-leave-active,
+.ws-slide-left-enter-active,
+.ws-slide-left-leave-active { transition: transform var(--dur-base) var(--ease-out); }
+.ws-slide-right-enter-from,
+.ws-slide-right-leave-to { transform: translateX(100%); }
+.ws-slide-left-enter-from,
+.ws-slide-left-leave-to { transform: translateX(-100%); }
+
+.ws-slide-up-enter-active,
+.ws-slide-up-leave-active,
+.ws-slide-down-enter-active,
+.ws-slide-down-leave-active {
+  transition: opacity var(--dur-base) var(--ease), transform var(--dur-base) var(--ease);
+}
+.ws-slide-up-move,
+.ws-slide-down-move { transition: transform var(--dur-base) var(--ease); }
+.ws-slide-up-enter-from,
+.ws-slide-up-leave-to { opacity: 0; transform: translateY(8px); }
+.ws-slide-down-enter-from,
+.ws-slide-down-leave-to { opacity: 0; transform: translateY(-8px); }
+
+.ws-list-enter-active {
+  transition: opacity var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
+}
+.ws-list-leave-active {
+  transition: opacity var(--dur-instant) var(--ease-in), transform var(--dur-instant) var(--ease-in);
+}
+.ws-list-enter-from,
+.ws-list-leave-to { opacity: 0; transform: translateY(4px); }
+
+.ws-surface-enter-active,
+.ws-surface-leave-active { transition: opacity var(--dur-surface) var(--ease); }
+.ws-surface-enter-from,
+.ws-surface-leave-to { opacity: 0; }
+
+@keyframes ws-view-in {
+  from { opacity: 0.6; }
+  to { opacity: 1; }
+}
+.view-content.is-view-entering { animation: ws-view-in var(--dur-view) var(--ease-out); }
+
+/* ── 减弱动效：只保留 120ms 透明度 ───────────────────── */
+:root[data-reduce-motion='on'] .ws-fade-enter-active,
+:root[data-reduce-motion='on'] .ws-fade-leave-active,
+:root[data-reduce-motion='on'] .ws-scale-fade-enter-active,
+:root[data-reduce-motion='on'] .ws-scale-fade-leave-active,
+:root[data-reduce-motion='on'] .ws-menu-enter-active,
+:root[data-reduce-motion='on'] .ws-menu-leave-active,
+:root[data-reduce-motion='on'] .ws-slide-right-enter-active,
+:root[data-reduce-motion='on'] .ws-slide-right-leave-active,
+:root[data-reduce-motion='on'] .ws-slide-left-enter-active,
+:root[data-reduce-motion='on'] .ws-slide-left-leave-active,
+:root[data-reduce-motion='on'] .ws-slide-up-enter-active,
+:root[data-reduce-motion='on'] .ws-slide-up-leave-active,
+:root[data-reduce-motion='on'] .ws-slide-down-enter-active,
+:root[data-reduce-motion='on'] .ws-slide-down-leave-active,
+:root[data-reduce-motion='on'] .ws-list-enter-active,
+:root[data-reduce-motion='on'] .ws-list-leave-active,
+:root[data-reduce-motion='on'] .ws-surface-enter-active,
+:root[data-reduce-motion='on'] .ws-surface-leave-active {
+  transition: opacity 120ms linear;
+}
+:root[data-reduce-motion='on'] .ws-scale-fade-enter-active > *,
+:root[data-reduce-motion='on'] .ws-scale-fade-leave-active > * { transition: none; }
+:root[data-reduce-motion='on'] .ws-scale-fade-enter-from > *,
+:root[data-reduce-motion='on'] .ws-scale-fade-leave-to > * { transform: none; }
+:root[data-reduce-motion='on'] .ws-menu-enter-from,
+:root[data-reduce-motion='on'] .ws-menu-leave-to { transform: none; }
+:root[data-reduce-motion='on'] .ws-slide-right-enter-from,
+:root[data-reduce-motion='on'] .ws-slide-right-leave-to,
+:root[data-reduce-motion='on'] .ws-slide-left-enter-from,
+:root[data-reduce-motion='on'] .ws-slide-left-leave-to { transform: none; }
+:root[data-reduce-motion='on'] .ws-slide-up-enter-from,
+:root[data-reduce-motion='on'] .ws-slide-up-leave-to,
+:root[data-reduce-motion='on'] .ws-slide-down-enter-from,
+:root[data-reduce-motion='on'] .ws-slide-down-leave-to { transform: none; }
+:root[data-reduce-motion='on'] .ws-list-enter-from,
+:root[data-reduce-motion='on'] .ws-list-leave-to { transform: none; }
+:root[data-reduce-motion='on'] .view-content.is-view-entering { animation: none; }
+
+/* ── 分组开关 ─────────────────────────────────────────── */
+
+/* 弹窗与控件关闭：保留淡入，去掉位移/缩放 */
+:root[data-anim-overlays='off'] .ws-scale-fade-enter-active > *,
+:root[data-anim-overlays='off'] .ws-scale-fade-leave-active > * { transition: opacity 100ms linear; }
+:root[data-anim-overlays='off'] .ws-scale-fade-enter-from > *,
+:root[data-anim-overlays='off'] .ws-scale-fade-leave-to > * { transform: none; }
+:root[data-anim-overlays='off'] .ws-menu-enter-active,
+:root[data-anim-overlays='off'] .ws-menu-leave-active { transition: opacity 100ms linear; }
+:root[data-anim-overlays='off'] .ws-menu-enter-from,
+:root[data-anim-overlays='off'] .ws-menu-leave-to { transform: none; }
+:root[data-anim-overlays='off'] .ws-slide-right-enter-active,
+:root[data-anim-overlays='off'] .ws-slide-right-leave-active,
+:root[data-anim-overlays='off'] .ws-slide-left-enter-active,
+:root[data-anim-overlays='off'] .ws-slide-left-leave-active { transition: opacity 100ms linear; }
+:root[data-anim-overlays='off'] .ws-slide-right-enter-from,
+:root[data-anim-overlays='off'] .ws-slide-right-leave-to,
+:root[data-anim-overlays='off'] .ws-slide-left-enter-from,
+:root[data-anim-overlays='off'] .ws-slide-left-leave-to { transform: none; opacity: 0; }
+:root[data-anim-overlays='off'] .ws-slide-up-enter-active,
+:root[data-anim-overlays='off'] .ws-slide-up-leave-active,
+:root[data-anim-overlays='off'] .ws-slide-down-enter-active,
+:root[data-anim-overlays='off'] .ws-slide-down-leave-active { transition: opacity 100ms linear; }
+:root[data-anim-overlays='off'] .ws-slide-up-move,
+:root[data-anim-overlays='off'] .ws-slide-down-move { transition: none; }
+:root[data-anim-overlays='off'] .ws-slide-up-enter-from,
+:root[data-anim-overlays='off'] .ws-slide-up-leave-to,
+:root[data-anim-overlays='off'] .ws-slide-down-enter-from,
+:root[data-anim-overlays='off'] .ws-slide-down-leave-to { transform: none; opacity: 0; }
+
+/* 导航与内容关闭：无过渡 */
+:root[data-anim-nav='off'] .ws-surface-enter-active,
+:root[data-anim-nav='off'] .ws-surface-leave-active { transition: none; }
+:root[data-anim-nav='off'] .view-content.is-view-entering { animation: none; }
+:root[data-anim-content='off'] .ws-list-enter-active,
+:root[data-anim-content='off'] .ws-list-leave-active { transition: none; }

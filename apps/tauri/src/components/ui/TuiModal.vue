@@ -127,7 +127,7 @@ onBeforeUnmount(() => {
 
 <template>
   <Teleport to="body">
-    <Transition name="tui-modal">
+    <Transition name="ws-scale-fade">
       <div v-if="show" class="tui-modal-mask" @mousedown.self="onMaskClick">
         <div
           ref="panelEl"
@@ -248,31 +248,4 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 
-/* 过渡：遮罩淡入 + 面板轻微上浮缩放（大动效用 --dur-lg，批次90 4.2 启用层级令牌） */
-.tui-modal-enter-active,
-.tui-modal-leave-active {
-  transition: opacity var(--dur-lg) var(--ease);
-}
-.tui-modal-enter-active .tui-modal,
-.tui-modal-leave-active .tui-modal {
-  transition: transform var(--dur-lg) var(--ease-out), opacity var(--dur-lg) var(--ease);
-}
-.tui-modal-enter-from,
-.tui-modal-leave-to {
-  opacity: 0;
-}
-.tui-modal-enter-from .tui-modal,
-.tui-modal-leave-to .tui-modal {
-  opacity: 0;
-  transform: translateY(6px) scale(0.98);
-}
-/* 减弱动态偏好：面板去掉位移/缩放，保留淡入；遮罩本为纯淡入无需处理（Emil 可访问性规则） */
-:root[data-anim-overlays='off'] .tui-modal-enter-active .tui-modal,
-:root[data-anim-overlays='off'] .tui-modal-leave-active .tui-modal {
-  transition: opacity var(--dur-lg) var(--ease);
-}
-:root[data-anim-overlays='off'] .tui-modal-enter-from .tui-modal,
-:root[data-anim-overlays='off'] .tui-modal-leave-to .tui-modal {
-  transform: none;
-}
 </style>

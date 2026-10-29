@@ -23,7 +23,7 @@ const ICONS: Record<string, string> = {
 <template>
   <Teleport to="body">
     <div class="tui-toast" role="status" aria-live="polite">
-      <TransitionGroup name="tui-toast">
+      <TransitionGroup name="ws-slide-up">
         <div v-for="t in toasts" :key="t.id" class="tui-toast__item" :class="`is-${t.type}`">
           <span class="tui-toast__icon"><WsIcon :name="ICONS[t.type]" :size="13" :stroke-width="1.7" /></span>
           <span class="tui-toast__msg">{{ t.msg }}</span>
@@ -118,28 +118,4 @@ const ICONS: Record<string, string> = {
   transform: scale(var(--press-scale));
 }
 
-/* 过渡：淡入 + 轻微上移 */
-.tui-toast-enter-active,
-.tui-toast-leave-active {
-  transition: opacity var(--dur-base) var(--ease), transform var(--dur-base) var(--ease);
-}
-/* 移除/新增时其余 toast 平滑重排（批次90 4.5） */
-.tui-toast-move {
-  transition: transform var(--dur-base) var(--ease);
-}
-.tui-toast-enter-from,
-.tui-toast-leave-to {
-  opacity: 0;
-  transform: translateY(8px);
-}
-/* 减弱动态偏好：去掉位移动画，保留淡入淡出（Emil 可访问性规则） */
-:root[data-anim-overlays='off'] .tui-toast-enter-active,
-:root[data-anim-overlays='off'] .tui-toast-leave-active,
-:root[data-anim-overlays='off'] .tui-toast-move {
-  transition: opacity var(--dur-base) var(--ease);
-}
-:root[data-anim-overlays='off'] .tui-toast-enter-from,
-:root[data-anim-overlays='off'] .tui-toast-leave-to {
-  transform: none;
-}
 </style>

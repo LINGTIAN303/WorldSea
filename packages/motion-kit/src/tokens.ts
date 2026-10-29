@@ -3,21 +3,18 @@ export type DurationToken =
   | 'fast'
   | 'normal'
   | 'slow'
-  | 'slower'
+  | 'view'
+  | 'surface'
 
-export type EasingToken =
-  | 'default'
-  | 'in'
-  | 'out'
-  | 'spring'
-  | 'bounce'
+export type EasingToken = 'default' | 'in' | 'out' | 'spring'
 
 export const DURATION_VALUES: Record<DurationToken, number> = {
-  instant: 50,
-  fast: 120,
-  normal: 200,
-  slow: 350,
-  slower: 500,
+  instant: 80,
+  fast: 150,
+  normal: 220,
+  slow: 320,
+  view: 160,
+  surface: 180,
 }
 
 export const EASING_VALUES: Record<EasingToken, string> = {
@@ -25,23 +22,22 @@ export const EASING_VALUES: Record<EasingToken, string> = {
   in: 'cubic-bezier(0.4, 0, 1, 1)',
   out: 'cubic-bezier(0, 0, 0.2, 1)',
   spring: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
-  bounce: 'cubic-bezier(0.68, -0.55, 0.27, 1.55)',
 }
 
 export const CSS_VAR_DURATION: Record<DurationToken, string> = {
-  instant: 'var(--duration-instant)',
-  fast: 'var(--duration-fast)',
-  normal: 'var(--duration-normal)',
-  slow: 'var(--duration-slow)',
-  slower: 'var(--duration-slower)',
+  instant: 'var(--dur-instant)',
+  fast: 'var(--dur-fast)',
+  normal: 'var(--dur-base)',
+  slow: 'var(--dur-lg)',
+  view: 'var(--dur-view)',
+  surface: 'var(--dur-surface)',
 }
 
 export const CSS_VAR_EASING: Record<EasingToken, string> = {
-  default: 'var(--ease-default)',
+  default: 'var(--ease)',
   in: 'var(--ease-in)',
   out: 'var(--ease-out)',
   spring: 'var(--ease-spring)',
-  bounce: 'var(--ease-bounce)',
 }
 
 export interface MotionTokens {
@@ -64,7 +60,7 @@ export interface SemanticMotionTokens {
 export const COSMIC_MOTION_TOKENS: SemanticMotionTokens = {
   enter: { duration: 'normal', easing: 'out' },
   exit: { duration: 'fast', easing: 'in' },
-  modal: { duration: 'slow', easing: 'out' },
+  modal: { duration: 'normal', easing: 'out' },
   overlay: { duration: 'fast', easing: 'out' },
   toast: { duration: 'normal', easing: 'spring' },
   list: { duration: 'fast', easing: 'out' },

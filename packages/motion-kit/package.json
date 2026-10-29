@@ -10,6 +10,7 @@
     "./tokens": "./src/tokens.ts",
     "./keyframes": "./src/keyframes.ts",
     "./transitions": "./src/transitions.ts",
+    "./presets.css": "./src/presets.css",
     "./composables": "./src/composables/index.ts",
     "./GifEncoder": "./src/GifEncoder.ts",
     "./FrameCapture": "./src/FrameCapture.ts"

@@ -101,10 +101,12 @@ const STORAGE_KEY_REDUCE_MOTION = 'worldsea_reduce_motion'
 const STORAGE_KEY_ANIMATIONS = 'worldsea_animations'
 /** 动画效果分组定义：key → 展示标签 */
 export const ANIMATION_GROUPS: Record<string, string> = {
-  messages: '消息与对话',
-  status: '状态与脉冲',
+  nav: '导航与视图切换',
+  content: '内容增减与重排',
   panels: '面板与侧边栏',
-  overlays: '弹窗与控件',
+  overlays: '弹窗与浮层',
+  status: '状态与脉冲',
+  messages: '消息与对话',
   splash: '启动动画',
 }
 /** 动画分组默认值：全部开启 */

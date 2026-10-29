@@ -99,10 +99,4 @@ onBeforeUnmount(() => {
   padding: 6px 10px 2px; text-transform: uppercase; letter-spacing: 0.5px;
 }
 .to-menu :deep(.to-divider) { height: 1px; margin: 4px 6px; background: var(--border-color, var(--color-border)); }
-.ws-menu-enter-active, .ws-menu-leave-active {
-  transition: opacity var(--transition-fast), transform var(--transition-fast);
-}
-.ws-menu-enter-from, .ws-menu-leave-to {
-  opacity: 0; transform: translateY(-4px);
-}
 </style>

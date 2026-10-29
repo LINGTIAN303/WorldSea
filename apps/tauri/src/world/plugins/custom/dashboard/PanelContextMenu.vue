@@ -1,5 +1,6 @@
 <template>
-  <div v-if="show" class="cv-ctx-menu" :style="{ left: x + 'px', top: y + 'px' }">
+  <Transition name="ws-menu">
+  <div v-if="show" class="cv-ctx-menu" :style="{ left: x + 'px', top: y + 'px', '--ws-origin': '0 0' }">
     <div class="cv-ctx-item" role="button" tabindex="0" @click="onJump" @keydown.enter="onJump">
       ↗ 跳转到主视图
     </div>
@@ -21,6 +22,7 @@
       <WsIcon name="close" size="xs" /> 移除面板
     </div>
   </div>
+  </Transition>
 </template>
 
 <script setup lang="ts">

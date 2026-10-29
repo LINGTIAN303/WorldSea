@@ -1,6 +1,6 @@
 <template>
   <Teleport to="body">
-    <Transition name="ws-ask">
+    <Transition name="ws-scale-fade">
       <!-- Q1 提问面板（2026-09-20 走查后改版：停靠输入栏——宽度跟随输入栏、底边对齐可覆盖输入栏）。
            逐题作答：单选点选即前进 / 多选 toggle + 下一步 / 上一步可回看 / 自定义 / 跳过 / 取消（拒绝作答） -->
       <div
@@ -319,30 +319,4 @@ watch(() => state.value.show, (v) => {
   margin-top: 2px;
 }
 
-/* 过渡：淡入 + 轻微上移（停靠态与回退态一致） */
-.ws-ask-enter-active,
-.ws-ask-leave-active {
-  transition: opacity var(--dur-lg) var(--ease);
-}
-.ws-ask-enter-active .ws-ask,
-.ws-ask-leave-active .ws-ask {
-  transition: transform var(--dur-lg) var(--ease-out), opacity var(--dur-lg) var(--ease);
-}
-.ws-ask-enter-from,
-.ws-ask-leave-to {
-  opacity: 0;
-}
-.ws-ask-enter-from .ws-ask,
-.ws-ask-leave-to .ws-ask {
-  opacity: 0;
-  transform: translateY(6px) scale(0.98);
-}
-:root[data-anim-overlays='off'] .ws-ask-enter-active .ws-ask,
-:root[data-anim-overlays='off'] .ws-ask-leave-active .ws-ask {
-  transition: opacity var(--dur-lg) var(--ease);
-}
-:root[data-anim-overlays='off'] .ws-ask-enter-from .ws-ask,
-:root[data-anim-overlays='off'] .ws-ask-leave-to .ws-ask {
-  transform: none;
-}
 </style>

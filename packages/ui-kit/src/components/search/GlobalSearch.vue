@@ -1,4 +1,5 @@
 <template>
+  <Transition name="ws-scale-fade" appear>
   <div class="global-search-overlay" v-if="show" @click.self="close">
     <div class="global-search-panel" role="search" :style="{ width: modalResizable.width.value + 'px' }">
       <div class="gs-header">
@@ -33,6 +34,7 @@
       <div class="resize-handle-right" @mousedown="modalResizable.onResizeStart"></div>
     </div>
   </div>
+  </Transition>
 </template>
 
 <script setup lang="ts">

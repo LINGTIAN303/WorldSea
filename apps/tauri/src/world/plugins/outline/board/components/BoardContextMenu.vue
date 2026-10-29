@@ -7,11 +7,12 @@
     · Teleport 到 body，避免被画布的 transform 层叠上下文裁剪
   -->
   <Teleport to="body">
+    <Transition name="ws-menu">
     <div
       v-if="show"
       ref="menuEl"
       class="ctx"
-      :style="{ left: `${pos.x}px`, top: `${pos.y}px` }"
+      :style="{ left: `${pos.x}px`, top: `${pos.y}px`, '--ws-origin': '0 0' }"
       role="menu"
       :aria-label="ariaLabel"
       tabindex="-1"
@@ -41,6 +42,7 @@
         </button>
       </template>
     </div>
+    </Transition>
   </Teleport>
 </template>
 

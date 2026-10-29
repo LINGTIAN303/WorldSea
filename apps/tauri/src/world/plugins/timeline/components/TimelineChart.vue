@@ -55,15 +55,17 @@
       @create-event="$emit('createEvent', $event)"
     />
 
-    <TimelineEventMenu
-      v-if="menu"
-      :x="menu.x"
-      :y="menu.y"
-      :name="menu.event.name"
-      :focus-label="layoutMode === 'vertical' ? '在画布中查看' : '在编年史中查看'"
-      @pick="pickMenu"
-      @close="closeMenu"
-    />
+    <Transition name="ws-menu">
+      <TimelineEventMenu
+        v-if="menu"
+        :x="menu.x"
+        :y="menu.y"
+        :name="menu.event.name"
+        :focus-label="layoutMode === 'vertical' ? '在画布中查看' : '在编年史中查看'"
+        @pick="pickMenu"
+        @close="closeMenu"
+      />
+    </Transition>
   </div>
 </template>
 

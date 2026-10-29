@@ -139,8 +139,8 @@ watch(
       <WsIcon name="chevron-down" :size="14" class="tui-select__caret" :stroke-width="1.7" />
     </button>
 
-    <Transition name="tui-select">
-      <ul v-if="open" class="tui-select__menu" role="listbox">
+    <Transition name="ws-menu">
+      <ul v-if="open" class="tui-select__menu" role="listbox" style="--ws-origin: top center">
         <li
           v-for="(opt, i) in options"
           :key="opt.value"
@@ -271,13 +271,4 @@ watch(
   flex-shrink: 0;
 }
 
-.tui-select-enter-active,
-.tui-select-leave-active {
-  transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
-}
-.tui-select-enter-from,
-.tui-select-leave-to {
-  opacity: 0;
-  transform: translateY(-3px);
-}
 </style>

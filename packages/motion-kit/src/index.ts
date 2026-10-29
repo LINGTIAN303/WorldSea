@@ -15,6 +15,12 @@ export {
 } from './tokens'
 
 export {
+  type MotionAnchor,
+  type MotionRect,
+  motionOrigin,
+} from './motionOrigin'
+
+export {
   type KeyframeName,
   KEYFRAMES,
   injectKeyframe,
@@ -31,9 +37,6 @@ export {
   getPreset,
   getTransitionName,
   getAllPresetNames,
-  setTransitionOverrides,
-  clearTransitionOverrides,
-  getEffectivePreset,
 } from './transitions'
 
 export {

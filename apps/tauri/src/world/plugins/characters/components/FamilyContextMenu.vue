@@ -1,4 +1,5 @@
 <template>
+  <Transition name="ws-menu">
   <div v-if="visible" class="fcm-menu" :style="menuStyle" @click.stop>
     <button class="fcm-item" @click="action('addParent')">↑ 添加父母</button>
     <button class="fcm-item" @click="action('addChild')">↓ 添加子女</button>
@@ -8,6 +9,7 @@
     <div class="fcm-divider"></div>
     <button class="fcm-item fcm-item-danger" @click="action('deleteRelation')">✕ 删除关系</button>
   </div>
+  </Transition>
 </template>
 
 <script setup lang="ts">
@@ -28,6 +30,7 @@ const emit = defineEmits<{
 const menuStyle = computed(() => ({
   left: `${props.x}px`,
   top: `${props.y}px`,
+  '--ws-origin': '0 0',
 }))
 
 function action(type: string) {

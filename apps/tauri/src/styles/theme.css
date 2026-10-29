@@ -103,10 +103,14 @@
   /* ── 动效 ── */
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
   --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);  /* 弹性质感（按钮按压回弹等） */
+  --dur-instant: 0.08s;
   --dur-fast: 0.15s;
   --dur-base: 0.22s;
   --dur-lg: 0.32s;            /* 弹窗 / 视图切换等大动效 */
+  --dur-view: 0.16s;          /* 视图切换进场 */
+  --dur-surface: 0.18s;       /* 首页 / 工作台表面切换 */
   --dur-pulse: 1.2s;          /* 呼吸动画周期（pulse 共享 keyframe） */
   --press-scale: 0.96;        /* 按压反馈统一缩放（TuiButton/send-btn/icon-only 按钮） */
 

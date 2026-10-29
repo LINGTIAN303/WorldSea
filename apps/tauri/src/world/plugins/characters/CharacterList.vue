@@ -86,7 +86,7 @@
       </template>
     </GenericEntityView>
 
-    <Transition name="ws-detail-backdrop">
+    <Transition name="ws-fade">
       <div v-if="compareMode && compareChars.length === 2" class="compare-overlay">
         <div class="compare-panel">
           <div class="compare-header">

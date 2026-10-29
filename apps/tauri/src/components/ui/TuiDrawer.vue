@@ -106,10 +106,10 @@ onBeforeUnmount(() => {
 
 <template>
   <Teleport to="body">
-    <Transition name="tui-drawer-mask">
+    <Transition name="ws-fade">
       <div v-if="show" class="tui-drawer-mask" @mousedown.self="onMaskClick"></div>
     </Transition>
-    <Transition :name="`tui-drawer-${placement}`">
+    <Transition :name="`ws-slide-${placement}`">
       <div
         v-if="show"
         ref="panelEl"
@@ -228,43 +228,4 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 
-/* 遮罩：淡入淡出 */
-.tui-drawer-mask-enter-active,
-.tui-drawer-mask-leave-active {
-  transition: opacity var(--dur-base) var(--ease);
-}
-.tui-drawer-mask-enter-from,
-.tui-drawer-mask-leave-to {
-  opacity: 0;
-}
-
-/* 面板：从触发侧滑入，仅动 transform（GPU 加速） */
-.tui-drawer-right-enter-active,
-.tui-drawer-right-leave-active,
-.tui-drawer-left-enter-active,
-.tui-drawer-left-leave-active {
-  transition: transform var(--dur-base) var(--ease-out);
-}
-.tui-drawer-right-enter-from,
-.tui-drawer-right-leave-to {
-  transform: translateX(100%);
-}
-.tui-drawer-left-enter-from,
-.tui-drawer-left-leave-to {
-  transform: translateX(-100%);
-}
-/* 减弱动态偏好：去掉位移动画，保留淡入（Emil 可访问性规则） */
-:root[data-anim-overlays='off'] .tui-drawer-right-enter-active,
-:root[data-anim-overlays='off'] .tui-drawer-right-leave-active,
-:root[data-anim-overlays='off'] .tui-drawer-left-enter-active,
-:root[data-anim-overlays='off'] .tui-drawer-left-leave-active {
-  transition: opacity var(--dur-base) var(--ease);
-}
-:root[data-anim-overlays='off'] .tui-drawer-right-enter-from,
-:root[data-anim-overlays='off'] .tui-drawer-right-leave-to,
-:root[data-anim-overlays='off'] .tui-drawer-left-enter-from,
-:root[data-anim-overlays='off'] .tui-drawer-left-leave-to {
-  transform: none;
-  opacity: 0;
-}
 </style>

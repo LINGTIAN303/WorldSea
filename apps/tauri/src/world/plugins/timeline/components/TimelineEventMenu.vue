@@ -32,6 +32,7 @@ const MENU_HEIGHT = 148
 const menuStyle = computed(() => ({
   left: Math.max(8, Math.min(props.x, window.innerWidth - MENU_WIDTH - 8)) + 'px',
   top: Math.max(8, Math.min(props.y, window.innerHeight - MENU_HEIGHT - 8)) + 'px',
+  '--ws-origin': '0 0',
 }))
 
 function onPointerDown(event: MouseEvent) {

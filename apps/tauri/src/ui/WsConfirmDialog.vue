@@ -1,6 +1,6 @@
 <template>
   <Teleport to="body">
-    <Transition name="ws-confirm">
+    <Transition name="ws-scale-fade">
       <!-- center：全屏遮罩 + 居中；bottom：对话区底部输入栏上方（可遮住输入栏，不阻断其他区域） -->
       <div
         v-if="state.show"
@@ -275,31 +275,4 @@ watch(() => state.value.show, (v) => {
   justify-content: center;
 }
 
-/* 过渡：遮罩淡入 + 面板轻微缩放（与 TuiModal 一致） */
-.ws-confirm-enter-active,
-.ws-confirm-leave-active {
-  transition: opacity var(--dur-lg) var(--ease);
-}
-.ws-confirm-enter-active .ws-confirm,
-.ws-confirm-leave-active .ws-confirm {
-  transition: transform var(--dur-lg) var(--ease-out), opacity var(--dur-lg) var(--ease);
-}
-.ws-confirm-enter-from,
-.ws-confirm-leave-to {
-  opacity: 0;
-}
-.ws-confirm-enter-from .ws-confirm,
-.ws-confirm-leave-to .ws-confirm {
-  opacity: 0;
-  transform: translateY(6px) scale(0.98);
-}
-/* 减弱动态偏好：去掉位移/缩放，保留淡入（Emil 可访问性规则） */
-:root[data-anim-overlays='off'] .ws-confirm-enter-active .ws-confirm,
-:root[data-anim-overlays='off'] .ws-confirm-leave-active .ws-confirm {
-  transition: opacity var(--dur-lg) var(--ease);
-}
-:root[data-anim-overlays='off'] .ws-confirm-enter-from .ws-confirm,
-:root[data-anim-overlays='off'] .ws-confirm-leave-to .ws-confirm {
-  transform: none;
-}
 </style>

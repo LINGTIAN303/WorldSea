@@ -1,4 +1,5 @@
 <template>
+  <Transition name="ws-scale-fade" appear>
   <div class="set-overlay" v-if="show" @click.self="close">
     <div ref="dialogRef" class="set-shell" role="dialog" aria-modal="true" aria-labelledby="set-dialog-title" tabindex="-1">
       <aside v-show="railVisible" class="set-rail" aria-label="配置目录" :style="railStyle">
@@ -78,6 +79,7 @@
       <div class="resize-handle-right" v-if="false" @mousedown="modalResizable.onResizeStart"></div>
     </div>
   </div>
+  </Transition>
 </template>
 
 <script setup lang="ts">
