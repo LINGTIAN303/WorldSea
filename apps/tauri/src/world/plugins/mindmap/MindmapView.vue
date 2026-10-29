@@ -175,7 +175,7 @@ import { WsIcon, WsEmpty, WsInlineLoading, WsLoadingOverlay, useAsyncTask, toast
 import { useEntityStore, useUIStore, type Entity } from '@worldsea/entity-core'
 import { CustomDropdown, useConfirm } from '@worldsea/plugin-sdk'
 import { useMindmapDocStore } from './mindmapStore'
-import { markdownToMindElixir, mindElixirToMarkdown } from './mindmapMarkdown'
+import { markdownToMindElixir, mindElixirToMarkdown, findImportViolation, mindElixirStats, MINDMAP_MAX_NODES, MINDMAP_OPEN_MAX_NODES, MINDMAP_OPEN_MAX_DEPTH } from './mindmapMarkdown'
 
 /** 节点绑定实体的元数据载体（mind-elixir 官方通用 metadata 字段） */
 interface NodeMeta { entityId?: string }
@@ -255,9 +255,16 @@ const boundEntity = computed<Entity | null>(() =>
 /** 打开指定文档：首张 init，切换 refresh（clearHistory 防止跨文档撤销）；重复点击当前文档不重建 */
 function openDoc(id: string) {
   if (id === store.currentId && mind) return
-  store.currentId = id
   const data = store.getDocData(id)
   if (!data || !mapEl.value) return
+  // 加载护栏：只挡真正会崩的旧数据（千层链 / 超大图），正常导图不受影响——
+  // 拦截时不切 currentId，画布保留当前文档；问题导图可从文档列表删除
+  const stats = mindElixirStats(data)
+  if (stats.nodeCount > MINDMAP_OPEN_MAX_NODES || stats.maxDepth > MINDMAP_OPEN_MAX_DEPTH) {
+    toastWarn(`导图「${store.docs.find(d => d.id === id)?.name ?? id}」超出渲染安全上限（节点 ${stats.nodeCount}、层级 ${stats.maxDepth}），已阻止打开；可能为旧版导入产物，可在文档列表删除。`)
+    return
+  }
+  store.currentId = id
   if (!mind) {
     mind = new MindElixir({
       el: mapEl.value,
@@ -403,6 +410,15 @@ async function onPasteMarkdown(e: ClipboardEvent) {
   const parsed = markdownToMindElixir(text)
   const tops = parsed?.nodeData.children
   if (!tops || tops.length === 0) return
+  // 深度护栏：md 级检查 + 与当前文档合并后的节点规模（粘贴会展开为当前文档的一部分，超限整单拒绝）
+  const violation = findImportViolation(text)
+  const current = mindElixirStats(mind.getData() as MindElixirData)
+  const pasted = mindElixirStats({ nodeData: { id: 'paste-guard', topic: '', children: tops } } as MindElixirData)
+  if (violation || current.nodeCount + pasted.nodeCount > MINDMAP_MAX_NODES) {
+    e.preventDefault()
+    toastWarn(violation ?? `粘贴取消：粘贴后节点 ${current.nodeCount + pasted.nodeCount} 超上限 ${MINDMAP_MAX_NODES}`)
+    return
+  }
   const target = mind.currentNode
   if (!target) {
     e.preventDefault()
@@ -523,6 +539,12 @@ function onImportFile(e: Event) {
   const reader = new FileReader()
   reader.onload = () => {
     const md = String(reader.result ?? '')
+    // 深度护栏：超限文本拒绝导入（数据在 init 前已落库，导入后崩溃会锁死视图）
+    const violation = findImportViolation(md)
+    if (violation) {
+      toastWarn(violation)
+      return
+    }
     const data = markdownToMindElixir(md)
     if (!data) {
       toastSuccess('文件为空或无法解析出大纲结构')
