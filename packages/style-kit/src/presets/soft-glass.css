@@ -16,16 +16,19 @@ html[data-style='soft-glass'] {
   --sf-control-shadow-inset: inset 0 1px 2px rgba(31, 41, 71, 0.08);
   --sf-overlay-bg: var(--sf-noise), radial-gradient(120% 110% at 20% 0%, rgba(255, 255, 255, 0.55), transparent 58%), linear-gradient(165deg, rgba(255, 255, 255, 0.64), rgba(240, 245, 254, 0.5));
   --sf-overlay-blur: calc(22px * var(--sf-material) * 0.02);
-  --sf-overlay-filter: blur(calc(30px * var(--sf-material) * 0.02)) saturate(1.8) brightness(1.04) contrast(1.02);
+  --sf-overlay-blur-radius: calc(30px * var(--sf-material) * 0.02);
+  --sf-overlay-filter: blur(var(--sf-overlay-blur-radius, 30px)) saturate(1.8) brightness(1.04) contrast(1.02);
   --sf-overlay-edge: rgba(255, 255, 255, 0.82);
   --sf-overlay-shadow: var(--sf-shadow-3);
   --sf-modal-bg: var(--sf-noise), radial-gradient(120% 110% at 18% 0%, rgba(255, 255, 255, 0.5), transparent 58%), linear-gradient(168deg, rgba(255, 255, 255, 0.7), rgba(241, 246, 255, 0.56));
   --sf-nav-bg: var(--sf-noise), linear-gradient(180deg, rgba(255, 255, 255, 0.56), rgba(244, 248, 255, 0.44));
   --sf-nav-blur: calc(18px * var(--sf-material) * 0.02);
-  --sf-nav-filter: blur(calc(26px * var(--sf-material) * 0.02)) saturate(1.7) brightness(1.03);
+  --sf-nav-blur-radius: calc(26px * var(--sf-material) * 0.02);
+  --sf-nav-filter: blur(var(--sf-nav-blur-radius, 26px)) saturate(1.7) brightness(1.03);
   --sf-chrome-bg: var(--sf-noise), linear-gradient(180deg, rgba(255, 255, 255, 0.52), rgba(246, 250, 255, 0.4));
   --sf-chrome-blur: calc(18px * var(--sf-material) * 0.02);
-  --sf-chrome-filter: blur(calc(24px * var(--sf-material) * 0.02)) saturate(1.7) brightness(1.03);
+  --sf-chrome-blur-radius: calc(24px * var(--sf-material) * 0.02);
+  --sf-chrome-filter: blur(var(--sf-chrome-blur-radius, 24px)) saturate(1.7) brightness(1.03);
   --sf-accent-surface-bg: var(--accent);
   --sf-highlight: color-mix(in srgb, #fff calc(var(--sf-material) * 0.62%), transparent);
 }
@@ -59,9 +62,12 @@ html[data-style='soft-glass'][data-glass='clear'] {
   --sf-modal-bg: var(--sf-noise), radial-gradient(120% 110% at 18% 0%, rgba(255, 255, 255, 0.42), transparent 58%), linear-gradient(168deg, rgba(255, 255, 255, 0.5), rgba(241, 246, 255, 0.38));
   --sf-nav-bg: var(--sf-noise), linear-gradient(180deg, rgba(255, 255, 255, 0.4), rgba(244, 248, 255, 0.3));
   --sf-chrome-bg: var(--sf-noise), linear-gradient(180deg, rgba(255, 255, 255, 0.38), rgba(246, 250, 255, 0.28));
-  --sf-overlay-filter: blur(calc(36px * var(--sf-material) * 0.02)) saturate(2) brightness(1.05) contrast(1.02);
-  --sf-nav-filter: blur(calc(30px * var(--sf-material) * 0.02)) saturate(1.9) brightness(1.04);
-  --sf-chrome-filter: blur(calc(28px * var(--sf-material) * 0.02)) saturate(1.9) brightness(1.04);
+  --sf-overlay-blur-radius: calc(36px * var(--sf-material) * 0.02);
+  --sf-overlay-filter: blur(var(--sf-overlay-blur-radius, 36px)) saturate(2) brightness(1.05) contrast(1.02);
+  --sf-nav-blur-radius: calc(30px * var(--sf-material) * 0.02);
+  --sf-nav-filter: blur(var(--sf-nav-blur-radius, 30px)) saturate(1.9) brightness(1.04);
+  --sf-chrome-blur-radius: calc(28px * var(--sf-material) * 0.02);
+  --sf-chrome-filter: blur(var(--sf-chrome-blur-radius, 28px)) saturate(1.9) brightness(1.04);
   --sf-highlight: color-mix(in srgb, #fff calc(var(--sf-material) * 0.72%), transparent);
 }
 

@@ -12,6 +12,12 @@ describe('材质配方', () => {
     expect(css).toContain('--sf-highlight')
   })
 
+  it('模糊半径带字面量兜底', () => {
+    const css = read('packages/style-kit/src/presets/soft-glass.css')
+    expect(css).toContain('--sf-overlay-blur-radius')
+    expect(css).toContain('var(--sf-overlay-blur-radius, 30px)')
+  })
+
   it('清透变体有独立配方', () => {
     const css = read('packages/style-kit/src/presets/soft-glass.css')
     expect(css).toContain("[data-glass='clear']")
