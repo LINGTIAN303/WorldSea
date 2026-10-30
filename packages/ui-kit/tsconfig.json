@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "strict": true,
@@ -23,6 +24,8 @@
       "@worldsea/font-kit/*": ["../font-kit/src/*"],
       "@worldsea/motion-kit": ["../motion-kit/src/index.ts"],
       "@worldsea/motion-kit/*": ["../motion-kit/src/*"],
+      "@worldsea/style-kit": ["../style-kit/src/index.ts"],
+      "@worldsea/style-kit/*": ["../style-kit/src/*"],
       "@worldsea/theme-kit": ["../theme-kit/src/index.ts"],
       "@worldsea/theme-kit/*": ["../theme-kit/src/*"]
     }

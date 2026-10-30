@@ -19,6 +19,7 @@
     "@worldsea/entity-core": "link:../entity-core",
     "@worldsea/canvas-engine": "link:../canvas-engine",
     "@worldsea/motion-kit": "link:../motion-kit",
+    "@worldsea/style-kit": "link:../style-kit",
     "@worldsea/font-kit": "link:../font-kit"
   }
 }

@@ -2,7 +2,7 @@
   <CardDeck :count="5" :flat="!!searchQuery" @change="(i) => emit('card-change', i)" ref="deckRef">
     <template #card="{ idx, cls }">
       <div class="set-card deck-card" :class="cls" :data-index="idx"
-        v-show="idx === 0 ? match('主题 theme 外观 底色 深色 浅色 跟随系统 强调色 颜色 编辑器 图谱 星图 眼睛 虹膜 iris') : idx === 1 ? match('高亮 highlight 脉冲 动画 淡化 扩散 透明度') : true">
+        v-show="idx === 0 ? match('主题 theme 外观 底色 深色 浅色 跟随系统 强调色 颜色 编辑器 图谱 星图 眼睛 虹膜 iris 风格 材质 实体 形变 触感 拟态 玻璃 glass neu mist') : idx === 1 ? match('高亮 highlight 脉冲 动画 淡化 扩散 透明度') : true">
         <!-- 主题（2026-09-13 收束：主题 = 底色 × 强调色 两轴，不再陈列六个预设主题卡） -->
         <template v-if="idx === 0">
           <div class="sc-head">主题</div>
@@ -32,6 +32,25 @@
             </div>
           </div>
           <ColorPickerDialog :show="customPickerOpen" :initial-color="customAccentColor ?? '#4f46e5'" :transform="quantizeAnchor" @confirm="onCustomAccentConfirm" @close="customPickerOpen = false" />
+          <div class="set-theme-sub">风格</div>
+          <div class="set-style-row" role="group" aria-label="界面风格">
+            <button
+              v-for="pack in stylePacks"
+              :key="pack.id"
+              class="set-style-card"
+              :class="{ on: styleId === pack.id }"
+              :title="pack.description"
+              :aria-label="`界面风格：${pack.label}`"
+              @click="onStyleChange(pack.id)"
+            >
+              <span class="set-style-preview" :data-style-preview="pack.id"></span>
+              <span class="set-style-name">{{ pack.label }}</span>
+            </button>
+          </div>
+          <div class="set-accent-hint">当前风格：{{ currentStyleLabel }}</div>
+          <button class="set-theme-editor-btn" @click="openThemeEditor">
+            <WsIcon name="theme-editor" size="xs" /> 微调材质 / 实体 / 形变 / 触感
+          </button>
           <div class="set-theme-sub">眼睛虹膜色</div>
           <div class="set-accent-row" role="group" aria-label="眼睛虹膜色">
             <button class="set-accent-dot" :class="{ on: !eyeIrisColor }" title="跟随强调色" aria-label="眼睛虹膜色：跟随强调色" @click="onEyeIrisFollow">
@@ -154,6 +173,7 @@ import WsInlineLoading from '../../feedback/loading/WsInlineLoading.vue'
 import ColorPickerDialog from '../../editor/ColorPickerDialog.vue'
 import EntityMultiSelect from './EntityMultiSelect.vue'
 import { toastSuccess, toastWarn, CardDeck } from '@worldsea/ui-kit'
+import { useStyle, STYLE_LIST, type StyleId } from '@worldsea/style-kit'
 import { matchKeywords, FONT_LAYERS, weightLabel, sourceLabel, formatSize } from '../utils'
 
 const props = defineProps<{ searchQuery?: string }>()
@@ -166,6 +186,14 @@ const deckRef = ref<InstanceType<typeof CardDeck> | null>(null)
 defineExpose({ goToCard: (i: number) => deckRef.value?.goToCard(i) })
 
 const store = useSettingsStore()
+const stylePacks = STYLE_LIST
+const { styleId, setStyle } = useStyle()
+const currentStyleLabel = computed(() => stylePacks.find(p => p.id === styleId.value)?.label ?? '雾面')
+
+function onStyleChange(id: StyleId) {
+  setStyle(id)
+  emit('dirty')
+}
 const fontStore = useFontStore()
 const { getPresetByFamily, markInstalled } = useFontPresets()
 const libraryStore = useFontLibraryStore()
@@ -530,4 +558,30 @@ function onFontImport(e: Event) {
 .sf-lib-group-delete:hover { color: var(--color-danger); background: var(--color-surface); }
 .sf-lib-card--grouped { border: none; border-radius: 0; border-bottom: 1px solid var(--color-border-subtle); }
 .sf-lib-card--grouped:last-child { border-bottom: none; }
+.set-style-row { display: flex; gap: 8px; }
+.set-style-card {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  flex: 1; padding: 8px; cursor: pointer;
+  background: var(--sf-control-bg); border: 1px solid var(--sf-control-edge);
+  border-radius: calc(var(--radius-md) * var(--sf-radius-scale));
+  box-shadow: var(--sf-control-shadow);
+  transition: border-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease-spring);
+}
+.set-style-card:hover { border-color: var(--accent); }
+.set-style-card.on { border-color: var(--accent); }
+.set-style-preview {
+  width: 100%; height: 34px; border-radius: calc(var(--radius-sm) * var(--sf-radius-scale));
+  border: 1px solid var(--sf-panel-edge);
+}
+.set-style-preview[data-style-preview='mist'] { background: linear-gradient(180deg, #ffffff, #f4f4f5); }
+.set-style-preview[data-style-preview='soft-glass'] {
+  background: linear-gradient(135deg, rgba(255,255,255,.85), rgba(200,220,255,.55));
+  border-color: rgba(255,255,255,.8);
+}
+.set-style-preview[data-style-preview='neu'] {
+  background: #e8eaef;
+  box-shadow: 3px 3px 8px rgba(163,177,198,.55), -3px -3px 8px rgba(255,255,255,.85);
+  border-color: transparent;
+}
+.set-style-name { font-size: var(--fs-sm); color: var(--text-secondary); }
 </style>
