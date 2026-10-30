@@ -79,3 +79,11 @@ flowchart TD
 `npm run style:check` 扫描 `packages/ui-kit/src` 与 `apps/tauri/src` 的样式块，禁止新增硬编码颜色、`box-shadow`、`backdrop-filter`；存量以 `scripts/style-conformance/baseline.json` 锁死，只许降不许升。消费 `var(--sf-*)` 的阴影与模糊视为合法，不计入硬编码。白名单：品牌资产、图标资产、图谱绘制。
 
 B1 同时修复了桥接层 `--radius-sm/md/lg` 自引用导致的半径令牌失效（此前这些令牌以及派生的按钮/卡片/输入/弹窗圆角实际为 0）。
+
+## 九、优化轮（B4）
+
+- 控件边界统一加深到 ≥3:1（`--sf-control-edge`），由 `contrast.spec.ts` 对三套风格 × 明暗逐组校验。
+- 模糊改为函数令牌 `--sf-overlay-filter / nav / chrome`：新拟态与性能模式为 `none`，不再创建模糊合成层。
+- 柔玻璃新增 `--sf-highlight` 顶部高光，随材质强度缩放。
+- 覆盖扩展到设置表单控件、详情载体、工具栏与下拉、共享弹层、列表行。
+- 风格切换挂 `is-style-switching` 类做 150ms 过渡；侧栏 `contain` 放宽为 `layout paint` 以保留背景模糊。

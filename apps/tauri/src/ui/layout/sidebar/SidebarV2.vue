@@ -318,7 +318,7 @@ onBeforeUnmount(() => {
   border: 1px solid var(--region-border, var(--border));
   border-radius: var(--region-radius, var(--radius-md));
   z-index: 10;
-  contain: strict;
+  contain: layout paint;
   flex-shrink: 0;
 }
 .sidebar:not(.collapsed) {
