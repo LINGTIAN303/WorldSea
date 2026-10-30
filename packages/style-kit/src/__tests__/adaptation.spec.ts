@@ -58,3 +58,15 @@ describe('B2 壳层消费表面契约', () => {
     }
   })
 })
+
+const B3_TARGETS = [
+  'packages/plugin-sdk/src/components/EntityCard.vue',
+]
+
+describe('B3 卡片与表格消费表面契约', () => {
+  it('实体卡至少消费一个 --sf-* 变量', () => {
+    for (const file of B3_TARGETS) {
+      expect(read(file), `${file} 未接入表面契约`).toMatch(/var\(--sf-/)
+    }
+  })
+})

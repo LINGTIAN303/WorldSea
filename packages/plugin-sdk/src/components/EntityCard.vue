@@ -194,17 +194,17 @@ onBeforeUnmount(() => {
 .entity-card-wrapper {
   position: relative;
   display: flex;
-  border: 1px solid var(--border, #ececec);
-  border-radius: var(--radius-mid, 8px);
-  background: var(--bg-surface, #ffffff);
+  border: 1px solid var(--sf-card-edge);
+  border-radius: calc(var(--radius-mid, 8px) * var(--sf-radius-scale));
+  background: var(--sf-card-bg);
   overflow: hidden;
   transition: border-color var(--dur-fast, 0.15s) var(--ease, ease),
               box-shadow var(--dur-fast, 0.15s) var(--ease, ease),
               opacity var(--dur-fast, 0.15s) var(--ease, ease);
 }
 .entity-card-wrapper:hover {
-  border-color: var(--border-strong, #d9d9de);
-  box-shadow: var(--shadow-sm, 0 1px 2px rgba(16, 24, 40, 0.05));
+  border-color: var(--sf-panel-edge-strong);
+  box-shadow: var(--sf-card-shadow);
 }
 /* 打开详情：accent 描边高亮 */
 .entity-card-wrapper.active {
@@ -283,7 +283,7 @@ onBeforeUnmount(() => {
 .entity-card-flipper { position: relative; flex: 1; display: flex; perspective: 1000px; }
 .entity-card-flipper .entity-card { backface-visibility: hidden; transition: transform var(--dur-base, 0.22s) var(--ease, ease); }
 .entity-card-flipper .card-back {
-  position: absolute; inset: 0; transform: rotateY(180deg); background: var(--bg-surface, #ffffff);
+  position: absolute; inset: 0; transform: rotateY(180deg); background: var(--sf-card-bg);
 }
 .entity-card-wrapper.is-flipped .entity-card-flipper .card-front { transform: rotateY(180deg); }
 .entity-card-wrapper.is-flipped .entity-card-flipper .card-back { transform: rotateY(0deg); }
