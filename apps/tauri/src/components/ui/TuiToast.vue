@@ -56,6 +56,7 @@ const ICONS: Record<string, string> = {
   padding: 10px 12px;
   border-radius: calc(var(--radius-md) * var(--sf-radius-scale));
   background: var(--sf-overlay-bg);
+  -webkit-backdrop-filter: var(--sf-overlay-filter, none);
   backdrop-filter: var(--sf-overlay-filter, none);
   -webkit-backdrop-filter: var(--sf-overlay-filter, none);
   border: 1px solid var(--sf-overlay-edge);

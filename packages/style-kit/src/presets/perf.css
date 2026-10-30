@@ -8,4 +8,5 @@ html[data-perf='on'] {
   --sf-nav-filter: none;
   --sf-chrome-filter: none;
   --sf-clear-filter: none;
+  --sf-mask-filter: none;
 }

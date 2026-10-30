@@ -124,6 +124,7 @@ function onKeydown(e: KeyboardEvent): void {
   border-radius: calc(var(--radius-mid) * var(--sf-radius-scale));
   background: var(--sf-overlay-bg);
   box-shadow: var(--sf-overlay-shadow), inset 0 1px 0 var(--sf-highlight);
+  -webkit-backdrop-filter: var(--sf-overlay-filter, none);
   backdrop-filter: var(--sf-overlay-filter, none);
   display: flex;
   flex-direction: column;

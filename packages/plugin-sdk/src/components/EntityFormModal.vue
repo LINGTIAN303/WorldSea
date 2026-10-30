@@ -218,6 +218,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   display: flex;
   align-items: center;
   justify-content: center;
+  -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
 }
 .efm-box {
@@ -228,6 +229,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   max-height: 80vh;
   overflow-y: auto;
   box-shadow: var(--sf-overlay-shadow), inset 0 1px 0 var(--sf-highlight);
+  -webkit-backdrop-filter: var(--sf-overlay-filter, none);
   backdrop-filter: var(--sf-overlay-filter, none);
   position: relative;
 }

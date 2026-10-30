@@ -11,7 +11,7 @@ const RULES = {
   hex: /#[0-9a-fA-F]{3,8}\b/g,
   rgba: /rgba?\(/g,
   boxShadow: /box-shadow\s*:/g,
-  backdropFilter: /backdrop-filter\s*:/g,
+  backdropFilter: /(?<!-webkit-)backdrop-filter\s*:/g,
 }
 
 function walk(dir, out = []) {

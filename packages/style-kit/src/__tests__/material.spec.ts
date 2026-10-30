@@ -37,8 +37,15 @@ describe('材质配方', () => {
     expect(vue).toContain('--sf-clear-bg')
   })
 
-  it('性能模式关闭 clear 模糊', () => {
+  it('设置弹层有玻璃表面与遮罩模糊', () => {
+    const css = read('apps/tauri/src/world/plugins/settings/settings-dialog.css')
+    expect(css).toContain('--sf-modal-bg')
+    expect(css).toContain('var(--sf-mask-filter')
+  })
+
+  it('性能模式关闭 clear 与遮罩模糊', () => {
     const css = read('packages/style-kit/src/presets/perf.css')
     expect(css).toContain('--sf-clear-filter: none')
+    expect(css).toContain('--sf-mask-filter: none')
   })
 })

@@ -188,6 +188,7 @@ function close() {
      两色一致时胶囊会「看不见」（只剩文字与图标）——故底色统一落到 --bg-muted */
   --titlebar-bg: var(--sf-chrome-bg);
   background: var(--titlebar-bg, var(--color-bg-surface));
+  -webkit-backdrop-filter: var(--sf-chrome-filter, none);
   backdrop-filter: var(--sf-chrome-filter, none);
   border-bottom: 1px solid var(--border, var(--color-border));
   user-select: none;

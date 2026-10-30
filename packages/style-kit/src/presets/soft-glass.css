@@ -31,6 +31,7 @@ html[data-style='soft-glass'] {
   --sf-chrome-filter: blur(var(--sf-chrome-blur-radius, 24px)) saturate(1.7) brightness(1.03);
   --sf-accent-surface-bg: var(--accent);
   --sf-highlight: color-mix(in srgb, #fff calc(var(--sf-material) * 0.62%), transparent);
+  --sf-mask-filter: blur(12px);
 }
 
 html[data-style='soft-glass'][data-theme='dark'] {
@@ -69,6 +70,7 @@ html[data-style='soft-glass'][data-glass='clear'] {
   --sf-chrome-blur-radius: calc(28px * var(--sf-material) * 0.02);
   --sf-chrome-filter: blur(var(--sf-chrome-blur-radius, 28px)) saturate(1.9) brightness(1.04);
   --sf-highlight: color-mix(in srgb, #fff calc(var(--sf-material) * 0.72%), transparent);
+  --sf-mask-filter: blur(14px);
 }
 
 html[data-style='soft-glass'][data-glass='clear'][data-theme='dark'] {

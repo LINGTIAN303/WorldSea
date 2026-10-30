@@ -251,6 +251,7 @@ async function saveFolder() {
   box-shadow: var(--shadow-xl);
   padding: 6px;
   z-index: 2000;
+  -webkit-backdrop-filter: var(--sf-overlay-filter, none);
   backdrop-filter: var(--sf-overlay-filter, none);
 }
 

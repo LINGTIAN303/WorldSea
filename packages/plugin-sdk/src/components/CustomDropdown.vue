@@ -193,6 +193,7 @@ onBeforeUnmount(() => {
   border: 1px solid var(--sf-overlay-edge);
   border-radius: calc(var(--radius-sm, 4px) * var(--sf-radius-scale));
   box-shadow: var(--sf-overlay-shadow);
+  -webkit-backdrop-filter: var(--sf-overlay-filter, none);
   backdrop-filter: var(--sf-overlay-filter, none);
   padding: 4px 0;
   max-height: 240px;

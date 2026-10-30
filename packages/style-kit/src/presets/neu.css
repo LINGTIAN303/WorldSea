@@ -42,6 +42,7 @@ html[data-style='neu'] {
   --sf-chrome-filter: none;
   --sf-accent-surface-bg: var(--accent);
   --sf-highlight: transparent;
+  --sf-mask-filter: none;
   --sf-ambient: 0 0 42px color-mix(in srgb, var(--accent) 12%, transparent);
 }
 

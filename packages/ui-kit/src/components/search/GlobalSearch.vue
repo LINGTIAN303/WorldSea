@@ -153,6 +153,7 @@ onBeforeUnmount(() => {
   background: var(--overlay-bg);
   display: flex; align-items: flex-start; justify-content: center;
   padding-top: 80px;
+  -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
 }
 .global-search-panel {
@@ -160,6 +161,7 @@ onBeforeUnmount(() => {
   border: 1px solid var(--sf-overlay-edge);
   border-radius: calc(var(--radius-xl, 16px) * var(--sf-radius-scale)); box-shadow: var(--sf-overlay-shadow), inset 0 1px 0 var(--sf-highlight);
   display: flex; flex-direction: column; overflow: hidden;
+  -webkit-backdrop-filter: var(--sf-overlay-filter, none);
   backdrop-filter: var(--sf-overlay-filter, none);
 }
 .gs-header { display: flex; padding: 14px 18px; gap: 8px; border-bottom: 1px solid var(--border); }

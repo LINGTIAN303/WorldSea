@@ -29,6 +29,7 @@ html[data-style='mist'] {
   --sf-chrome-blur: 0px;
   --sf-accent-surface-bg: var(--accent);
   --sf-highlight: transparent;
+  --sf-mask-filter: blur(6px);
 }
 
 html[data-style='mist'][data-theme='dark'] {

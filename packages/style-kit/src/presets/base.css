@@ -18,6 +18,8 @@
   /* clear 玻璃（媒体背景）：35% 暗化 + 强模糊，性能模式可关模糊 */
   --sf-clear-filter: blur(30px) saturate(1.2);
   --sf-clear-bg: color-mix(in srgb, #000 35%, transparent);
+  /* 模态遮罩模糊：各风格按自身强度覆盖，默认无 */
+  --sf-mask-filter: none;
 
   --bg-app: var(--sf-canvas-bg);
   --bg-surface: var(--sf-panel-bg);

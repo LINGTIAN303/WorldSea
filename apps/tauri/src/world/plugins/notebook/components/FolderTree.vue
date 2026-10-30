@@ -435,6 +435,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeyDown))
   position: fixed; z-index: var(--z-modal); min-width: 150px;
   background: var(--sf-overlay-bg); border: 1px solid var(--sf-overlay-edge);
   border-radius: calc(var(--radius-sm) * var(--sf-radius-scale)); padding: 4px; box-shadow: var(--sf-overlay-shadow);
+  -webkit-backdrop-filter: var(--sf-overlay-filter, none);
   backdrop-filter: var(--sf-overlay-filter, none);
 }
 .ft-cm-item {

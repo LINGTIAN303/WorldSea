@@ -108,6 +108,7 @@ defineExpose({ switchTab, activeTab })
   background: var(--sf-overlay-bg);
   border-left: 1px solid var(--sf-overlay-edge);
   box-shadow: var(--sf-overlay-shadow), inset 0 1px 0 var(--sf-highlight);
+  -webkit-backdrop-filter: var(--sf-overlay-filter, none);
   backdrop-filter: var(--sf-overlay-filter, none);
   z-index: 100;
   display: flex;

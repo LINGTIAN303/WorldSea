@@ -135,6 +135,7 @@ watch(() => state.value.show, (v) => {
   inset: var(--titlebar-height, 32px) 0 0 0;
   z-index: var(--z-modal);
   background: var(--overlay);
+  -webkit-backdrop-filter: var(--sf-overlay-filter, none);
   backdrop-filter: var(--sf-overlay-filter, none);
   -webkit-backdrop-filter: var(--sf-overlay-filter, none);
   display: flex;
@@ -146,6 +147,7 @@ watch(() => state.value.show, (v) => {
 /* bottom 模式：对话区底部输入栏上方弹出——无遮罩/不拦截其他区域，仅面板浮于输入栏位置 */
 .ws-confirm-overlay--bottom {
   background: none;
+  -webkit-backdrop-filter: none;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   pointer-events: none; /* 允许点击穿透，不阻挡消息区/侧栏等其他区域操作 */
@@ -159,6 +161,7 @@ watch(() => state.value.show, (v) => {
   border: 1px solid var(--sf-overlay-edge);
   border-radius: calc(var(--radius-lg) * var(--sf-radius-scale));
   box-shadow: var(--sf-overlay-shadow), inset 0 1px 0 var(--sf-highlight);
+  -webkit-backdrop-filter: var(--sf-overlay-filter, none);
   backdrop-filter: var(--sf-overlay-filter, none);
   padding: 24px;
   min-width: 320px;

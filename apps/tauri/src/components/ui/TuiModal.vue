@@ -170,6 +170,7 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   background: var(--overlay);
+  -webkit-backdrop-filter: var(--sf-overlay-filter, none);
   backdrop-filter: var(--sf-overlay-filter, none);
   -webkit-backdrop-filter: var(--sf-overlay-filter, none);
   padding: 24px;
@@ -184,6 +185,7 @@ onBeforeUnmount(() => {
   border: 1px solid var(--sf-overlay-edge);
   border-radius: calc(var(--radius-lg) * var(--sf-radius-scale));
   box-shadow: var(--sf-overlay-shadow), inset 0 1px 0 var(--sf-highlight);
+  -webkit-backdrop-filter: var(--sf-overlay-filter, none);
   backdrop-filter: var(--sf-overlay-filter, none);
   overflow: hidden;
 }
