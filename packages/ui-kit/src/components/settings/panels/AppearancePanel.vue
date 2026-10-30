@@ -51,6 +51,13 @@
           <button class="set-theme-editor-btn" @click="openThemeEditor">
             <WsIcon name="theme-editor" size="xs" /> 微调材质 / 实体 / 形变 / 触感
           </button>
+          <div class="set-row" style="margin-top:8px">
+            <span>性能模式（关闭背景模糊）</span>
+            <label class="set-toggle">
+              <input type="checkbox" :checked="perfMode" @change="onPerfModeChange(($event.target as HTMLInputElement).checked)" />
+              <span class="set-toggle-slider"></span>
+            </label>
+          </div>
           <div class="set-theme-sub">眼睛虹膜色</div>
           <div class="set-accent-row" role="group" aria-label="眼睛虹膜色">
             <button class="set-accent-dot" :class="{ on: !eyeIrisColor }" title="跟随强调色" aria-label="眼睛虹膜色：跟随强调色" @click="onEyeIrisFollow">
@@ -187,11 +194,16 @@ defineExpose({ goToCard: (i: number) => deckRef.value?.goToCard(i) })
 
 const store = useSettingsStore()
 const stylePacks = STYLE_LIST
-const { styleId, setStyle } = useStyle()
+const { styleId, setStyle, perfMode, setPerfMode } = useStyle()
 const currentStyleLabel = computed(() => stylePacks.find(p => p.id === styleId.value)?.label ?? '雾面')
 
 function onStyleChange(id: StyleId) {
   setStyle(id)
+  emit('dirty')
+}
+
+function onPerfModeChange(on: boolean) {
+  setPerfMode(on)
   emit('dirty')
 }
 const fontStore = useFontStore()

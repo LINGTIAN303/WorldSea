@@ -170,8 +170,8 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   background: var(--overlay);
-  backdrop-filter: blur(var(--overlay-blur));
-  -webkit-backdrop-filter: blur(var(--overlay-blur));
+  backdrop-filter: blur(var(--sf-overlay-blur));
+  -webkit-backdrop-filter: blur(var(--sf-overlay-blur));
   padding: 24px;
 }
 .tui-modal {

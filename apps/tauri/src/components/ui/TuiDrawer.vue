@@ -146,8 +146,8 @@ onBeforeUnmount(() => {
   inset: var(--titlebar-height, 32px) 0 0 0;
   z-index: var(--z-modal);
   background: var(--overlay);
-  backdrop-filter: blur(var(--overlay-blur));
-  -webkit-backdrop-filter: blur(var(--overlay-blur));
+  backdrop-filter: blur(var(--sf-overlay-blur));
+  -webkit-backdrop-filter: blur(var(--sf-overlay-blur));
 }
 .tui-drawer {
   position: fixed;
