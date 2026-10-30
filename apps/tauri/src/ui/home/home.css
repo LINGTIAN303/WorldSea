@@ -131,9 +131,10 @@
   gap: 4px;
   min-width: 0;
   padding: 14px 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--bg-surface);
+  border: 1px solid var(--sf-card-edge);
+  border-radius: calc(var(--radius-md) * var(--sf-radius-scale));
+  background: var(--sf-card-bg);
+  box-shadow: var(--sf-card-shadow);
   font: inherit;
   color: inherit;
   text-align: left;
@@ -187,9 +188,10 @@
   min-width: 0;
   min-height: 150px;
   padding: 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--bg-surface);
+  border: 1px solid var(--sf-card-edge);
+  border-radius: calc(var(--radius-md) * var(--sf-radius-scale));
+  background: var(--sf-card-bg);
+  box-shadow: var(--sf-card-shadow);
   transition: border-color var(--dur-fast) var(--ease);
 }
 .home-domain:hover,
@@ -365,9 +367,10 @@
   gap: 14px;
   width: 100%;
   padding: 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--bg-surface);
+  border: 1px solid var(--sf-card-edge);
+  border-radius: calc(var(--radius-md) * var(--sf-radius-scale));
+  background: var(--sf-card-bg);
+  box-shadow: var(--sf-card-shadow);
   text-align: left;
   font-family: inherit;
 }
@@ -429,9 +432,10 @@
 .home-matrix-scroll {
   overflow-x: auto;
   scrollbar-gutter: stable;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--bg-surface);
+  border: 1px solid var(--sf-card-edge);
+  border-radius: calc(var(--radius-md) * var(--sf-radius-scale));
+  background: var(--sf-card-bg);
+  box-shadow: var(--sf-card-shadow);
 }
 .home-matrix {
   width: 100%;
@@ -507,9 +511,10 @@
 .home-activity-card {
   min-width: 0;
   padding: 14px 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--bg-surface);
+  border: 1px solid var(--sf-card-edge);
+  border-radius: calc(var(--radius-md) * var(--sf-radius-scale));
+  background: var(--sf-card-bg);
+  box-shadow: var(--sf-card-shadow);
 }
 .home-heatmap-scroll { overflow-x: auto; padding-bottom: 4px; }
 .home-heatmap { width: max-content; }

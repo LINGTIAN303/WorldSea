@@ -5,13 +5,13 @@
 /* 2026-09-13：上限 640 → 680——芽管理卡（26 芽 + 头部）在 640 下会触发卡片区内滚动，
    680 下芽卡一屏完整可见；其余标签页仅获得更多可视空间 */
 
-.set-topbar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: var(--content-bg, var(--color-bg-surface)); border-radius: var(--radius-md); box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+.set-topbar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: var(--sf-chrome-bg); border-radius: calc(var(--radius-md) * var(--sf-radius-scale)); box-shadow: var(--sf-overlay-shadow); backdrop-filter: blur(var(--sf-chrome-blur)); }
 .set-topbar-left { display: flex; align-items: center; gap: 6px; color: var(--text-secondary); flex-shrink: 0; }
 .set-topbar-title { font-size: var(--font-size-base); font-weight: var(--font-weight-semibold); color: var(--text-color); }
 .set-topbar-spacer { flex: 1; }
 .set-search-wrap { position: relative; width: 500px; flex-shrink: 0; }
 .set-search-icon { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); color: var(--text-tertiary, var(--color-text-tertiary)); pointer-events: none; }
-.set-search-input { width: 100%; height: 28px; padding: 5px 28px; font-size: var(--font-size-sm); border: 1px solid var(--border, var(--color-border)); border-radius: var(--radius-sm); background: var(--bg, var(--color-bg-surface)); color: var(--text-secondary); }
+.set-search-input { width: 100%; height: 28px; padding: 5px 28px; font-size: var(--font-size-sm); border: 1px solid var(--sf-control-edge); border-radius: calc(var(--radius-sm) * var(--sf-radius-scale)); background: var(--sf-control-bg); color: var(--text-secondary); }
 .set-search-input:focus { outline: none; border-color: var(--primary, var(--color-primary)); }
 .set-search-input::placeholder { color: var(--text-tertiary, var(--color-text-tertiary)); }
 .set-search-clear { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); background: none; border: none; font-size: var(--font-size-xs); color: var(--text-tertiary, var(--color-text-tertiary)); cursor: pointer; padding: 2px; }
@@ -34,8 +34,8 @@
 .set-tabs-arrow:hover { background: var(--primary-light, color-mix(in srgb, var(--color-primary) 10%, transparent)); color: var(--primary, var(--color-primary)); }
 .set-tabs-arrow--left { left: 0; }
 .set-tabs-arrow--right { right: 0; }
-.set-tab { display: flex; align-items: center; gap: 5px; padding: 7px 14px; border: none; border-radius: var(--radius-mid); background: var(--content-bg, var(--color-bg-surface)); color: var(--text-secondary); font-size: var(--font-size-sm); cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s; white-space: nowrap; box-shadow: 0 1px 4px rgba(0,0,0,0.05), 0 0 0 1px var(--border, var(--color-border)); }
-.set-tab:hover { background: var(--content-bg, var(--color-bg-surface)); color: var(--text-color); box-shadow: 0 2px 8px rgba(0,0,0,0.08), 0 0 0 1px var(--border, var(--color-border)); }
+.set-tab { display: flex; align-items: center; gap: 5px; padding: 7px 14px; border: none; border-radius: calc(var(--radius-mid) * var(--sf-radius-scale)); background: var(--sf-control-bg); color: var(--text-secondary); font-size: var(--font-size-sm); cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s; white-space: nowrap; box-shadow: var(--sf-control-shadow), 0 0 0 1px var(--sf-control-edge); }
+.set-tab:hover { background: var(--sf-control-bg); color: var(--text-color); box-shadow: var(--sf-control-shadow), 0 0 0 1px var(--sf-control-edge); }
 .set-tab.active { background: var(--primary-light, color-mix(in srgb, var(--color-primary) 10%, transparent)); color: var(--primary, var(--color-primary)); font-weight: var(--font-weight-medium); box-shadow: 0 2px 8px color-mix(in srgb, var(--color-primary) 12%, transparent), 0 0 0 1px var(--primary, color-mix(in srgb, var(--color-primary) 20%, transparent)); }
 .stb-icon { display: inline-flex; }
 

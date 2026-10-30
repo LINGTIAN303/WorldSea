@@ -42,6 +42,8 @@ describe('B1 基础原子消费表面契约', () => {
 const B2_TARGETS = [
   'apps/tauri/src/ui/layout/TitleBar.vue',
   'apps/tauri/src/ui/layout/sidebar/SidebarV2.vue',
+  'apps/tauri/src/world/plugins/settings/settings-dialog.css',
+  'apps/tauri/src/ui/home/home.css',
 ]
 
 describe('B2 壳层消费表面契约', () => {
