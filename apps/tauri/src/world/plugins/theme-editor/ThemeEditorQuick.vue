@@ -29,20 +29,66 @@
         >{{ opt.label }}</button>
       </div>
     </div>
+
+    <div class="theme-quick__section">
+      <h4 class="theme-quick__heading">风格微调</h4>
+      <div v-for="axis in axisItems" :key="axis.key" class="theme-quick__axis">
+        <div class="theme-quick__axis-head">
+          <span>{{ axis.label }}</span>
+          <span class="theme-quick__axis-val">{{ axis.value }}</span>
+          <button
+            v-if="isOverridden(axis.key)"
+            class="theme-quick__reset"
+            title="恢复预设值"
+            @click="resetAxis(axis.key)"
+          >恢复预设</button>
+        </div>
+        <input
+          class="theme-quick__range"
+          type="range"
+          :min="axis.meta.min"
+          :max="axis.meta.max"
+          :step="axis.meta.step"
+          :value="axis.value"
+          @input="onAxisInput(axis.key, ($event.target as HTMLInputElement).valueAsNumber)"
+        />
+      </div>
+      <button class="theme-quick__reset-all" @click="onResetAxes">全部恢复预设</button>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useUIStore } from '@worldsea/entity-core'
 // entity-core 主题引擎：setUserOverrides 仅写令牌覆盖（圆角/密度），不碰 data-theme 与强调色。
 import { useTheme } from '@/composables/useTheme'
+import { useStyle, AXIS_META, type AxisKey } from '@worldsea/style-kit'
 
 const props = defineProps<{ activeTab?: string }>()
 const emit = defineEmits<{ 'jump-to-appearance': [] }>()
 
 const { userOverrides, setUserOverrides } = useTheme()
 const ui = useUIStore()
+const { resolvedAxes, setAxis, resetAxis, resetAxes, isOverridden } = useStyle()
+
+const axisItems = computed(() =>
+  (Object.keys(AXIS_META) as AxisKey[]).map(key => ({
+    key,
+    meta: AXIS_META[key],
+    label: AXIS_META[key].label,
+    value: resolvedAxes.value[key],
+  })),
+)
+
+function onAxisInput(key: AxisKey, value: number) {
+  if (!Number.isFinite(value)) return
+  setAxis(key, value)
+}
+
+function onResetAxes() {
+  resetAxes()
+}
 
 /** 切入本 Tab 时重读覆盖状态（其他 Tab/面板可能已改动） */
 watch(() => props.activeTab, (v) => {
@@ -170,4 +216,16 @@ function applyQuickSettings() {
 }
 .theme-quick__option:hover { border-color: var(--color-primary); color: var(--color-primary); }
 .theme-quick__option--active { background: var(--color-primary-subtle); border-color: var(--color-primary); color: var(--color-primary); }
+.theme-quick__axis { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+.theme-quick__axis-head { display: flex; align-items: center; gap: 8px; font-size: var(--font-size-sm); color: var(--color-text-secondary); }
+.theme-quick__axis-val { margin-left: auto; color: var(--color-text-tertiary); font-variant-numeric: tabular-nums; }
+.theme-quick__range { width: 100%; accent-color: var(--color-primary); }
+.theme-quick__reset { border: none; background: none; color: var(--color-primary); font-size: var(--font-size-xs); cursor: pointer; }
+.theme-quick__reset-all {
+  align-self: flex-start; padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--color-border); border-radius: var(--radius-sm);
+  background: transparent; color: var(--color-text-secondary);
+  font-size: var(--font-size-xs); cursor: pointer;
+}
+.theme-quick__reset-all:hover { border-color: var(--color-primary); color: var(--color-primary); }
 </style>
