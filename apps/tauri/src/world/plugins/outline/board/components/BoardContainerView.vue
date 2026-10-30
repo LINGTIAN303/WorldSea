@@ -18,6 +18,7 @@
     :aria-label="node ? `节点容器：${node.name}` : '节点已删除的容器'"
     data-ctx="container"
     :data-ctx-id="container.id"
+    :data-board-container-id="container.id"
     @pointerdown.stop="$emit('select')"
     @dblclick.stop
   >
@@ -231,10 +232,15 @@ watch(
   border: 1px solid var(--border-color);
   border-radius: var(--radius-mid);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+  transition: border-color var(--dur-fast, 0.15s) var(--ease, ease),
+              box-shadow var(--dur-fast, 0.15s) var(--ease, ease);
   /* ⚠ 不可加 overflow: hidden —— 会裁掉「添加表现形式」菜单（.bc-form-menu 在卡片内、
      top:100% 溢出到卡片外）与组件删除按钮（right/top: -4px）；内容裁剪只交给 .bc-body */
 }
 .bc--selected { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
+.bc:hover:not(.bc--selected):not(.bc--dangling) {
+  border-color: var(--border-strong);
+}
 .bc--dangling { border-style: dashed; opacity: 0.75; }
 .bc-head {
   display: flex;

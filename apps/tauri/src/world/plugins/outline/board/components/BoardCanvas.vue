@@ -53,22 +53,24 @@
         @remove="$emit('removeSection', s.id)"
       />
 
-      <!-- 容器 -->
-      <BoardContainerView
-        v-for="c in layout.containers"
-        :key="c.id"
-        :container="c"
-        :node="nodesById.get(c.nodeId)"
-        :selected="selectedId === c.id" :has-manuscript="chapterNodeIds?.has(c.nodeId) ?? false" :open-form-signal="openFormSignal"
-        @select="$emit('select', c.id)"
-        @drag-start="onContainerDragStart(c, $event)"
-        @resize-start="onContainerResizeStart(c, $event)"
-        @toggle-collapse="$emit('toggleCollapse', c.id)"
-        @remove="$emit('removeContainer', c.id)"
-        @remove-component="(componentId: string) => $emit('removeComponent', c.id, componentId)"
-        @open-manuscript="$emit('openManuscript', c.id)"
-        @add-component="(form: string) => $emit('addComponent', c.id, form)"
-      />
+      <!-- 容器（TransitionGroup 不生成包裹层，绝对定位不受影响） -->
+      <TransitionGroup name="board-card">
+        <BoardContainerView
+          v-for="c in layout.containers"
+          :key="c.id"
+          :container="c"
+          :node="nodesById.get(c.nodeId)"
+          :selected="selectedId === c.id" :has-manuscript="chapterNodeIds?.has(c.nodeId) ?? false" :open-form-signal="openFormSignal"
+          @select="$emit('select', c.id)"
+          @drag-start="onContainerDragStart(c, $event)"
+          @resize-start="onContainerResizeStart(c, $event)"
+          @toggle-collapse="$emit('toggleCollapse', c.id)"
+          @remove="$emit('removeContainer', c.id)"
+          @remove-component="(componentId: string) => $emit('removeComponent', c.id, componentId)"
+          @open-manuscript="$emit('openManuscript', c.id)"
+          @add-component="(form: string) => $emit('addComponent', c.id, form)"
+        />
+      </TransitionGroup>
 
       <!-- 画区预览（虚线矩形） -->
       <div v-if="drawPreview" class="bcv-draw-preview" :style="previewStyle" />
@@ -96,6 +98,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import type { Entity } from '@worldsea/entity-core'
 import BoardContainerView from './BoardContainerView.vue'
 import BoardSectionView from './BoardSectionView.vue'
+import { useBoardFlip, type BoardPoint } from '../composables/useBoardFlip'
 import { useBoardSnap, type SnapMode } from '../composables/useBoardSnap'
 import {
   clampZoom,
@@ -166,6 +169,11 @@ const emit = defineEmits<{
 }>()
 
 const rootEl = ref<HTMLElement | null>(null)
+const {
+  capture: captureContainerPositions,
+  play: playContainerFlip,
+  cancel: cancelContainerFlip,
+} = useBoardFlip(rootEl)
 const panning = ref(false)
 /**
  * 是否按住 Space（规格 §八「Space + 拖拽 = 平移」）。
@@ -577,6 +585,15 @@ defineExpose({
       panY: h / 2 - (rect.y + rect.h / 2) * zoom,
     })
   },
+  capturePositions(): Map<string, BoardPoint> {
+    return captureContainerPositions(props.layout)
+  },
+  playPositionFlip(before: Map<string, BoardPoint>): void {
+    playContainerFlip(before, props.layout)
+  },
+  cancelPositionFlip(): void {
+    cancelContainerFlip()
+  },
 })
 
 onBeforeUnmount(() => {
@@ -672,3 +689,5 @@ onMounted(() => {
   color: var(--text-tertiary);
 }
 </style>
+
+<style src="../board-motion.css"></style>

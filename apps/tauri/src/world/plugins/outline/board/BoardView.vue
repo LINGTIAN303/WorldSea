@@ -432,7 +432,16 @@ function onCanvasSelect(containerId: string | null): void {
   selection.select(containerId)
 }
 
+/** 非手势布局操作的 FLIP 包装：捕获旧坐标 → 变更 → 下一帧播放 */
+function flipLayoutChange(fn: () => void): void {
+  const before = canvasRef.value?.capturePositions()
+  fn()
+  if (!before) return
+  void nextTick(() => canvasRef.value?.playPositionFlip(before))
+}
+
 function onInteractionStart(): void {
+  canvasRef.value?.cancelPositionFlip()
   undoApi.record() // 一次拖动/一次操作只记一次快照
 }
 
@@ -743,7 +752,7 @@ function onRenameSection(sectionId: string, title: string): void {
 
 function onRearrangeSection(sectionId: string): void {
   undoApi.record()
-  layoutApi.rearrangeSection(sectionId)
+  flipLayoutChange(() => layoutApi.rearrangeSection(sectionId))
 }
 
 /** 删区前先问容器去留（规格 §二：二选一，不静默决定） */
@@ -969,14 +978,20 @@ function onCtxSelect(id: string): void {
 
 // ── 撤销 / 重做 ─────────────────────────────
 async function onUndo(): Promise<void> {
+  const before = canvasRef.value?.capturePositions()
   if (await undoApi.undo()) {
     selection.dropIfMissing(new Set(layout.value.containers.map(c => c.id)))
+    await nextTick()
+    if (before) canvasRef.value?.playPositionFlip(before)
   }
 }
 
 async function onRedo(): Promise<void> {
+  const before = canvasRef.value?.capturePositions()
   if (await undoApi.redo()) {
     selection.dropIfMissing(new Set(layout.value.containers.map(c => c.id)))
+    await nextTick()
+    if (before) canvasRef.value?.playPositionFlip(before)
   }
 }
 

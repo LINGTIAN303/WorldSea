@@ -1,0 +1,20 @@
+/* 白板容器卡片进出场（全局类名唯一；TransitionGroup 不生成包裹层） */
+.board-card-enter-active {
+  transition: opacity var(--dur-fast) var(--ease-out),
+              transform var(--dur-fast) var(--ease-out);
+}
+.board-card-leave-active {
+  transition: opacity var(--dur-instant) var(--ease-in),
+              transform var(--dur-instant) var(--ease-in);
+  pointer-events: none;
+  z-index: 20;
+}
+.board-card-enter-from,
+.board-card-leave-to { opacity: 0; transform: scale(0.96); }
+/* 拖拽每帧写坐标，move 过渡会拖影；显式禁用 */
+.board-card-move { transition: none; }
+
+:root[data-anim-content='off'] .board-card-enter-active,
+:root[data-anim-content='off'] .board-card-leave-active,
+:root[data-reduce-motion='on'] .board-card-enter-active,
+:root[data-reduce-motion='on'] .board-card-leave-active { transition: none; }

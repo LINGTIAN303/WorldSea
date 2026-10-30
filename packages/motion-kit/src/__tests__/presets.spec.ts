@@ -33,6 +33,9 @@ const LEGACY_TRANSITION_NAMES = new Set([
   'fs-dropdown',
 ])
 
+/** 画布专用 TransitionGroup 名（由 board-motion.css 自带实现，不走全局预设表）。 */
+const CANVAS_TRANSITION_NAMES = new Set(['board-card'])
+
 function walkVue(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
     const p = join(dir, name)
@@ -60,7 +63,7 @@ describe('Transition 使用点必须命中预设或旧名单', () => {
         const name = m[1]
         if (name.includes('${')) continue
         expect(
-          known.has(name) || LEGACY_TRANSITION_NAMES.has(name),
+          known.has(name) || LEGACY_TRANSITION_NAMES.has(name) || CANVAS_TRANSITION_NAMES.has(name),
           `${file} 使用了未登记的过渡名 ${name}`,
         ).toBe(true)
       }
