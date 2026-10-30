@@ -50,6 +50,7 @@
     "@worldsea/plugin-sdk": "link:./packages/plugin-sdk",
     "@worldsea/shared-composables": "link:./packages/shared-composables",
     "@worldsea/shared-ui": "link:./packages/shared-ui",
+    "@worldsea/style-kit": "link:./packages/style-kit",
     "@worldsea/tactical-engine": "link:./tactical-engine/pkg",
     "@worldsea/theme-kit": "link:./packages/theme-kit",
     "@worldsea/ui-kit": "link:./packages/ui-kit",

@@ -20,6 +20,8 @@
       "@worldsea/ui-kit": ["../../packages/ui-kit/src/index.ts"],
       // 子路径映射：与 vite alias 的 '@worldsea/ui-kit/' 前缀同口径（不依赖 node_modules 链接）
       "@worldsea/ui-kit/*": ["../../packages/ui-kit/src/*"],
+      "@worldsea/style-kit": ["../../packages/style-kit/src/index.ts"],
+      "@worldsea/style-kit/*": ["../../packages/style-kit/src/*"],
       "@worldsea/canvas-engine": ["../../packages/canvas-engine/src/index.ts"],
       "@worldsea/canvas-engine/*": ["../../packages/canvas-engine/src/*"],
       "@worldsea/motion-kit": ["../../packages/motion-kit/src/index.ts"],

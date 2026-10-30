@@ -1,0 +1,42 @@
+/** 表面契约：每个风格包必须覆盖的角色变量。 */
+export const REQUIRED_VARS = [
+  '--sf-canvas-bg',
+  '--sf-panel-bg',
+  '--sf-panel-bg-muted',
+  '--sf-panel-edge',
+  '--sf-panel-edge-strong',
+  '--sf-shadow-1',
+  '--sf-shadow-2',
+  '--sf-shadow-3',
+  '--sf-card-bg',
+  '--sf-card-edge',
+  '--sf-card-shadow',
+  '--sf-control-bg',
+  '--sf-control-edge',
+  '--sf-control-shadow',
+  '--sf-control-shadow-inset',
+  '--sf-overlay-bg',
+  '--sf-overlay-blur',
+  '--sf-overlay-edge',
+  '--sf-overlay-shadow',
+  '--sf-modal-bg',
+  '--sf-nav-bg',
+  '--sf-nav-blur',
+  '--sf-chrome-bg',
+  '--sf-chrome-blur',
+  '--sf-accent-surface-bg',
+] as const
+
+/** 不可风格化：文字、语义色、焦点环、强调色本体。 */
+export const FORBIDDEN_VARS = [
+  '--text-primary',
+  '--text-secondary',
+  '--text-muted',
+  '--danger',
+  '--success',
+  '--warning',
+  '--info',
+  '--ring-color',
+  '--accent',
+  '--on-accent',
+] as const

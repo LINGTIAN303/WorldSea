@@ -17,6 +17,8 @@ export default defineConfig({
       // 2026-09-20 纳入（Q1 提问工具）：ui-kit composable 此前无测试目录；
       // useAsk 批量提问状态机（五态）为纯逻辑，适宜 jsdom 直测
       'packages/ui-kit/**/__tests__/**/*.spec.ts',
+      // 2026-10-30 纳入（UI 风格机制）：表面契约与风格包完整性
+      'packages/style-kit/**/__tests__/**/*.spec.ts',
       // 2026-10-01 纳入（批量选择态改造）：plugin-sdk composable 此前无测试目录；
       // useBatchDelete 的批量态语义（进出清空 / 清空≠退出）是 UI 行为契约，纯逻辑可直测
       'packages/plugin-sdk/**/__tests__/**/*.spec.ts',

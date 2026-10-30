@@ -34,6 +34,8 @@ const aliases: Record<string, string> = {
   // ui-kit 子路径（components/* / composables/*）：带斜杠前缀 → 正则形式（见下方转换规则）。
   // 与 node_modules 链接无关，直接指向源码，HMR 与构建同口径
   '@worldsea/ui-kit/': path.resolve(__dirname, '../../packages/ui-kit/src/'),
+  '@worldsea/style-kit$': path.resolve(__dirname, '../../packages/style-kit/src/index.ts'),
+  '@worldsea/style-kit/': path.resolve(__dirname, '../../packages/style-kit/src/'),
   '@worldsea/canvas-engine$': path.resolve(__dirname, '../../packages/canvas-engine/src'),
   '@worldsea/canvas-engine/core': path.resolve(__dirname, '../../packages/canvas-engine/src/core'),
   '@worldsea/canvas-engine/tree': path.resolve(__dirname, '../../packages/canvas-engine/src/tree'),
