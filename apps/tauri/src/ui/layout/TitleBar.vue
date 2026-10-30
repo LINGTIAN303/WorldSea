@@ -186,8 +186,9 @@ function close() {
   flex-shrink: 0;
   /* 顶栏取中性灰（三级中性灰分区之一，2026-08-12）：胶囊填充 = 面板色（--switch-bg: var(--bg-surface)），
      两色一致时胶囊会「看不见」（只剩文字与图标）——故底色统一落到 --bg-muted */
-  --titlebar-bg: var(--bg-muted);
+  --titlebar-bg: var(--sf-chrome-bg);
   background: var(--titlebar-bg, var(--color-bg-surface));
+  backdrop-filter: blur(var(--sf-chrome-blur));
   border-bottom: 1px solid var(--border, var(--color-border));
   user-select: none;
   -webkit-user-select: none;

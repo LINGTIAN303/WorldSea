@@ -38,3 +38,16 @@ describe('B1 基础原子消费表面契约', () => {
     }
   })
 })
+
+const B2_TARGETS = [
+  'apps/tauri/src/ui/layout/TitleBar.vue',
+  'apps/tauri/src/ui/layout/sidebar/SidebarV2.vue',
+]
+
+describe('B2 壳层消费表面契约', () => {
+  it('窗口栏与侧栏至少消费一个 --sf-* 变量', () => {
+    for (const file of B2_TARGETS) {
+      expect(read(file), `${file} 未接入表面契约`).toMatch(/var\(--sf-/)
+    }
+  })
+})
