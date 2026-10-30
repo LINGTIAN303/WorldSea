@@ -59,13 +59,16 @@ flowchart TD
 
 ## 六、三套预设
 
-| | mist（默认） | soft-glass | neu |
+| | mist（默认） | 磨砂巧克 | neu |
 |---|---|---|---|
-| 表面 | 近不透明 | 半透明 0.55–0.75 | 与底色同色系 |
-| 模糊 | 无 | 18–22px（tier A） | 无 |
+| 表面 | 近不透明 | 半透明磨砂 | 与底色同色系 |
+| 模糊 | 无 | 30–36px（tier A） | 无 |
 | 边界 | 1px 实边 | 高光边 | 无边框 + 双向阴影 |
 | 阴影 | 单级轻影 | 柔和扩散 | 双向外阴影 + 按压内陷 |
 | 圆角 | 8–10 | 14–20 | 14–18 |
+| 变体 | — | 常规 / 清透（clear） | — |
+
+`soft-glass` 的 id 保持不变，展示名已改为「磨砂巧克」；`liquid-glass` 为计划中槽位（`status: planned`），仅展示不可选。
 
 ## 七、性能分级
 
@@ -87,3 +90,10 @@ B1 同时修复了桥接层 `--radius-sm/md/lg` 自引用导致的半径令牌�
 - 柔玻璃新增 `--sf-highlight` 顶部高光，随材质强度缩放。
 - 覆盖扩展到设置表单控件、详情载体、工具栏与下拉、共享弹层、列表行。
 - 风格切换挂 `is-style-switching` 类做 150ms 过渡；侧栏 `contain` 放宽为 `layout paint` 以保留背景模糊。
+
+## 十、质感轮（P1/P2）
+
+- 玻璃升级为 30px 模糊 + `saturate(1.8)` + 噪声 + 染色渐变 + 镜面高光；灯箱使用 clear 变体（35% 暗化）。
+- clear 变体已配置化：`useStyle.glassVariant`（`regular | clear`），持久化 `worldsea_ui_style_glass`，写入 `<html data-glass>`；性能模式同时关闭 `--sf-clear-filter`。
+- 新拟态升级为 145° 表面渐变 + 四层阴影 + 强调色环境光晕（`--sf-ambient`）。
+- `liquid-glass` 槽位保留（`status: planned`），研究计划见 [液化玻璃研究](../../plans/2026-10-30-液化玻璃研究.md)。
