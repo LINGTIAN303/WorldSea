@@ -52,5 +52,6 @@
 ## 六、踩坑记录
 
 - **循环变量**：最初想让风格包引用 `--bg-app` 再反向重指向，会形成循环；改为风格包直接给中性色原值。
+- **桥接层半径自引用**：`web-tokens-bridge.css` 曾写 `--radius-sm: var(--radius-sm)`，自引用使令牌失效、`border-radius` 实测渲染为 0px；已移除两组自引用。改动风格相关圆角前，先用浏览器探针确认 `--radius-sm` 的解析值。
 - **TuiButton 按压**：`--press-scale` 是旧全局令牌，风格化后改用 `--sf-press-scale`，并保留旧值作 fallback。
 - **Tooltip 反色面**：全局 tooltip 是「深底浅字」的反色面，不能直接套 `--sf-overlay-bg`，否则浅色主题下文字与底色同明度；只接入阴影角色。

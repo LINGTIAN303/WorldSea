@@ -76,4 +76,6 @@ flowchart TD
 
 ## 八、一致性门禁
 
-`npm run style:check` 扫描 `packages/ui-kit/src` 与 `apps/tauri/src` 的样式块，禁止新增硬编码颜色、`box-shadow`、`backdrop-filter`；存量以 `scripts/style-conformance/baseline.json` 锁死，只许降不许升。白名单：品牌资产、图标资产、图谱绘制。
+`npm run style:check` 扫描 `packages/ui-kit/src` 与 `apps/tauri/src` 的样式块，禁止新增硬编码颜色、`box-shadow`、`backdrop-filter`；存量以 `scripts/style-conformance/baseline.json` 锁死，只许降不许升。消费 `var(--sf-*)` 的阴影与模糊视为合法，不计入硬编码。白名单：品牌资产、图标资产、图谱绘制。
+
+B1 同时修复了桥接层 `--radius-sm/md/lg` 自引用导致的半径令牌失效（此前这些令牌以及派生的按钮/卡片/输入/弹窗圆角实际为 0）。
