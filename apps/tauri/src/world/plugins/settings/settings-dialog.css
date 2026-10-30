@@ -1,7 +1,7 @@
 /* top 让位自定义标题栏（--titlebar-height，Shell 的 contain:layout 使 fixed 相对 .shell 定位）：
    遮罩不覆盖窗口栏，拖拽/最小化/关闭在设置打开期间保持可点；全屏让位归零见 theme.css */
 .set-overlay { position: fixed; inset: var(--titlebar-height, 32px) 0 0 0; z-index: var(--z-overlay); background: var(--overlay, rgba(0,0,0,0.35)); backdrop-filter: var(--sf-mask-filter, none); -webkit-backdrop-filter: var(--sf-mask-filter, none); display: flex; align-items: flex-start; justify-content: center; padding-top: 3vh; }
-.set-shell { height: min(88vh, 680px); display: flex; flex-direction: column; position: relative; min-width: 420px; max-width: 680px; width: auto; background: var(--sf-modal-bg); border: 1px solid var(--sf-overlay-edge); border-radius: calc(var(--radius-lg) * var(--sf-radius-scale)); box-shadow: var(--sf-overlay-shadow), inset 0 1px 0 var(--sf-highlight); backdrop-filter: var(--sf-overlay-filter, none); -webkit-backdrop-filter: var(--sf-overlay-filter, none); overflow: hidden; }
+.set-shell { height: min(88vh, 680px); display: flex; flex-direction: column; position: relative; min-width: 420px; max-width: 680px; width: auto; background: var(--sf-modal-bg); border: 1px solid var(--sf-overlay-edge); border-radius: calc(var(--radius-lg) * var(--sf-radius-scale)); box-shadow: var(--sf-overlay-shadow), inset 0 1px 0 var(--sf-highlight); backdrop-filter: var(--sf-overlay-filter, none); -webkit-backdrop-filter: var(--sf-overlay-filter, none); overflow: visible; }
 /* 2026-09-13：上限 640 → 680——芽管理卡（26 芽 + 头部）在 640 下会触发卡片区内滚动，
    680 下芽卡一屏完整可见；其余标签页仅获得更多可视空间 */
 
