@@ -15,14 +15,14 @@ html[data-style='soft-glass'] {
   --sf-control-shadow: 0 1px 0 rgba(255, 255, 255, 0.6) inset;
   --sf-control-shadow-inset: inset 0 1px 2px rgba(31, 41, 71, 0.06);
   --sf-overlay-bg: rgba(255, 255, 255, 0.55);
-  --sf-overlay-blur: 22px;
+  --sf-overlay-blur: calc(22px * var(--sf-material) * 0.02);
   --sf-overlay-edge: rgba(255, 255, 255, 0.8);
   --sf-overlay-shadow: var(--sf-shadow-3);
   --sf-modal-bg: rgba(255, 255, 255, 0.72);
   --sf-nav-bg: rgba(255, 255, 255, 0.5);
-  --sf-nav-blur: 18px;
+  --sf-nav-blur: calc(18px * var(--sf-material) * 0.02);
   --sf-chrome-bg: rgba(255, 255, 255, 0.45);
-  --sf-chrome-blur: 18px;
+  --sf-chrome-blur: calc(18px * var(--sf-material) * 0.02);
   --sf-accent-surface-bg: var(--accent);
 }
 

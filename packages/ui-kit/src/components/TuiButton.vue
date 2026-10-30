@@ -71,6 +71,7 @@ const cls = computed(() => [`is-${props.variant}`, `is-${props.size}`, { 'is-loa
 }
 .tui-btn:active:not(:disabled) {
   transform: scale(var(--sf-press-scale, var(--press-scale)));
+  box-shadow: var(--sf-control-shadow-inset, none);
 }
 .tui-btn:disabled {
   opacity: var(--disabled-opacity);

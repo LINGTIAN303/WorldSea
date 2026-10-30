@@ -6,6 +6,7 @@
   --sf-tactile: 30;
 
   --sf-material-strength: calc(var(--sf-material) / 100);
+  --sf-material-scale: calc(var(--sf-material) * 0.02);
   --sf-depth-scale: calc(var(--sf-depth) * 0.5);
   --sf-radius-scale: calc(0.8 + var(--sf-morph) * 0.004);
   --sf-press-scale: calc(1 - var(--sf-tactile) * 0.0004);
