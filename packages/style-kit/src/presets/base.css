@@ -11,6 +11,11 @@
   --sf-radius-scale: calc(0.8 + var(--sf-morph) * 0.004);
   --sf-press-scale: calc(1 - var(--sf-tactile) * 0.0004);
 
+  /* 材质颗粒：极低透明度噪声，避免大面积渐变的色带 */
+  --sf-noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.12'/%3E%3C/svg%3E");
+  /* 强调色环境光晕：仅新拟态覆盖，其余风格为透明 */
+  --sf-ambient: 0 0 0 transparent;
+
   --bg-app: var(--sf-canvas-bg);
   --bg-surface: var(--sf-panel-bg);
   --bg-muted: var(--sf-panel-bg-muted);

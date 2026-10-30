@@ -747,3 +747,9 @@
     scroll-behavior: auto !important;
   }
 }
+
+.home-kpi.is-link:hover,
+.home-domain:hover,
+.home-book:hover {
+  box-shadow: var(--sf-card-shadow), inset 0 1px 0 var(--sf-highlight), var(--sf-ambient);
+}

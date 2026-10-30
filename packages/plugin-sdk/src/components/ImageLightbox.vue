@@ -161,7 +161,9 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   position: fixed;
   inset: 0;
   z-index: 10000;
-  background: rgba(0, 0, 0, 0.9);
+  background: color-mix(in srgb, #000 35%, transparent);
+  backdrop-filter: blur(30px) saturate(1.2);
+  -webkit-backdrop-filter: blur(30px) saturate(1.2);
   display: flex;
   flex-direction: column;
   align-items: center;

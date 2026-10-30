@@ -204,7 +204,7 @@ onBeforeUnmount(() => {
 }
 .entity-card-wrapper:hover {
   border-color: var(--sf-panel-edge-strong);
-  box-shadow: var(--sf-card-shadow), inset 0 1px 0 var(--sf-highlight);
+  box-shadow: var(--sf-card-shadow), inset 0 1px 0 var(--sf-highlight), var(--sf-ambient);
 }
 /* 打开详情：accent 描边高亮 */
 .entity-card-wrapper.active {

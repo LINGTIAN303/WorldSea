@@ -1,68 +1,82 @@
 html[data-style='neu'] {
-  --sf-canvas-bg: #e8eaef;
-  --sf-panel-bg: #e8eaef;
-  --sf-panel-bg-muted: #dfe2e8;
+  --sf-canvas-bg: #e7eaf0;
+  --sf-panel-bg: var(--sf-noise), linear-gradient(145deg, #eef1f6 0%, #e0e4eb 100%);
+  --sf-panel-bg-muted: var(--sf-noise), linear-gradient(145deg, #e6e9ef 0%, #d9dde5 100%);
   --sf-panel-edge: rgba(0, 0, 0, 0.05);
   --sf-panel-edge-strong: rgba(0, 0, 0, 0.1);
   --sf-shadow-1:
-    calc(3px * var(--sf-depth-scale)) calc(3px * var(--sf-depth-scale)) calc(8px * var(--sf-depth-scale) * var(--sf-material-scale)) rgba(163, 177, 198, 0.55),
-    calc(-3px * var(--sf-depth-scale)) calc(-3px * var(--sf-depth-scale)) calc(8px * var(--sf-depth-scale) * var(--sf-material-scale)) rgba(255, 255, 255, 0.85);
+    calc(2px * var(--sf-depth-scale)) calc(2px * var(--sf-depth-scale)) calc(6px * var(--sf-depth-scale)) rgba(163, 177, 198, 0.6),
+    calc(-2px * var(--sf-depth-scale)) calc(-2px * var(--sf-depth-scale)) calc(6px * var(--sf-depth-scale)) rgba(255, 255, 255, 0.9),
+    calc(10px * var(--sf-depth-scale)) calc(10px * var(--sf-depth-scale)) calc(26px * var(--sf-depth-scale)) rgba(163, 177, 198, 0.28),
+    calc(-10px * var(--sf-depth-scale)) calc(-10px * var(--sf-depth-scale)) calc(26px * var(--sf-depth-scale)) rgba(255, 255, 255, 0.5);
   --sf-shadow-2:
-    calc(6px * var(--sf-depth-scale)) calc(6px * var(--sf-depth-scale)) calc(16px * var(--sf-depth-scale) * var(--sf-material-scale)) rgba(163, 177, 198, 0.55),
-    calc(-6px * var(--sf-depth-scale)) calc(-6px * var(--sf-depth-scale)) calc(16px * var(--sf-depth-scale) * var(--sf-material-scale)) rgba(255, 255, 255, 0.85);
+    calc(3px * var(--sf-depth-scale)) calc(3px * var(--sf-depth-scale)) calc(10px * var(--sf-depth-scale)) rgba(163, 177, 198, 0.6),
+    calc(-3px * var(--sf-depth-scale)) calc(-3px * var(--sf-depth-scale)) calc(10px * var(--sf-depth-scale)) rgba(255, 255, 255, 0.9),
+    calc(18px * var(--sf-depth-scale)) calc(18px * var(--sf-depth-scale)) calc(42px * var(--sf-depth-scale)) rgba(163, 177, 198, 0.3),
+    calc(-18px * var(--sf-depth-scale)) calc(-18px * var(--sf-depth-scale)) calc(42px * var(--sf-depth-scale)) rgba(255, 255, 255, 0.55);
   --sf-shadow-3:
-    calc(10px * var(--sf-depth-scale)) calc(10px * var(--sf-depth-scale)) calc(28px * var(--sf-depth-scale) * var(--sf-material-scale)) rgba(163, 177, 198, 0.6),
-    calc(-10px * var(--sf-depth-scale)) calc(-10px * var(--sf-depth-scale)) calc(28px * var(--sf-depth-scale) * var(--sf-material-scale)) rgba(255, 255, 255, 0.9);
-  --sf-card-bg: #e8eaef;
+    calc(4px * var(--sf-depth-scale)) calc(4px * var(--sf-depth-scale)) calc(14px * var(--sf-depth-scale)) rgba(163, 177, 198, 0.6),
+    calc(-4px * var(--sf-depth-scale)) calc(-4px * var(--sf-depth-scale)) calc(14px * var(--sf-depth-scale)) rgba(255, 255, 255, 0.9),
+    calc(28px * var(--sf-depth-scale)) calc(28px * var(--sf-depth-scale)) calc(64px * var(--sf-depth-scale)) rgba(163, 177, 198, 0.32),
+    calc(-28px * var(--sf-depth-scale)) calc(-28px * var(--sf-depth-scale)) calc(64px * var(--sf-depth-scale)) rgba(255, 255, 255, 0.6);
+  --sf-card-bg: var(--sf-noise), linear-gradient(145deg, #eef1f6 0%, #e0e4eb 100%);
   --sf-card-edge: rgba(0, 0, 0, 0.04);
   --sf-card-shadow: var(--sf-shadow-1);
   --sf-control-bg: #e8eaef;
   --sf-control-edge: #7a7f88;
   --sf-control-shadow: var(--sf-shadow-1);
   --sf-control-shadow-inset:
-    inset calc(2px * var(--sf-depth-scale)) calc(2px * var(--sf-depth-scale)) calc(4px * var(--sf-depth-scale) * var(--sf-material-scale)) rgba(163, 177, 198, 0.6),
-    inset calc(-2px * var(--sf-depth-scale)) calc(-2px * var(--sf-depth-scale)) calc(4px * var(--sf-depth-scale) * var(--sf-material-scale)) rgba(255, 255, 255, 0.85);
-  --sf-overlay-bg: rgba(232, 234, 239, 0.94);
+    inset calc(2px * var(--sf-depth-scale)) calc(2px * var(--sf-depth-scale)) calc(4px * var(--sf-depth-scale)) rgba(163, 177, 198, 0.6),
+    inset calc(-2px * var(--sf-depth-scale)) calc(-2px * var(--sf-depth-scale)) calc(4px * var(--sf-depth-scale)) rgba(255, 255, 255, 0.85);
+  --sf-overlay-bg: var(--sf-noise), linear-gradient(145deg, #f0f3f8 0%, #e3e7ee 100%);
   --sf-overlay-blur: 0px;
   --sf-overlay-filter: none;
-  --sf-nav-filter: none;
-  --sf-chrome-filter: none;
   --sf-overlay-edge: rgba(0, 0, 0, 0.06);
   --sf-overlay-shadow: var(--sf-shadow-2);
-  --sf-modal-bg: #e8eaef;
-  --sf-nav-bg: #e8eaef;
+  --sf-modal-bg: var(--sf-noise), linear-gradient(145deg, #f0f3f8 0%, #e2e6ed 100%);
+  --sf-nav-bg: var(--sf-noise), linear-gradient(180deg, #eceff4 0%, #e0e4eb 100%);
   --sf-nav-blur: 0px;
-  --sf-chrome-bg: #e2e5eb;
+  --sf-nav-filter: none;
+  --sf-chrome-bg: var(--sf-noise), linear-gradient(180deg, #eaedf2 0%, #e1e5ec 100%);
   --sf-chrome-blur: 0px;
+  --sf-chrome-filter: none;
   --sf-accent-surface-bg: var(--accent);
   --sf-highlight: transparent;
+  --sf-ambient: 0 0 42px color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 html[data-style='neu'][data-theme='dark'] {
-  --sf-canvas-bg: #1b1d22;
-  --sf-panel-bg: #1b1d22;
-  --sf-panel-bg-muted: #15171b;
+  --sf-canvas-bg: #17191e;
+  --sf-panel-bg: var(--sf-noise), linear-gradient(145deg, #1f2229 0%, #15171c 100%);
+  --sf-panel-bg-muted: var(--sf-noise), linear-gradient(145deg, #1a1c22 0%, #121418 100%);
   --sf-panel-edge: rgba(255, 255, 255, 0.06);
   --sf-panel-edge-strong: rgba(255, 255, 255, 0.12);
   --sf-shadow-1:
-    calc(3px * var(--sf-depth-scale)) calc(3px * var(--sf-depth-scale)) calc(8px * var(--sf-depth-scale) * var(--sf-material-scale)) rgba(0, 0, 0, 0.55),
-    calc(-3px * var(--sf-depth-scale)) calc(-3px * var(--sf-depth-scale)) calc(8px * var(--sf-depth-scale) * var(--sf-material-scale)) rgba(255, 255, 255, 0.04);
+    calc(2px * var(--sf-depth-scale)) calc(2px * var(--sf-depth-scale)) calc(6px * var(--sf-depth-scale)) rgba(0, 0, 0, 0.7),
+    calc(-2px * var(--sf-depth-scale)) calc(-2px * var(--sf-depth-scale)) calc(6px * var(--sf-depth-scale)) rgba(255, 255, 255, 0.05),
+    calc(10px * var(--sf-depth-scale)) calc(10px * var(--sf-depth-scale)) calc(26px * var(--sf-depth-scale)) rgba(0, 0, 0, 0.45),
+    calc(-10px * var(--sf-depth-scale)) calc(-10px * var(--sf-depth-scale)) calc(26px * var(--sf-depth-scale)) rgba(255, 255, 255, 0.03);
   --sf-shadow-2:
-    calc(6px * var(--sf-depth-scale)) calc(6px * var(--sf-depth-scale)) calc(16px * var(--sf-depth-scale) * var(--sf-material-scale)) rgba(0, 0, 0, 0.55),
-    calc(-6px * var(--sf-depth-scale)) calc(-6px * var(--sf-depth-scale)) calc(16px * var(--sf-depth-scale) * var(--sf-material-scale)) rgba(255, 255, 255, 0.04);
+    calc(3px * var(--sf-depth-scale)) calc(3px * var(--sf-depth-scale)) calc(10px * var(--sf-depth-scale)) rgba(0, 0, 0, 0.7),
+    calc(-3px * var(--sf-depth-scale)) calc(-3px * var(--sf-depth-scale)) calc(10px * var(--sf-depth-scale)) rgba(255, 255, 255, 0.05),
+    calc(18px * var(--sf-depth-scale)) calc(18px * var(--sf-depth-scale)) calc(42px * var(--sf-depth-scale)) rgba(0, 0, 0, 0.5),
+    calc(-18px * var(--sf-depth-scale)) calc(-18px * var(--sf-depth-scale)) calc(42px * var(--sf-depth-scale)) rgba(255, 255, 255, 0.035);
   --sf-shadow-3:
-    calc(10px * var(--sf-depth-scale)) calc(10px * var(--sf-depth-scale)) calc(28px * var(--sf-depth-scale) * var(--sf-material-scale)) rgba(0, 0, 0, 0.6),
-    calc(-10px * var(--sf-depth-scale)) calc(-10px * var(--sf-depth-scale)) calc(28px * var(--sf-depth-scale) * var(--sf-material-scale)) rgba(255, 255, 255, 0.06);
-  --sf-card-bg: #1b1d22;
+    calc(4px * var(--sf-depth-scale)) calc(4px * var(--sf-depth-scale)) calc(14px * var(--sf-depth-scale)) rgba(0, 0, 0, 0.7),
+    calc(-4px * var(--sf-depth-scale)) calc(-4px * var(--sf-depth-scale)) calc(14px * var(--sf-depth-scale)) rgba(255, 255, 255, 0.05),
+    calc(28px * var(--sf-depth-scale)) calc(28px * var(--sf-depth-scale)) calc(64px * var(--sf-depth-scale)) rgba(0, 0, 0, 0.55),
+    calc(-28px * var(--sf-depth-scale)) calc(-28px * var(--sf-depth-scale)) calc(64px * var(--sf-depth-scale)) rgba(255, 255, 255, 0.04);
+  --sf-card-bg: var(--sf-noise), linear-gradient(145deg, #1f2229 0%, #15171c 100%);
   --sf-card-edge: rgba(255, 255, 255, 0.05);
   --sf-control-bg: #1b1d22;
   --sf-control-edge: #6f7580;
   --sf-control-shadow-inset:
-    inset calc(2px * var(--sf-depth-scale)) calc(2px * var(--sf-depth-scale)) calc(4px * var(--sf-depth-scale) * var(--sf-material-scale)) rgba(0, 0, 0, 0.6),
-    inset calc(-2px * var(--sf-depth-scale)) calc(-2px * var(--sf-depth-scale)) calc(4px * var(--sf-depth-scale) * var(--sf-material-scale)) rgba(255, 255, 255, 0.03);
-  --sf-overlay-bg: rgba(27, 29, 34, 0.96);
-  --sf-overlay-edge: rgba(255, 255, 255, 0.08);
-  --sf-modal-bg: #1b1d22;
-  --sf-nav-bg: #1b1d22;
-  --sf-chrome-bg: #17191d;
+    inset calc(2px * var(--sf-depth-scale)) calc(2px * var(--sf-depth-scale)) calc(4px * var(--sf-depth-scale)) rgba(0, 0, 0, 0.7),
+    inset calc(-2px * var(--sf-depth-scale)) calc(-2px * var(--sf-depth-scale)) calc(4px * var(--sf-depth-scale)) rgba(255, 255, 255, 0.04);
+  --sf-overlay-bg: var(--sf-noise), linear-gradient(145deg, #23262d 0%, #17191e 100%);
+  --sf-overlay-edge: rgba(255, 255, 255, 0.1);
+  --sf-modal-bg: var(--sf-noise), linear-gradient(145deg, #23262d 0%, #17191e 100%);
+  --sf-nav-bg: var(--sf-noise), linear-gradient(180deg, #1d2026 0%, #15171c 100%);
+  --sf-chrome-bg: var(--sf-noise), linear-gradient(180deg, #1a1d23 0%, #14161b 100%);
+  --sf-ambient: 0 0 42px color-mix(in srgb, var(--accent) 14%, transparent);
 }

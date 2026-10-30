@@ -105,6 +105,7 @@ const cls = computed(() => [`is-${props.variant}`, `is-${props.size}`, { 'is-loa
 .tui-btn.is-secondary:hover:not(:disabled) {
   border-color: var(--accent);
   color: var(--accent);
+  box-shadow: var(--sf-control-shadow, none), var(--sf-ambient);
 }
 .tui-btn.is-ghost {
   background: transparent;

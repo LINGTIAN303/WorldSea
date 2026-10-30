@@ -579,7 +579,7 @@ function onFontImport(e: Event) {
   box-shadow: var(--sf-control-shadow);
   transition: border-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease-spring);
 }
-.set-style-card:hover { border-color: var(--accent); }
+.set-style-card:hover { border-color: var(--accent); box-shadow: var(--sf-control-shadow), var(--sf-ambient); }
 .set-style-card.on { border-color: var(--accent); }
 .set-style-preview {
   width: 100%; height: 34px; border-radius: calc(var(--radius-sm) * var(--sf-radius-scale));
