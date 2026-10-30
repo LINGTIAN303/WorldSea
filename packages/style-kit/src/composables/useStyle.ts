@@ -85,7 +85,10 @@ export function useStyle() {
   function setStyle(id: StyleId) {
     styleId.value = id
     persist()
+    const root = document.documentElement
+    root.classList.add('is-style-switching')
     apply()
+    window.setTimeout(() => root.classList.remove('is-style-switching'), 220)
   }
 
   function setAxis(key: AxisKey, value: number) {

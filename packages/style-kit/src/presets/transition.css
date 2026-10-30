@@ -1,0 +1,6 @@
+/* 切换风格时短暂过渡，避免整屏突变 */
+html.is-style-switching,
+html.is-style-switching * {
+  transition: background-color 150ms ease, border-color 150ms ease,
+    box-shadow 150ms ease, color 150ms ease, backdrop-filter 150ms ease;
+}

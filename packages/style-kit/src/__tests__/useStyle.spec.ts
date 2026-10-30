@@ -50,4 +50,14 @@ describe('useStyle', () => {
     expect(document.documentElement.dataset.perf).toBe('on')
     expect(localStorage.getItem('worldsea_ui_style_perf')).toBe('1')
   })
+
+  it('setStyle 期间挂过渡类并自动移除', async () => {
+    vi.useFakeTimers()
+    const { useStyle } = await load()
+    useStyle().setStyle('neu')
+    expect(document.documentElement.classList.contains('is-style-switching')).toBe(true)
+    vi.advanceTimersByTime(250)
+    expect(document.documentElement.classList.contains('is-style-switching')).toBe(false)
+    vi.useRealTimers()
+  })
 })
