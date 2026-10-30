@@ -221,14 +221,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   backdrop-filter: blur(4px);
 }
 .efm-box {
-  background: var(--glass-bg, var(--modal-bg));
-  border: 1px solid var(--glass-border, var(--border));
-  border-radius: var(--radius-xl);
+  background: var(--sf-overlay-bg);
+  border: 1px solid var(--sf-overlay-edge);
+  border-radius: calc(var(--radius-xl) * var(--sf-radius-scale));
   padding: 28px;
   max-height: 80vh;
   overflow-y: auto;
-  box-shadow: var(--shadow-xl);
-  backdrop-filter: blur(var(--glass-blur));
+  box-shadow: var(--sf-overlay-shadow), inset 0 1px 0 var(--sf-highlight);
+  backdrop-filter: var(--sf-overlay-filter, none);
   position: relative;
 }
 .efm-header {

@@ -150,10 +150,11 @@ defineExpose({ switchTab, activeTab })
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--color-bg-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.32);
+  background: var(--sf-overlay-bg);
+  border: 1px solid var(--sf-overlay-edge);
+  border-radius: calc(var(--radius-md, 8px) * var(--sf-radius-scale));
+  box-shadow: var(--sf-overlay-shadow), inset 0 1px 0 var(--sf-highlight);
+  backdrop-filter: var(--sf-overlay-filter, none);
   cursor: default;
 }
 .detail-floating :deep(.dp-header) {

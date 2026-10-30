@@ -100,8 +100,8 @@ defineExpose({ switchTab, activeTab })
   height: 100%;
   min-height: 0;
   min-width: 0;
-  background: var(--color-bg-surface);
-  border-left: 1px solid var(--color-border);
+  background: var(--sf-panel-bg);
+  border-left: 1px solid var(--sf-panel-edge);
 }
 /* 分栏载体：宽度随淡入淡出收缩/展开，避免父级 split 布局在关闭瞬间先塌 */
 .ws-fade-enter-active,

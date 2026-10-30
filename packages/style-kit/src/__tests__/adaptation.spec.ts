@@ -83,3 +83,20 @@ describe('B4 设置表单控件消费表面契约', () => {
     }
   })
 })
+
+const B4_DETAIL = [
+  'packages/plugin-sdk/src/components/EntityDetailPanel.vue',
+  'packages/plugin-sdk/src/components/ModalDetailView.vue',
+  'packages/plugin-sdk/src/components/ColumnDetailView.vue',
+  'packages/plugin-sdk/src/components/FloatingDetailView.vue',
+  'packages/plugin-sdk/src/components/EntityFormModal.vue',
+  'packages/plugin-sdk/src/detail/carrier-chrome.css',
+]
+
+describe('B4 详情载体消费表面契约', () => {
+  it('每个载体至少消费一个 --sf-* 变量', () => {
+    for (const file of B4_DETAIL) {
+      expect(read(file), `${file} 未接入表面契约`).toMatch(/var\(--sf-/)
+    }
+  })
+})

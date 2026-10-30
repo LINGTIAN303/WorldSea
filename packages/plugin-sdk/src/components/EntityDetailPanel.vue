@@ -105,9 +105,10 @@ defineExpose({ switchTab, activeTab })
   top: var(--titlebar-height, 32px); /* 让位标题栏（全屏归零） */
   right: 0;
   height: calc(100vh - var(--titlebar-height, 32px));
-  background: var(--color-bg-surface);
-  border-left: 1px solid var(--color-border);
-  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.3);
+  background: var(--sf-overlay-bg);
+  border-left: 1px solid var(--sf-overlay-edge);
+  box-shadow: var(--sf-overlay-shadow), inset 0 1px 0 var(--sf-highlight);
+  backdrop-filter: var(--sf-overlay-filter, none);
   z-index: 100;
   display: flex;
   flex-direction: column;
