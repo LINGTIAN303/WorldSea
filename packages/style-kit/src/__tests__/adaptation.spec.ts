@@ -73,3 +73,13 @@ describe('B3 卡片与表格消费表面契约', () => {
     }
   })
 })
+
+const B4_SETTINGS = ['packages/ui-kit/src/components/settings/settings-panels.css']
+
+describe('B4 设置表单控件消费表面契约', () => {
+  it('控件至少消费一个 --sf-* 变量', () => {
+    for (const file of B4_SETTINGS) {
+      expect(read(file), `${file} 未接入表面契约`).toMatch(/var\(--sf-/)
+    }
+  })
+})
