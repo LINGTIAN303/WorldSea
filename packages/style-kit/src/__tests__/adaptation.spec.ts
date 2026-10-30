@@ -129,3 +129,17 @@ describe('B4 共享弹层消费表面契约', () => {
     }
   })
 })
+
+const B4_LISTS = [
+  'apps/tauri/src/world/plugins/notebook/components/FolderTree.vue',
+  'apps/tauri/src/world/plugins/manuscript/components/ChapterList.vue',
+  'apps/tauri/src/world/plugins/outline/board/components/NodeSidebar.vue',
+]
+
+describe('B4 列表行消费表面契约', () => {
+  it('每个列表至少消费一个 --sf-* 变量', () => {
+    for (const file of B4_LISTS) {
+      expect(read(file), `${file} 未接入表面契约`).toMatch(/var\(--sf-/)
+    }
+  })
+})

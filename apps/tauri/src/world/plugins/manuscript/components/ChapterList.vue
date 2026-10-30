@@ -511,7 +511,7 @@ onBeforeUnmount(() => {
   user-select: none;
   position: sticky; top: 0; z-index: 1; /* 长列表滚动时组头吸顶 */
 }
-.cl-group-header:hover { background: var(--hover-bg); }
+.cl-group-header:hover { background: var(--sf-panel-bg-muted); }
 .cl-collapse { font-size: var(--font-size-xs); width: 14px; text-align: center; flex-shrink: 0; }
 .cl-group-name { flex: 1; min-width: 0; font-weight: var(--font-weight-medium); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cl-group-meta { font-size: var(--font-size-2xs); color: var(--text-tertiary); flex-shrink: 0; }
@@ -523,7 +523,7 @@ onBeforeUnmount(() => {
   border-bottom: 1px solid var(--border-light);
   transition: background 0.12s;
 }
-.cl-item:hover { background: var(--hover-bg); }
+.cl-item:hover { background: var(--sf-panel-bg-muted); }
 /* 当前章节：左侧主色竖条 + 轻背景（比纯色块更清晰的定位感） */
 .cl-item.active { background: var(--primary-light); }
 .cl-item.active::before {
@@ -543,7 +543,7 @@ onBeforeUnmount(() => {
 }
 
 .cl-ghost { opacity: 0.4; background: var(--primary-light); }
-.cl-drag { opacity: 0.9; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+.cl-drag { opacity: 0.9; box-shadow: var(--sf-overlay-shadow), inset 0 1px 0 var(--sf-highlight); }
 
 .cl-ctx-menu {
   position: fixed; z-index: var(--z-sticky); background: var(--modal-bg);

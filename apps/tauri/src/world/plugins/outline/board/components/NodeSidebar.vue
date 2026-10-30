@@ -443,7 +443,7 @@ onBeforeUnmount(() => {
   width: 240px;
   flex-shrink: 0;
   border-left: 1px solid var(--border-light);
-  background: var(--menubar-bg, var(--bg-secondary));
+  background: var(--menubar-bg, var(--sf-nav-bg));
 }
 .ns--collapsed { width: 32px; }
 .ns-head {
@@ -498,9 +498,9 @@ onBeforeUnmount(() => {
 .ns-search-input {
   width: 100%;
   padding: 4px 8px;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-xs);
-  background: var(--input-bg);
+  border: 1px solid var(--sf-control-edge);
+  border-radius: calc(var(--radius-xs) * var(--sf-radius-scale));
+  background: var(--sf-control-bg);
   color: var(--text-color);
   font-size: var(--font-size-xs);
   outline: none;
@@ -517,7 +517,7 @@ onBeforeUnmount(() => {
   cursor: grab;
   user-select: none;
 }
-.ns-item:hover { background: var(--hover-bg); }
+.ns-item:hover { background: var(--sf-panel-bg-muted); }
 .ns-item:active { cursor: grabbing; }
 /* 已在板上：**仍可拖**（拖/双击 = 定位到已有容器），故光标不能回退成 default
    —— 原为 `cursor: default`，与 title 提示「拖拽或双击将定位到已有容器」自相矛盾，

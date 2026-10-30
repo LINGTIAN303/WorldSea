@@ -388,7 +388,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeyDown))
   cursor: pointer; font-size: var(--font-size-sm); color: var(--color-text-secondary);
   transition: background 0.1s, border-color 0.1s, color 0.1s, box-shadow 0.1s, transform 0.1s, opacity 0.1s, filter 0.1s; user-select: none;
 }
-.ft-folder-header:hover { background: var(--color-bg-hover); }
+.ft-folder-header:hover { background: var(--sf-panel-bg-muted); }
 .ft-folder-drag {
   cursor: grab; color: var(--color-text-tertiary); font-size: var(--font-size-xs);
   opacity: 0; transition: opacity 0.1s; display: flex; align-items: center; line-height: 1;
@@ -433,14 +433,15 @@ onUnmounted(() => document.removeEventListener('keydown', onKeyDown))
 }
 .ft-context-menu {
   position: fixed; z-index: var(--z-modal); min-width: 150px;
-  background: var(--color-bg-surface); border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm); padding: 4px; box-shadow: var(--shadow-md);
+  background: var(--sf-overlay-bg); border: 1px solid var(--sf-overlay-edge);
+  border-radius: calc(var(--radius-sm) * var(--sf-radius-scale)); padding: 4px; box-shadow: var(--sf-overlay-shadow);
+  backdrop-filter: var(--sf-overlay-filter, none);
 }
 .ft-cm-item {
   padding: 6px 12px; font-size: var(--font-size-sm); border-radius: var(--radius-xs);
   cursor: pointer; color: var(--color-text-primary); user-select: none;
 }
-.ft-cm-item:hover { background: var(--color-bg-hover); }
+.ft-cm-item:hover { background: var(--sf-panel-bg-muted); }
 .ft-cm-item.ft-cm-danger { color: var(--color-danger); }
 .ft-cm-item.ft-cm-danger:hover { background: color-mix(in srgb, var(--color-danger) 12%, transparent); }
 .ft-cm-sep { height: 1px; background: var(--color-border-subtle); margin: 3px 6px; }
