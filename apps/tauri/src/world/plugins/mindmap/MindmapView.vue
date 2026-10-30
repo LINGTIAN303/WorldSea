@@ -175,7 +175,7 @@ import { WsIcon, WsEmpty, WsInlineLoading, WsLoadingOverlay, useAsyncTask, toast
 import { useEntityStore, useUIStore, type Entity } from '@worldsea/entity-core'
 import { CustomDropdown, useConfirm } from '@worldsea/plugin-sdk'
 import { useMindmapDocStore } from './mindmapStore'
-import { markdownToMindElixir, mindElixirToMarkdown, findImportViolation, mindElixirStats, MINDMAP_MAX_NODES, MINDMAP_OPEN_MAX_NODES, MINDMAP_OPEN_MAX_DEPTH } from './mindmapMarkdown'
+import { markdownToMindElixir, mindElixirToMarkdown, findImportViolation, mindElixirStats, MINDMAP_MAX_NODES, MINDMAP_MAX_DEPTH, MINDMAP_OPEN_MAX_NODES, MINDMAP_OPEN_MAX_DEPTH } from './mindmapMarkdown'
 
 /** 节点绑定实体的元数据载体（mind-elixir 官方通用 metadata 字段） */
 interface NodeMeta { entityId?: string }
@@ -537,12 +537,30 @@ function onImportFile(e: Event) {
   input.value = '' // 允许重复导入同名文件
   if (!file) return
   const reader = new FileReader()
-  reader.onload = () => {
+  reader.onload = async () => {
     const md = String(reader.result ?? '')
-    // 深度护栏：超限文本拒绝导入（数据在 init 前已落库，导入后崩溃会锁死视图）
+    const name = file.name.replace(/\.(md|markdown|txt)$/i, '')
+    // 深度护栏：超限文本提供「仅标题」逃生门（数据在 init 前已落库，导入后崩溃会锁死视图）
     const violation = findImportViolation(md)
     if (violation) {
-      toastWarn(violation)
+      const fallback = markdownToMindElixir(md, { headingsOnly: true })
+      const stats = fallback ? mindElixirStats(fallback) : null
+      if (!stats || stats.nodeCount === 0 || stats.nodeCount > MINDMAP_MAX_NODES || stats.maxDepth > MINDMAP_MAX_DEPTH) {
+        toastWarn(`导入取消：${violation}（仅标题模式也无法收纳该文件）`)
+        return
+      }
+      const useHeadings = await confirm({
+        type: 'warning',
+        title: '文件超出渲染上限',
+        description: `${violation}。可改用「仅标题」模式：只取标题行共 ${stats.nodeCount} 节点（层级 ${stats.maxDepth}），描述与字段不进入导图。`,
+        confirmText: '仅标题导入',
+        cancelText: '取消',
+      })
+      if (!useHeadings) return
+      const id = store.createDoc(`${name}（仅标题）`)
+      store.persistDocData(id, fallback as MindElixirData)
+      openDoc(id)
+      toastSuccess(`已按「仅标题」导入「${name}」（${stats.nodeCount} 节点）`)
       return
     }
     const data = markdownToMindElixir(md)
@@ -550,7 +568,6 @@ function onImportFile(e: Event) {
       toastSuccess('文件为空或无法解析出大纲结构')
       return
     }
-    const name = file.name.replace(/\.(md|markdown|txt)$/i, '')
     const id = store.createDoc(name)
     store.persistDocData(id, data as MindElixirData)
     openDoc(id)

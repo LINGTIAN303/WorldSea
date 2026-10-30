@@ -99,3 +99,51 @@ describe('mindElixirStats（迭代遍历，不递归）', () => {
     expect(mindElixirStats({} as MindElixirData)).toEqual({ nodeCount: 0, maxDepth: 0 })
   })
 })
+
+describe('仅标题模式', () => {
+  it('只取标题行：列表与纯文本跳过，标题嵌套成树', () => {
+    const md = [
+      '# 设定集',
+      '## 域',
+      '正文段落（应跳过）',
+      '### 类型',
+      '- 字段一（应跳过）',
+      '1. 有序项（应跳过）',
+      '#### 条目',
+      '描述（应跳过）',
+    ].join('\n')
+    const data = markdownToMindElixir(md, { headingsOnly: true })!
+    const stats = mindElixirStats(data)
+    expect(stats.nodeCount).toBe(4)
+    expect(stats.maxDepth).toBe(4)
+    expect(data.nodeData.children?.[0]?.topic).toBe('域')
+  })
+
+  it('代码块内的 # 行不误判为标题', () => {
+    const md = ['# 根', '```bash', '# 这是注释', '```'].join('\n')
+    const data = markdownToMindElixir(md, { headingsOnly: true })!
+    expect(mindElixirStats(data).nodeCount).toBe(1)
+  })
+
+  it('大文件逃生门形态：完整解析超限、仅标题后可导入', () => {
+    // 复刻 worldsea-codex.md 形态：h1-h4 骨架 + 每条目多行描述与字段列表
+    const lines: string[] = ['# 设定集']
+    for (let i = 0; i < 800; i++) {
+      lines.push('#### 条目' + i, '描述段一', '描述段二', '- 字段一', '- 字段二', '- 字段三')
+    }
+    const md = lines.join('\n')
+    expect(findImportViolation(md)).toContain('超上限')
+    const fallback = markdownToMindElixir(md, { headingsOnly: true })!
+    const stats = mindElixirStats(fallback)
+    expect(stats.nodeCount).toBe(801)
+    expect(findImportViolation !== null).toBe(true)
+    // 仅标题结果本身应可通过护栏（相对深度 4 ≤ 40、节点 801 ≤ 2000）
+    expect(stats.nodeCount).toBeLessThanOrEqual(MINDMAP_MAX_NODES)
+    expect(stats.maxDepth).toBeLessThanOrEqual(MINDMAP_MAX_DEPTH)
+  })
+
+  it('无标题纯文本文件：仅标题模式解析为空', () => {
+    const md = ['普通行一', '普通行二'].join('\n')
+    expect(markdownToMindElixir(md, { headingsOnly: true })).toBeNull()
+  })
+})

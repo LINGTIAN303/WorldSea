@@ -29,8 +29,8 @@ interface OutlineLine {
   text: string
 }
 
-/** 解析 Markdown 大纲为 {depth, text} 线性序列 */
-function parseLines(md: string): OutlineLine[] {
+/** 解析 Markdown 大纲为 {depth, text} 线性序列；headingsOnly = 只取标题行（大文件「仅标题」导入模式） */
+function parseLines(md: string, headingsOnly = false): OutlineLine[] {
   const lines: OutlineLine[] = []
   let inCodeBlock = false
   let lastHeadingDepth = 0
@@ -56,6 +56,8 @@ function parseLines(md: string): OutlineLine[] {
       lines.push({ depth, text: heading[2].trim() })
       continue
     }
+    // 仅标题模式：跳过列表与纯文本行（大文件逃生门，见 findImportViolation 消费方）
+    if (headingsOnly) continue
 
     // 无序列表：- / * / +，2 空格缩进 = 一层
     const list = line.match(/^(\s*)[-*+]\s+(.+)$/)
@@ -110,9 +112,9 @@ function buildTree(lines: OutlineLine[]): NodeObj | null {
   return root
 }
 
-/** Markdown 大纲 → mind-elixir 数据（空/无效输入返回 null） */
-export function markdownToMindElixir(md: string): MindElixirData | null {
-  const root = buildTree(parseLines(md))
+/** Markdown 大纲 → mind-elixir 数据（空/无效输入返回 null）；headingsOnly = 只取标题行 */
+export function markdownToMindElixir(md: string, options?: { headingsOnly?: boolean }): MindElixirData | null {
+  const root = buildTree(parseLines(md, options?.headingsOnly === true))
   if (!root) return null
   return { nodeData: root }
 }
