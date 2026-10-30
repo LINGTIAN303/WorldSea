@@ -1,0 +1,7 @@
+/* 性能模式：把 tier A 的真模糊降为 0，观感退化为伪玻璃 */
+html[data-perf='on'] {
+  --sf-overlay-blur: 0px;
+  --sf-panel-blur: 0px;
+  --sf-nav-blur: 0px;
+  --sf-chrome-blur: 0px;
+}

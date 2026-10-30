@@ -1,0 +1,47 @@
+html[data-style='soft-glass'] {
+  --sf-canvas-bg: #eef1f8;
+  --sf-panel-bg: rgba(255, 255, 255, 0.66);
+  --sf-panel-bg-muted: rgba(244, 246, 252, 0.72);
+  --sf-panel-edge: rgba(255, 255, 255, 0.7);
+  --sf-panel-edge-strong: rgba(120, 130, 160, 0.28);
+  --sf-shadow-1: 0 calc(2px * var(--sf-depth-scale)) calc(8px * var(--sf-depth-scale)) rgba(31, 41, 71, 0.08);
+  --sf-shadow-2: 0 calc(8px * var(--sf-depth-scale)) calc(32px * var(--sf-depth-scale)) rgba(31, 41, 71, 0.1);
+  --sf-shadow-3: 0 calc(16px * var(--sf-depth-scale)) calc(48px * var(--sf-depth-scale)) rgba(31, 41, 71, 0.14);
+  --sf-card-bg: rgba(255, 255, 255, 0.6);
+  --sf-card-edge: rgba(255, 255, 255, 0.72);
+  --sf-card-shadow: var(--sf-shadow-2);
+  --sf-control-bg: rgba(255, 255, 255, 0.58);
+  --sf-control-edge: rgba(255, 255, 255, 0.8);
+  --sf-control-shadow: 0 1px 0 rgba(255, 255, 255, 0.6) inset;
+  --sf-control-shadow-inset: inset 0 1px 2px rgba(31, 41, 71, 0.06);
+  --sf-overlay-bg: rgba(255, 255, 255, 0.55);
+  --sf-overlay-blur: 22px;
+  --sf-overlay-edge: rgba(255, 255, 255, 0.8);
+  --sf-overlay-shadow: var(--sf-shadow-3);
+  --sf-modal-bg: rgba(255, 255, 255, 0.72);
+  --sf-nav-bg: rgba(255, 255, 255, 0.5);
+  --sf-nav-blur: 18px;
+  --sf-chrome-bg: rgba(255, 255, 255, 0.45);
+  --sf-chrome-blur: 18px;
+  --sf-accent-surface-bg: var(--accent);
+}
+
+html[data-style='soft-glass'][data-theme='dark'] {
+  --sf-canvas-bg: #0f1117;
+  --sf-panel-bg: rgba(30, 32, 40, 0.72);
+  --sf-panel-bg-muted: rgba(36, 38, 46, 0.78);
+  --sf-panel-edge: rgba(255, 255, 255, 0.14);
+  --sf-panel-edge-strong: rgba(255, 255, 255, 0.24);
+  --sf-shadow-1: 0 calc(2px * var(--sf-depth-scale)) calc(8px * var(--sf-depth-scale)) rgba(0, 0, 0, 0.4);
+  --sf-shadow-2: 0 calc(8px * var(--sf-depth-scale)) calc(32px * var(--sf-depth-scale)) rgba(0, 0, 0, 0.45);
+  --sf-shadow-3: 0 calc(16px * var(--sf-depth-scale)) calc(48px * var(--sf-depth-scale)) rgba(0, 0, 0, 0.55);
+  --sf-card-bg: rgba(30, 32, 40, 0.66);
+  --sf-card-edge: rgba(255, 255, 255, 0.12);
+  --sf-control-bg: rgba(36, 38, 46, 0.7);
+  --sf-control-edge: rgba(255, 255, 255, 0.18);
+  --sf-overlay-bg: rgba(24, 26, 34, 0.62);
+  --sf-overlay-edge: rgba(255, 255, 255, 0.16);
+  --sf-modal-bg: rgba(26, 28, 36, 0.78);
+  --sf-nav-bg: rgba(24, 26, 34, 0.58);
+  --sf-chrome-bg: rgba(22, 24, 31, 0.55);
+}

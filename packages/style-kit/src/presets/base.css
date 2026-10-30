@@ -1,0 +1,23 @@
+/* 表面契约基础层：四维乘数 + 通用令牌重指向；详细说明见 docs/details/注释/packages/style-kit/index.md */
+:root {
+  --sf-material: 50;
+  --sf-depth: 2;
+  --sf-morph: 30;
+  --sf-tactile: 30;
+
+  --sf-material-strength: calc(var(--sf-material) / 100);
+  --sf-depth-scale: calc(var(--sf-depth) * 0.5);
+  --sf-radius-scale: calc(0.8 + var(--sf-morph) * 0.004);
+  --sf-press-scale: calc(1 - var(--sf-tactile) * 0.0004);
+
+  --bg-app: var(--sf-canvas-bg);
+  --bg-surface: var(--sf-panel-bg);
+  --bg-muted: var(--sf-panel-bg-muted);
+  --border: var(--sf-panel-edge);
+  --border-strong: var(--sf-panel-edge-strong);
+  --shadow-sm: var(--sf-shadow-1);
+  --shadow-md: var(--sf-shadow-2);
+  --shadow-lg: var(--sf-shadow-3);
+  --glass-bg: var(--sf-overlay-bg);
+  --glass-blur: var(--sf-overlay-blur);
+}
