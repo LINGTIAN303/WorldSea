@@ -182,9 +182,9 @@ function onRowClick(row: Record<string, unknown>, rowIndex: number): void {
 
 <style scoped>
 .ws-dt-wrap {
-  background: var(--agent-bg-tertiary, var(--color-bg-elevated));
-  border: 1px solid var(--agent-border, var(--color-border));
-  border-radius: var(--radius-md, 8px);
+  background: var(--sf-panel-bg-muted);
+  border: 1px solid var(--sf-panel-edge);
+  border-radius: calc(var(--radius-md, 8px) * var(--sf-radius-scale));
   padding: 10px;
 }
 .ws-dt-title {
@@ -201,7 +201,7 @@ function onRowClick(row: Record<string, unknown>, rowIndex: number): void {
   position: sticky;
   top: 0;
   z-index: 1;
-  background: var(--agent-bg-tertiary, var(--bg-secondary));
+  background: var(--sf-panel-bg-muted);
 }
 .ws-dt--virtual td {
   overflow: hidden;
@@ -225,18 +225,18 @@ function onRowClick(row: Record<string, unknown>, rowIndex: number): void {
   text-align: left;
   font-weight: var(--font-weight-semibold);
   color: var(--agent-text-secondary, var(--color-text-tertiary));
-  border-bottom: 1px solid var(--agent-border, var(--color-border));
+  border-bottom: 1px solid var(--sf-panel-edge);
   font-size: var(--font-size-xs);
   text-transform: uppercase;
   letter-spacing: 0.3px;
 }
 .ws-dt td {
   padding: 5px 10px;
-  border-bottom: 1px solid var(--agent-border, var(--color-border));
+  border-bottom: 1px solid var(--sf-panel-edge);
   color: var(--agent-text, var(--color-text-primary));
 }
 .ws-dt-row--clickable { cursor: pointer; }
-.ws-dt-row--clickable:hover td { background: var(--agent-bg-secondary, var(--color-bg-hover)); }
+.ws-dt-row--clickable:hover td { background: var(--sf-panel-bg-muted); }
 .ws-dt-input {
   background: transparent;
   border: 1px solid transparent;

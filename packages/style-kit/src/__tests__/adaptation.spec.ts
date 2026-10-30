@@ -63,6 +63,7 @@ const B3_TARGETS = [
   'packages/plugin-sdk/src/components/EntityCard.vue',
   'apps/tauri/src/world/plugins/outline/board/components/BoardContainerView.vue',
   'apps/tauri/src/world/plugins/outline/board/components/BoardSectionView.vue',
+  'packages/ui-kit/src/components/data/DataTable.vue',
 ]
 
 describe('B3 卡片与表格消费表面契约', () => {
