@@ -113,9 +113,9 @@ describe('R1/R2 芽语义域', () => {
     }
   })
 
-  it('30 个内置芽均声明主域，且主域已登记', () => {
-    expect(manifests).toHaveLength(30)
-    expect(new Set(manifests.map(manifest => manifest.id)).size).toBe(30)
+  it('31 个内置芽均声明主域，且主域已登记', () => {
+    expect(manifests).toHaveLength(31)
+    expect(new Set(manifests.map(manifest => manifest.id)).size).toBe(31)
     for (const manifest of manifests) {
       expect(manifest.domain, `${manifest.id} 缺 domain（${manifest.file}）`).toBeTruthy()
       expect(isSproutDomain(manifest.domain!), `${manifest.id} 的 domain=${manifest.domain} 未登记`).toBe(true)
@@ -141,7 +141,7 @@ describe('R1/R2 芽语义域', () => {
     expect(counts).toEqual({
       geo: 2,
       life: 4,
-      society: 4,
+      society: 5,
       knowledge: 3,
       goods: 3,
       time: 1,
@@ -185,8 +185,8 @@ function registeredEntityTypes(file: string): string[] {
 }
 
 describe('R5 芽实体类型声明', () => {
-  it('30 个内置芽声明 entityTypes，且与实际 registerEntityV2 一致', () => {
-    expect(manifests).toHaveLength(30)
+  it('31 个内置芽声明 entityTypes，且与实际 registerEntityV2 一致', () => {
+    expect(manifests).toHaveLength(31)
     const owners = new Map<string, string>()
     for (const manifest of manifests) {
       expect(manifest.entityTypes, `${manifest.id} 缺 entityTypes（${manifest.file}）`).toBeDefined()

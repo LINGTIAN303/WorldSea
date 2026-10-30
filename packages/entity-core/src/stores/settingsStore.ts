@@ -154,6 +154,7 @@ const DEFAULT_SPROUTS: SproutToggle[] = [
   { id: 'official.gallery', label: '图库', icon: 'image', active: true, category: 'system' },
   { id: 'official.codex', label: '设定集', icon: 'book-open', active: true, category: 'system' },
   { id: 'official.creatures', label: '生物图鉴', icon: 'paw', active: true, category: 'world' },
+  { id: 'official.faith', label: '信仰', icon: 'sparkles', active: true, category: 'world' },
 ]
 
 /** 芽清单内的 id 集合（持久化面归一用；见 `./sproutPersistence`）。 */

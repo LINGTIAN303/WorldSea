@@ -1,9 +1,8 @@
 /**
  * 关联选择器静态数据（pair → 关系类型候选 / 类型 → 属性表单 / 默认类型推断）。
- * 从 EntityRelationSelector.vue 抽出（2026-10-28 三芽批补 creature 配对时文件超冻结线，机械搬移零逻辑改动）。
- * 关系类型一律写字符串字面量（值与 entity-core RelationTypes / 关系注册表一致）：本文件会被
- * mock 了 `@worldsea/entity-core/core` 的测试图连带加载，root 入口的 re-export 届时是空壳，
- * 引用 RelationTypes 常量会在模块求值期拿到 undefined——字面量天然免疫。
+ * 关系类型一律写字符串字面量（值与 entity-core RelationTypes 一致）：本文件会被 mock 了
+ * `@worldsea/entity-core/core` 的测试图连带加载，root 入口 re-export 届时是空壳，引用常量会在
+ * 模块求值期拿到 undefined——字面量免疫。按芽拆出的静态表见 faithRelationOptions.ts。
  */
 export interface RelationProperty {
   key: string
@@ -11,6 +10,8 @@ export interface RelationProperty {
   type: 'text' | 'textarea'
   placeholder?: string
 }
+
+import { FAITH_GUESS_RELATION, FAITH_RELATION_PROPERTIES, FAITH_RELATION_TYPE_OPTIONS } from './faithRelationOptions'
 
 export function guessRelationType(srcType: string, tgtType: string): string {
   const map: Record<string, string> = {
@@ -49,6 +50,8 @@ export function guessRelationType(srcType: string, tgtType: string): string {
     [`language_language`]: 'derived_from',
     [`species_species`]: 'evolved_from',
     [`species_region`]: 'inhabits',
+    // 信仰芽（faith）配对（2026-10-30 信仰芽批）
+    ...FAITH_GUESS_RELATION,
   }
   const pairKey = `${srcType}_${tgtType}`
   return map[pairKey] || 'associated_with'
@@ -290,9 +293,13 @@ export const RELATION_TYPE_OPTIONS: Record<string, Array<{ type: string; label: 
     { type: 'habitat_of', label: '栖息地' },
     { type: 'associated_with', label: '关联' },
   ],
+  // 信仰芽（faith）配对（2026-10-30 信仰芽批）：静态表在 faithRelationOptions.ts，展开保持同表语义
+  ...FAITH_RELATION_TYPE_OPTIONS,
 }
 
 export const RELATION_PROPERTIES: Record<string, RelationProperty[]> = {
+  // 信仰芽（faith）属性（2026-10-30 信仰芽批）：静态表在 faithRelationOptions.ts
+  ...FAITH_RELATION_PROPERTIES,
   'belongs_to': [
     { key: 'role', label: '角色/职位', type: 'text', placeholder: '如：成员、长老、学徒' },
     { key: 'since', label: '始于', type: 'text', placeholder: '如：第三纪元' },

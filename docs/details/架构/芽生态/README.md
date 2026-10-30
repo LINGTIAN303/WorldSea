@@ -129,3 +129,15 @@ scope: 芽（侧栏插件）生态
 - 孤岛与网络：8 个原「Tab 引用不存在」的芽（languages/species/plants/buildings/weapons）的关系 Tab 全部可产 typed 关系；新守卫 `sproutTabRelations.spec` 锁死「引用存在 + 方向覆盖」。
 - 字段矩阵快照已重生成：**293 字段实例 / 162 唯一键**（22 芽 / 24 实体，见 §十一 的待办清账）。
 - 依据：[2026-10-28-收尾批](../../../plans/已完成/2026-10-28-收尾批-死关系Tab修复与三芽挂账.md)。
+
+## 十三、2026-10-30 信仰芽复核记录
+
+- 芽类：30 → **31**（+ `official.faith` 信仰，默认启用，图标 `sparkles`）；域分布 society 4→5（2/5/4/3/3/1/4/9）。
+- 实体类型：24 → **25**（+ `faith`，10 ownFields）；字段实例 293 → **303**。
+- 关系类型：116 → **119**（+ `believes_in` 信奉 / `holy_site` 圣地 / `festival_of` 节日归属，落 `relations/faith.ts` 包入口加载）。
+  三条均带反向（`faith_member` 信众 / `holy_site_of` 圣地所属 / `faith_festival` 信仰节日），镜像一致。
+- 关系域：person 域接 character+organization 双源（信奉），geography 域接 building+region 双靶（圣地），temporal 域接 event→faith（节日）。
+- 设计取舍：教团即组织（不另设关系，`believes_in` 的 organization 源端承担）；日期换算复用时间线历法内核；教阶树复用组织芽层级。
+- 静态配对表按芽拆分：`faithRelationOptions.ts`（避免 `relationPickerOptions.ts` 破 400 行硬上限）。
+- 字段矩阵已自动收录「信仰 faith 14 字段 / 关系类型 211」。
+- 依据：[2026-10-30-信仰芽-信仰体系](../../../plans/已完成/2026-10-30-信仰芽-信仰体系.md)。

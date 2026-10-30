@@ -53,7 +53,7 @@
     "packages/entity-core/src/core/FileStorageBackend.ts": 972,
     "packages/entity-core/src/core/StorageBackend.ts": 614,
     "packages/entity-core/src/relations/index.ts": 617,
-    "packages/entity-core/src/stores/settingsStore.ts": 487,
+    "packages/entity-core/src/stores/settingsStore.ts": 488,
     "packages/font-kit/src/fontInstaller.ts": 687,
     "packages/plugin-sdk/src/components/EntityFormModal.vue": 490,
     "packages/plugin-sdk/src/components/EntityRelationSelector.vue": 597,

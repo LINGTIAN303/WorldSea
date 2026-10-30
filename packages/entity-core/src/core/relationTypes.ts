@@ -34,6 +34,9 @@ export const RelationTypes = {
   DROPS: 'drops',
   HUNTS: 'hunts',
   TAMES: 'tames',
+  BELIEVES_IN: 'believes_in',
+  HOLY_SITE: 'holy_site',
+  FESTIVAL_OF: 'festival_of',
 } as const
 
 export type RelationType = (typeof RelationTypes)[keyof typeof RelationTypes]
@@ -74,6 +77,9 @@ export const RelationTypeLabels: Record<RelationType, string> = {
   [RelationTypes.DROPS]: '产出',
   [RelationTypes.HUNTS]: '猎杀',
   [RelationTypes.TAMES]: '驯服/契约',
+  [RelationTypes.BELIEVES_IN]: '信奉',
+  [RelationTypes.HOLY_SITE]: '圣地',
+  [RelationTypes.FESTIVAL_OF]: '节日归属',
 }
 
 export function getRelationLabel(type: string): string {
@@ -147,3 +153,9 @@ inverseRegistry.register(RelationTypes.HUNTS, 'hunted_by')
 inverseRegistry.register('hunted_by', RelationTypes.HUNTS)
 inverseRegistry.register(RelationTypes.TAMES, 'tamed_by')
 inverseRegistry.register('tamed_by', RelationTypes.TAMES)
+inverseRegistry.register(RelationTypes.BELIEVES_IN, 'faith_member')
+inverseRegistry.register('faith_member', RelationTypes.BELIEVES_IN)
+inverseRegistry.register(RelationTypes.HOLY_SITE, 'holy_site_of')
+inverseRegistry.register('holy_site_of', RelationTypes.HOLY_SITE)
+inverseRegistry.register(RelationTypes.FESTIVAL_OF, 'faith_festival')
+inverseRegistry.register('faith_festival', RelationTypes.FESTIVAL_OF)
