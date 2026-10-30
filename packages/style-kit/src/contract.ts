@@ -27,6 +27,7 @@ export const REQUIRED_VARS = [
   '--sf-chrome-bg',
   '--sf-chrome-blur',
   '--sf-chrome-filter',
+  '--sf-highlight',
   '--sf-accent-surface-bg',
 ] as const
 

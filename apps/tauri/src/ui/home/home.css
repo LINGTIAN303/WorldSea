@@ -134,7 +134,7 @@
   border: 1px solid var(--sf-card-edge);
   border-radius: calc(var(--radius-md) * var(--sf-radius-scale));
   background: var(--sf-card-bg);
-  box-shadow: var(--sf-card-shadow);
+  box-shadow: var(--sf-card-shadow), inset 0 1px 0 var(--sf-highlight);
   font: inherit;
   color: inherit;
   text-align: left;
@@ -191,7 +191,7 @@
   border: 1px solid var(--sf-card-edge);
   border-radius: calc(var(--radius-md) * var(--sf-radius-scale));
   background: var(--sf-card-bg);
-  box-shadow: var(--sf-card-shadow);
+  box-shadow: var(--sf-card-shadow), inset 0 1px 0 var(--sf-highlight);
   transition: border-color var(--dur-fast) var(--ease);
 }
 .home-domain:hover,
@@ -370,7 +370,7 @@
   border: 1px solid var(--sf-card-edge);
   border-radius: calc(var(--radius-md) * var(--sf-radius-scale));
   background: var(--sf-card-bg);
-  box-shadow: var(--sf-card-shadow);
+  box-shadow: var(--sf-card-shadow), inset 0 1px 0 var(--sf-highlight);
   text-align: left;
   font-family: inherit;
 }
@@ -435,7 +435,7 @@
   border: 1px solid var(--sf-card-edge);
   border-radius: calc(var(--radius-md) * var(--sf-radius-scale));
   background: var(--sf-card-bg);
-  box-shadow: var(--sf-card-shadow);
+  box-shadow: var(--sf-card-shadow), inset 0 1px 0 var(--sf-highlight);
 }
 .home-matrix {
   width: 100%;
@@ -514,7 +514,7 @@
   border: 1px solid var(--sf-card-edge);
   border-radius: calc(var(--radius-md) * var(--sf-radius-scale));
   background: var(--sf-card-bg);
-  box-shadow: var(--sf-card-shadow);
+  box-shadow: var(--sf-card-shadow), inset 0 1px 0 var(--sf-highlight);
 }
 .home-heatmap-scroll { overflow-x: auto; padding-bottom: 4px; }
 .home-heatmap { width: max-content; }

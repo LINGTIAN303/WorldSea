@@ -158,7 +158,7 @@ onBeforeUnmount(() => {
 .global-search-panel {
   position: relative; max-height: 72vh; background: var(--sf-overlay-bg);
   border: 1px solid var(--sf-overlay-edge);
-  border-radius: calc(var(--radius-xl, 16px) * var(--sf-radius-scale)); box-shadow: var(--sf-overlay-shadow);
+  border-radius: calc(var(--radius-xl, 16px) * var(--sf-radius-scale)); box-shadow: var(--sf-overlay-shadow), inset 0 1px 0 var(--sf-highlight);
   display: flex; flex-direction: column; overflow: hidden;
   backdrop-filter: var(--sf-overlay-filter, none);
 }

@@ -27,6 +27,7 @@ html[data-style='soft-glass'] {
   --sf-chrome-bg: rgba(255, 255, 255, 0.45);
   --sf-chrome-blur: calc(18px * var(--sf-material) * 0.02);
   --sf-accent-surface-bg: var(--accent);
+  --sf-highlight: color-mix(in srgb, #fff calc(var(--sf-material) * 0.6%), transparent);
 }
 
 html[data-style='soft-glass'][data-theme='dark'] {
@@ -47,4 +48,5 @@ html[data-style='soft-glass'][data-theme='dark'] {
   --sf-modal-bg: rgba(26, 28, 36, 0.78);
   --sf-nav-bg: rgba(24, 26, 34, 0.58);
   --sf-chrome-bg: rgba(22, 24, 31, 0.55);
+  --sf-highlight: color-mix(in srgb, #fff calc(var(--sf-material) * 0.22%), transparent);
 }

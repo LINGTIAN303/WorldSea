@@ -145,7 +145,7 @@ onBeforeUnmount(() => {
   border-radius: calc(var(--radius-md, 8px) * var(--sf-radius-scale));
   border: 1px solid var(--sf-overlay-edge);
   background: var(--sf-overlay-bg);
-  box-shadow: var(--sf-overlay-shadow);
+  box-shadow: var(--sf-overlay-shadow), inset 0 1px 0 var(--sf-highlight);
   backdrop-filter: var(--sf-overlay-filter, none);
   display: flex;
   flex-direction: column;

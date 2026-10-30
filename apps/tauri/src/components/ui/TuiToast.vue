@@ -59,7 +59,7 @@ const ICONS: Record<string, string> = {
   backdrop-filter: var(--sf-overlay-filter, none);
   -webkit-backdrop-filter: var(--sf-overlay-filter, none);
   border: 1px solid var(--sf-overlay-edge);
-  box-shadow: var(--sf-overlay-shadow);
+  box-shadow: var(--sf-overlay-shadow), inset 0 1px 0 var(--sf-highlight);
   font-size: var(--fs-md);
   color: var(--text-primary);
   position: relative;
