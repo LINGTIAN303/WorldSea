@@ -228,10 +228,10 @@ watch(
   position: absolute;
   display: flex;
   flex-direction: column;
-  background: var(--bg-secondary, #1e1e1e);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-mid);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+  background: var(--sf-card-bg);
+  border: 1px solid var(--sf-card-edge);
+  border-radius: calc(var(--radius-mid) * var(--sf-radius-scale));
+  box-shadow: var(--sf-card-shadow);
   transition: border-color var(--dur-fast, 0.15s) var(--ease, ease),
               box-shadow var(--dur-fast, 0.15s) var(--ease, ease);
   /* ⚠ 不可加 overflow: hidden —— 会裁掉「添加表现形式」菜单（.bc-form-menu 在卡片内、
@@ -250,7 +250,7 @@ watch(
   flex-shrink: 0;
   padding: 5px 8px;
   border-bottom: 1px solid var(--border-light);
-  border-radius: var(--radius-mid) var(--radius-mid) 0 0;
+  border-radius: calc(var(--radius-mid) * var(--sf-radius-scale)) calc(var(--radius-mid) * var(--sf-radius-scale)) 0 0;
   cursor: grab;
   user-select: none;
 }

@@ -61,6 +61,8 @@ describe('B2 壳层消费表面契约', () => {
 
 const B3_TARGETS = [
   'packages/plugin-sdk/src/components/EntityCard.vue',
+  'apps/tauri/src/world/plugins/outline/board/components/BoardContainerView.vue',
+  'apps/tauri/src/world/plugins/outline/board/components/BoardSectionView.vue',
 ]
 
 describe('B3 卡片与表格消费表面契约', () => {

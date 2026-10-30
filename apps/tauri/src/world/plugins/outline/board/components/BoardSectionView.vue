@@ -148,8 +148,8 @@ watch(
   position: absolute;
   /* 弱色：极淡填充 + 虚线边框，保证容器是视觉主体 */
   background: var(--hover-bg);
-  border: 1px dashed var(--border-color);
-  border-radius: var(--radius-mid);
+  border: 1px dashed var(--sf-panel-edge);
+  border-radius: calc(var(--radius-mid) * var(--sf-radius-scale));
   /* 区在容器下层（DOM 顺序：区先、容器后）。区体**不** stop 指针事件——
      落在区空白处的拖拽应继续冒泡给画布做平移、双击应能新建节点；
      只有标题栏与尺寸手柄是区的交互区（它们在子元素上 stop）。 */
@@ -163,8 +163,9 @@ watch(
   /* 高度与 sectionArrange.SECTION_HEADER 对齐（区内容从标题栏下方开始） */
   height: 26px;
   padding: 0 8px;
-  border-bottom: 1px dashed var(--border-light);
-  border-radius: var(--radius-mid) var(--radius-mid) 0 0;
+  background: var(--sf-chrome-bg);
+  border-bottom: 1px dashed var(--sf-panel-edge);
+  border-radius: calc(var(--radius-mid) * var(--sf-radius-scale)) calc(var(--radius-mid) * var(--sf-radius-scale)) 0 0;
   cursor: grab;
   user-select: none;
 }
