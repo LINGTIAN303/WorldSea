@@ -143,3 +143,31 @@ describe('B4 列表行消费表面契约', () => {
     }
   })
 })
+
+const B4_RADIUS = [
+  'packages/plugin-sdk/src/components/EntityCard.vue',
+  'packages/plugin-sdk/src/components/ModalDetailView.vue',
+  'packages/ui-kit/src/components/settings/settings-panels.css',
+  'packages/ui-kit/src/components/layout/ViewToolbar.vue',
+]
+
+describe('B4 形变轴覆盖', () => {
+  it('关键表面圆角消费 --sf-radius-scale', () => {
+    for (const file of B4_RADIUS) {
+      expect(read(file), `${file} 未接入形变轴`).toContain('var(--sf-radius-scale)')
+    }
+  })
+})
+
+const B4_PRESS = [
+  'packages/ui-kit/src/components/settings/settings-panels.css',
+  'packages/ui-kit/src/components/layout/ViewToolbar.vue',
+]
+
+describe('B4 触感轴覆盖', () => {
+  it('控件按压消费 --sf-press-scale', () => {
+    for (const file of B4_PRESS) {
+      expect(read(file), `${file} 未接入触感轴`).toContain('var(--sf-press-scale')
+    }
+  })
+})

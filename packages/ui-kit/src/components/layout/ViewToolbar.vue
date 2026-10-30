@@ -220,14 +220,17 @@ onBeforeUnmount(() => {
   justify-content: center;
   border: none;
   background: transparent;
-  border-radius: var(--radius-sm);
+  border-radius: calc(var(--radius-sm) * var(--sf-radius-scale));
   color: var(--text-secondary);
   cursor: pointer;
-  transition: background var(--transition-fast), color var(--transition-fast);
+  transition: background var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
+}
+.vta-btn:active:not(:disabled) {
+  transform: scale(var(--sf-press-scale));
 }
 .vta-btn:hover,
 .vta-btn--pinned {
-  background: var(--hover-bg);
+  background: var(--sf-panel-bg-muted);
   color: var(--text-color);
 }
 .vta-menu {
