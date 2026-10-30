@@ -33,12 +33,19 @@ function styleSource(file, source) {
   return [...source.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map((m) => m[1]).join('\n')
 }
 
+// 消费表面契约的阴影/模糊是合法写法，不计入硬编码存量
+function stripTokenized(css) {
+  return css
+    .replace(/box-shadow\s*:\s*[^;]*var\(--sf-[^;]*;/g, '')
+    .replace(/backdrop-filter\s*:\s*[^;]*var\(--sf-[^;]*;/g, '')
+}
+
 const counts = { hex: 0, rgba: 0, boxShadow: 0, backdropFilter: 0 }
 for (const target of TARGETS) {
   for (const file of walk(resolve(ROOT, target))) {
     const rel = relative(ROOT, file).replace(/\\/g, '/')
     if (WHITELIST.some((prefix) => `/${rel}`.includes(prefix))) continue
-    const css = styleSource(file, readFileSync(file, 'utf8'))
+    const css = stripTokenized(styleSource(file, readFileSync(file, 'utf8')))
     for (const [key, re] of Object.entries(RULES)) counts[key] += (css.match(re) ?? []).length
   }
 }
