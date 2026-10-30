@@ -110,9 +110,7 @@
   --font-family-mono: var(--font-mono);
 
   /* ── 圆角 ── */
-  --radius-sm: var(--radius-sm);
-  --radius-md: var(--radius-md);
-  --radius-lg: var(--radius-lg);
+  /* 勿在此重新声明 --radius-*：自引用（如 --radius-sm: var(--radius-sm)）会使令牌失效，值以 theme.css 为准 */
   --radius-xl: 18px;
   --radius-full: var(--radius-pill);
   --radius-btn: var(--radius-md);
@@ -367,9 +365,7 @@
   --font-family-mono: var(--font-mono);
 
   /* 圆角 / 间距 / 阴影 / 动效 / 布局（尺寸类同浅色） */
-  --radius-sm: var(--radius-sm);
-  --radius-md: var(--radius-md);
-  --radius-lg: var(--radius-lg);
+  /* 勿在此重新声明 --radius-*：自引用（如 --radius-sm: var(--radius-sm)）会使令牌失效，值以 theme.css 为准 */
   --radius-xl: 18px;
   --radius-full: var(--radius-pill);
   --radius-btn: var(--radius-md);

@@ -170,7 +170,7 @@ watch(
   align-items: center;
   gap: 6px;
   border: 1px solid var(--sf-control-edge);
-  border-radius: var(--radius-sm);
+  border-radius: calc(var(--radius-sm) * var(--sf-radius-scale));
   background: var(--sf-control-bg);
   color: var(--text-primary);
   font-size: var(--fs-md);
@@ -232,7 +232,7 @@ watch(
   overflow-y: auto;
   background: var(--sf-overlay-bg);
   border: 1px solid var(--sf-overlay-edge);
-  border-radius: var(--radius-md);
+  border-radius: calc(var(--radius-md) * var(--sf-radius-scale));
   box-shadow: var(--sf-overlay-shadow);
   backdrop-filter: blur(var(--sf-overlay-blur));
 }

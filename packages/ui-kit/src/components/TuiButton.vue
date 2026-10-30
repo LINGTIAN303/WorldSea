@@ -51,7 +51,7 @@ const cls = computed(() => [`is-${props.variant}`, `is-${props.size}`, { 'is-loa
   align-items: center;
   justify-content: center;
   gap: 6px;
-  border-radius: var(--radius-sm);
+  border-radius: calc(var(--radius-sm) * var(--sf-radius-scale));
   font-size: var(--fs-md);
   cursor: pointer;
   white-space: nowrap;

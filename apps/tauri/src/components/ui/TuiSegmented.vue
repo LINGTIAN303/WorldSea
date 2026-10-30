@@ -121,7 +121,7 @@ function onKeydown(e: KeyboardEvent) {
   gap: 2px;
   background: var(--sf-panel-bg-muted);
   border: 1px solid var(--sf-panel-edge);
-  border-radius: var(--radius-md);
+  border-radius: calc(var(--radius-md) * var(--sf-radius-scale));
   transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
 /* 容器焦点反馈：键盘导航到分段组时柔和 accent 光环（与全局输入控件 focus 语言一致） */
@@ -133,7 +133,7 @@ function onKeydown(e: KeyboardEvent) {
   flex: 1;
   padding: 5px 14px;
   border: none;
-  border-radius: var(--radius-sm);
+  border-radius: calc(var(--radius-sm) * var(--sf-radius-scale));
   background: transparent;
   font-size: var(--fs-md);
   color: var(--text-secondary);

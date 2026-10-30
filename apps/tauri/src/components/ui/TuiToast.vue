@@ -54,7 +54,7 @@ const ICONS: Record<string, string> = {
   align-items: center;
   gap: 9px;
   padding: 10px 12px;
-  border-radius: var(--radius-md);
+  border-radius: calc(var(--radius-md) * var(--sf-radius-scale));
   background: var(--sf-overlay-bg);
   backdrop-filter: blur(var(--sf-overlay-blur));
   -webkit-backdrop-filter: blur(var(--sf-overlay-blur));

@@ -182,7 +182,7 @@ onBeforeUnmount(() => {
   max-height: 86vh;
   background: var(--sf-modal-bg);
   border: 1px solid var(--sf-overlay-edge);
-  border-radius: var(--radius-lg);
+  border-radius: calc(var(--radius-lg) * var(--sf-radius-scale));
   box-shadow: var(--sf-overlay-shadow);
   backdrop-filter: blur(var(--sf-overlay-blur));
   overflow: hidden;

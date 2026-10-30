@@ -78,7 +78,7 @@ export default { components: { WsIcon } }
   align-items: center;
   justify-content: center;
   border: 2px solid var(--sf-control-edge);
-  border-radius: var(--radius-sm);
+  border-radius: calc(var(--radius-sm) * var(--sf-radius-scale));
   background: var(--sf-control-bg);
   color: var(--on-accent);
   transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
