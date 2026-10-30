@@ -156,11 +156,11 @@ onBeforeUnmount(() => {
   backdrop-filter: blur(4px);
 }
 .global-search-panel {
-  position: relative; max-height: 72vh; background: var(--glass-bg, var(--content-bg));
-  border: 1px solid var(--glass-border, var(--border));
-  border-radius: var(--radius-xl, 16px); box-shadow: var(--shadow-xl);
+  position: relative; max-height: 72vh; background: var(--sf-overlay-bg);
+  border: 1px solid var(--sf-overlay-edge);
+  border-radius: calc(var(--radius-xl, 16px) * var(--sf-radius-scale)); box-shadow: var(--sf-overlay-shadow);
   display: flex; flex-direction: column; overflow: hidden;
-  backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--sf-overlay-blur));
 }
 .gs-header { display: flex; padding: 14px 18px; gap: 8px; border-bottom: 1px solid var(--border); }
 .gs-header input { flex: 1; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-md); font-size: var(--font-size-md); outline: none; background: var(--input-bg); color: var(--text-color); }

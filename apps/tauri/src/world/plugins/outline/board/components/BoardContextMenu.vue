@@ -120,10 +120,11 @@ function onKeydown(e: KeyboardEvent): void {
   z-index: var(--z-dropdown, 100);
   min-width: 168px;
   padding: 4px;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-mid);
-  background: var(--modal-bg);
-  box-shadow: var(--shadow-md);
+  border: 1px solid var(--sf-overlay-edge);
+  border-radius: calc(var(--radius-mid) * var(--sf-radius-scale));
+  background: var(--sf-overlay-bg);
+  box-shadow: var(--sf-overlay-shadow);
+  backdrop-filter: blur(var(--sf-overlay-blur));
   display: flex;
   flex-direction: column;
   outline: none;

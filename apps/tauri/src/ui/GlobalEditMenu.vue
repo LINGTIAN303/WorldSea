@@ -142,10 +142,11 @@ onBeforeUnmount(() => {
   z-index: 15000;
   min-width: 180px;
   padding: 4px;
-  border-radius: var(--radius-md, 8px);
-  border: 1px solid var(--border-color, var(--color-border, #ddd));
-  background: var(--bg-surface, var(--color-bg-surface, #fff));
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.16);
+  border-radius: calc(var(--radius-md, 8px) * var(--sf-radius-scale));
+  border: 1px solid var(--sf-overlay-edge);
+  background: var(--sf-overlay-bg);
+  box-shadow: var(--sf-overlay-shadow);
+  backdrop-filter: blur(var(--sf-overlay-blur));
   display: flex;
   flex-direction: column;
 }

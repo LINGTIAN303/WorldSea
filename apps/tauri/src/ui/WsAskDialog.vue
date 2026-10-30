@@ -175,10 +175,11 @@ watch(() => state.value.show, (v) => {
 
 .ws-ask {
   pointer-events: auto;
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
+  background: var(--sf-modal-bg);
+  border: 1px solid var(--sf-overlay-edge);
+  border-radius: calc(var(--radius-lg) * var(--sf-radius-scale));
+  box-shadow: var(--sf-overlay-shadow);
+  backdrop-filter: blur(var(--sf-overlay-blur));
   padding: 20px;
   width: 460px;
   max-width: 100%;

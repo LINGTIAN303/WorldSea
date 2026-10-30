@@ -44,6 +44,11 @@ const B2_TARGETS = [
   'apps/tauri/src/ui/layout/sidebar/SidebarV2.vue',
   'apps/tauri/src/world/plugins/settings/settings-dialog.css',
   'apps/tauri/src/ui/home/home.css',
+  'packages/ui-kit/src/components/search/GlobalSearch.vue',
+  'apps/tauri/src/ui/WsConfirmDialog.vue',
+  'apps/tauri/src/ui/WsAskDialog.vue',
+  'apps/tauri/src/ui/GlobalEditMenu.vue',
+  'apps/tauri/src/world/plugins/outline/board/components/BoardContextMenu.vue',
 ]
 
 describe('B2 壳层消费表面契约', () => {
