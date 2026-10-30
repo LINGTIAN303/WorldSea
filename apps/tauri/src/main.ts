@@ -7,7 +7,10 @@ import { wsBasicSetup } from './components/files/cmBasicSetup'
 import './styles/theme.css'
 // Web 端变量名 → Tauri 令牌桥接（必须在 theme.css 之后，覆盖其 A2UI 区同名变量）
 import './styles/web-tokens-bridge.css'
+// 表面契约必须排在桥接层之后，才能覆盖 --bg-surface / --border / --shadow-* 等通用令牌
+import '@worldsea/style-kit/styles.css'
 import '@worldsea/motion-kit/presets.css'
+import { applyPersistedStyle } from '@worldsea/style-kit'
 
 import { startBackendBoot } from './boot/backendBoot'
 
@@ -23,6 +26,9 @@ app.use(pinia)
 // 与各 assist 自建实例并存时 CM 补全互相干扰失效（键入/startCompletion 均不弹，真机实测）；
 // wsBasicSetup=等价基础集减 autocompletion，让 assist 的 override 实例成为唯一实例
 app.use(VueCodemirror, { extensions: [wsBasicSetup] })
+
+// 风格必须在挂载前落地：data-style + 四维变量，避免首帧回退到默认令牌
+applyPersistedStyle()
 
 app.mount('#app')
 

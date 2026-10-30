@@ -27,6 +27,10 @@
             ? 'dark'
             : 'light'
       document.documentElement.dataset.theme = t
+      // 风格防闪：与 useStyle 同一持久化键，缺省 mist
+      var s = localStorage.getItem('worldsea_ui_style')
+      document.documentElement.dataset.style =
+        s === 'neu' || s === 'soft-glass' || s === 'mist' ? s : 'mist'
     } catch (e) {
       /* localStorage 不可用时保持默认 */
     }
