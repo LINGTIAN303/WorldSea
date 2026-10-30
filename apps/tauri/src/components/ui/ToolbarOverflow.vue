@@ -71,10 +71,11 @@ onBeforeUnmount(() => {
 .to-menu {
   position: absolute; top: calc(100% + 6px); right: 0;
   min-width: 200px; padding: 4px;
-  background: var(--modal-bg, var(--color-bg-surface));
-  border: 1px solid var(--border-color, var(--color-border));
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-dropdown);
+  background: var(--sf-overlay-bg);
+  border: 1px solid var(--sf-overlay-edge);
+  border-radius: calc(var(--radius-md) * var(--sf-radius-scale));
+  box-shadow: var(--sf-overlay-shadow);
+  backdrop-filter: var(--sf-overlay-filter, none);
   z-index: 300;
   display: flex; flex-direction: column; gap: 2px;
 }
@@ -85,7 +86,7 @@ onBeforeUnmount(() => {
   background: transparent; border: none; border-radius: var(--radius-sm);
   cursor: pointer; text-align: left; white-space: nowrap;
 }
-.to-menu :deep(.to-item:hover) { background: var(--hover-bg, var(--color-bg-hover)); }
+.to-menu :deep(.to-item:hover) { background: var(--sf-panel-bg-muted, var(--color-bg-hover)); }
 .to-menu :deep(.to-item--danger) { color: var(--danger, var(--color-danger)); }
 .to-menu :deep(.to-item--check) { color: var(--primary, var(--color-primary)); }
 .to-menu :deep(.to-chip) {

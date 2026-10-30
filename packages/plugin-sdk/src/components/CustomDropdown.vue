@@ -157,9 +157,9 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 4px;
-  background: var(--input-bg, #fff);
-  border: 1px solid var(--border);
-  border-radius: 4px;
+  background: var(--sf-control-bg);
+  border: 1px solid var(--sf-control-edge);
+  border-radius: calc(var(--radius-sm, 4px) * var(--sf-radius-scale));
   padding: 4px 8px;
   cursor: pointer;
   color: var(--text);
@@ -189,10 +189,11 @@ onBeforeUnmount(() => {
 .cd-dropdown {
   position: fixed;
   z-index: 2000;
-  background: var(--modal-bg, #fff);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  background: var(--sf-overlay-bg);
+  border: 1px solid var(--sf-overlay-edge);
+  border-radius: calc(var(--radius-sm, 4px) * var(--sf-radius-scale));
+  box-shadow: var(--sf-overlay-shadow);
+  backdrop-filter: var(--sf-overlay-filter, none);
   padding: 4px 0;
   max-height: 240px;
   overflow-y: auto;
@@ -211,7 +212,7 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 .cd-option:hover {
-  background: var(--hover-bg, rgba(0,0,0,0.05));
+  background: var(--sf-panel-bg-muted, rgba(0,0,0,0.05));
 }
 .cd-option.selected {
   background: var(--accent-bg, rgba(167,139,250,0.1));

@@ -137,9 +137,9 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
   height: 44px;
   padding: 0 8px 0 12px;
-  background: var(--region-bg, var(--bg-surface));
-  border: 1px solid var(--region-border, var(--border));
-  border-radius: var(--region-radius, var(--radius-md));
+  background: var(--region-bg, var(--sf-chrome-bg));
+  border: 1px solid var(--region-border, var(--sf-panel-edge));
+  border-radius: calc(var(--region-radius, var(--radius-md)) * var(--sf-radius-scale));
 }
 /* ── 模式：无视图 / none 折叠 ──（容器仍挂载，Teleport 目标 #view-toolbar-* 常驻） */
 .view-toolbar--hidden,
@@ -236,10 +236,11 @@ onBeforeUnmount(() => {
   right: 0;
   min-width: 180px;
   padding: 4px;
-  background: var(--modal-bg);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-dropdown);
+  background: var(--sf-overlay-bg);
+  border: 1px solid var(--sf-overlay-edge);
+  border-radius: calc(var(--radius-md) * var(--sf-radius-scale));
+  box-shadow: var(--sf-overlay-shadow);
+  backdrop-filter: var(--sf-overlay-filter, none);
   z-index: 300;
 }
 .vta-item {

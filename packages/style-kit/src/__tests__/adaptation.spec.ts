@@ -100,3 +100,18 @@ describe('B4 详情载体消费表面契约', () => {
     }
   })
 })
+
+const B4_TOOLBAR = [
+  'packages/ui-kit/src/components/layout/ViewToolbar.vue',
+  'packages/ui-kit/src/components/layout/ViewToolbarFilter.vue',
+  'packages/plugin-sdk/src/components/CustomDropdown.vue',
+  'apps/tauri/src/components/ui/ToolbarOverflow.vue',
+]
+
+describe('B4 工具栏与下拉消费表面契约', () => {
+  it('每个入口至少消费一个 --sf-* 变量', () => {
+    for (const file of B4_TOOLBAR) {
+      expect(read(file), `${file} 未接入表面契约`).toMatch(/var\(--sf-/)
+    }
+  })
+})

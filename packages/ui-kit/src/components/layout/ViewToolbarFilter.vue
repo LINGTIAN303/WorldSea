@@ -71,9 +71,9 @@ onBeforeUnmount(() => {
   gap: 4px;
   height: 28px;
   padding: 0 8px;
-  background: var(--bg, var(--bg-surface));
-  border: 1px solid var(--border, var(--color-border));
-  border-radius: var(--radius-sm);
+  background: var(--bg, var(--sf-control-bg));
+  border: 1px solid var(--sf-control-edge);
+  border-radius: calc(var(--radius-sm) * var(--sf-radius-scale));
   color: var(--text-secondary);
   cursor: pointer;
   font-family: inherit;
@@ -103,10 +103,11 @@ onBeforeUnmount(() => {
   z-index: 300;
   max-width: 340px;
   padding: 8px;
-  background: var(--modal-bg, var(--bg-surface));
-  border: 1px solid var(--border-color, var(--border));
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-dropdown);
+  background: var(--sf-overlay-bg);
+  border: 1px solid var(--sf-overlay-edge);
+  border-radius: calc(var(--radius-md) * var(--sf-radius-scale));
+  box-shadow: var(--sf-overlay-shadow);
+  backdrop-filter: var(--sf-overlay-filter, none);
 }
 .vtf-body {
   display: flex;
