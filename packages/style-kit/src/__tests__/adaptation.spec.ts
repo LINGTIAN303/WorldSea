@@ -115,3 +115,17 @@ describe('B4 工具栏与下拉消费表面契约', () => {
     }
   })
 })
+
+const B4_MODALS = [
+  'packages/ui-kit/src/components/editor/ColorPickerDialog.vue',
+  'packages/ui-kit/src/components/data/ImportExportModal.vue',
+  'packages/plugin-sdk/src/components/BatchEditModal.vue',
+]
+
+describe('B4 共享弹层消费表面契约', () => {
+  it('每个弹层至少消费一个 --sf-* 变量', () => {
+    for (const file of B4_MODALS) {
+      expect(read(file), `${file} 未接入表面契约`).toMatch(/var\(--sf-/)
+    }
+  })
+})

@@ -325,11 +325,11 @@ function hexToHsl(hex: string): { h: number; s: number; l: number } | null {
 
 <style scoped>
 .cp-overlay { position: fixed; inset: var(--titlebar-height, 32px) 0 0 0; z-index: calc(var(--z-overlay) + 2); background: var(--color-overlay); display: flex; align-items: center; justify-content: center; }
-.cp-dialog { position: relative; background: var(--bg-secondary, var(--color-bg-surface)); border-radius: 12px; box-shadow: 0 8px 40px rgba(0,0,0,0.2); display: flex; flex-direction: column; overflow: hidden; }
+.cp-dialog { position: relative; background: var(--sf-overlay-bg); border-radius: calc(var(--radius-lg, 12px) * var(--sf-radius-scale)); box-shadow: var(--sf-overlay-shadow), inset 0 1px 0 var(--sf-highlight); backdrop-filter: var(--sf-overlay-filter, none); display: flex; flex-direction: column; overflow: hidden; }
 .cp-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--border, var(--color-border)); }
 .cp-header h3 { margin: 0; font-size: var(--font-size-base); }
 .cp-close { background: none; border: none; font-size: var(--font-size-lg); cursor: pointer; padding: 2px 6px; border-radius: 4px; color: var(--text-secondary); }
-.cp-close:hover { background: var(--hover-bg, var(--color-bg-hover)); }
+.cp-close:hover { background: var(--sf-panel-bg-muted, var(--color-bg-hover)); }
 .cp-body { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
 .cp-wheel-area { position: relative; width: 220px; height: 220px; margin: 0 auto; cursor: crosshair; }
 .cp-wheel-canvas { width: 220px; height: 220px; border-radius: 50%; }
@@ -337,7 +337,7 @@ function hexToHsl(hex: string): { h: number; s: number; l: number } | null {
 .cp-slider-area { display: flex; flex-direction: column; gap: 6px; }
 .cp-slider-row { display: flex; align-items: center; gap: 8px; }
 .cp-slider-label { font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); color: var(--text-secondary); width: 16px; text-align: center; }
-.cp-slider { flex: 1; height: 6px; -webkit-appearance: none; appearance: none; background: var(--bg-tertiary, var(--color-bg-elevated)); border-radius: 3px; outline: none; }
+.cp-slider { flex: 1; height: 6px; -webkit-appearance: none; appearance: none; background: var(--sf-control-edge); border-radius: 3px; outline: none; }
 .cp-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--accent, var(--color-primary)); cursor: pointer; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.2); }
 .cp-slider-hue { background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00); }
 .cp-slider-val { font-size: var(--font-size-xs); color: var(--text-tertiary); width: 36px; text-align: right; }

@@ -413,7 +413,7 @@ function close() {
 
 <style scoped>
 .be-overlay { position: fixed; inset: var(--titlebar-height, 32px) 0 0 0; z-index: var(--z-overlay); background: var(--color-overlay); display: flex; align-items: center; justify-content: center; }
-.be-modal { position: relative; max-height: 85vh; background: var(--content-bg); border-radius: 12px; box-shadow: 0 8px 40px rgba(0,0,0,0.15); display: flex; flex-direction: column; overflow: hidden; }
+.be-modal { position: relative; max-height: 85vh; background: var(--sf-overlay-bg); border-radius: calc(var(--radius-lg, 12px) * var(--sf-radius-scale)); box-shadow: var(--sf-overlay-shadow), inset 0 1px 0 var(--sf-highlight); backdrop-filter: var(--sf-overlay-filter, none); display: flex; flex-direction: column; overflow: hidden; }
 .be-header { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--border); }
 .be-header h3 { margin: 0; font-size: var(--font-size-lg); }
 .be-hdr-actions { display: flex; align-items: center; gap: 12px; }
@@ -421,11 +421,11 @@ function close() {
 .be-close { background: none; border: none; font-size: var(--font-size-xl); cursor: pointer; padding: 4px 8px; border-radius: 4px; }
 .be-close:hover { background: var(--hover-bg); }
 .be-toolbar { display: flex; gap: 8px; padding: 10px 20px; border-bottom: 1px solid var(--border); align-items: center; }
-.be-toolbar select, .be-search { padding: 5px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: var(--font-size-sm); }
+.be-toolbar select, .be-search { padding: 5px 10px; border: 1px solid var(--sf-control-edge); border-radius: calc(var(--radius-sm, 4px) * var(--sf-radius-scale)); background: var(--sf-control-bg); font-size: var(--font-size-sm); }
 .be-search { flex: 1; }
 .be-chk { font-size: var(--font-size-sm); cursor: pointer; white-space: nowrap; }
 .be-actions { display: flex; gap: 8px; padding: 10px 20px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
-.be-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 6px 14px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg, #f8f8f8); cursor: pointer; font-size: var(--font-size-sm); transition: background 0.15s; }
+.be-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 6px 14px; border: 1px solid var(--sf-control-edge); border-radius: calc(var(--radius-sm, 4px) * var(--sf-radius-scale)); background: var(--sf-control-bg); cursor: pointer; font-size: var(--font-size-sm); transition: background 0.15s; }
 .be-btn:hover { background: var(--bg-hover); }
 .be-btn.primary { background: var(--primary); color: var(--text); border-color: var(--primary); }
 .be-btn.primary:hover { background: var(--primary-hover); }
@@ -436,12 +436,12 @@ function close() {
 /* 一行实体 + 可展开的行内编辑区（编辑按钮不再弹逐条问答） */
 .be-row { border-bottom: 1px solid var(--border); }
 .be-item { display: flex; align-items: center; gap: 8px; padding: 8px 20px; font-size: var(--font-size-sm); transition: background 0.1s; }
-.be-item:hover { background: var(--hover-bg, #f8f8f8); }
+.be-item:hover { background: var(--sf-panel-bg-muted, #f8f8f8); }
 .be-item.selected { background: var(--primary-light); }
 .be-item input[type=checkbox] { flex-shrink: 0; }
 .be-icon { font-size: var(--font-size-md); flex-shrink: 0; }
 .be-name { flex: 1; font-weight: var(--font-weight-semibold); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.be-type { font-size: var(--font-size-xs); color: var(--text-tertiary); background: var(--bg); padding: 2px 6px; border-radius: 4px; flex-shrink: 0; }
+.be-type { font-size: var(--font-size-xs); color: var(--text-tertiary); background: var(--sf-panel-bg-muted); padding: 2px 6px; border-radius: 4px; flex-shrink: 0; }
 .be-tags { font-size: var(--font-size-sm); color: var(--text-secondary, #888); max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .be-edit-btn { background: none; border: none; cursor: pointer; padding: 2px 6px; border-radius: 4px; opacity: 0; transition: opacity 0.15s; font-size: var(--font-size-base); }
 .be-item:hover .be-edit-btn { opacity: 1; }

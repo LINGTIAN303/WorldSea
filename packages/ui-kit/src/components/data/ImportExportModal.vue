@@ -584,13 +584,13 @@ function close() {
 <style scoped>
 /* ─── Overlay & Modal ─── */
 .ie-overlay { position: fixed; inset: var(--titlebar-height, 32px) 0 0 0; z-index: var(--z-overlay); background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; }
-.ie-modal { max-height: 85vh; background: var(--content-bg, #fff); border-radius: 12px; box-shadow: 0 8px 40px rgba(0,0,0,0.15); display: flex; flex-direction: column; overflow: hidden; position: relative; }
+.ie-modal { max-height: 85vh; background: var(--sf-overlay-bg); border-radius: calc(var(--radius-lg, 12px) * var(--sf-radius-scale)); box-shadow: var(--sf-overlay-shadow), inset 0 1px 0 var(--sf-highlight); backdrop-filter: var(--sf-overlay-filter, none); display: flex; flex-direction: column; overflow: hidden; position: relative; }
 .ie-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--border, #eee); }
 .ie-header h3 { margin: 0; font-size: var(--font-size-lg); }
 .ie-close { background: none; border: none; font-size: var(--font-size-xl); cursor: pointer; padding: 4px 8px; border-radius: 4px; }
 .ie-body { padding: 16px 20px; overflow-y: auto; flex: 1; }
-.ie-tabs { display: flex; gap: 0; margin-bottom: 16px; border-radius: 8px; overflow: hidden; border: 1px solid var(--border, #ddd); }
-.ie-tabs button { flex: 1; padding: 8px 16px; border: none; background: var(--bg, var(--color-bg-elevated)); cursor: pointer; font-size: var(--font-size-base); }
+.ie-tabs { display: flex; gap: 0; margin-bottom: 16px; border-radius: calc(var(--radius-sm) * var(--sf-radius-scale)); overflow: hidden; border: 1px solid var(--sf-panel-edge); }
+.ie-tabs button { flex: 1; padding: 8px 16px; border: none; background: var(--sf-control-bg); cursor: pointer; font-size: var(--font-size-base); }
 .ie-tabs button.active { background: var(--primary, var(--color-primary)); color: #fff; }
 .ie-section { display: flex; flex-direction: column; gap: 12px; }
 .ie-fmt { display: flex; gap: 16px; }
@@ -601,8 +601,8 @@ function close() {
 .ie-scope-grid { display: flex; flex-wrap: wrap; gap: 6px; }
 .ie-scope-item {
   display: flex; align-items: center; gap: 4px;
-  padding: 4px 10px; border: 1px solid var(--border, #ddd); border-radius: var(--radius-sm);
-  font-size: var(--font-size-sm); cursor: pointer; background: var(--bg, #fafafa);
+  padding: 4px 10px; border: 1px solid var(--sf-control-edge); border-radius: calc(var(--radius-sm) * var(--sf-radius-scale));
+  font-size: var(--font-size-sm); cursor: pointer; background: var(--sf-control-bg);
   transition: background 0.12s, border-color 0.12s, color 0.12s, box-shadow 0.12s, transform 0.12s, opacity 0.12s, filter 0.12s;
 }
 .ie-scope-item:hover { border-color: var(--primary, #4f46e5); background: var(--primary-light, #eef2ff); }
@@ -614,7 +614,7 @@ function close() {
 
 /* ─── Preview ─── */
 .ie-preview { position: relative; }
-.ie-preview textarea { width: 100%; border: 1px solid var(--border, #ddd); border-radius: var(--radius-sm); padding: 8px; font-size: var(--font-size-xs); font-family: monospace; resize: vertical; background: var(--bg, #fafafa); }
+.ie-preview textarea { width: 100%; border: 1px solid var(--sf-control-edge); border-radius: calc(var(--radius-sm) * var(--sf-radius-scale)); padding: 8px; font-size: var(--font-size-xs); font-family: monospace; resize: vertical; background: var(--sf-control-bg); }
 .ie-preview-loading {
   position: absolute;
   inset: 0;
@@ -630,7 +630,7 @@ function close() {
 }
 
 /* ─── Upload ─── */
-.ie-upload { border: 2px dashed var(--border-color, var(--color-border)); border-radius: 8px; padding: 20px; text-align: center; cursor: pointer; }
+.ie-upload { border: 2px dashed var(--sf-panel-edge); border-radius: calc(var(--radius-md) * var(--sf-radius-scale)); padding: 20px; text-align: center; cursor: pointer; }
 .ie-dropzone { padding: 10px; }
 .ie-dropzone--loading { cursor: default; display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .dz-icon { font-size: var(--font-size-3xl); display: block; margin-bottom: 6px; }
