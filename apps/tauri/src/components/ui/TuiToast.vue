@@ -55,11 +55,11 @@ const ICONS: Record<string, string> = {
   gap: 9px;
   padding: 10px 12px;
   border-radius: var(--radius-md);
-  background: var(--glass-bg);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-md);
+  background: var(--sf-overlay-bg);
+  backdrop-filter: blur(var(--sf-overlay-blur));
+  -webkit-backdrop-filter: blur(var(--sf-overlay-blur));
+  border: 1px solid var(--sf-overlay-edge);
+  box-shadow: var(--sf-overlay-shadow);
   font-size: var(--fs-md);
   color: var(--text-primary);
   position: relative;
@@ -115,7 +115,7 @@ const ICONS: Record<string, string> = {
 }
 /* 按压反馈（批次89） */
 .tui-toast__close:active {
-  transform: scale(var(--press-scale));
+  transform: scale(var(--sf-press-scale, var(--press-scale)));
 }
 
 </style>

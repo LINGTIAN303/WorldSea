@@ -156,8 +156,9 @@ onBeforeUnmount(() => {
   z-index: var(--z-modal);
   display: flex;
   flex-direction: column;
-  background: var(--bg-surface);
-  box-shadow: var(--shadow-lg);
+  background: var(--sf-overlay-bg);
+  box-shadow: var(--sf-overlay-shadow);
+  backdrop-filter: blur(var(--sf-overlay-blur));
   outline: none;
 }
 .tui-drawer--right {
@@ -209,7 +210,7 @@ onBeforeUnmount(() => {
   color: var(--text-primary);
 }
 .tui-drawer__close:active {
-  transform: scale(var(--press-scale));
+  transform: scale(var(--sf-press-scale, var(--press-scale)));
 }
 
 .tui-drawer__body {

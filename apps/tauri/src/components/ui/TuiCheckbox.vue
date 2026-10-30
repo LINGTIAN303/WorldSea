@@ -77,9 +77,9 @@ export default { components: { WsIcon } }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 2px solid var(--border-strong);
+  border: 2px solid var(--sf-control-edge);
   border-radius: var(--radius-sm);
-  background: var(--bg-surface);
+  background: var(--sf-control-bg);
   color: var(--on-accent);
   transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
     transform var(--dur-fast) var(--ease-spring);
@@ -95,7 +95,7 @@ export default { components: { WsIcon } }
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 .tui-checkbox:not(.is-disabled):active .tui-checkbox__box {
-  transform: scale(var(--press-scale));
+  transform: scale(var(--sf-press-scale, var(--press-scale)));
 }
 .tui-checkbox__check {
   width: 14px;

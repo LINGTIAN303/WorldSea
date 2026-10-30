@@ -180,10 +180,11 @@ onBeforeUnmount(() => {
   flex-direction: column;
   max-width: 92vw;
   max-height: 86vh;
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
+  background: var(--sf-modal-bg);
+  border: 1px solid var(--sf-overlay-edge);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--sf-overlay-shadow);
+  backdrop-filter: blur(var(--sf-overlay-blur));
   overflow: hidden;
 }
 .tui-modal--sm { width: 380px; }
@@ -228,7 +229,7 @@ onBeforeUnmount(() => {
 }
 /* 按压反馈（批次89） */
 .tui-modal__close:active {
-  transform: scale(var(--press-scale));
+  transform: scale(var(--sf-press-scale, var(--press-scale)));
 }
 
 .tui-modal__body {

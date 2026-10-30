@@ -41,8 +41,8 @@ const { toasts, dismiss } = useToast()
   padding: 12px 18px;
   border-radius: var(--radius-lg, 10px);
   font-size: var(--font-size-sm);
-  box-shadow: var(--shadow-lg, 0 8px 30px rgba(0,0,0,0.15));
-  backdrop-filter: blur(var(--glass-blur, 16px));
+  box-shadow: var(--sf-overlay-shadow, 0 8px 30px rgba(0,0,0,0.15));
+  backdrop-filter: blur(var(--sf-overlay-blur, 16px));
   min-width: 220px;
   max-width: 400px;
   border: 1px solid rgba(255,255,255,0.1);

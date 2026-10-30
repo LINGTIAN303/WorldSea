@@ -119,8 +119,8 @@ function onKeydown(e: KeyboardEvent) {
   display: inline-flex;
   padding: 3px;
   gap: 2px;
-  background: var(--bg-muted);
-  border: 1px solid var(--border);
+  background: var(--sf-panel-bg-muted);
+  border: 1px solid var(--sf-panel-edge);
   border-radius: var(--radius-md);
   transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
@@ -150,13 +150,13 @@ function onKeydown(e: KeyboardEvent) {
 }
 /* 按压反馈：非选中项按下微沉（批次89） */
 .tui-seg__item:active:not(:disabled):not(.is-active) {
-  transform: scale(var(--press-scale));
+  transform: scale(var(--sf-press-scale, var(--press-scale)));
 }
 .tui-seg__item.is-active {
-  background: var(--bg-surface);
+  background: var(--sf-control-bg);
   color: var(--text-primary);
   font-weight: 500;
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--sf-control-shadow);
 }
 .tui-seg__item:disabled {
   cursor: not-allowed;

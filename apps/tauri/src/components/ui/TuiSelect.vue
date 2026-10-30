@@ -169,9 +169,9 @@ watch(
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--sf-control-edge);
   border-radius: var(--radius-sm);
-  background: var(--bg-surface);
+  background: var(--sf-control-bg);
   color: var(--text-primary);
   font-size: var(--fs-md);
   cursor: pointer;
@@ -182,7 +182,7 @@ watch(
 }
 /* 按压反馈：触发钮微沉（批次89） */
 .tui-select__trigger:active:not(:disabled) {
-  transform: scale(var(--press-scale));
+  transform: scale(var(--sf-press-scale, var(--press-scale)));
 }
 .tui-select.is-open .tui-select__trigger {
   border-color: var(--accent);
@@ -230,10 +230,11 @@ watch(
   min-width: 100%;
   max-height: 240px;
   overflow-y: auto;
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
+  background: var(--sf-overlay-bg);
+  border: 1px solid var(--sf-overlay-edge);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--sf-overlay-shadow);
+  backdrop-filter: blur(var(--sf-overlay-blur));
 }
 .tui-select__opt {
   display: flex;

@@ -58,6 +58,7 @@ const cls = computed(() => [`is-${props.variant}`, `is-${props.size}`, { 'is-loa
   transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
     color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease-spring);
   font-family: inherit;
+  box-shadow: var(--sf-control-shadow, none);
 }
 .tui-btn.is-sm {
   height: 28px;
@@ -69,7 +70,7 @@ const cls = computed(() => [`is-${props.variant}`, `is-${props.size}`, { 'is-loa
   padding: 0 var(--spacing-btn-x, 14px);
 }
 .tui-btn:active:not(:disabled) {
-  transform: scale(var(--press-scale));
+  transform: scale(var(--sf-press-scale, var(--press-scale)));
 }
 .tui-btn:disabled {
   opacity: var(--disabled-opacity);
@@ -96,9 +97,9 @@ const cls = computed(() => [`is-${props.variant}`, `is-${props.size}`, { 'is-loa
   background: var(--accent-hover);
 }
 .tui-btn.is-secondary {
-  background: var(--bg-surface);
+  background: var(--sf-control-bg);
   color: var(--text-secondary);
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--sf-control-edge);
 }
 .tui-btn.is-secondary:hover:not(:disabled) {
   border-color: var(--accent);

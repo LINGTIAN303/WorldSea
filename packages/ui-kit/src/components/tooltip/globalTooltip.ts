@@ -37,7 +37,7 @@ const TOOLTIP_CSS = `
   align-items: center;
   gap: 6px;
   pointer-events: none;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  box-shadow: var(--sf-overlay-shadow, 0 4px 14px rgba(0, 0, 0, 0.18));
   opacity: 0;
   transition: opacity 0.12s ease;
 }
