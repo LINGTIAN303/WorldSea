@@ -24,6 +24,9 @@ html[data-style='neu'] {
     inset calc(-2px * var(--sf-depth-scale)) calc(-2px * var(--sf-depth-scale)) calc(4px * var(--sf-depth-scale) * var(--sf-material-scale)) rgba(255, 255, 255, 0.85);
   --sf-overlay-bg: rgba(232, 234, 239, 0.94);
   --sf-overlay-blur: 0px;
+  --sf-overlay-filter: none;
+  --sf-nav-filter: none;
+  --sf-chrome-filter: none;
   --sf-overlay-edge: rgba(0, 0, 0, 0.06);
   --sf-overlay-shadow: var(--sf-shadow-2);
   --sf-modal-bg: #e8eaef;

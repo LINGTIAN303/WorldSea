@@ -251,7 +251,7 @@ async function saveFolder() {
   box-shadow: var(--shadow-xl);
   padding: 6px;
   z-index: 2000;
-  backdrop-filter: blur(var(--sf-overlay-blur));
+  backdrop-filter: var(--sf-overlay-filter, none);
 }
 
 .appmenu-list {

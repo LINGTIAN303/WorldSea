@@ -234,7 +234,7 @@ watch(
   border: 1px solid var(--sf-overlay-edge);
   border-radius: calc(var(--radius-md) * var(--sf-radius-scale));
   box-shadow: var(--sf-overlay-shadow);
-  backdrop-filter: blur(var(--sf-overlay-blur));
+  backdrop-filter: var(--sf-overlay-filter, none);
 }
 .tui-select__opt {
   display: flex;

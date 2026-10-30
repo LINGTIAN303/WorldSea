@@ -5,7 +5,7 @@
 /* 2026-09-13：上限 640 → 680——芽管理卡（26 芽 + 头部）在 640 下会触发卡片区内滚动，
    680 下芽卡一屏完整可见；其余标签页仅获得更多可视空间 */
 
-.set-topbar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: var(--sf-chrome-bg); border-radius: calc(var(--radius-md) * var(--sf-radius-scale)); box-shadow: var(--sf-overlay-shadow); backdrop-filter: blur(var(--sf-chrome-blur)); }
+.set-topbar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: var(--sf-chrome-bg); border-radius: calc(var(--radius-md) * var(--sf-radius-scale)); box-shadow: var(--sf-overlay-shadow); backdrop-filter: var(--sf-chrome-filter, none); }
 .set-topbar-left { display: flex; align-items: center; gap: 6px; color: var(--text-secondary); flex-shrink: 0; }
 .set-topbar-title { font-size: var(--font-size-base); font-weight: var(--font-weight-semibold); color: var(--text-color); }
 .set-topbar-spacer { flex: 1; }

@@ -170,8 +170,8 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   background: var(--overlay);
-  backdrop-filter: blur(var(--sf-overlay-blur));
-  -webkit-backdrop-filter: blur(var(--sf-overlay-blur));
+  backdrop-filter: var(--sf-overlay-filter, none);
+  -webkit-backdrop-filter: var(--sf-overlay-filter, none);
   padding: 24px;
 }
 .tui-modal {
@@ -184,7 +184,7 @@ onBeforeUnmount(() => {
   border: 1px solid var(--sf-overlay-edge);
   border-radius: calc(var(--radius-lg) * var(--sf-radius-scale));
   box-shadow: var(--sf-overlay-shadow);
-  backdrop-filter: blur(var(--sf-overlay-blur));
+  backdrop-filter: var(--sf-overlay-filter, none);
   overflow: hidden;
 }
 .tui-modal--sm { width: 380px; }

@@ -146,8 +146,8 @@ onBeforeUnmount(() => {
   inset: var(--titlebar-height, 32px) 0 0 0;
   z-index: var(--z-modal);
   background: var(--overlay);
-  backdrop-filter: blur(var(--sf-overlay-blur));
-  -webkit-backdrop-filter: blur(var(--sf-overlay-blur));
+  backdrop-filter: var(--sf-overlay-filter, none);
+  -webkit-backdrop-filter: var(--sf-overlay-filter, none);
 }
 .tui-drawer {
   position: fixed;
@@ -158,7 +158,7 @@ onBeforeUnmount(() => {
   flex-direction: column;
   background: var(--sf-overlay-bg);
   box-shadow: var(--sf-overlay-shadow);
-  backdrop-filter: blur(var(--sf-overlay-blur));
+  backdrop-filter: var(--sf-overlay-filter, none);
   outline: none;
 }
 .tui-drawer--right {

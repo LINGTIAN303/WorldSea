@@ -160,7 +160,7 @@ onBeforeUnmount(() => {
   border: 1px solid var(--sf-overlay-edge);
   border-radius: calc(var(--radius-xl, 16px) * var(--sf-radius-scale)); box-shadow: var(--sf-overlay-shadow);
   display: flex; flex-direction: column; overflow: hidden;
-  backdrop-filter: blur(var(--sf-overlay-blur));
+  backdrop-filter: var(--sf-overlay-filter, none);
 }
 .gs-header { display: flex; padding: 14px 18px; gap: 8px; border-bottom: 1px solid var(--border); }
 .gs-header input { flex: 1; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-md); font-size: var(--font-size-md); outline: none; background: var(--input-bg); color: var(--text-color); }

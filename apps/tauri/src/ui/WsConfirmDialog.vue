@@ -135,8 +135,8 @@ watch(() => state.value.show, (v) => {
   inset: var(--titlebar-height, 32px) 0 0 0;
   z-index: var(--z-modal);
   background: var(--overlay);
-  backdrop-filter: blur(var(--sf-overlay-blur));
-  -webkit-backdrop-filter: blur(var(--sf-overlay-blur));
+  backdrop-filter: var(--sf-overlay-filter, none);
+  -webkit-backdrop-filter: var(--sf-overlay-filter, none);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -159,7 +159,7 @@ watch(() => state.value.show, (v) => {
   border: 1px solid var(--sf-overlay-edge);
   border-radius: calc(var(--radius-lg) * var(--sf-radius-scale));
   box-shadow: var(--sf-overlay-shadow);
-  backdrop-filter: blur(var(--sf-overlay-blur));
+  backdrop-filter: var(--sf-overlay-filter, none);
   padding: 24px;
   min-width: 320px;
   max-width: 420px;

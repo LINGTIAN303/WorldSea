@@ -179,7 +179,7 @@ watch(() => state.value.show, (v) => {
   border: 1px solid var(--sf-overlay-edge);
   border-radius: calc(var(--radius-lg) * var(--sf-radius-scale));
   box-shadow: var(--sf-overlay-shadow);
-  backdrop-filter: blur(var(--sf-overlay-blur));
+  backdrop-filter: var(--sf-overlay-filter, none);
   padding: 20px;
   width: 460px;
   max-width: 100%;

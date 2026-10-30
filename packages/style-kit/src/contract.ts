@@ -17,13 +17,16 @@ export const REQUIRED_VARS = [
   '--sf-control-shadow-inset',
   '--sf-overlay-bg',
   '--sf-overlay-blur',
+  '--sf-overlay-filter',
   '--sf-overlay-edge',
   '--sf-overlay-shadow',
   '--sf-modal-bg',
   '--sf-nav-bg',
   '--sf-nav-blur',
+  '--sf-nav-filter',
   '--sf-chrome-bg',
   '--sf-chrome-blur',
+  '--sf-chrome-filter',
   '--sf-accent-surface-bg',
 ] as const
 

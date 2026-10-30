@@ -308,7 +308,7 @@ onBeforeUnmount(() => {
   /* 三区双线：独立圆角块（边框 + 底色），内缩 region-pad 与其余区域隔出缝隙 */
   --region-bg: var(--sf-nav-bg);
   background: var(--region-bg, var(--bg-surface));
-  backdrop-filter: blur(var(--sf-nav-blur));
+  backdrop-filter: var(--sf-nav-filter, none);
   overflow: hidden;
   /* 性能优化:脱离 flex 文档流(与原 Sidebar.vue 一致) */
   position: absolute;

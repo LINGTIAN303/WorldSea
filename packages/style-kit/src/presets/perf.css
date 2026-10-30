@@ -4,4 +4,7 @@ html[data-perf='on'] {
   --sf-panel-blur: 0px;
   --sf-nav-blur: 0px;
   --sf-chrome-blur: 0px;
+  --sf-overlay-filter: none;
+  --sf-nav-filter: none;
+  --sf-chrome-filter: none;
 }
