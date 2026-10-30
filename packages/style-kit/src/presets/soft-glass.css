@@ -11,7 +11,7 @@ html[data-style='soft-glass'] {
   --sf-card-edge: rgba(255, 255, 255, 0.72);
   --sf-card-shadow: var(--sf-shadow-2);
   --sf-control-bg: rgba(255, 255, 255, 0.58);
-  --sf-control-edge: rgba(255, 255, 255, 0.8);
+  --sf-control-edge: #7c8699;
   --sf-control-shadow: 0 1px 0 rgba(255, 255, 255, 0.6) inset;
   --sf-control-shadow-inset: inset 0 1px 2px rgba(31, 41, 71, 0.06);
   --sf-overlay-bg: rgba(255, 255, 255, 0.55);
@@ -38,7 +38,7 @@ html[data-style='soft-glass'][data-theme='dark'] {
   --sf-card-bg: rgba(30, 32, 40, 0.66);
   --sf-card-edge: rgba(255, 255, 255, 0.12);
   --sf-control-bg: rgba(36, 38, 46, 0.7);
-  --sf-control-edge: rgba(255, 255, 255, 0.18);
+  --sf-control-edge: #757d8d;
   --sf-overlay-bg: rgba(24, 26, 34, 0.62);
   --sf-overlay-edge: rgba(255, 255, 255, 0.16);
   --sf-modal-bg: rgba(26, 28, 36, 0.78);

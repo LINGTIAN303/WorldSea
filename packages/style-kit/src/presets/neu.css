@@ -17,7 +17,7 @@ html[data-style='neu'] {
   --sf-card-edge: rgba(0, 0, 0, 0.04);
   --sf-card-shadow: var(--sf-shadow-1);
   --sf-control-bg: #e8eaef;
-  --sf-control-edge: rgba(0, 0, 0, 0.08);
+  --sf-control-edge: #7a7f88;
   --sf-control-shadow: var(--sf-shadow-1);
   --sf-control-shadow-inset:
     inset calc(2px * var(--sf-depth-scale)) calc(2px * var(--sf-depth-scale)) calc(4px * var(--sf-depth-scale) * var(--sf-material-scale)) rgba(163, 177, 198, 0.6),
@@ -52,7 +52,7 @@ html[data-style='neu'][data-theme='dark'] {
   --sf-card-bg: #1b1d22;
   --sf-card-edge: rgba(255, 255, 255, 0.05);
   --sf-control-bg: #1b1d22;
-  --sf-control-edge: rgba(255, 255, 255, 0.1);
+  --sf-control-edge: #6f7580;
   --sf-control-shadow-inset:
     inset calc(2px * var(--sf-depth-scale)) calc(2px * var(--sf-depth-scale)) calc(4px * var(--sf-depth-scale) * var(--sf-material-scale)) rgba(0, 0, 0, 0.6),
     inset calc(-2px * var(--sf-depth-scale)) calc(-2px * var(--sf-depth-scale)) calc(4px * var(--sf-depth-scale) * var(--sf-material-scale)) rgba(255, 255, 255, 0.03);

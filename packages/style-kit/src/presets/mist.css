@@ -11,7 +11,7 @@ html[data-style='mist'] {
   --sf-card-edge: #ececec;
   --sf-card-shadow: var(--sf-shadow-1);
   --sf-control-bg: #ffffff;
-  --sf-control-edge: #d9d9de;
+  --sf-control-edge: #8e8e93;
   --sf-control-shadow: none;
   --sf-control-shadow-inset: inset 0 1px 2px rgba(16, 24, 40, 0.04);
   --sf-overlay-bg: rgba(255, 255, 255, 0.82);
@@ -38,7 +38,7 @@ html[data-style='mist'][data-theme='dark'] {
   --sf-card-bg: #18181b;
   --sf-card-edge: #27272c;
   --sf-control-bg: #18181b;
-  --sf-control-edge: #38383f;
+  --sf-control-edge: #6b6b73;
   --sf-control-shadow-inset: inset 0 1px 2px rgba(0, 0, 0, 0.5);
   --sf-overlay-bg: rgba(24, 24, 27, 0.82);
   --sf-overlay-edge: #38383f;
