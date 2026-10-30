@@ -60,4 +60,19 @@ describe('useStyle', () => {
     expect(document.documentElement.classList.contains('is-style-switching')).toBe(false)
     vi.useRealTimers()
   })
+
+  it('玻璃变体持久化并应用', async () => {
+    const { useStyle } = await load()
+    useStyle().setGlassVariant('clear')
+    expect(document.documentElement.dataset.glass).toBe('clear')
+    expect(localStorage.getItem('worldsea_ui_style_glass')).toBe('clear')
+  })
+
+  it('计划中的风格不可选', async () => {
+    const { useStyle } = await load()
+    const api = useStyle()
+    api.setStyle('liquid-glass')
+    expect(api.styleId.value).toBe('mist')
+    expect(document.documentElement.dataset.style).not.toBe('liquid-glass')
+  })
 })

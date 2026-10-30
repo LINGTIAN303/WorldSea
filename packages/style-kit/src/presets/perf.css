@@ -7,4 +7,5 @@ html[data-perf='on'] {
   --sf-overlay-filter: none;
   --sf-nav-filter: none;
   --sf-chrome-filter: none;
+  --sf-clear-filter: none;
 }

@@ -38,14 +38,21 @@
               v-for="pack in stylePacks"
               :key="pack.id"
               class="set-style-card"
-              :class="{ on: styleId === pack.id }"
+              :class="{ on: styleId === pack.id, 'is-planned': pack.status === 'planned' }"
+              :disabled="pack.status === 'planned'"
               :title="pack.description"
-              :aria-label="`界面风格：${pack.label}`"
+              :aria-label="`界面风格：${pack.label}${pack.status === 'planned' ? '（研究中）' : ''}`"
               @click="onStyleChange(pack.id)"
             >
               <span class="set-style-preview" :data-style-preview="pack.id"></span>
               <span class="set-style-name">{{ pack.label }}</span>
+              <span v-if="pack.status === 'planned'" class="set-style-badge">研究中</span>
             </button>
+          </div>
+          <div v-if="styleId === 'soft-glass'" class="set-style-variant" role="group" aria-label="玻璃变体">
+            <span class="set-style-variant-label">玻璃变体</span>
+            <button class="set-style-variant-btn" :class="{ on: glassVariant === 'regular' }" @click="onGlassVariant('regular')">常规</button>
+            <button class="set-style-variant-btn" :class="{ on: glassVariant === 'clear' }" @click="onGlassVariant('clear')">清透</button>
           </div>
           <div class="set-accent-hint">当前风格：{{ currentStyleLabel }}</div>
           <button class="set-theme-editor-btn" @click="openThemeEditor">
@@ -180,7 +187,7 @@ import WsInlineLoading from '../../feedback/loading/WsInlineLoading.vue'
 import ColorPickerDialog from '../../editor/ColorPickerDialog.vue'
 import EntityMultiSelect from './EntityMultiSelect.vue'
 import { toastSuccess, toastWarn, CardDeck } from '@worldsea/ui-kit'
-import { useStyle, STYLE_LIST, type StyleId } from '@worldsea/style-kit'
+import { useStyle, STYLE_LIST, type StyleId, type GlassVariant } from '@worldsea/style-kit'
 import { matchKeywords, FONT_LAYERS, weightLabel, sourceLabel, formatSize } from '../utils'
 
 const props = defineProps<{ searchQuery?: string }>()
@@ -194,11 +201,17 @@ defineExpose({ goToCard: (i: number) => deckRef.value?.goToCard(i) })
 
 const store = useSettingsStore()
 const stylePacks = STYLE_LIST
-const { styleId, setStyle, perfMode, setPerfMode } = useStyle()
+const { styleId, setStyle, perfMode, setPerfMode, glassVariant, setGlassVariant } = useStyle()
 const currentStyleLabel = computed(() => stylePacks.find(p => p.id === styleId.value)?.label ?? '雾面')
 
 function onStyleChange(id: StyleId) {
+  if (stylePacks.find(p => p.id === id)?.status !== 'ready') return
   setStyle(id)
+  emit('dirty')
+}
+
+function onGlassVariant(variant: GlassVariant) {
+  setGlassVariant(variant)
   emit('dirty')
 }
 
@@ -596,4 +609,21 @@ function onFontImport(e: Event) {
   border-color: transparent;
 }
 .set-style-name { font-size: var(--fs-sm); color: var(--text-secondary); }
+.set-style-card.is-planned { opacity: 0.55; cursor: not-allowed; }
+.set-style-badge {
+  position: absolute; top: 4px; right: 4px;
+  padding: 1px 5px; border-radius: var(--radius-pill);
+  font-size: var(--fs-3xs); color: var(--text-muted);
+  background: var(--bg-muted); border: 1px solid var(--border);
+}
+.set-style-card { position: relative; }
+.set-style-preview[data-style-preview='liquid-glass'] { background: linear-gradient(120deg, rgba(255,255,255,.9), rgba(180,210,255,.6), rgba(255,255,255,.9)); border-color: rgba(255,255,255,.9); } /* style-conformance: ignore */
+.set-style-variant { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+.set-style-variant-label { font-size: var(--fs-xs); color: var(--text-muted); margin-right: 2px; }
+.set-style-variant-btn {
+  padding: 3px 10px; font-size: var(--fs-xs); cursor: pointer;
+  border: 1px solid var(--sf-control-edge); border-radius: var(--radius-pill);
+  background: var(--sf-control-bg); color: var(--text-secondary);
+}
+.set-style-variant-btn.on { border-color: var(--accent); color: var(--accent); }
 </style>

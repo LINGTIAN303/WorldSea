@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { STYLE_PACKS, type StyleId } from '../packs'
+import { READY_STYLE_IDS } from '../packs'
 
 type RGB = { r: number; g: number; b: number; a: number }
 
@@ -61,7 +61,7 @@ function varOf(block: string, name: string): string {
 }
 
 describe('控件边界对比度', () => {
-  for (const id of Object.keys(STYLE_PACKS) as StyleId[]) {
+  for (const id of READY_STYLE_IDS) {
     for (const dark of [false, true]) {
       it(`${id} · ${dark ? 'dark' : 'light'} ≥ 3:1`, () => {
         const css = packCss(id)

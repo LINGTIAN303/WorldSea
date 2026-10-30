@@ -5,10 +5,14 @@ import { AXIS_META, DEFAULT_STYLE_ID, STYLE_PACKS, type AxisKey, type StyleAxes,
 const STYLE_KEY = 'worldsea_ui_style'
 const AXES_KEY = 'worldsea_ui_style_axes'
 const PERF_KEY = 'worldsea_ui_style_perf'
+const GLASS_KEY = 'worldsea_ui_style_glass'
+
+export type GlassVariant = 'regular' | 'clear'
 
 const styleId = ref<StyleId>(DEFAULT_STYLE_ID)
 const overrides = ref<Partial<StyleAxes>>({})
 const perfMode = ref(false)
+const glassVariant = ref<GlassVariant>('regular')
 let loaded = false
 
 function storage(): Storage | null {
@@ -20,7 +24,7 @@ function storage(): Storage | null {
 }
 
 function isStyleId(value: unknown): value is StyleId {
-  return typeof value === 'string' && value in STYLE_PACKS
+  return typeof value === 'string' && value in STYLE_PACKS && STYLE_PACKS[value as StyleId].status === 'ready'
 }
 
 function clampAxis(key: AxisKey, value: number): number {
@@ -36,6 +40,7 @@ function load() {
   const saved = ls.getItem(STYLE_KEY)
   if (isStyleId(saved)) styleId.value = saved
   perfMode.value = ls.getItem(PERF_KEY) === '1'
+  glassVariant.value = ls.getItem(GLASS_KEY) === 'clear' ? 'clear' : 'regular'
   try {
     const raw = ls.getItem(AXES_KEY)
     const parsed = raw ? (JSON.parse(raw) as Partial<StyleAxes>) : null
@@ -58,6 +63,7 @@ function apply() {
   const root = document.documentElement
   root.dataset.style = styleId.value
   root.dataset.perf = perfMode.value ? 'on' : 'off'
+  root.dataset.glass = glassVariant.value
   const axes = resolvedAxes.value
   root.style.setProperty('--sf-material', String(axes.material))
   root.style.setProperty('--sf-depth', String(axes.depth))
@@ -70,6 +76,7 @@ function persist() {
   if (!ls) return
   ls.setItem(STYLE_KEY, styleId.value)
   ls.setItem(PERF_KEY, perfMode.value ? '1' : '0')
+  ls.setItem(GLASS_KEY, glassVariant.value)
   if (Object.keys(overrides.value).length) ls.setItem(AXES_KEY, JSON.stringify(overrides.value))
   else ls.removeItem(AXES_KEY)
 }
@@ -83,6 +90,7 @@ export function useStyle() {
   load()
 
   function setStyle(id: StyleId) {
+    if (STYLE_PACKS[id].status !== 'ready') return
     styleId.value = id
     persist()
     const root = document.documentElement
@@ -117,9 +125,15 @@ export function useStyle() {
     apply()
   }
 
+  function setGlassVariant(variant: GlassVariant) {
+    glassVariant.value = variant
+    persist()
+    apply()
+  }
+
   function isOverridden(key: AxisKey) {
     return overrides.value[key] !== undefined
   }
 
-  return { styleId, overrides, resolvedAxes, perfMode, setStyle, setAxis, resetAxis, resetAxes, setPerfMode, isOverridden }
+  return { styleId, overrides, resolvedAxes, perfMode, glassVariant, setStyle, setAxis, resetAxis, resetAxes, setPerfMode, setGlassVariant, isOverridden }
 }

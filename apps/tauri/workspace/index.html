@@ -31,6 +31,8 @@
       var s = localStorage.getItem('worldsea_ui_style')
       document.documentElement.dataset.style =
         s === 'neu' || s === 'soft-glass' || s === 'mist' ? s : 'mist'
+      var g = localStorage.getItem('worldsea_ui_style_glass')
+      document.documentElement.dataset.glass = g === 'clear' ? 'clear' : 'regular'
     } catch (e) {
       /* localStorage 不可用时保持默认 */
     }

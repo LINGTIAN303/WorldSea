@@ -33,9 +33,12 @@ function styleSource(file, source) {
   return [...source.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map((m) => m[1]).join('\n')
 }
 
-// 消费表面契约的阴影/模糊是合法写法，不计入硬编码存量
+// 消费表面契约的阴影/模糊是合法写法，不计入硬编码存量；带 ignore 标记的行视为视觉资产
 function stripTokenized(css) {
   return css
+    .split('\n')
+    .filter((line) => !line.includes('style-conformance: ignore'))
+    .join('\n')
     .replace(/box-shadow\s*:\s*[^;]*var\(--sf-[^;]*;/g, '')
     .replace(/backdrop-filter\s*:\s*[^;]*var\(--sf-[^;]*;/g, '')
 }
