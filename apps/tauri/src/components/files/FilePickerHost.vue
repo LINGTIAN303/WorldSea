@@ -309,7 +309,7 @@ function thumbUrl(path: string): string {
 }
 
 /* ── 悬停大图预览（逻辑在 useFilePickerPreview） ── */
-const { preview, onRowHover: hoverRow, onRowLeave } = useFilePickerPreview()
+const { preview, onRowHover: hoverRow, onRowLeave, reset: previewReset } = useFilePickerPreview()
 
 /** 行悬停：只把条目交给预览逻辑，DOM 事件留着算位置 */
 function onRowHover(row: { entry: FsEntry }, e: MouseEvent): void {
@@ -358,6 +358,15 @@ function onListKeydown(e: KeyboardEvent): void {
   handleKeydown(e, listRef.value)
 }
 
+/** 视图切换后滚动语义跳变（行高 30↔122）：DOM 滚动位置归零，虚拟窗口同步 */
+watch(viewMode, async () => {
+  await nextTick()
+  if (listRef.value) {
+    listRef.value.scrollTop = 0
+    onScroll(listRef.value)
+  }
+})
+
 /** 主区内容宽度上报（网格列数依赖；ResizeObserver 覆盖拖宽与窗口 resize） */
 let widthObserver: ResizeObserver | null = null
 onMounted(() => {
@@ -375,6 +384,8 @@ onMounted(() => {
 watch(
   req,
   async (current) => {
+    // 关面板或换请求：悬停预览的定时器与残留图必须清（v-if 移除 DOM 不触发 mouseleave）
+    previewReset()
     if (!current) return
     await reset(current.req.defaultPath)
     // 列表挂载后量一次可视高度（虚拟窗口依赖真实 clientHeight）

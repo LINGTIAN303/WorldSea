@@ -58,8 +58,17 @@ export function useFilePickerPreview() {
     preview.value = null
   }
 
+  /**
+   * 面板关闭/换请求时调用：v-if 移除 DOM 不触发 mouseleave，
+   * 定时器与新请求的预览残留图必须显式清掉（否则下次打开闪一帧旧图）。
+   */
+  function reset(): void {
+    clearTimer()
+    preview.value = null
+  }
+
   /** 卸载兜底：定时器必须清掉，否则可能在组件销毁后访问 DOM */
   onBeforeUnmount(clearTimer)
 
-  return { preview, onRowHover, onRowLeave }
+  return { preview, onRowHover, onRowLeave, reset }
 }

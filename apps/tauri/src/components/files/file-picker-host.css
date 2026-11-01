@@ -139,6 +139,14 @@
    scoped 样式只命中本组件 DOM 与子组件根元素，子组件内部元素必须自带样式 */
 .fp-main { display: flex; flex-direction: column; flex: 1; min-width: 0; }
 /* 面包屑（含子目录下拉）样式在 file-picker-crumbs.css（FilePickerCrumbs 自持） */
+/* 过渡包裹层：内容区的 flex 链在此续接——缺了它 fp-list 的 flex:1/overflow
+   全失效（父级不是 flex），列表被内容撑开、溢出被窗口裁掉且无滚动条 */
+.fp-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
 .fp-status {
   display: flex;
   align-items: center;
