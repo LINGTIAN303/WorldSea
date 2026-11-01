@@ -12,6 +12,10 @@ import {
   breadcrumbOf,
   baseNameOf,
   canThumbnail,
+  GRID,
+  gridColumns,
+  gridFocusDelta,
+  gridRowCount,
   extensionOf,
   matchesFilters,
   matchesQuery,
@@ -221,8 +225,31 @@ describe('选中统计与排序', () => {
   })
 })
 
-describe('缩略图判定', () => {
-  it('可解码的位图出缩略图', () => {
+describe('网格布局', () => {
+  it('gridColumns 按格宽取整列数，至少 1 列', () => {
+    expect(gridColumns(1000)).toBe(Math.floor(1000 / GRID.CELL_W))
+    expect(gridColumns(GRID.CELL_W * 3 + 20)).toBe(3)
+    expect(gridColumns(50)).toBe(1)
+    expect(gridColumns(0)).toBe(1)
+    expect(gridColumns(-5)).toBe(1)
+  })
+
+  it('gridRowCount 条目按行折算', () => {
+    expect(gridRowCount(10, 4)).toBe(3)
+    expect(gridRowCount(8, 4)).toBe(2)
+    expect(gridRowCount(0, 4)).toBe(0)
+    expect(gridRowCount(5, 0)).toBe(0)
+  })
+
+  it('gridFocusDelta 上下跨整行、左右邻格', () => {
+    expect(gridFocusDelta('ArrowRight', 5)).toBe(1)
+    expect(gridFocusDelta('ArrowLeft', 5)).toBe(-1)
+    expect(gridFocusDelta('ArrowDown', 5)).toBe(5)
+    expect(gridFocusDelta('ArrowUp', 5)).toBe(-5)
+  })
+})
+
+describe('缩略图判定', () => {  it('可解码的位图出缩略图', () => {
     for (const name of ['a.png', 'a.JPG', 'a.jpeg', 'a.gif', 'a.webp', 'a.bmp']) {
       expect(canThumbnail(entry(name))).toBe(true)
     }

@@ -10,7 +10,6 @@ import { computed, ref } from 'vue'
 import { invoke } from '@/composables/transport'
 import { resolveEntityDataDir } from '@worldsea/entity-core/core'
 import type { FilePickerRequest } from '@worldsea/entity-core/core'
-import { computeVirtualWindow } from '@worldsea/ui-kit/components/data/virtualWindow'
 import { loadRecentDirs, pushRecentDir } from './filePickerRecent'
 import {
   breadcrumbOf,
@@ -26,27 +25,15 @@ import {
   type QuickLocation,
 } from '@/components/files/filePickerModel'
 import { useFilePickerSelection } from './useFilePickerSelection'
-
-/** 行高（虚拟窗口强依赖固定值，与样式 .fp-row 高度一致） */
-export const ROW_HEIGHT = 30
-/** 视口外多渲染的行数（快速滚动时不露白） */
-const OVERSCAN = 6
+// ROW_HEIGHT 经此文件转出口（Host 引用路径不变）；实现在 useFilePickerView
+export { ROW_HEIGHT } from './useFilePickerView'
+import { useFilePickerView } from './useFilePickerView'
 /**
  * 单次列目录的条目上限。
  * 巨目录（System32 / node_modules）全量返回会拖慢 IPC 与解析，2000 条已远超
  * 选择场景的实际需要；超出时视图层提示「已截断」，用户可用搜索或路径直达。
  */
 const LIST_LIMIT = 2000
-
-/** 盘符介质类型中文说明 */
-const DRIVE_KIND_LABELS: Record<string, string> = {
-  fixed: '本地磁盘',
-  removable: '可移动磁盘',
-  network: '网络驱动器',
-  cdrom: '光盘',
-  ram: '内存盘',
-  unknown: '驱动器',
-}
 
 /** 一行渲染数据：条目 + 超限原因 */
 export interface PickerRow {
@@ -73,32 +60,28 @@ export function useFilePickerBrowse(options: {
   /** 本目录条目数达到 LIST_LIMIT 被截断（视图层提示用） */
   const listTruncated = ref(false)
   const focusIndex = ref(0)
-  const scrollTop = ref(0)
-  const viewportHeight = ref(400)
   const history = ref<string[]>([])
   const historyIndex = ref(-1)
   /** 当前目录内的名称过滤词（不递归；切换目录时清空） */
   const query = ref('')
 
+  /* ── 视图模式与网格虚拟化（useFilePickerView） ── */
+  const view = useFilePickerView({
+    visibleCount: () => visibleEntries.value.length,
+  })
+  const {
+    viewMode, setViewMode, navDirection, rowHeight, cols, gridRowsTotal,
+    virtualWindow, onScroll: onViewScroll, resetScroll,
+  } = view
+
   const isDirMode = computed(() => options.request()?.mode === 'directory')
   const multiple = computed(() => !isDirMode.value && !!options.request()?.multiple)
 
-  /** 真实路径比较口径（大小写与分隔符归一） */
-  function samePath(a: string | null | undefined, b: string | null | undefined): boolean {
-    if (!a || !b) return false
-    return normalizePath(a).toLowerCase() === normalizePath(b).toLowerCase()
-  }
-
-  /** 路径所属盘符根（`D:/a/b` → `D:`）；非盘符路径返回空串 */
-  function driveRootOf(path: string | null): string {
-    if (!path) return ''
-    const m = /^([A-Za-z]:)/.exec(normalizePath(path))
-    return m ? m[1] : ''
-  }
-
-  function driveTitle(drive: DriveEntry): string {
-    return `${drive.path}\n${DRIVE_KIND_LABELS[drive.kind] ?? DRIVE_KIND_LABELS.unknown}`
-  }
+/** 真实路径比较口径（大小写与分隔符归一） */
+function samePath(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return false
+  return normalizePath(a).toLowerCase() === normalizePath(b).toLowerCase()
+}
 
   /** 加载盘符与快捷位置（任一失败静默降级为空，不影响主列表） */
   async function loadLocations(): Promise<void> {
@@ -145,7 +128,7 @@ export function useFilePickerBrowse(options: {
       listError.value = `无法读取该目录：${err instanceof Error ? err.message : String(err)}`
     } finally {
       loadingList.value = false
-      scrollTop.value = 0
+      resetScroll()
     }
   }
 
@@ -153,6 +136,7 @@ export function useFilePickerBrowse(options: {
   function navigate(path: string): void {
     const target = normalizePath(path)
     if (!target) return
+    navDirection.value = 'forward'
     currentPath.value = target
     pathDraft.value = target
     resetSelection()
@@ -163,7 +147,7 @@ export function useFilePickerBrowse(options: {
     void loadDir(target)
   }
 
-  /** 历史跳转（不追加新记录） */
+  /** 历史跳转（不追加新记录；方向感由 goBack/goForward 设置） */
   async function jumpToHistory(path: string): Promise<void> {
     currentPath.value = path
     pathDraft.value = path
@@ -175,12 +159,14 @@ export function useFilePickerBrowse(options: {
   function goBack(): void {
     if (historyIndex.value <= 0) return
     historyIndex.value--
+    navDirection.value = 'back'
     void jumpToHistory(history.value[historyIndex.value])
   }
 
   function goForward(): void {
     if (historyIndex.value >= history.value.length - 1) return
     historyIndex.value++
+    navDirection.value = 'forward'
     void jumpToHistory(history.value[historyIndex.value])
   }
 
@@ -234,15 +220,10 @@ export function useFilePickerBrowse(options: {
     onRowClick: applyRowClick, moveFocus, focusSelect, selectAll, clearSelection, resetSelection,
   } = selection
 
+  /** 列表模式的可视行（虚拟窗口 → 条目 + 超限原因；网格模式不消费此值） */
   const rows = computed<PickerRow[]>(() => {
     const all = visibleEntries.value
-    const { start, end } = computeVirtualWindow(
-      all.length,
-      scrollTop.value,
-      viewportHeight.value,
-      ROW_HEIGHT,
-      OVERSCAN,
-    )
+    const { start, end } = virtualWindow.value
     const maxBytes = options.request()?.maxBytes
     const out: PickerRow[] = []
     for (let i = start; i < end; i++) {
@@ -251,11 +232,6 @@ export function useFilePickerBrowse(options: {
     }
     return out
   })
-
-  function onScroll(el: HTMLElement): void {
-    scrollTop.value = el.scrollTop
-    viewportHeight.value = el.clientHeight || viewportHeight.value
-  }
 
   /** 面包屑（无显式根：从盘符展开，便于跨盘跳转） */
   const crumbs = computed(() => breadcrumbOf(currentPath.value))
@@ -288,7 +264,7 @@ export function useFilePickerBrowse(options: {
   /** 每次新请求进来：重置状态并按 defaultPath 起步（不可读则回落首个快捷位置/盘符） */
   async function reset(defaultPath?: string | null): Promise<void> {
     resetSelection()
-    scrollTop.value = 0
+    resetScroll()
     listError.value = ''
     query.value = ''
     history.value = []
@@ -354,6 +330,15 @@ export function useFilePickerBrowse(options: {
     summary,
     overLimitCount,
     canConfirm,
+    // 视图模式与网格
+    viewMode,
+    setViewMode,
+    navDirection,
+    rowHeight,
+    cols,
+    gridRowsTotal,
+    virtualWindow,
+    setViewportWidth: view.setViewportWidth,
     // 动作
     navigate,
     goBack,
@@ -362,7 +347,7 @@ export function useFilePickerBrowse(options: {
     reload,
     commitPathDraft,
     resetPathDraft,
-    onScroll,
+    onScroll: onViewScroll,
     onRowClick: applyRowClick,
     onRowDblClick,
     confirm,
@@ -377,8 +362,6 @@ export function useFilePickerBrowse(options: {
     clearSelection,
     // 工具
     samePath,
-    driveRootOf,
-    driveTitle,
     formatBytes,
   }
 }

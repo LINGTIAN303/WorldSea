@@ -223,6 +223,69 @@ export function canThumbnail(entry: FsEntry): boolean {
   return THUMBNAIL_EXTS.has(extensionOf(entry.name))
 }
 
+/** 路径所属盘符根（`D:/a/b` → `D:`）；非盘符路径返回空串 */
+export function driveRootOf(path: string | null): string {
+  if (!path) return ''
+  const p = normalizePath(path)
+  // 盘符形如 `D:`（后跟 `/` 或到头）；逐字符校验避免正则误伤网络路径
+  if (p.length >= 2 && /^[A-Za-z]$/.test(p[0]) && p[1] === ':') return p.slice(0, 2)
+  return ''
+}
+
+/** 盘符介质类型中文说明 */
+const DRIVE_KIND_LABELS: Record<string, string> = {
+  fixed: '本地磁盘',
+  removable: '可移动磁盘',
+  network: '网络驱动器',
+  cdrom: '光盘',
+  ram: '内存盘',
+  unknown: '驱动器',
+}
+
+/** 盘符悬浮提示（路径 + 介质类型） */
+export function driveTitle(drive: DriveEntry): string {
+  return `${drive.path}\n${DRIVE_KIND_LABELS[drive.kind] ?? DRIVE_KIND_LABELS.unknown}`
+}
+
+/* ════════════════════════════════════════
+   视图模式与网格布局
+   ════════════════════════════════════════ */
+
+/** 视图模式：详细信息列表 / 缩略图网格 */
+export type PickerViewMode = 'list' | 'grid'
+
+/** 网格布局常量（与 .fp-cell 系列样式保持同步） */
+export const GRID = {
+  /** 单格总宽（含内边距） */
+  CELL_W: 104,
+  /** 单格总高：96 缩略图区 + 22 文件名行 + 4 上下间距 */
+  CELL_H: 122,
+} as const
+
+/** 按容器内容宽度算每行列数（至少 1，避免除零与负宽） */
+export function gridColumns(containerWidth: number): number {
+  return Math.max(1, Math.floor(Math.max(0, containerWidth) / GRID.CELL_W))
+}
+
+/** 网格虚拟化的总行数（条目按行折算） */
+export function gridRowCount(itemCount: number, cols: number): number {
+  if (itemCount <= 0 || cols <= 0) return 0
+  return Math.ceil(itemCount / cols)
+}
+
+/**
+ * 网格下的键盘位移量（↑↓ 跨一整行，←→ 邻格）。
+ * 列表模式不用此函数（↑↓ = ±1）。
+ */
+export function gridFocusDelta(key: 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight', cols: number): number {
+  switch (key) {
+    case 'ArrowLeft': return -1
+    case 'ArrowRight': return 1
+    case 'ArrowUp': return -cols
+    case 'ArrowDown': return cols
+  }
+}
+
 /** 修改时间显示（无值返回 `—`） */export function formatModified(modified?: string | null): string {
   if (!modified) return '—'
   const ms = Number(modified)

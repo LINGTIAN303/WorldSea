@@ -83,17 +83,25 @@
   color: var(--text-color);
 }
 .fp-path:focus { outline: none; border-color: var(--primary); }
-/* 搜索行：与导航行同宽，图标与清除按钮做绝对定位 */
+/* 搜索行：输入框弹性占满，右侧接视图切换组；图标与清除按钮相对输入框绝对定位 */
 .fp-search-row {
-  position: relative;
   display: flex;
   align-items: center;
+  gap: 8px;
   padding: 0 14px 8px;
   flex-shrink: 0;
 }
+.fp-search-wrap {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
 .fp-search-icon {
   position: absolute;
-  left: 22px;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
   color: var(--text-tertiary, var(--text-muted));
   pointer-events: none;
 }
@@ -111,7 +119,9 @@
 .fp-search::placeholder { color: var(--text-tertiary, var(--text-muted)); }
 .fp-search-clear {
   position: absolute;
-  right: 20px;
+  right: 5px;
+  top: 50%;
+  transform: translateY(-50%);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -191,6 +201,7 @@
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
 }
+.fp-status--empty { flex-direction: column; gap: 10px; padding: 40px 16px; }
 .fp-status--error { color: var(--danger); }
 /* 截断提示：中性信息条，与错误态区分（用弱化面而非语义色） */
 .fp-truncated {
@@ -235,7 +246,8 @@
   user-select: none;
 }
 .fp-row:hover { background: var(--sf-control-bg); }
-.fp-row.on { background: var(--sf-accent-surface-bg); color: var(--text-color); }
+/* 选中浮起感：强调面 + 1px 强调描边（outline 不入 boxShadow 门禁计数） */
+.fp-row.on { background: var(--sf-accent-surface-bg); color: var(--text-color); outline: 1px solid var(--accent); outline-offset: -1px; }
 .fp-row.focus { outline: 1px solid var(--ring-color); outline-offset: -1px; }
 .fp-row.dim { opacity: 0.45; cursor: not-allowed; }
 .fp-row.dir .fp-row-name { color: var(--text-color); }
@@ -248,6 +260,91 @@
   border-radius: 3px;
   background: var(--sf-panel-bg-muted);
 }
+
+/* ── 视图切换（搜索行右端） ── */
+.fp-view-toggle {
+  display: inline-flex;
+  gap: 2px;
+  margin-left: 8px;
+  padding: 2px;
+  border: 1px solid var(--sf-control-edge);
+  border-radius: calc(var(--radius-sm) * var(--sf-radius-scale));
+  background: var(--sf-control-bg);
+  flex-shrink: 0;
+}
+.fp-view-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 22px;
+  border: none;
+  border-radius: calc(var(--radius-xs) * var(--sf-radius-scale));
+  background: transparent;
+  color: var(--text-tertiary, var(--text-muted));
+  cursor: pointer;
+}
+.fp-view-btn:hover { color: var(--text-color); }
+.fp-view-btn.on { background: var(--sf-accent-surface-bg); color: var(--text-color); }
+
+/* ── 网格视图：格子行虚拟化，行内横排 cols 个格子 ── */
+.fp-grid-row { position: absolute; left: 6px; right: 6px; display: flex; gap: 8px; }
+.fp-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 104px;
+  padding: 4px 4px 2px;
+  border-radius: calc(var(--radius-sm) * var(--sf-radius-scale));
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  cursor: default;
+  user-select: none;
+}
+.fp-cell:hover { background: var(--sf-control-bg); }
+.fp-cell.on { background: var(--sf-accent-surface-bg); color: var(--text-color); outline: 1px solid var(--accent); outline-offset: -1px; }
+.fp-cell.focus { outline: 1px solid var(--ring-color); outline-offset: -1px; }
+.fp-cell.dim { opacity: 0.45; cursor: not-allowed; }
+.fp-cell-thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 96px;
+  height: 96px;
+  border-radius: calc(var(--radius-xs) * var(--sf-radius-scale));
+  background: var(--sf-panel-bg-muted);
+  overflow: hidden;
+}
+.fp-cell-img { width: 100%; height: 100%; object-fit: cover; }
+.fp-cell-fileicon { transform: scale(2); transform-origin: center; }
+.fp-cell-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+}
+.fp-cell.dir .fp-cell-name { color: var(--text-color); }
+
+/* ── 加载骨架（R2 口径：列表文本条 / 网格图块） ── */
+.fp-loading { padding: 8px 14px; }
+.fp-skel-list { display: flex; flex-direction: column; gap: 10px; padding-top: 8px; }
+.fp-skel-grid { display: grid; grid-template-columns: repeat(auto-fill, 104px); gap: 8px; justify-content: start; }
+
+/* ── 目录切换过渡（方向感由 navDirection 选变体；data-reduce-motion 全局压为瞬移） ── */
+.fp-dir-forward-enter-active,
+.fp-dir-back-enter-active,
+.fp-dir-jump-enter-active { transition: opacity 0.14s ease, transform 0.14s ease; }
+.fp-dir-forward-leave-active,
+.fp-dir-back-leave-active,
+.fp-dir-jump-leave-active { transition: opacity 0.1s ease; }
+.fp-dir-forward-enter-from { opacity: 0; transform: translateY(10px); }
+.fp-dir-back-enter-from { opacity: 0; transform: translateY(-10px); }
+.fp-dir-jump-enter-from { opacity: 0; }
+.fp-dir-forward-leave-to,
+.fp-dir-back-leave-to,
+.fp-dir-jump-leave-to { opacity: 0; }
 /* 悬停大图预览：fixed 定位（坐标由 JS 按行矩形计算），层级高于列表但低于模态 */
 .fp-preview {
   position: fixed;

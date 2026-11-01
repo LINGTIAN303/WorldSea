@@ -49,3 +49,25 @@ export function clearRecentDirs(): void {
     // 同上：静默降级
   }
 }
+
+/* ── 视图模式偏好（列表 / 网格） ── */
+
+const VIEW_KEY = 'worldsea_file_picker_view'
+
+/** 读取视图模式偏好（缺失或非法值回退列表） */
+export function loadViewMode(): 'list' | 'grid' {
+  try {
+    return localStorage.getItem(VIEW_KEY) === 'grid' ? 'grid' : 'list'
+  } catch {
+    return 'list'
+  }
+}
+
+/** 保存视图模式偏好（存储不可用时静默放弃，本次会话内仍生效） */
+export function saveViewMode(mode: 'list' | 'grid'): void {
+  try {
+    localStorage.setItem(VIEW_KEY, mode)
+  } catch {
+    // 静默降级
+  }
+}

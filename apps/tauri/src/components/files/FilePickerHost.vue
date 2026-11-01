@@ -46,72 +46,53 @@
             </button>
           </div>
 
-          <!-- 搜索行：当前目录内按名称过滤（不递归；切换目录自动清空） -->
+          <!-- 搜索行：当前目录内按名称过滤（不递归；切换目录自动清空）+ 视图切换 -->
           <div class="fp-search-row">
-            <WsIcon name="search" size="xs" class="fp-search-icon" />
-            <input
-              v-model="query"
-              class="fp-search"
-              type="search"
-              spellcheck="false"
-              placeholder="在当前文件夹中搜索名称"
-              aria-label="在当前文件夹中搜索"
-            />
-            <button v-if="query" class="fp-search-clear" title="清除搜索" @click="query = ''">
-              <WsIcon name="close" size="xs" />
-            </button>
+            <div class="fp-search-wrap">
+              <WsIcon name="search" size="xs" class="fp-search-icon" />
+              <input
+                v-model="query"
+                class="fp-search"
+                type="search"
+                spellcheck="false"
+                placeholder="在当前文件夹中搜索名称"
+                aria-label="在当前文件夹中搜索"
+              />
+              <button v-if="query" class="fp-search-clear" title="清除搜索" @click="query = ''">
+                <WsIcon name="close" size="xs" />
+              </button>
+            </div>
+            <!-- 视图切换：详细信息列表 / 缩略图网格（aria-pressed 标注当前态） -->
+            <div class="fp-view-toggle" role="group" aria-label="视图模式">
+              <button
+                class="fp-view-btn"
+                :class="{ on: viewMode === 'list' }"
+                :aria-pressed="viewMode === 'list'"
+                title="详细信息视图"
+                @click="setViewMode('list')"
+              ><WsIcon name="list" size="xs" /></button>
+              <button
+                class="fp-view-btn"
+                :class="{ on: viewMode === 'grid' }"
+                :aria-pressed="viewMode === 'grid'"
+                title="缩略图网格视图"
+                @click="setViewMode('grid')"
+              ><WsIcon name="grid" size="xs" /></button>
+            </div>
           </div>
 
           <div class="fp-body">
-            <!-- 左轨：快捷位置 + 盘符 -->
-            <div class="fp-rail">
-              <div v-if="recentDirs.length" class="fp-rail-group">
-                <div class="fp-rail-title">最近访问</div>
-                <button
-                  v-for="dir in recentDirs"
-                  :key="dir"
-                  class="fp-rail-item"
-                  :class="{ on: samePath(dir, currentPath) }"
-                  :title="dir"
-                  @click="navigate(dir)"
-                >
-                  <WsIcon name="clock" size="xs" />
-                  <span>{{ railLabel(dir) }}</span>
-                </button>
-              </div>
-              <div class="fp-rail-group">
-                <div class="fp-rail-title">快捷位置</div>
-                <button
-                  v-for="loc in quickLocations"
-                  :key="loc.id"
-                  class="fp-rail-item"
-                  :class="{ on: samePath(loc.path, currentPath) }"
-                  :title="loc.path"
-                  @click="navigate(loc.path)"
-                >
-                  <WsIcon :name="loc.icon" size="xs" />
-                  <span>{{ loc.label }}</span>
-                </button>
-              </div>
-              <div class="fp-rail-group">
-                <div class="fp-rail-title">此电脑</div>
-                <button
-                  v-for="drive in drives"
-                  :key="drive.path"
-                  class="fp-rail-item"
-                  :class="{ on: driveRootOf(currentPath) === normalizePath(drive.path) }"
-                  :title="driveTitle(drive)"
-                  @click="navigate(drive.path)"
-                >
-                  <WsIcon name="cat-storage" size="xs" />
-                  <span>{{ drive.name }}</span>
-                </button>
-                <div v-if="drives.length === 0" class="fp-rail-empty">未取到盘符</div>
-              </div>
-            </div>
+            <!-- 左轨：最近访问 / 快捷位置 / 盘符（渲染在 FilePickerRail） -->
+            <FilePickerRail
+              :recent-dirs="recentDirs"
+              :quick-locations="quickLocations"
+              :drives="drives"
+              :active-path="currentPath"
+              @navigate="navigate"
+            />
 
-            <!-- 主区：面包屑 + 列表 -->
-            <div class="fp-main">
+            <!-- 主区：面包屑 + 列表/网格 -->
+            <div ref="mainRef" class="fp-main">
               <div class="fp-crumbs">
                 <template v-for="(crumb, i) in crumbs" :key="crumb.path">
                   <span v-if="i > 0" class="fp-crumb-sep">/</span>
@@ -121,76 +102,107 @@
                 </template>
               </div>
 
-              <div v-if="loadingList" class="fp-status"><WsInlineLoading size="sm" label="正在读取目录" /></div>
-              <div v-else-if="listError" class="fp-status fp-status--error">
-                <span>{{ listError }}</span>
-                <button class="fp-link" @click="reload">重试</button>
-              </div>
-              <div v-else-if="visibleEntries.length === 0" class="fp-status">
-                {{ entries.length === 0 ? '此文件夹为空' : '当前过滤器下没有可显示的文件' }}
-              </div>
-
-              <!-- 巨目录截断提示：条数够多时只说结论，不用错误色（这不是故障） -->
-              <div v-if="listTruncated && !loadingList" class="fp-truncated">
-                条目较多，仅显示前 {{ entries.length }} 项；可输入路径直达或在上方搜索
-              </div>
-
-              <!-- 固定行高 + 虚拟窗口：巨目录（System32 等）只渲染可视区。
-                   键盘导航绑在本容器上（tabindex=0）：↑↓ 移动、Enter 进入/确认、
-                   Space 切换、Shift+↑↓ 或 Shift+点击 区间多选、Ctrl+A 全选、Backspace 上级。 -->
-              <div
-                v-else
-                ref="listRef"
-                class="fp-list"
-                role="listbox"
-                tabindex="0"
-                :aria-multiselectable="multiple"
-                :aria-activedescendant="focusIndex >= 0 ? `fp-row-${focusIndex}` : undefined"
-                @scroll="onListScroll"
-                @keydown="onListKeydown"
-              >
-                <div class="fp-list-spacer" :style="{ height: `${visibleEntries.length * ROW_HEIGHT}px` }">
-                  <!-- 列宽与 .fp-row 的固定宽度保持一致（名称弹性，其余定宽） -->
-                  <div
-                    v-for="row in rows"
-                    :key="row.entry.path"
-                    :id="`fp-row-${row.index}`"
-                    class="fp-row"
-                    :class="{
-                      dir: row.entry.isDir,
-                      on: selected.has(row.entry.path),
-                      dim: !!row.limit,
-                      focus: focusIndex === row.index,
-                    }"
-                    :style="{ top: `${row.index * ROW_HEIGHT}px` }"
-                    role="option"
-                    :aria-selected="selected.has(row.entry.path)"
-                    :aria-disabled="row.limit ? 'true' : undefined"
-                    :title="row.limit ? row.limit : row.entry.path"
-                    @click="onRowClick(row, { shift: $event.shiftKey })"
-                    @dblclick="onRowDblClick(row)"
-                    @mouseenter="onRowHover(row, $event)"
-                    @mouseleave="onRowLeave"
-                  >
-                    <span class="fp-row-icon">
-                      <WsIcon v-if="row.entry.isDir" name="folder" size="xs" />
-                      <img
-                        v-else-if="canThumbnail(row.entry)"
-                        class="fp-thumb"
-                        :src="thumbUrl(row.entry.path)"
-                        :alt="''"
-                        loading="lazy"
-                        decoding="async"
-                      />
-                      <FileIcon v-else :name="row.entry.name" />
-                    </span>
-                    <span class="fp-row-name">{{ row.entry.name }}</span>
-                    <span class="fp-row-time">{{ formatModified(row.entry.modified) }}</span>
-                    <span class="fp-row-type">{{ typeLabelOf(row.entry) }}</span>
-                    <span class="fp-row-size">{{ row.entry.isDir ? '' : formatBytes(row.entry.size) }}</span>
+              <!-- 目录切换过渡：key=路径强制重建内容层，方向感由 navDirection 选 enter 变体；
+                   data-reduce-motion 根属性会把过渡压到近瞬移（theme.css 全局开关） -->
+              <Transition :name="`fp-dir-${navDirection}`" mode="out-in">
+                <div v-if="loadingList" key="loading" class="fp-loading">
+                  <!-- R2 骨架口径：列表 = 文本条，网格 = 图块格 -->
+                  <template v-if="viewMode === 'grid'">
+                    <div class="fp-skel-grid">
+                      <WsSkeleton v-for="n in 8" :key="n" variant="card" :aspect="'104 / 122'" label="正在读取目录" />
+                    </div>
+                  </template>
+                  <div v-else class="fp-skel-list">
+                    <WsSkeleton
+                      v-for="n in 8"
+                      :key="n"
+                      variant="text"
+                      :lines="1"
+                      label="正在读取目录"
+                      :style="{ width: `${62 + (n % 4) * 9}%` }"
+                      :aria-hidden="n > 1 || undefined"
+                    />
                   </div>
                 </div>
-              </div>
+                <div v-else-if="listError" key="error" class="fp-status fp-status--error">
+                  <span>{{ listError }}</span>
+                  <button class="fp-link" @click="reload">重试</button>
+                </div>
+                <div v-else-if="visibleEntries.length === 0" key="empty" class="fp-status fp-status--empty">
+                  <span>{{ entries.length === 0 ? '此文件夹为空' : '当前过滤器下没有可显示的文件' }}</span>
+                  <button v-if="canGoUp" class="fp-link" @click="goUp">返回上一级</button>
+                </div>
+                <div v-else key="content" class="fp-content">
+                  <!-- 巨目录截断提示：条数够多时只说结论，不用错误色（这不是故障） -->
+                  <div v-if="listTruncated" class="fp-truncated">
+                    条目较多，仅显示前 {{ entries.length }} 项；可输入路径直达或在上方搜索
+                  </div>
+
+                  <!-- 固定行高/格高 + 虚拟窗口：巨目录只渲染可视区。
+                       键盘导航绑在本容器上（tabindex=0）：↑↓ 移动（网格下跨整行、←→ 邻格）、
+                       Enter 进入/确认、Space 切换、Shift 区间多选、Ctrl+A 全选、Backspace 上级。 -->
+                  <div
+                    ref="listRef"
+                    class="fp-list"
+                    role="listbox"
+                    tabindex="0"
+                    :aria-multiselectable="multiple"
+                    :aria-activedescendant="focusIndex >= 0 ? `fp-item-${focusIndex}` : undefined"
+                    @scroll="onListScroll"
+                    @keydown="onListKeydown"
+                  >
+                    <!-- 列表视图：绝对定位行， spacer 撑出总高 -->
+                    <div v-if="viewMode === 'list'" class="fp-list-spacer" :style="{ height: `${visibleEntries.length * rowHeight}px` }">
+                      <div
+                        v-for="row in rows"
+                        :key="row.entry.path"
+                        :id="`fp-item-${row.index}`"
+                        class="fp-row"
+                        :class="{ dir: row.entry.isDir, on: selected.has(row.entry.path), dim: !!row.limit, focus: focusIndex === row.index }"
+                        :style="{ top: `${row.index * rowHeight}px` }"
+                        role="option"
+                        :aria-selected="selected.has(row.entry.path)"
+                        :aria-disabled="row.limit ? 'true' : undefined"
+                        :title="row.limit ? row.limit : row.entry.path"
+                        @click="onRowClick(row, { shift: $event.shiftKey })"
+                        @dblclick="onRowDblClick(row)"
+                        @mouseenter="onRowHover(row, $event)"
+                        @mouseleave="onRowLeave"
+                      >
+                        <span class="fp-row-icon">
+                          <WsIcon v-if="row.entry.isDir" name="folder" size="xs" />
+                          <img
+                            v-else-if="canThumbnail(row.entry)"
+                            class="fp-thumb"
+                            :src="thumbUrl(row.entry.path)"
+                            :alt="''"
+                            loading="lazy"
+                            decoding="async"
+                          />
+                          <FileIcon v-else :name="row.entry.name" />
+                        </span>
+                        <span class="fp-row-name">{{ row.entry.name }}</span>
+                        <span class="fp-row-time">{{ formatModified(row.entry.modified) }}</span>
+                        <span class="fp-row-type">{{ typeLabelOf(row.entry) }}</span>
+                        <span class="fp-row-size">{{ row.entry.isDir ? '' : formatBytes(row.entry.size) }}</span>
+                      </div>
+                    </div>
+
+                    <!-- 网格视图：按「格子行」虚拟化，每行 cols 个格子（渲染在 FilePickerGrid） -->
+                    <FilePickerGrid
+                      v-else
+                      :rows="gridCells"
+                      :virtual-start="virtualWindow.start"
+                      :row-height="rowHeight"
+                      :total-rows="gridRowsTotal"
+                      :selected="selected"
+                      :focus-index="focusIndex"
+                      @row-click="(cell, e) => onRowClick(cell, { shift: e.shiftKey })"
+                      @row-dblclick="onRowDblClick"
+                    />
+                  </div>
+                </div>
+              </Transition>
             </div>
           </div>
 
@@ -233,15 +245,21 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { convertFileSrc } from '@tauri-apps/api/core'
-import { FileIcon, TuiButton, WsIcon, WsInlineLoading } from '@worldsea/ui-kit'
+import { FileIcon, TuiButton, WsIcon, WsSkeleton } from '@worldsea/ui-kit'
 import { useResizable } from '@worldsea/ui-kit/composables/useResizable'
 import { useFocusTrap } from '@/composables/useFocusTrap'
 import { activePick, settlePick } from '@/composables/filePickerApi'
-import { useFilePickerBrowse, ROW_HEIGHT } from '@/composables/useFilePickerBrowse'
+import { useFilePickerBrowse } from '@/composables/useFilePickerBrowse'
 import { useFilePickerPreview } from '@/composables/useFilePickerPreview'
-import { canThumbnail, formatModified, normalizePath, typeLabelOf, type FsEntry } from './filePickerModel'
+import { useFilePickerKeys } from '@/composables/useFilePickerKeys'
+import FilePickerGrid from './FilePickerGrid.vue'
+import type { GridCell } from './FilePickerGrid.vue'
+import {
+  canThumbnail, formatModified, normalizePath, overLimitReason, typeLabelOf,
+  type FsEntry,
+} from './filePickerModel'
 
 const req = activePick
 
@@ -249,6 +267,7 @@ const req = activePick
 const { width } = useResizable({ panelId: 'modal-file-picker', defaultWidth: 880, minWidth: 640, maxWidth: 1400 })
 
 const panelRef = ref<HTMLElement | null>(null)
+const mainRef = ref<HTMLElement | null>(null)
 const listRef = ref<HTMLElement | null>(null)
 
 const browse = useFilePickerBrowse({
@@ -261,17 +280,29 @@ const {
   listTruncated,
   selected, focusIndex, history, historyIndex, isDirMode, multiple, canGoUp,
   visibleEntries, rows, crumbs, summary, overLimitCount, canConfirm,
+  viewMode, setViewMode, navDirection, rowHeight, cols, gridRowsTotal, virtualWindow, setViewportWidth,
   navigate, goBack, goForward, goUp, reload, commitPathDraft, resetPathDraft,
   onScroll, onRowClick, onRowDblClick, confirm, reset, useNativeDialog,
-  samePath, driveRootOf, driveTitle, formatBytes,
+  formatBytes,
   moveFocus, focusSelect, focusEnter, selectAll, clearSelection,
 } = browse
 
-/** 左轨标签：末两级路径，够区分又不会撑爆 168px 栏宽 */
-function railLabel(path: string): string {
-  const segs = normalizePath(path).split('/').filter(Boolean)
-  return segs.slice(-2).join('/') || path
-}
+/** 网格可视行的格子（按行分组；与列表行同构，超限随条目计算） */
+const gridCells = computed<GridCell[][]>(() => {
+  const all = visibleEntries.value
+  const maxBytes = req.value?.req.maxBytes
+  const out: GridCell[][] = []
+  for (let r = virtualWindow.value.start; r < virtualWindow.value.end; r++) {
+    const begin = r * cols.value
+    const row: GridCell[] = []
+    for (let i = begin; i < Math.min(begin + cols.value, all.length); i++) {
+      const entry = all[i]
+      row.push({ entry, index: i, limit: overLimitReason(entry, maxBytes) })
+    }
+    out.push(row)
+  }
+  return out
+})
 
 /**
  * 缩略图 URL（asset 协议）。只在渲染可见行时调用，虚拟滚动已把范围收窄到可视区；
@@ -304,65 +335,38 @@ function onListScroll(e: Event): void {
   onScroll(e.target as HTMLElement)
 }
 
-/** 焦点行滚入视口（键盘移动后调用；虚拟窗口下只保证目标行可见） */
-function revealFocus(): void {
-  const el = listRef.value
-  if (!el) return
-  const top = focusIndex.value * ROW_HEIGHT
-  const bottom = top + ROW_HEIGHT
-  if (top < el.scrollTop) el.scrollTop = top
-  else if (bottom > el.scrollTop + el.clientHeight) el.scrollTop = bottom - el.clientHeight
+/** 键盘导航（逻辑在 useFilePickerKeys；revealFocus 需要 listRef，包装一层） */
+const { onListKeydown: handleKeydown } = useFilePickerKeys({
+  viewMode: () => viewMode.value,
+  cols: () => cols.value,
+  rowHeight: () => rowHeight.value,
+  visibleCount: () => visibleEntries.value.length,
+  focusIndex,
+  hasSelection: () => selected.value.size > 0,
+  moveFocus,
+  focusSelect,
+  focusEnter,
+  selectAll,
+  goUp,
+  clearSelection,
+})
+
+function onListKeydown(e: KeyboardEvent): void {
+  handleKeydown(e, listRef.value)
 }
 
-/**
- * 列表键盘导航。
- * 只接管方向键/Enter/Space/Backspace/Ctrl+A，其余键（含文字输入）放行给搜索框与路径框。
- */
-function onListKeydown(e: KeyboardEvent): void {
-  const before = focusIndex.value
-  switch (e.key) {
-    case 'ArrowDown':
-      e.preventDefault()
-      moveFocus(1)
-      if (e.shiftKey) focusSelect({ shift: true })
-      break
-    case 'ArrowUp':
-      e.preventDefault()
-      moveFocus(-1)
-      if (e.shiftKey) focusSelect({ shift: true })
-      break
-    case 'Home':
-      e.preventDefault()
-      moveFocus(-visibleEntries.value.length)
-      break
-    case 'End':
-      e.preventDefault()
-      moveFocus(visibleEntries.value.length)
-      break
-    case ' ':
-      // Space 只用于切换选中，不触发页面滚动
-      e.preventDefault()
-      focusSelect({ shift: e.shiftKey })
-      break
-    case 'Enter':
-      e.preventDefault()
-      focusEnter()
-      break
-    case 'Backspace':
-      e.preventDefault()
-      goUp()
-      break
-    case 'a':
-    case 'A':
-      if (!e.ctrlKey && !e.metaKey) return
-      e.preventDefault()
-      selectAll()
-      break
-    default:
-      return
-  }
-  if (focusIndex.value !== before) void nextTick().then(revealFocus)
-}
+/** 主区内容宽度上报（网格列数依赖；ResizeObserver 覆盖拖宽与窗口 resize） */
+let widthObserver: ResizeObserver | null = null
+onMounted(() => {
+  if (typeof ResizeObserver === 'undefined' || !mainRef.value) return
+  widthObserver = new ResizeObserver((entries) => {
+    const w = entries[0]?.contentRect.width
+    if (w) setViewportWidth(w)
+  })
+  widthObserver.observe(mainRef.value)
+  // 挂载即量一次（observer 首帧也会回调，这里兜底时序）
+  setViewportWidth(mainRef.value.clientWidth || 640)
+})
 
 /** 每次新请求进来：重置并起步（defaultPath 不可读时回落快捷位置/首个盘符） */
 watch(
@@ -378,6 +382,7 @@ watch(
 )
 
 onBeforeUnmount(() => {
+  widthObserver?.disconnect()
   // 组件被卸载时释放未兑现请求，避免调用方 Promise 悬挂
   if (req.value) settlePick(null)
 })
