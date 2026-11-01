@@ -1,8 +1,20 @@
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-const read = (p: string) => readFileSync(resolve(process.cwd(), p), 'utf8')
+/**
+ * 读取目标文件内容做契约匹配。.vue 的 scoped 样式允许外置为同名伴随 CSS
+ * （`<style scoped src="./x.css">`，控制单文件规模的手法），此时 var(--sf-*)
+ * 在 CSS 文件里——这里把伴随文件内容一并拼入，契约对两种形态同样生效。
+ */
+const read = (p: string) => {
+  const main = readFileSync(resolve(process.cwd(), p), 'utf8')
+  const companion = p.endsWith('.vue')
+    ? resolve(process.cwd(), p.replace(/\.vue$/, '.css'))
+    : null
+  if (companion && existsSync(companion)) return main + readFileSync(companion, 'utf8')
+  return main
+}
 
 const TARGETS = [
   'packages/ui-kit/src/components/TuiButton.vue',
@@ -118,8 +130,9 @@ describe('B4 工具栏与下拉消费表面契约', () => {
 
 const B4_MODALS = [
   'packages/ui-kit/src/components/editor/ColorPickerDialog.vue',
-  'packages/ui-kit/src/components/data/ImportExportModal.vue',
-  'packages/plugin-sdk/src/components/BatchEditModal.vue',
+  // 两弹层的 scoped 样式均已外置为伴随 CSS（控制单文件规模），契约直接指向 CSS
+  'packages/ui-kit/src/components/data/import-export-modal.css',
+  'packages/plugin-sdk/src/components/batch-edit-modal.css',
 ]
 
 describe('B4 共享弹层消费表面契约', () => {

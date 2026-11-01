@@ -5,52 +5,8 @@ import type { Relation } from '../types'
 import type { ProjectFile, ProjectFileContent } from '../types'
 import type { StorageBackend, EntityPageQuery, EntityPageResult, EntitySearchFilter } from './StorageBackend'
 import { paginateEntitiesInMemory, filterEntitiesInMemory } from './StorageBackend'
-
-/* ════════════════════════════════════════
-   Tauri 文件系统操作封装
-   ════════════════════════════════════════ */
-
-let _invoke: ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) | null = null
-
-async function getInvoke() {
-  if (_invoke) return _invoke
-  try {
-    const api = await import('@tauri-apps/api/core')
-    _invoke = api.invoke
-    return _invoke
-  } catch {
-    return null
-  }
-}
-
-async function writeTextFile(path: string, content: string, createDirs = true): Promise<void> {
-  const invoke = await getInvoke()
-  if (!invoke) throw new Error('Tauri 环境不可用')
-  await invoke('cmd_fs_write', { path, content, createDirs })
-}
-
-async function readTextFile(path: string): Promise<string> {
-  const invoke = await getInvoke()
-  if (!invoke) throw new Error('Tauri 环境不可用')
-  return invoke('cmd_fs_read', { path, encoding: 'utf-8' }) as Promise<string>
-}
-
-async function listDir(path: string, recursive = false): Promise<Array<{
-  name: string
-  path: string
-  isDir: boolean
-  size: number
-}>> {
-  const invoke = await getInvoke()
-  if (!invoke) throw new Error('Tauri 环境不可用')
-  return invoke('cmd_fs_list', { path, recursive }) as Promise<any[]>
-}
-
-async function deleteFile(path: string): Promise<void> {
-  const invoke = await getInvoke()
-  if (!invoke) throw new Error('Tauri 环境不可用')
-  await invoke('cmd_fs_delete', { path })
-}
+// Tauri 文件 IO 封装（读写/list/delete + 环境守卫）已迁至 fileBackendIO.ts
+import { deleteFile, listDir, readTextFile, writeTextFile } from './fileBackendIO'
 
 /* ════════════════════════════════════════
    辅助函数

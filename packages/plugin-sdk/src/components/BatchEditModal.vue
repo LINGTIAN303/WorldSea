@@ -150,6 +150,8 @@ import {
 } from '@worldsea/ui-kit'
 import FieldControl from '../detail/FieldControl.vue'
 import type { Entity } from '@worldsea/entity-core'
+// 无状态辅助（标签串归一 / 选中实体导出下载），见 batchEditHelpers.ts
+import { downloadEntitiesJson, toTagList } from './batchEditHelpers'
 
 const modalResizable = useResizable({ panelId: 'modal-batch-edit', defaultWidth: 700, minWidth: 400, side: 'right' })
 
@@ -166,24 +168,23 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
 // 焦点陷阱：Tab 仅在弹窗内循环（Esc 已收编注册表）
 function onKeydown(e: KeyboardEvent) {
-  if (!props.show) return
-  if (e.key === 'Tab') {
-    const box = boxRef.value
-    if (!box) return
-    const focusables = box.querySelectorAll<HTMLElement>(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-    )
-    if (focusables.length === 0) return
-    const first = focusables[0]
-    const last = focusables[focusables.length - 1]
-    const active = document.activeElement
-    if (e.shiftKey && (active === first || !box.contains(active))) {
-      e.preventDefault()
-      last.focus()
-    } else if (!e.shiftKey && (active === last || !box.contains(active))) {
-      e.preventDefault()
-      first.focus()
-    }
+  if (!props.show || e.key !== 'Tab') return
+  const box = boxRef.value
+  if (!box) return
+  const focusables = box.querySelectorAll<HTMLElement>(
+    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+  )
+  if (focusables.length === 0) return
+  const first = focusables[0]
+  const last = focusables[focusables.length - 1]
+  const active = document.activeElement
+  const outside = !box.contains(active)
+  if (e.shiftKey && (active === first || outside)) {
+    e.preventDefault()
+    last.focus()
+  } else if (!e.shiftKey && (active === last || outside)) {
+    e.preventDefault()
+    first.focus()
   }
 }
 
@@ -192,10 +193,8 @@ watch(() => props.show, (v) => {
     returnFocusEl = document.activeElement as HTMLElement
     window.addEventListener('keydown', onKeydown) // Tab 焦点陷阱（Esc 已收编注册表）
     nextTick(() => {
-      const first =
-        boxRef.value?.querySelector<HTMLElement>(
-          'input, select, textarea, button, [href], [tabindex]:not([tabindex="-1"])',
-        ) ?? boxRef.value
+      const box = boxRef.value
+      const first = box?.querySelector<HTMLElement>('input, select, textarea, button, [href], [tabindex]:not([tabindex="-1"])') ?? box
       first?.focus({ preventScroll: true })
     })
   } else {
@@ -204,7 +203,6 @@ watch(() => props.show, (v) => {
     returnFocusEl = null
   }
 })
-
 
 const entityStore = useEntityStore()
 const relationStore = useRelationStore()
@@ -232,8 +230,8 @@ const busyStage = ref(0)
 const busyLabel = ref('')
 const busyProgress = ref({ done: 0, total: 0 })
 const savingEdit = ref(false)
-const busyOverlayStatus = computed<'loading' | 'success' | 'error'>(() =>
-  busyStatus.value === 'success' ? 'success' : busyStatus.value === 'error' ? 'error' : 'loading',
+const busyOverlayStatus = computed(() =>
+  (busyStatus.value === 'success' ? 'success' : busyStatus.value === 'error' ? 'error' : 'loading') as 'loading' | 'success' | 'error',
 )
 const busyStages = computed<LoadingStage[]>(() => [
   {
@@ -291,12 +289,6 @@ function toggleAll() {
 
 const editingId = ref<string | null>(null)
 const editDraft = ref<{ name: string; description: string; tags: string[] }>({ name: '', description: '', tags: [] })
-
-/** FieldControl 的 tags 控件可能回传逗号串（用户在输入框里一次粘贴多个） */
-function toTagList(val: unknown): string[] {
-  if (Array.isArray(val)) return val.map(String)
-  return String(val ?? '').split(',').map(s => s.trim()).filter(Boolean)
-}
 
 function toggleEdit(e: Entity) {
   if (editingId.value === e.id) {
@@ -384,21 +376,14 @@ async function applyRename() {
     }
     getEventBus().emit('batch:edit', { entityIds: ids, action: 'rename' })
   })
-  if (ok) {
-    showRename.value = false
-    namePrefix.value = ''
-    nameSuffix.value = ''
-  }
+  if (!ok) return
+  showRename.value = false
+  namePrefix.value = ''
+  nameSuffix.value = ''
 }
 
 function batchExport() {
-  const items = entityStore.entities.filter(e => selected.value.has(e.id))
-  const text = JSON.stringify(items, null, 2)
-  const blob = new Blob([text], { type: 'application/json' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url; a.download = 'batch-export.json'; a.click()
-  URL.revokeObjectURL(url)
+  downloadEntitiesJson(entityStore.entities.filter(e => selected.value.has(e.id)))
 }
 
 function close() {
@@ -411,73 +396,4 @@ function close() {
 }
 </script>
 
-<style scoped>
-.be-overlay { position: fixed; inset: var(--titlebar-height, 32px) 0 0 0; z-index: var(--z-overlay); background: var(--color-overlay); display: flex; align-items: center; justify-content: center; }
-.be-modal { position: relative; max-height: 85vh; background: var(--sf-overlay-bg); border-radius: calc(var(--radius-lg, 12px) * var(--sf-radius-scale)); box-shadow: var(--sf-overlay-shadow), inset 0 1px 0 var(--sf-highlight); backdrop-filter: var(--sf-overlay-filter, none); display: flex; flex-direction: column; overflow: hidden; }
-.be-header { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--border); }
-.be-header h3 { margin: 0; font-size: var(--font-size-lg); }
-.be-hdr-actions { display: flex; align-items: center; gap: 12px; }
-.be-count { font-size: var(--font-size-sm); color: var(--text-secondary); }
-.be-close { background: none; border: none; font-size: var(--font-size-xl); cursor: pointer; padding: 4px 8px; border-radius: 4px; }
-.be-close:hover { background: var(--hover-bg); }
-.be-toolbar { display: flex; gap: 8px; padding: 10px 20px; border-bottom: 1px solid var(--border); align-items: center; }
-.be-toolbar select, .be-search { padding: 5px 10px; border: 1px solid var(--sf-control-edge); border-radius: calc(var(--radius-sm, 4px) * var(--sf-radius-scale)); background: var(--sf-control-bg); font-size: var(--font-size-sm); }
-.be-search { flex: 1; }
-.be-chk { font-size: var(--font-size-sm); cursor: pointer; white-space: nowrap; }
-.be-actions { display: flex; gap: 8px; padding: 10px 20px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
-.be-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 6px 14px; border: 1px solid var(--sf-control-edge); border-radius: calc(var(--radius-sm, 4px) * var(--sf-radius-scale)); background: var(--sf-control-bg); cursor: pointer; font-size: var(--font-size-sm); transition: background 0.15s; }
-.be-btn:hover { background: var(--bg-hover); }
-.be-btn.primary { background: var(--primary); color: var(--text); border-color: var(--primary); }
-.be-btn.primary:hover { background: var(--primary-hover); }
-.be-btn.danger { color: var(--danger); border-color: var(--danger); }
-.be-btn.danger:hover { background: color-mix(in srgb, var(--danger) 10%, transparent); }
-.be-btn:disabled { opacity: 0.4; cursor: default; }
-.be-list { flex: 1; overflow-y: auto; min-height: 200px; }
-/* 一行实体 + 可展开的行内编辑区（编辑按钮不再弹逐条问答） */
-.be-row { border-bottom: 1px solid var(--border); }
-.be-item { display: flex; align-items: center; gap: 8px; padding: 8px 20px; font-size: var(--font-size-sm); transition: background 0.1s; }
-.be-item:hover { background: var(--sf-panel-bg-muted, #f8f8f8); }
-.be-item.selected { background: var(--primary-light); }
-.be-item input[type=checkbox] { flex-shrink: 0; }
-.be-icon { font-size: var(--font-size-md); flex-shrink: 0; }
-.be-name { flex: 1; font-weight: var(--font-weight-semibold); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.be-type { font-size: var(--font-size-xs); color: var(--text-tertiary); background: var(--sf-panel-bg-muted); padding: 2px 6px; border-radius: 4px; flex-shrink: 0; }
-.be-tags { font-size: var(--font-size-sm); color: var(--text-secondary, #888); max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.be-edit-btn { background: none; border: none; cursor: pointer; padding: 2px 6px; border-radius: 4px; opacity: 0; transition: opacity 0.15s; font-size: var(--font-size-base); }
-.be-item:hover .be-edit-btn { opacity: 1; }
-/* 展开编辑时按钮要常驻可见（否则收起入口藏在 hover 里） */
-.be-row:has(.be-inline-edit) .be-edit-btn { opacity: 1; }
-.be-inline-edit {
-  display: flex; flex-direction: column; gap: 8px;
-  padding: 10px 20px 14px; background: var(--bg-muted, #fafafa);
-}
-.be-field { display: flex; flex-direction: column; gap: 2px; }
-.be-field-label { font-size: var(--font-size-xs); color: var(--text-secondary); }
-.be-inline-actions { display: flex; justify-content: flex-end; gap: 8px; }
-.be-empty { text-align: center; padding: 40px; color: var(--text-tertiary, var(--color-text-tertiary)); }
-.be-dialog-overlay { position: fixed; inset: var(--titlebar-height, 32px) 0 0 0; z-index: calc(var(--z-overlay) + 1); background: rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center; }
-.be-dialog { width: 420px; background: var(--content-bg); border-radius: 12px; padding: 24px; box-shadow: 0 8px 30px rgba(0,0,0,0.12); }
-.be-dialog h4 { margin: 0 0 8px 0; font-size: var(--font-size-md); }
-.be-dialog-danger-title { margin: 0 0 8px 0; font-size: var(--font-size-md); color: var(--danger); }
-.be-dialog-info { font-size: var(--font-size-sm); color: var(--text-secondary); margin-bottom: 16px; }
-.be-dialog-field { margin-bottom: 12px; }
-.be-dialog-field label { display: block; font-size: var(--font-size-sm); margin-bottom: 4px; color: var(--text-secondary); }
-.be-dialog-field input { width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: var(--font-size-base); box-sizing: border-box; }
-.be-dialog-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
-.resize-handle-right {
-  position: absolute;
-  right: 0;
-  top: 0;
-  width: 6px;
-  height: 100%;
-  cursor: col-resize;
-  z-index: 10;
-  background: transparent;
-  transition: background 0.15s;
-}
-.resize-handle-right:hover,
-.resize-handle-right:active {
-  background: var(--primary);
-  opacity: 0.3;
-}
-</style>
+<style scoped src="./batch-edit-modal.css"></style>

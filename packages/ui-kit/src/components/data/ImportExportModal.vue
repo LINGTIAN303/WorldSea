@@ -209,6 +209,8 @@ import WsInlineLoading from '../feedback/loading/WsInlineLoading.vue'
 import { useAsyncTask } from '../../composables/useAsyncTask'
 import type { LoadingStage } from '../feedback/loading/types'
 import WsIcon from '../WsIcon.vue'
+// 加载阶段文案 / 序列化器映射 / 条目计数（纯函数，见 importExportView.ts）
+import { buildExportStages, buildImportStages, itemCount, serializerIcon, serializerLabel } from './importExportView'
 
 const props = defineProps<{ show: boolean }>()
 const emit = defineEmits<{ close: [] }>()
@@ -223,24 +225,23 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
 // 焦点陷阱：Tab 仅在弹窗内循环（Esc 已收编注册表）
 function onKeydown(e: KeyboardEvent) {
-  if (!props.show) return
-  if (e.key === 'Tab') {
-    const box = boxRef.value
-    if (!box) return
-    const focusables = box.querySelectorAll<HTMLElement>(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-    )
-    if (focusables.length === 0) return
-    const first = focusables[0]
-    const last = focusables[focusables.length - 1]
-    const active = document.activeElement
-    if (e.shiftKey && (active === first || !box.contains(active))) {
-      e.preventDefault()
-      last.focus()
-    } else if (!e.shiftKey && (active === last || !box.contains(active))) {
-      e.preventDefault()
-      first.focus()
-    }
+  if (!props.show || e.key !== 'Tab') return
+  const box = boxRef.value
+  if (!box) return
+  const focusables = box.querySelectorAll<HTMLElement>(
+    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+  )
+  if (focusables.length === 0) return
+  const first = focusables[0]
+  const last = focusables[focusables.length - 1]
+  const active = document.activeElement
+  const outside = !box.contains(active)
+  if (e.shiftKey && (active === first || outside)) {
+    e.preventDefault()
+    last.focus()
+  } else if (!e.shiftKey && (active === last || outside)) {
+    e.preventDefault()
+    first.focus()
   }
 }
 
@@ -297,70 +298,29 @@ const importProgress = ref({ done: 0, total: 0 })
 const previewGenerating = ref(false)
 let previewToken = 0
 
-const exportOverlayStatus = computed<'loading' | 'success' | 'error'>(() =>
-  exportStatus.value === 'success' ? 'success' : exportStatus.value === 'error' ? 'error' : 'loading',
-)
-const importOverlayStatus = computed<'loading' | 'success' | 'error'>(() =>
-  importStatus.value === 'success' ? 'success' : importStatus.value === 'error' ? 'error' : 'loading',
-)
+// AsyncTaskStatus（idle/empty 等）非三态的都按 loading 呈现
+const overlayStatus = (s: { value: 'success' | 'error' | 'idle' | 'empty' | 'loading' }) =>
+  (s.value === 'success' ? 'success' : s.value === 'error' ? 'error' : 'loading') as 'loading' | 'success' | 'error'
+const exportOverlayStatus = computed(() => overlayStatus(exportStatus))
+const importOverlayStatus = computed(() => overlayStatus(importStatus))
 const exportErrorText = computed(() => exportError.value || exportTask.error.value || '')
 const importErrorText = computed(() => importError.value || importTask.error.value || '')
 
-const exportStages = computed<LoadingStage[]>(() => {
-  const { done, total } = exportProgress.value
-  return [
-    {
-      short: '收集',
-      full: '收集导出数据…',
-      detail: total > 0 ? `已收集 ${done} / ${total} 类` : '读取实体 / 关系 / 字段',
-    },
-    {
-      short: exportFormat.value === 'ws' ? '打包' : '编码',
-      full: exportFormat.value === 'ws' ? '打包并下载 .ws…' : '编码并下载…',
-      detail: exportFormat.value === 'ws' ? '包含媒体文件' : exportFormat.value === 'yaml' ? 'YAML' : 'JSON',
-    },
-  ]
-})
+const exportStages = computed<LoadingStage[]>(() => buildExportStages(exportFormat.value, exportProgress.value))
 
-const importStages = computed<LoadingStage[]>(() => {
-  const { done, total } = importProgress.value
-  const write: LoadingStage = {
-    short: '写入',
-    full: '写入导入数据…',
-    detail: total > 0 ? `已写入 ${done} / ${total} 类` : '实体 / 关系 / 字段',
-  }
-  const refresh: LoadingStage = {
-    short: '刷新',
-    full: '刷新实体 / 关系 / 文件…',
-    detail: '重新加载工作区数据',
-  }
-  if (importStrategy.value === 'overwrite') {
-    return [
-      { short: '备份', full: '备份当前数据…', detail: '覆盖前自动备份' },
-      write,
-      refresh,
-    ]
-  }
-  return [write, refresh]
-})
+const importStages = computed<LoadingStage[]>(() => buildImportStages(importStrategy.value, importProgress.value))
 
 const importPack = ref<WorldSeaPack | null>(null)
 const importFileName = ref('')
 
 // 监听策略切换
 watch(importStrategy, (val) => {
-  if (val === 'overwrite') {
-    overwriteConfirmed.value = false
-    backupInfo.value = getBackupInfo()
-  } else {
-    overwriteConfirmed.value = true
-  }
+  overwriteConfirmed.value = val !== 'overwrite'
+  if (val === 'overwrite') backupInfo.value = getBackupInfo()
 })
 
 /* ─── Serializer 可见列表 ─── */
-const availableSerializers = computed(() =>
-  serializerRegistry.getSorted().filter(s => s.id !== 'views')
-)
+const availableSerializers = computed(() => serializerRegistry.getSorted().filter(s => s.id !== 'views'))
 
 // 默认全选（除 views）
 const selectedSerializers = ref<string[]>([])
@@ -533,35 +493,6 @@ async function doBackupFirst() {
   }
 }
 
-function serializerIcon(id: string): string {
-  const icons: Record<string, string> = {
-    'entities': 'item',
-    'relations': 'link',
-    'entity-types': 'outline',
-    'relation-types': 'settings',
-    'views': 'image',
-    'custom-fields': 'tag',
-  }
-  return icons[id] ?? 'manuscript'
-}
-
-function serializerLabel(id: string): string {
-  const s = serializerRegistry.get(id)
-  return s?.label ?? id
-}
-
-function itemCount(data: unknown): number {
-  if (data && typeof data === 'object') {
-    const d = data as Record<string, unknown>
-    if (typeof d.total === 'number') return d.total
-    if (Array.isArray(d.entities)) return d.entities.length
-    if (Array.isArray(d.relations)) return d.relations.length
-    if (Array.isArray(d.schemas)) return d.schemas.length
-    if (Array.isArray(d.views)) return d.views.length
-  }
-  return 0
-}
-
 function close() {
   if (exporting.value || importing.value || parsing.value) return
   exportTask.reset()
@@ -581,115 +512,4 @@ function close() {
 }
 </script>
 
-<style scoped>
-/* ─── Overlay & Modal ─── */
-.ie-overlay { position: fixed; inset: var(--titlebar-height, 32px) 0 0 0; z-index: var(--z-overlay); background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; }
-.ie-modal { max-height: 85vh; background: var(--sf-overlay-bg); border-radius: calc(var(--radius-lg, 12px) * var(--sf-radius-scale)); box-shadow: var(--sf-overlay-shadow), inset 0 1px 0 var(--sf-highlight); backdrop-filter: var(--sf-overlay-filter, none); display: flex; flex-direction: column; overflow: hidden; position: relative; }
-.ie-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--border, #eee); }
-.ie-header h3 { margin: 0; font-size: var(--font-size-lg); }
-.ie-close { background: none; border: none; font-size: var(--font-size-xl); cursor: pointer; padding: 4px 8px; border-radius: 4px; }
-.ie-body { padding: 16px 20px; overflow-y: auto; flex: 1; }
-.ie-tabs { display: flex; gap: 0; margin-bottom: 16px; border-radius: calc(var(--radius-sm) * var(--sf-radius-scale)); overflow: hidden; border: 1px solid var(--sf-panel-edge); }
-.ie-tabs button { flex: 1; padding: 8px 16px; border: none; background: var(--sf-control-bg); cursor: pointer; font-size: var(--font-size-base); }
-.ie-tabs button.active { background: var(--primary, var(--color-primary)); color: #fff; }
-.ie-section { display: flex; flex-direction: column; gap: 12px; }
-.ie-fmt { display: flex; gap: 16px; }
-.ie-fmt label { cursor: pointer; font-size: var(--font-size-base); display: flex; align-items: center; gap: 4px; }
-
-/* ─── Scope (selective export) ─── */
-.ie-scope h4, .ie-summary h4, .ie-strategy h4 { font-size: var(--font-size-sm); margin: 0 0 6px; color: var(--text-secondary); }
-.ie-scope-grid { display: flex; flex-wrap: wrap; gap: 6px; }
-.ie-scope-item {
-  display: flex; align-items: center; gap: 4px;
-  padding: 4px 10px; border: 1px solid var(--sf-control-edge); border-radius: calc(var(--radius-sm) * var(--sf-radius-scale));
-  font-size: var(--font-size-sm); cursor: pointer; background: var(--sf-control-bg);
-  transition: background 0.12s, border-color 0.12s, color 0.12s, box-shadow 0.12s, transform 0.12s, opacity 0.12s, filter 0.12s;
-}
-.ie-scope-item:hover { border-color: var(--primary, #4f46e5); background: var(--primary-light, #eef2ff); }
-.ie-scope-item.disabled { opacity: 0.4; cursor: not-allowed; }
-.ie-scope-item input { margin: 0; }
-.scope-icon { font-size: var(--font-size-base); }
-.scope-label { font-size: var(--font-size-sm); }
-.ie-hint { font-size: var(--font-size-xs); color: var(--text-tertiary); margin: 0; }
-
-/* ─── Preview ─── */
-.ie-preview { position: relative; }
-.ie-preview textarea { width: 100%; border: 1px solid var(--sf-control-edge); border-radius: calc(var(--radius-sm) * var(--sf-radius-scale)); padding: 8px; font-size: var(--font-size-xs); font-family: monospace; resize: vertical; background: var(--sf-control-bg); }
-.ie-preview-loading {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--content-bg, #fff) 78%, transparent);
-  color: var(--text-secondary);
-  font-size: var(--font-size-xs);
-  pointer-events: none;
-}
-
-/* ─── Upload ─── */
-.ie-upload { border: 2px dashed var(--sf-panel-edge); border-radius: calc(var(--radius-md) * var(--sf-radius-scale)); padding: 20px; text-align: center; cursor: pointer; }
-.ie-dropzone { padding: 10px; }
-.ie-dropzone--loading { cursor: default; display: flex; flex-direction: column; align-items: center; gap: 6px; }
-.dz-icon { font-size: var(--font-size-3xl); display: block; margin-bottom: 6px; }
-.ie-dropzone p { font-size: var(--font-size-sm); color: var(--text-tertiary); margin: 0; }
-.ie-file-info { display: flex; align-items: center; gap: 10px; text-align: left; }
-.fi-icon { font-size: var(--font-size-2xl); }
-.fi-detail { flex: 1; }
-.fi-detail strong { display: block; font-size: var(--font-size-base); }
-.fi-meta { font-size: var(--font-size-xs); color: var(--text-tertiary); }
-.fi-clear { background: none; border: none; font-size: var(--font-size-lg); cursor: pointer; padding: 2px 6px; }
-
-/* ─── Summary ─── */
-.ie-summary-grid { display: flex; flex-wrap: wrap; gap: 6px; }
-.is-item { display: flex; align-items: center; gap: 6px; padding: 4px 10px; background: var(--bg, #f3f4f6); border-radius: var(--radius-sm); font-size: var(--font-size-sm); }
-.is-count { font-size: var(--font-size-xs); color: var(--text-tertiary); }
-.is-icon { font-size: var(--font-size-base); }
-.is-label { font-size: var(--font-size-sm); }
-
-/* ─── Strategy ─── */
-.ie-strategy label { display: block; font-size: var(--font-size-sm); margin: 4px 0; cursor: pointer; }
-.ie-strategy input { margin-right: 6px; }
-
-/* ─── Overwrite Warning ─── */
-.ie-overwrite-warn { background: color-mix(in srgb, var(--color-danger, #dc2626) 8%, transparent); border: 1px solid color-mix(in srgb, var(--color-danger, #dc2626) 30%, transparent); border-radius: 8px; padding: 12px; }
-.ie-warn-text { font-size: var(--font-size-sm); color: var(--color-danger, #dc2626); margin: 0 0 8px; font-weight: var(--font-weight-semibold); }
-.ie-warn-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.ie-warn-check { font-size: var(--font-size-sm); cursor: pointer; display: flex; align-items: center; gap: 4px; }
-.ie-backup-info { font-size: var(--font-size-xs); color: var(--color-success, #16a34a); }
-.ie-backup-ok { display: flex; align-items: center; gap: 4px; }
-.ie-backup-warn { display: flex; align-items: center; gap: 4px; color: var(--color-danger, #dc2626); font-weight: var(--font-weight-semibold); }
-
-/* ─── Report ─── */
-.ie-report { background: var(--bg, #f9fafb); border: 1px solid var(--border, #e5e7eb); border-radius: 8px; padding: 12px; }
-.ie-report-status { font-weight: var(--font-weight-semibold); font-size: var(--font-size-base); margin-bottom: 8px; }
-.ie-report-status.success { color: var(--success); }
-.ie-report-status.fail { color: var(--danger); }
-.ir-item { display: flex; gap: 8px; font-size: var(--font-size-sm); padding: 2px 0; }
-.ir-label { min-width: 80px; color: var(--text-secondary); }
-.ir-stat { color: var(--text-color); }
-.ir-err { color: var(--color-danger); font-size: var(--font-size-xs); }
-
-/* ─── Actions ─── */
-.ie-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
-.ie-error { color: var(--color-danger); font-size: var(--font-size-sm); }
-
-.resize-handle-right {
-  position: absolute;
-  right: 0;
-  top: 0;
-  width: 6px;
-  height: 100%;
-  cursor: col-resize;
-  z-index: 10;
-  background: transparent;
-  transition: background 0.15s;
-}
-.resize-handle-right:hover,
-.resize-handle-right:active {
-  background: var(--primary);
-  opacity: 0.3;
-}
-</style>
+<style scoped src="./import-export-modal.css"></style>

@@ -1,0 +1,342 @@
+.fpv {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--color-surface-elevated);
+}
+.fpv-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+.fpv-name {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* 头部文件类型图标：跟随名字基线，色取映射身份色 */
+.fpv-file-icon {
+  flex-shrink: 0;
+  margin-right: 4px;
+  vertical-align: -2px;
+}
+/* 脏态圆点：文件名后跟随的小圆点（有未保存修改时显示） */
+.fpv-dirty {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 5px;
+  border-radius: 50%;
+  background: var(--color-warning, #e8a33d);
+  vertical-align: middle;
+}
+/* 预览/编辑切换按钮（复用 HTML bar 的 fpv-view-btn 风格） */
+.fpv-header .fpv-view-btn {
+  flex-shrink: 0;
+}
+.fpv-size {
+  flex-shrink: 0;
+  font-size: var(--font-size-2xs);
+  color: var(--color-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+.fpv-close {
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-tertiary);
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.fpv-close:hover {
+  color: var(--color-text);
+  background: var(--color-surface);
+}
+/* 居中切换开启态（HTML 渲染视图） */
+.fpv-close.active {
+  color: var(--color-primary);
+  background: var(--color-primary-muted);
+}
+
+.fpv-guard {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 20px;
+}
+.fpv-guard-icon {
+  color: #e8a33d;
+}
+.fpv-guard-text {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+.fpv-guard-btn {
+  padding: 6px 16px;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-primary);
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+}
+.fpv-guard-btn:hover {
+  background: var(--color-primary-muted);
+}
+.fpv-guard-cancel {
+  padding: 6px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+}
+.fpv-guard-cancel:hover {
+  color: var(--color-text);
+}
+
+.fpv-binary {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 20px;
+}
+.fpv-binary-icon {
+  color: var(--color-text-tertiary);
+  opacity: 0.5;
+}
+.fpv-binary-text {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+}
+
+.fpv-image-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+}
+.fpv-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: var(--radius-sm);
+}
+.fpv-preview-skeleton { flex: 1; min-height: 0; overflow: auto; padding: 12px; }
+.fpv-preview-skeleton .ws-skeleton { width: 100%; }
+
+/* Markdown 渲染：stage 左右各留 10% 边距（右 10% 由 ::after 占位），左空白放标题目录树 */
+.fpv-md-stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 6px;
+}
+.fpv-md-stage::after {
+  content: '';
+  display: block;
+  width: 12.5%;
+  flex-shrink: 0;
+}
+.fpv-md {
+  flex: 1;
+  min-width: 0;
+  position: relative; /* 标题 offsetTop 的 offsetParent，scrollspy 依赖 */
+  overflow-y: auto;
+  padding: 12px 8px;
+  color: var(--color-text);
+  user-select: text;
+}
+/* 标题目录树（左 10% 空白内）：顶部触发钮显示当前可见标题，点开浮层 */
+.fpv-toc {
+  width: 12.5%;
+  min-width: 52px;
+  flex-shrink: 0;
+  align-self: flex-start;
+  position: sticky;
+  top: 0;
+  /* sticky 必创建堆叠上下文：不给显式 z-index 时，DOM 靠后的 .fpv-md 会整块画在浮层之上
+     （即“浮层全透明”的真因）。提到 md 之上，浮层实色底/阴影才能正常呈现 */
+  z-index: 30;
+  padding-top: 12px;
+}
+/* 触发框：无框无底，仅标题文字本身承担高亮（hover/开启/固定 → 主色） */
+.fpv-toc-trigger {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 3px 4px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-2xs);
+  cursor: pointer;
+  text-align: left;
+}
+.fpv-toc-trigger:hover .fpv-toc-current,
+.fpv-toc-trigger.open .fpv-toc-current,
+.fpv-toc-trigger.pinned .fpv-toc-current {
+  color: var(--color-primary);
+}
+.fpv-toc-current {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  transition: color 0.15s;
+}
+/* 目录浮层：实色底（--color-surface-elevated 为不透明令牌），与内容区视觉隔离 */
+.fpv-toc-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 200px;
+  max-width: 260px;
+  max-height: 55vh;
+  overflow-y: auto;
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  padding: 4px;
+  z-index: 20;
+}
+.fpv-toc-item {
+  display: block;
+  width: 100%;
+  padding: 5px 8px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-xs);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-2xs);
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background 0.12s, color 0.12s;
+}
+.fpv-toc-item:hover {
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+.fpv-toc-item.on {
+  color: var(--color-primary);
+  background: var(--color-primary-muted);
+  font-weight: 600;
+}
+.fpv-toc-empty {
+  padding: 12px;
+  text-align: center;
+  font-size: var(--font-size-2xs);
+  color: var(--color-text-tertiary);
+}
+
+/* HTML 预览：视图切换条 + iframe 渲染区 */
+.fpv-html-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+.fpv-view-btn {
+  padding: 3px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-2xs);
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+.fpv-view-btn:hover {
+  color: var(--color-text);
+  background: var(--color-surface);
+}
+.fpv-view-btn.on {
+  color: var(--color-primary);
+  background: var(--color-primary-muted);
+  font-weight: 600;
+}
+.fpv-html-note {
+  margin-left: auto;
+  font-size: var(--font-size-2xs);
+  color: var(--color-text-tertiary);
+}
+.fpv-html-frame {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  border: none;
+  background: #fff;
+}
+/* 居中开关开启：左右各留 10%（文件名旁图标切换，默认关） */
+.fpv-html-frame.centered {
+  width: 80%;
+  margin: 0 auto 12px;
+}
+.fpv-code {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  margin: 0;
+  padding: 10px 12px;
+  font-family: var(--font-mono, ui-monospace, 'Cascadia Mono', Consolas, monospace);
+  font-size: var(--font-size-xs);
+  line-height: 1.55;
+  color: var(--color-text-secondary);
+}
+.fpv-code code {
+  font-family: inherit;
+  background: none;
+  padding: 0;
+  white-space: pre;
+}
+
+/* 纯文本预览 */
+.fpv-text {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  margin: 0;
+  padding: 10px 12px;
+  font-family: var(--font-mono, ui-monospace, 'Cascadia Mono', Consolas, monospace);
+  font-size: var(--font-size-xs);
+  line-height: 1.55;
+  color: var(--color-text-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  user-select: text;
+}
+

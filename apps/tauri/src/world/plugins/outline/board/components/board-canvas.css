@@ -1,0 +1,69 @@
+.bcv {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background-color: var(--bg-color, var(--bg-secondary));
+  cursor: default;
+}
+.bcv--panning { cursor: grabbing; }
+.bcv--drawing { cursor: crosshair; }
+/* Space 按住：光标提示可平移（与中键拖拽一致的语义） */
+.bcv--space { cursor: grab; }
+.bcv--space.bcv--panning { cursor: grabbing; }
+/* 拖着大纲节点经过画布：虚线内边框 + 复制光标（落点可见，否则用户以为拖拽没实现） */
+.bcv--node-drop {
+  cursor: copy;
+  box-shadow: inset 0 0 0 2px var(--primary);
+}
+.bcv-world {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+}
+.bcv-guide {
+  position: absolute;
+  background: var(--primary);
+  opacity: 0.7;
+  pointer-events: none;
+}
+.bcv-guide--v { top: -5000px; width: 1px; height: 10000px; }
+.bcv-guide--h { left: -5000px; height: 1px; width: 10000px; }
+.bcv-draw-preview {
+  position: absolute;
+  border: 1px dashed var(--primary);
+  background: var(--hover-bg);
+  border-radius: var(--radius-mid);
+  pointer-events: none;
+}
+.bcv-empty {
+  position: absolute;
+  left: 50%;
+  top: 45%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  pointer-events: auto;
+}
+.bcv-empty-title { font-size: var(--font-size-sm); color: var(--text-secondary); margin-bottom: 4px; }
+.bcv-empty-desc { font-size: var(--font-size-2xs); color: var(--text-tertiary); }
+.bcv-draw-hint {
+  position: absolute;
+  left: 50%;
+  top: 12px;
+  transform: translateX(-50%);
+  padding: 4px 10px;
+  border-radius: var(--radius-mid);
+  background: var(--menubar-bg, var(--bg-secondary));
+  border: 1px solid var(--border-color);
+  font-size: var(--font-size-2xs);
+  color: var(--text-secondary);
+  pointer-events: none;
+}
+.bcv-draw-key {
+  padding: 0 4px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-xs);
+  color: var(--text-tertiary);
+}
