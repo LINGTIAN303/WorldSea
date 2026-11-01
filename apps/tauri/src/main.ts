@@ -9,6 +9,7 @@ import './styles/theme.css'
 import './styles/web-tokens-bridge.css'
 // 表面契约必须排在桥接层之后，才能覆盖 --bg-surface / --border / --shadow-* 等通用令牌
 import '@worldsea/style-kit/styles.css'
+import './styles/liquid-glass-surfaces.css'
 import '@worldsea/motion-kit/presets.css'
 import { applyPersistedStyle } from '@worldsea/style-kit'
 

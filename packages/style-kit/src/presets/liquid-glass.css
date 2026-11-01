@@ -8,8 +8,8 @@ html[data-style='liquid-glass'] {
   --sf-shadow-2: 0 calc(10px * var(--sf-depth-scale)) calc(36px * var(--sf-depth-scale)) rgba(31, 41, 71, 0.14);
   --sf-shadow-3: 0 calc(20px * var(--sf-depth-scale)) calc(56px * var(--sf-depth-scale)) rgba(31, 41, 71, 0.18);
   --sf-card-bg: var(--sf-noise), radial-gradient(130% 100% at 12% 0%, rgba(255, 255, 255, 0.55), transparent 58%), linear-gradient(160deg, rgba(255, 255, 255, 0.6), rgba(244, 248, 255, 0.36));
-  --sf-card-edge: rgba(255, 255, 255, 0.76);
-  --sf-card-shadow: var(--sf-shadow-2);
+  --sf-card-edge: rgba(30, 45, 70, 0.14);
+  --sf-card-shadow: var(--sf-shadow-2), inset 0 -12px 18px -20px rgba(20, 35, 60, 0.3);
   --sf-control-bg: rgba(255, 255, 255, 0.55);
   --sf-control-edge: #6f7a8d;
   --sf-control-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
@@ -18,8 +18,8 @@ html[data-style='liquid-glass'] {
   --sf-overlay-blur: calc(26px * var(--sf-material) * 0.02);
   --sf-overlay-blur-radius: calc(26px * var(--sf-material) * 0.02);
   --sf-overlay-filter: blur(var(--sf-overlay-blur-radius, 26px)) saturate(1.8) brightness(1.04);
-  --sf-overlay-edge: rgba(255, 255, 255, 0.8);
-  --sf-overlay-shadow: var(--sf-shadow-3);
+  --sf-overlay-edge: rgba(30, 45, 70, 0.16);
+  --sf-overlay-shadow: var(--sf-shadow-3), inset 0 -16px 24px -24px rgba(20, 35, 60, 0.3);
   --sf-modal-bg: var(--sf-noise), radial-gradient(120% 110% at 18% 0%, rgba(255, 255, 255, 0.48), transparent 58%), linear-gradient(168deg, rgba(255, 255, 255, 0.58), rgba(241, 246, 255, 0.4));
   --sf-nav-bg: var(--sf-noise), linear-gradient(180deg, rgba(255, 255, 255, 0.54), rgba(244, 248, 255, 0.38));
   --sf-nav-blur: calc(20px * var(--sf-material) * 0.02);
@@ -73,12 +73,14 @@ html[data-style='liquid-glass'][data-theme='dark'] {
   --sf-shadow-3: 0 calc(20px * var(--sf-depth-scale)) calc(56px * var(--sf-depth-scale)) rgba(0, 0, 0, 0.6);
   --sf-card-bg: var(--sf-noise), radial-gradient(130% 100% at 12% 0%, rgba(255, 255, 255, 0.12), transparent 58%), linear-gradient(160deg, rgba(42, 46, 56, 0.56), rgba(24, 27, 35, 0.46));
   --sf-card-edge: rgba(255, 255, 255, 0.14);
+  --sf-card-shadow: var(--sf-shadow-2), inset 0 -12px 18px -20px rgba(0, 0, 0, 0.5);
   --sf-control-bg: rgba(44, 48, 58, 0.62);
   --sf-control-edge: #7b8496;
   --sf-control-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
   --sf-control-shadow-inset: inset 0 1px 2px rgba(0, 0, 0, 0.45);
   --sf-overlay-bg: var(--sf-noise), radial-gradient(120% 110% at 20% 0%, rgba(255, 255, 255, 0.12), transparent 58%), linear-gradient(165deg, rgba(44, 48, 58, 0.6), rgba(22, 25, 33, 0.5));
   --sf-overlay-edge: rgba(255, 255, 255, 0.18);
+  --sf-overlay-shadow: var(--sf-shadow-3), inset 0 -16px 24px -24px rgba(0, 0, 0, 0.6);
   --sf-modal-bg: var(--sf-noise), radial-gradient(120% 110% at 18% 0%, rgba(255, 255, 255, 0.1), transparent 58%), linear-gradient(168deg, rgba(46, 50, 60, 0.6), rgba(24, 27, 35, 0.5));
   --sf-nav-bg: var(--sf-noise), linear-gradient(180deg, rgba(38, 42, 52, 0.56), rgba(22, 25, 33, 0.46));
   --sf-chrome-bg: var(--sf-noise), linear-gradient(180deg, rgba(36, 40, 50, 0.54), rgba(20, 23, 30, 0.44));

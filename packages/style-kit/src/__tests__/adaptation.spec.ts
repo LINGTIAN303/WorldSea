@@ -131,7 +131,8 @@ describe('B4 共享弹层消费表面契约', () => {
 })
 
 const B4_LISTS = [
-  'apps/tauri/src/world/plugins/notebook/components/FolderTree.vue',
+  // FolderTree 的 scoped 样式已外置到 folder-tree.css（fd06a80），契约消费方随之改为样式文件
+  'apps/tauri/src/world/plugins/notebook/components/folder-tree.css',
   'apps/tauri/src/world/plugins/manuscript/components/ChapterList.vue',
   'apps/tauri/src/world/plugins/outline/board/components/NodeSidebar.vue',
 ]

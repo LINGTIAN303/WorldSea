@@ -1,0 +1,20 @@
+/* 液化玻璃：把锥形镜面环扩散到卡片与浮层（单层渐变 + 遮罩，不新增 backdrop 层） */
+html[data-style='liquid-glass'] .entity-card-wrapper,
+html[data-style='liquid-glass'] .tui-toast__item {
+  position: relative;
+}
+html[data-style='liquid-glass'] .entity-card-wrapper::before,
+html[data-style='liquid-glass'] .tui-modal::before,
+html[data-style='liquid-glass'] .tui-drawer::before,
+html[data-style='liquid-glass'] .tui-toast__item::after {
+  content: '';
+  position: absolute; inset: 0; z-index: 1;
+  border-radius: inherit; padding: 1.2px;
+  background: var(--sf-liquid-rim-bg);
+  -webkit-mask: var(--sf-liquid-mask) content-box, var(--sf-liquid-mask);
+  -webkit-mask-composite: xor;
+  mask: var(--sf-liquid-mask) content-box, var(--sf-liquid-mask);
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0.8;
+}
