@@ -1,0 +1,42 @@
+/* FilePickerGrid.vue 的 scoped 样式（经 <style scoped src> 引用）。
+   格子行虚拟化：行绝对定位由内联 style 给 top，本文件只管格子质感。 */
+
+.fp-grid-row { position: absolute; left: 6px; right: 6px; display: flex; gap: 8px; }
+.fp-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 104px;
+  padding: 4px 4px 2px;
+  border-radius: calc(var(--radius-sm) * var(--sf-radius-scale));
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  cursor: default;
+  user-select: none;
+}
+.fp-cell:hover { background: var(--sf-control-bg); }
+/* 选中浮起感：强调面 + 1px 强调描边（outline，不触 boxShadow 门禁计数） */
+.fp-cell.on { background: var(--sf-accent-surface-bg); color: var(--text-color); outline: 1px solid var(--accent); outline-offset: -1px; }
+.fp-cell.focus { outline: 1px solid var(--ring-color); outline-offset: -1px; }
+.fp-cell.dim { opacity: 0.45; cursor: not-allowed; }
+.fp-cell-thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 96px;
+  height: 96px;
+  border-radius: calc(var(--radius-xs) * var(--sf-radius-scale));
+  background: var(--sf-panel-bg-muted);
+  overflow: hidden;
+}
+.fp-cell-img { width: 100%; height: 100%; object-fit: cover; }
+.fp-cell-fileicon { transform: scale(2); transform-origin: center; }
+.fp-cell-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+}
+.fp-cell.dir .fp-cell-name { color: var(--text-color); }

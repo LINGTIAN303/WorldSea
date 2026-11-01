@@ -86,3 +86,5 @@ function railLabel(path: string): string {
   return segs.slice(-2).join('/') || path
 }
 </script>
+
+<style scoped src="./file-picker-rail.css"></style>

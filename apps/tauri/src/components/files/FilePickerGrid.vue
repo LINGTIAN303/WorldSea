@@ -77,3 +77,5 @@ function thumbUrl(path: string): string {
   return convertFileSrc(normalizePath(path))
 }
 </script>
+
+<style scoped src="./file-picker-grid.css"></style>

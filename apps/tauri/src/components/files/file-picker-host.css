@@ -135,42 +135,8 @@
 }
 .fp-search-clear:hover { color: var(--text-color); }
 .fp-body { display: flex; flex: 1; min-height: 0; }
-.fp-rail {
-  width: 168px;
-  flex-shrink: 0;
-  padding: 10px 8px;
-  border-right: 1px solid var(--sf-panel-edge);
-  background: var(--sf-panel-bg-muted);
-  overflow-y: auto;
-}
-.fp-rail-group + .fp-rail-group { margin-top: 12px; }
-.fp-rail-title {
-  padding: 0 8px 4px;
-  font-size: var(--font-size-xs);
-  color: var(--text-tertiary, var(--text-muted));
-}
-.fp-rail-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 5px 8px;
-  border: 1px solid transparent;
-  border-radius: calc(var(--radius-sm) * var(--sf-radius-scale));
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-  text-align: left;
-  cursor: pointer;
-}
-.fp-rail-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fp-rail-item:hover { background: var(--sf-control-bg); border-color: var(--sf-control-edge); }
-.fp-rail-item.on {
-  background: var(--sf-accent-surface-bg);
-  border-color: var(--sf-control-edge);
-  color: var(--text-color);
-}
-.fp-rail-empty { padding: 4px 8px; font-size: var(--font-size-xs); color: var(--text-tertiary, var(--text-muted)); }
+/* 左轨与网格的样式由子组件自持（file-picker-rail.css / file-picker-grid.css）——
+   scoped 样式只命中本组件 DOM 与子组件根元素，子组件内部元素必须自带样式 */
 .fp-main { display: flex; flex-direction: column; flex: 1; min-width: 0; }
 .fp-crumbs {
   display: flex;
@@ -287,45 +253,7 @@
 .fp-view-btn:hover { color: var(--text-color); }
 .fp-view-btn.on { background: var(--sf-accent-surface-bg); color: var(--text-color); }
 
-/* ── 网格视图：格子行虚拟化，行内横排 cols 个格子 ── */
-.fp-grid-row { position: absolute; left: 6px; right: 6px; display: flex; gap: 8px; }
-.fp-cell {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  width: 104px;
-  padding: 4px 4px 2px;
-  border-radius: calc(var(--radius-sm) * var(--sf-radius-scale));
-  color: var(--text-secondary);
-  font-size: var(--font-size-xs);
-  cursor: default;
-  user-select: none;
-}
-.fp-cell:hover { background: var(--sf-control-bg); }
-.fp-cell.on { background: var(--sf-accent-surface-bg); color: var(--text-color); outline: 1px solid var(--accent); outline-offset: -1px; }
-.fp-cell.focus { outline: 1px solid var(--ring-color); outline-offset: -1px; }
-.fp-cell.dim { opacity: 0.45; cursor: not-allowed; }
-.fp-cell-thumb {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 96px;
-  height: 96px;
-  border-radius: calc(var(--radius-xs) * var(--sf-radius-scale));
-  background: var(--sf-panel-bg-muted);
-  overflow: hidden;
-}
-.fp-cell-img { width: 100%; height: 100%; object-fit: cover; }
-.fp-cell-fileicon { transform: scale(2); transform-origin: center; }
-.fp-cell-name {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  text-align: center;
-}
-.fp-cell.dir .fp-cell-name { color: var(--text-color); }
+/* 网格格子样式由 FilePickerGrid 自持（file-picker-grid.css） */
 
 /* ── 加载骨架（R2 口径：列表文本条 / 网格图块） ── */
 .fp-loading { padding: 8px 14px; }
@@ -417,7 +345,7 @@
 }
 .fp-native:hover { color: var(--text-color); }
 @media (max-width: 720px) {
-  .fp-rail { display: none; }
+  /* 左轨隐藏规则在 file-picker-rail.css（样式跟组件走） */
   .fp-row-time,
   .fp-row-type { display: none; }
 }

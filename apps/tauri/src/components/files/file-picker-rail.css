@@ -1,0 +1,45 @@
+/* FilePickerRail.vue 的 scoped 样式（经 <style scoped src> 引用）。
+   注意：本组件是 FilePickerHost 的子组件，样式必须由本组件自持——
+   父组件的 scoped 样式只命中子组件根元素，内部元素全部失配。 */
+
+.fp-rail {
+  width: 168px;
+  flex-shrink: 0;
+  padding: 10px 8px;
+  border-right: 1px solid var(--sf-panel-edge);
+  background: var(--sf-panel-bg-muted);
+  overflow-y: auto;
+}
+.fp-rail-group + .fp-rail-group { margin-top: 12px; }
+.fp-rail-title {
+  padding: 0 8px 4px;
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary, var(--text-muted));
+}
+.fp-rail-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 8px;
+  border: 1px solid transparent;
+  border-radius: calc(var(--radius-sm) * var(--sf-radius-scale));
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  text-align: left;
+  cursor: pointer;
+}
+.fp-rail-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fp-rail-item:hover { background: var(--sf-control-bg); border-color: var(--sf-control-edge); }
+.fp-rail-item.on {
+  background: var(--sf-accent-surface-bg);
+  border-color: var(--sf-control-edge);
+  color: var(--text-color);
+}
+.fp-rail-empty { padding: 4px 8px; font-size: var(--font-size-xs); color: var(--text-tertiary, var(--text-muted)); }
+
+/* 窄面板收起左轨（与 Host 的响应式断点一致） */
+@media (max-width: 720px) {
+  .fp-rail { display: none; }
+}
