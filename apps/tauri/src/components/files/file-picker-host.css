@@ -206,6 +206,9 @@
   overflow-y: auto;
   padding: 0 6px 6px;
 }
+/* 列表本身可聚焦（键盘导航入口）：焦点环用 outline，不额外增阴影计数 */
+.fp-list:focus { outline: none; }
+.fp-list:focus-visible { outline: 2px solid var(--ring-color); outline-offset: -2px; }
 .fp-list-spacer { position: relative; }
 .fp-row {
   position: absolute;
@@ -227,7 +230,15 @@
 .fp-row.focus { outline: 1px solid var(--ring-color); outline-offset: -1px; }
 .fp-row.dim { opacity: 0.45; cursor: not-allowed; }
 .fp-row.dir .fp-row-name { color: var(--text-color); }
-.fp-row-icon { display: inline-flex; width: 16px; height: 16px; flex-shrink: 0; align-items: center; }
+.fp-row-icon { display: inline-flex; width: 16px; height: 16px; flex-shrink: 0; align-items: center; overflow: hidden; }
+/* 缩略图：撑满 16px 图标位，圆角与行高协调；加载失败时浏览器显示空白而非破图 */
+.fp-thumb {
+  width: 16px;
+  height: 16px;
+  object-fit: cover;
+  border-radius: 3px;
+  background: var(--sf-panel-bg-muted);
+}
 .fp-row-name {
   flex: 1;
   min-width: 0;

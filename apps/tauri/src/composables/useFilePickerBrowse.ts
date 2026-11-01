@@ -11,6 +11,7 @@ import { invoke } from '@/composables/transport'
 import { resolveEntityDataDir } from '@worldsea/entity-core/core'
 import type { FilePickerRequest } from '@worldsea/entity-core/core'
 import { computeVirtualWindow } from '@worldsea/ui-kit/components/data/virtualWindow'
+import { loadRecentDirs, pushRecentDir } from './filePickerRecent'
 import {
   breadcrumbOf,
   formatBytes,
@@ -19,12 +20,12 @@ import {
   normalizePath,
   overLimitReason,
   parentPath,
-  selectionSummary,
   sortEntries,
   type DriveEntry,
   type FsEntry,
   type QuickLocation,
 } from '@/components/files/filePickerModel'
+import { useFilePickerSelection } from './useFilePickerSelection'
 
 /** 行高（虚拟窗口强依赖固定值，与样式 .fp-row 高度一致） */
 export const ROW_HEIGHT = 30
@@ -56,12 +57,13 @@ export function useFilePickerBrowse(options: {
 }) {
   const drives = ref<DriveEntry[]>([])
   const quickLocations = ref<QuickLocation[]>([])
+  /** 最近实际做出选择的目录（持久化；左轨独立分组） */
+  const recentDirs = ref<string[]>(loadRecentDirs())
   const currentPath = ref('')
   const pathDraft = ref('')
   const entries = ref<FsEntry[]>([])
   const loadingList = ref(false)
   const listError = ref('')
-  const selected = ref(new Set<string>())
   const focusIndex = ref(0)
   const scrollTop = ref(0)
   const viewportHeight = ref(400)
@@ -135,8 +137,7 @@ export function useFilePickerBrowse(options: {
     if (!target) return
     currentPath.value = target
     pathDraft.value = target
-    selected.value = new Set()
-    focusIndex.value = 0
+    resetSelection()
     query.value = ''
     // 截断前进历史（浏览器语义）
     history.value = [...history.value.slice(0, historyIndex.value + 1), target]
@@ -148,8 +149,7 @@ export function useFilePickerBrowse(options: {
   async function jumpToHistory(path: string): Promise<void> {
     currentPath.value = path
     pathDraft.value = path
-    selected.value = new Set()
-    focusIndex.value = 0
+    resetSelection()
     query.value = ''
     await loadDir(path)
   }
@@ -200,6 +200,22 @@ export function useFilePickerBrowse(options: {
     )
   })
 
+  /* ── 选择与键盘（语义集中在 useFilePickerSelection） ── */
+
+  const selection = useFilePickerSelection({
+    visible: visibleEntries,
+    request: options.request,
+    isDirMode,
+    multiple,
+    currentPath,
+    focusIndex,
+  })
+
+  const {
+    selected, rangeAnchor, summary, overLimitCount, canConfirm,
+    onRowClick: applyRowClick, moveFocus, focusSelect, selectAll, clearSelection, resetSelection,
+  } = selection
+
   const rows = computed<PickerRow[]>(() => {
     const all = visibleEntries.value
     const { start, end } = computeVirtualWindow(
@@ -226,49 +242,23 @@ export function useFilePickerBrowse(options: {
   /** 面包屑（无显式根：从盘符展开，便于跨盘跳转） */
   const crumbs = computed(() => breadcrumbOf(currentPath.value))
 
-  /* ── 选择与确认 ── */
-
-  const summary = computed(() => selectionSummary(visibleEntries.value, selected.value))
-
-  const overLimitCount = computed(
-    () =>
-      visibleEntries.value.filter(
-        e => selected.value.has(e.path) && overLimitReason(e, options.request()?.maxBytes),
-      ).length,
-  )
-
-  /** 目录模式恒可确认（选当前目录）；文件模式要求至少一项有效选择 */
-  const canConfirm = computed(() => {
-    if (!options.request()) return false
-    if (isDirMode.value) return !!currentPath.value
-    if (summary.value.count === 0) return false
-    return overLimitCount.value === 0
-  })
-
-  function onRowClick(row: PickerRow): void {
-    focusIndex.value = row.index
-    if (isDirMode.value) {
-      selected.value = new Set([row.entry.path])
-      return
-    }
-    if (row.entry.isDir) {
-      selected.value = new Set([row.entry.path])
-      return
-    }
-    if (row.limit) return
-    if (!multiple.value) {
-      selected.value = new Set([row.entry.path])
-      return
-    }
-    const next = new Set(selected.value)
-    if (next.has(row.entry.path)) next.delete(row.entry.path)
-    else next.add(row.entry.path)
-    selected.value = next
+  /** 键盘回车：进目录，或对焦点文件确认 */
+  function focusEnter(): void {
+    const entry = visibleEntries.value[focusIndex.value]
+    if (!entry) return
+    if (entry.isDir) return void navigate(entry.path)
+    const limit = overLimitReason(entry, options.request()?.maxBytes)
+    // 未选中则先选中（双击文件的同义语义），已选中则直接确认
+    if (!selected.value.has(entry.path)) applyRowClick({ entry, index: focusIndex.value, limit })
+    else if (!limit) confirm()
   }
 
   function confirm(): void {
     if (!canConfirm.value) return
     const paths = isDirMode.value ? [currentPath.value] : [...selected.value]
+    // 记一次「最近目录」：目录模式记选中目录，文件模式记文件所在目录
+    const remembered = isDirMode.value ? currentPath.value : parentPath(paths[0] ?? '') ?? currentPath.value
+    if (remembered) recentDirs.value = pushRecentDir(remembered)
     options.settle(paths.map(normalizePath))
   }
 
@@ -279,8 +269,7 @@ export function useFilePickerBrowse(options: {
 
   /** 每次新请求进来：重置状态并按 defaultPath 起步（不可读则回落首个快捷位置/盘符） */
   async function reset(defaultPath?: string | null): Promise<void> {
-    selected.value = new Set()
-    focusIndex.value = 0
+    resetSelection()
     scrollTop.value = 0
     listError.value = ''
     query.value = ''
@@ -325,6 +314,7 @@ export function useFilePickerBrowse(options: {
     // 数据
     drives,
     quickLocations,
+    recentDirs,
     currentPath,
     pathDraft,
     query,
@@ -354,11 +344,18 @@ export function useFilePickerBrowse(options: {
     commitPathDraft,
     resetPathDraft,
     onScroll,
-    onRowClick,
+    onRowClick: applyRowClick,
     onRowDblClick,
     confirm,
     reset,
     useNativeDialog,
+    // 键盘导航
+    rangeAnchor,
+    moveFocus,
+    focusSelect,
+    focusEnter,
+    selectAll,
+    clearSelection,
     // 工具
     samePath,
     driveRootOf,

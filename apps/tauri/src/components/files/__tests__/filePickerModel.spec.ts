@@ -11,9 +11,12 @@ import {
   joinPath,
   breadcrumbOf,
   baseNameOf,
+  canThumbnail,
   extensionOf,
   matchesFilters,
   matchesQuery,
+  moveFocusIndex,
+  rangeWindow,
   typeLabelOf,
   isVisible,
   overLimitReason,
@@ -196,7 +199,7 @@ describe('格式化', () => {
   })
 })
 
-describe('排序与选中统计', () => {
+describe('选中统计与排序', () => {
   it('目录优先，同类按名称本地化排序', () => {
     const sorted = sortEntries([
       entry('b.txt'),
@@ -215,5 +218,56 @@ describe('排序与选中统计', () => {
 
   it('空选中返回零值', () => {
     expect(selectionSummary([entry('a.txt', false, 5)], new Set())).toEqual({ count: 0, totalBytes: 0 })
+  })
+})
+
+describe('缩略图判定', () => {
+  it('可解码的位图出缩略图', () => {
+    for (const name of ['a.png', 'a.JPG', 'a.jpeg', 'a.gif', 'a.webp', 'a.bmp']) {
+      expect(canThumbnail(entry(name))).toBe(true)
+    }
+  })
+
+  it('目录、svg、非图片不出缩略图', () => {
+    expect(canThumbnail(entry('dir', true))).toBe(false)
+    // svg 是矢量，直接当 img 渲染内容风险与体积都不合适
+    expect(canThumbnail(entry('icon.svg'))).toBe(false)
+    expect(canThumbnail(entry('a.txt'))).toBe(false)
+    expect(canThumbnail(entry('noext'))).toBe(false)
+  })
+})
+
+describe('键盘导航与范围选择', () => {
+  it('rangeWindow 正反向都给同一闭区间', () => {
+    expect(rangeWindow(10, 2, 5)).toEqual({ lo: 2, hi: 5 })
+    expect(rangeWindow(10, 5, 2)).toEqual({ lo: 2, hi: 5 })
+  })
+
+  it('rangeWindow 越界时 clamp 到列表边界', () => {
+    expect(rangeWindow(3, -5, 99)).toEqual({ lo: 0, hi: 2 })
+  })
+
+  it('rangeWindow 空列表返回 null', () => {
+    expect(rangeWindow(0, 0, 0)).toBeNull()
+  })
+
+  it('rangeWindow 单元素时区间退化', () => {
+    expect(rangeWindow(1, 0, 0)).toEqual({ lo: 0, hi: 0 })
+  })
+
+  it('moveFocusIndex 夹在边界内', () => {
+    expect(moveFocusIndex(0, -1, 5)).toBe(0)
+    expect(moveFocusIndex(4, 1, 5)).toBe(4)
+    expect(moveFocusIndex(2, 1, 5)).toBe(3)
+    expect(moveFocusIndex(2, -2, 5)).toBe(0)
+  })
+
+  it('moveFocusIndex 大跨度跳转被 clamp（Home/End 语义）', () => {
+    expect(moveFocusIndex(2, -999, 8)).toBe(0)
+    expect(moveFocusIndex(2, 999, 8)).toBe(7)
+  })
+
+  it('moveFocusIndex 空列表归零不抛错', () => {
+    expect(moveFocusIndex(3, 1, 0)).toBe(0)
   })
 })

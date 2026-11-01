@@ -194,8 +194,36 @@ export function sortEntries(entries: FsEntry[]): FsEntry[] {
   )
 }
 
-/** 修改时间显示（无值返回 `—`） */
-export function formatModified(modified?: string | null): string {
+/**
+ * Shift 范围选择的区间（闭区间，已 clamp 到合法下标）。
+ * @returns 落在 [lo, hi] 内的条目下标；空列表返回 null
+ */
+export function rangeWindow(total: number, from: number, to: number): { lo: number; hi: number } | null {
+  if (total <= 0) return null
+  const a = Math.max(0, Math.min(total - 1, from))
+  const b = Math.max(0, Math.min(total - 1, to))
+  return { lo: Math.min(a, b), hi: Math.max(a, b) }
+}
+
+/**
+ * 键盘移动后的焦点下标（clamp 到列表边界）。
+ * @param delta 正数向下、负数向上
+ */
+export function moveFocusIndex(current: number, delta: number, total: number): number {
+  if (total <= 0) return 0
+  return Math.max(0, Math.min(total - 1, current + delta))
+}
+
+/** 可出缩略图的扩展名（浏览器能直接解码的位图；svg 与字体等不出缩略图） */
+const THUMBNAIL_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'apng'])
+
+/** 该条目是否可生成缩略图（仅文件，且扩展名在可解码位图集合内） */
+export function canThumbnail(entry: FsEntry): boolean {
+  if (entry.isDir) return false
+  return THUMBNAIL_EXTS.has(extensionOf(entry.name))
+}
+
+/** 修改时间显示（无值返回 `—`） */export function formatModified(modified?: string | null): string {
   if (!modified) return '—'
   const ms = Number(modified)
   if (!Number.isFinite(ms) || ms <= 0) return '—'
