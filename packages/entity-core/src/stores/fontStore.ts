@@ -2,13 +2,14 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { watchDebounced } from '@worldsea/perf-kit/render'
 
+/** 字体分层。canvas/agent 为退役保留键（无 CSS 变量，仅旧数据兼容）：
+ *  canvas 仅 canvas 图片渲染直读 prefs；agent 面已随旧 Agent 面退场。 */
 export type FontLayer = 'chrome' | 'editorUi' | 'content' | 'preview' | 'canvas' | 'agent'
 
-export interface FontLayerPref {
-  family: string
-  weight: number
-  style: string
-}
+/** 活跃层（设置面展示与变量写入口径）；canvas/agent 退役层不在其中 */
+export type ActiveFontLayer = Exclude<FontLayer, 'canvas' | 'agent'>
+
+export interface FontLayerPref { family: string; weight: number; style: string }
 
 export interface FontPreferences {
   chrome: FontLayerPref
@@ -21,31 +22,28 @@ export interface FontPreferences {
 
 const STORAGE_KEY = 'worldsea_font_prefs'
 
+/** 分层 → CSS 变量。空串 = 该层不写变量（canvas 仅渲染直读 prefs；agent 层已退役）。 */
 const LAYER_CSS_VAR: Record<FontLayer, string> = {
   chrome: '--font-family-chrome',
   editorUi: '--font-family-editor-ui',
   content: '--font-family-content',
   preview: '--font-family-preview',
   canvas: '',
-  agent: '--font-family-agent',
+  agent: '',
 }
 
-const LAYER_WEIGHT_VAR: Record<FontLayer, string> = {
+const LAYER_WEIGHT_VAR: Record<ActiveFontLayer, string> = {
   chrome: '--font-weight-chrome',
   editorUi: '--font-weight-editor-ui',
   content: '--font-weight-content',
   preview: '--font-weight-preview',
-  canvas: '',
-  agent: '--font-weight-agent',
 }
 
-const LAYER_STYLE_VAR: Record<FontLayer, string> = {
+const LAYER_STYLE_VAR: Record<ActiveFontLayer, string> = {
   chrome: '--font-style-chrome',
   editorUi: '--font-style-editor-ui',
   content: '--font-style-content',
   preview: '--font-style-preview',
-  canvas: '',
-  agent: '--font-style-agent',
 }
 
 const DEFAULT_PREF: FontLayerPref = { family: '', weight: 400, style: 'normal' }
@@ -59,9 +57,7 @@ const DEFAULT_PREFS: FontPreferences = {
   agent: { ...DEFAULT_PREF },
 }
 
-/**
- * 从旧格式（纯字符串）或新格式（对象）迁移
- */
+/** 从旧格式（纯字符串）或新格式（对象）迁移 */
 function migratePref(raw: unknown): FontLayerPref {
   if (typeof raw === 'string') {
     return { family: raw, weight: 400, style: 'normal' }
@@ -96,11 +92,34 @@ function savePrefs(prefs: FontPreferences) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs))
 }
 
+/** 界面字号档位范围（0.85–1.15）与持久化键（独立键，避免破坏分层 prefs 迁移逻辑） */
+export const UI_SCALE_MIN = 0.85
+export const UI_SCALE_MAX = 1.15
+const UI_SCALE_KEY = 'worldsea_font_ui_scale'
+
+function clampScale(v: number): number {
+  if (!Number.isFinite(v)) return 1
+  return Math.min(UI_SCALE_MAX, Math.max(UI_SCALE_MIN, Math.round(v * 100) / 100))
+}
+
+function loadUiScale(): number {
+  try {
+    const v = Number(localStorage.getItem(UI_SCALE_KEY))
+    return v >= UI_SCALE_MIN && v <= UI_SCALE_MAX ? v : 1
+  } catch {
+    return 1
+  }
+}
+
 export const useFontStore = defineStore('font', () => {
   const prefs = ref<FontPreferences>(loadPrefs())
+  /** 界面字号档位（--ui-font-scale，默认 1 = 主题令牌原值） */
+  const uiScale = ref<number>(loadUiScale())
 
   watchDebounced(() => prefs.value, () => savePrefs(prefs.value), { debounce: 200, deep: true })
+  watchDebounced(() => uiScale.value, () => localStorage.setItem(UI_SCALE_KEY, String(uiScale.value)), { debounce: 200 })
 
+  /** 把某层用户偏好写入 documentElement inline 变量（inline 优先级高于主题表默认值） */
   function applyLayerCSS(layer: FontLayer, pref: FontLayerPref) {
     const familyVar = LAYER_CSS_VAR[layer]
     if (familyVar) {
@@ -112,7 +131,7 @@ export const useFontStore = defineStore('font', () => {
       }
     }
 
-    const weightVar = LAYER_WEIGHT_VAR[layer]
+    const weightVar = LAYER_WEIGHT_VAR[layer as ActiveFontLayer]
     if (weightVar) {
       if (pref.family && pref.weight !== 400) {
         document.documentElement.style.setProperty(weightVar, String(pref.weight))
@@ -121,7 +140,7 @@ export const useFontStore = defineStore('font', () => {
       }
     }
 
-    const styleVar = LAYER_STYLE_VAR[layer]
+    const styleVar = LAYER_STYLE_VAR[layer as ActiveFontLayer]
     if (styleVar) {
       if (pref.family && pref.style !== 'normal') {
         document.documentElement.style.setProperty(styleVar, pref.style)
@@ -131,21 +150,23 @@ export const useFontStore = defineStore('font', () => {
     }
   }
 
-  function setLayerFont(layer: FontLayer, family: string, weight?: number, style?: string) {
-    prefs.value[layer] = {
-      family,
-      weight: weight ?? 400,
-      style: style ?? 'normal',
+  /** 界面字号档位 → --ui-font-scale（默认 1 时移除 inline，吃主题表默认值） */
+  function applyUiScale() {
+    const v = clampScale(uiScale.value)
+    if (v !== 1) {
+      document.documentElement.style.setProperty('--ui-font-scale', String(v))
+    } else {
+      document.documentElement.style.removeProperty('--ui-font-scale')
     }
+  }
+
+  function setLayerFont(layer: FontLayer, family: string, weight?: number, style?: string) {
+    prefs.value[layer] = { family, weight: weight ?? 400, style: style ?? 'normal' }
     applyLayerCSS(layer, prefs.value[layer])
   }
 
   function setLayerVariant(layer: FontLayer, weight: number, style: string) {
-    prefs.value[layer] = {
-      ...prefs.value[layer],
-      weight,
-      style,
-    }
+    prefs.value[layer] = { ...prefs.value[layer], weight, style }
     applyLayerCSS(layer, prefs.value[layer])
   }
 
@@ -154,10 +175,12 @@ export const useFontStore = defineStore('font', () => {
     applyLayerCSS(layer, prefs.value[layer])
   }
 
-  function reapplyAllLayers() {
+  /** 启动恢复：重放全部层变量 + 字号档位（幂等，可重复调用） */
+  function reapplyAll() {
     for (const layer of Object.keys(LAYER_CSS_VAR) as FontLayer[]) {
       applyLayerCSS(layer, prefs.value[layer])
     }
+    applyUiScale()
   }
 
   function getLayerFont(layer: FontLayer): string {
@@ -168,13 +191,20 @@ export const useFontStore = defineStore('font', () => {
     return prefs.value[layer]
   }
 
+  function setUiScale(v: number) {
+    uiScale.value = clampScale(v)
+    applyUiScale()
+  }
+
   return {
     prefs,
+    uiScale,
     setLayerFont,
     setLayerVariant,
     resetLayer,
-    reapplyAllLayers,
+    reapplyAll,
     getLayerFont,
     getLayerPref,
+    setUiScale,
   }
 })

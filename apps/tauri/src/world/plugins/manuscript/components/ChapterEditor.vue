@@ -90,6 +90,8 @@ onMounted(() => {
   /* 写作偏好（批1）：默认 14px/1.8/全宽 = 既有呈现（--font-size-md 未定义，继承 --fs-base） */
   font-size: var(--ms-font-size, var(--fs-base));
   line-height: var(--ms-line-height, 1.8);
+  /* 长段落断行优化：末行不成孤字（Chromium 120+ 渐进增强，字体系统 v2 批 3） */
+  text-wrap: pretty;
   max-width: var(--ms-page-width, none);
   margin-inline: auto;
   color: var(--text-color);

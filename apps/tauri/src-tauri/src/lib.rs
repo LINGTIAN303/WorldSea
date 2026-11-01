@@ -63,6 +63,8 @@ mod capabilities;
 mod data_root;
 // /entity 就绪卡数据面（纯插件形态：console 客户端贡献位经壳 IPC 取事实）
 mod product_briefing;
+// 系统字体扫描（字体系统 v2 批 2：字体目录枚举 + sfnt name/OS-2 表解析，零依赖）
+mod font_scan;
 // mux WebSocket 凭据中转（改写握手首部后双向透传；仅 legacy 对照模式使用）
 mod dsh_relay;
 // 管道传输客户端（宿主管道载体的壳侧对端：帧编解码 + 请求多路复用 + 流 lane）
@@ -177,6 +179,9 @@ pub fn run() {
             app_prefs::cmd_product_prefs_set,
             // /entity 就绪卡事实面（console 客户端贡献位调用；只读）
             product_briefing::cmd_product_briefing,
+            // 系统字体扫描（字体系统 v2 批 2：ACL worldsea-product.toml 既有两条放行）
+            font_scan::cmd_font_scan_system,
+            font_scan::cmd_font_read_file,
             // 壳侧能力桥（登记 / 内省 / 调用 / 回执 / 撤登记；两窗共用，ACL 在 Rust 侧按窗口 label 判）
             capabilities::cmd_capability_register,
             capabilities::cmd_capability_list,

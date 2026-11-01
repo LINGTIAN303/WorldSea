@@ -110,7 +110,6 @@ export const FONT_LAYERS: FontLayerConfig[] = [
   { key: 'content', label: '内容字体', hint: '正文编辑区、Notebook Markdown' },
   { key: 'preview', label: '预览字体', hint: '手机预览、DOCX 导出' },
   { key: 'canvas', label: '画布字体', hint: 'FontRenderer 图片渲染' },
-  { key: 'agent', label: 'Agent', hint: '对话输出' },
 ]
 
 /** 字重文案 */

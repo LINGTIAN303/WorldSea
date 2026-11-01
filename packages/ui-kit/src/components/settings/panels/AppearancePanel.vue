@@ -103,6 +103,7 @@
             </button>
             <span class="sf-storage-hint">{{ fontStorageHint }}</span>
           </div>
+          <SystemFontPicker />
           <div v-if="fontLibraryEntries.length === 0" class="set-hint" style="padding:12px 0">尚未安装字体，点击"导入字体"添加</div>
           <div v-else class="sf-library-list">
             <!-- 无分组的独立字体 -->
@@ -138,6 +139,16 @@
         <template v-else-if="idx === 3">
           <div class="sc-head">字体分层</div>
           <div class="set-hint" style="margin-bottom:8px">每层字体可独立设置，未设置则跟随上层默认值</div>
+          <div class="sf-scale-row">
+            <span class="sf-scale-label">界面字号</span>
+            <div class="sf-scale-btns" role="group" aria-label="界面字号档位">
+              <button class="sf-scale-btn" :class="{ on: Math.abs(fontStore.uiScale - 0.92) < 0.001 }" @click="fontStore.setUiScale(0.92)">紧凑</button>
+              <button class="sf-scale-btn" :class="{ on: Math.abs(fontStore.uiScale - 1) < 0.001 }" @click="fontStore.setUiScale(1)">标准</button>
+              <button class="sf-scale-btn" :class="{ on: Math.abs(fontStore.uiScale - 1.08) < 0.001 }" @click="fontStore.setUiScale(1.08)">宽松</button>
+            </div>
+            <input type="range" class="set-range" min="0.85" max="1.15" step="0.01" :value="fontStore.uiScale" :aria-label="'界面字号微调'" @input="fontStore.setUiScale(Number(($event.target as HTMLInputElement).value))" />
+            <span class="set-range-val">{{ Math.round(fontStore.uiScale * 100) }}%</span>
+          </div>
           <div v-for="fl in FONT_LAYERS" :key="fl.key" class="sf-layer-row">
             <div class="sf-layer-main">
               <span class="sf-layer-label">{{ fl.label }}<span class="set-hint-inline">{{ fl.hint }}</span></span>
@@ -179,9 +190,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useSettingsStore, useTheme, useFontStore, pickLocalBuffers, ACCENT_PRESETS, CUSTOM_ACCENT_ID, quantizeAnchor, type FontLayer } from '@worldsea/entity-core'
-import { useFontPresets, useFontLibraryStore, type FontLibraryEntry, type FontVariantEntry } from '@worldsea/font-kit'
+import { useFontLibraryStore, type FontLibraryEntry, type FontVariantEntry } from '@worldsea/font-kit'
 import { installFromWsfont, installFromRawFont, installFromZip } from '@worldsea/font-kit'
 import WsIcon from '../../WsIcon.vue'
+import SystemFontPicker from '../../font/SystemFontPicker.vue'
 import WsInlineLoading from '../../feedback/loading/WsInlineLoading.vue'
 import ColorPickerDialog from '../../editor/ColorPickerDialog.vue'
 import EntityMultiSelect from './EntityMultiSelect.vue'
@@ -219,7 +231,6 @@ function onPerfModeChange(on: boolean) {
   emit('dirty')
 }
 const fontStore = useFontStore()
-const { getPresetByFamily, markInstalled } = useFontPresets()
 const libraryStore = useFontLibraryStore()
 const fontLibraryEntries = computed(() => libraryStore.getAllEntries())
 
@@ -392,10 +403,6 @@ async function onFontGroupDelete(groupId: string) {
 
 function onFontLayerChange(layer: FontLayer, family: string) {
   fontStore.setLayerFont(layer, family)
-  if (family) {
-    const preset = getPresetByFamily(family)
-    if (preset) markInstalled(preset.id)
-  }
 }
 
 function getVariantsForFamily(family: string): FontVariantEntry[] {
@@ -517,6 +524,12 @@ async function onFontImport() {
 .set-select--sm { max-width: 160px; font-size: var(--fs-sm); padding: 3px 6px; }
 
 /* ── 字体设置面板 ── */
+.sf-scale-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; padding: 8px 10px; border: 1px solid var(--border, var(--color-border)); border-radius: var(--radius-sm, 6px); background: var(--bg-muted, transparent); }
+.sf-scale-label { font-size: var(--font-size-sm); color: var(--text-primary); flex-shrink: 0; }
+.sf-scale-btns { display: inline-flex; border: 1px solid var(--border, var(--color-border)); border-radius: var(--radius-sm, 6px); overflow: hidden; }
+.sf-scale-btn { padding: 3px 10px; border: none; background: transparent; color: var(--text-secondary); cursor: pointer; font-size: var(--font-size-xs); }
+.sf-scale-btn + .sf-scale-btn { border-left: 1px solid var(--border, var(--color-border)); }
+.sf-scale-btn.on { background: var(--accent-soft, rgba(127,127,127,0.2)); color: var(--accent, var(--text-primary)); }
 .sf-layer-label { display: flex; flex-direction: column; gap: 2px; }
 .sf-layer-controls { display: flex; align-items: center; gap: 6px; }
 .sf-reset-btn {
@@ -538,7 +551,7 @@ async function onFontImport() {
 .sf-import-btn.is-busy { cursor: progress; color: var(--text-tertiary); }
 
 .sf-library-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-.sf-storage-hint { font-size: var(--fs-sm); color: var(--color-text-muted); }
+.sf-storage-hint { font-size: var(--fs-sm); color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
 .sf-library-list { display: flex; flex-direction: column; gap: 8px; }
 .sf-lib-card {
   position: relative; padding: 10px 12px; border: 1px solid var(--color-border);

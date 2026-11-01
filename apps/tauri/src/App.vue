@@ -6,6 +6,7 @@ import { useUIStore } from './stores/uiStore'
 import { useTheme } from './components/ui/useTheme'
 import { useTheme as useEntityTheme, useSettingsStore, useIconAssetStore } from '@worldsea/entity-core'
 import { useGlobalEvents, setActiveViewId, enableGlobalTooltips, registerCustomIconResolver } from '@worldsea/ui-kit'
+import { useFontBootstrap } from '@worldsea/font-kit'
 import { bootstrapShell } from './plugins/boot'
 import { startBackendBoot } from './boot/backendBoot'
 import { useProjectSwitcher } from './composables/useProjectSwitcher'
@@ -198,6 +199,11 @@ onMounted(() => {
     const eyeIris = localStorage.getItem('worldsea-eye-iris')
     if (eyeIris) document.documentElement.style.setProperty('--ws-eye-iris', eyeIris)
   } catch { /* localStorage 不可用忽略 */ }
+  // 字体系统启动恢复（字体系统 v2 批 1）：恢复已装字体 FontFace（IndexedDB）+ 重放分层变量与字号档位。
+  // 异步不阻塞启动；失败仅告警——恢复前 CSS 变量指向悬空 family 时回退 --font-sans，恢复完成即生效。
+  useFontBootstrap().bootstrap().catch((err) => {
+    console.warn('[App] 字体库恢复失败（不影响启动）:', err)
+  })
   void runBoot()
 })
 </script>

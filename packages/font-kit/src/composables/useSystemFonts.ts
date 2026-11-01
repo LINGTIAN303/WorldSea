@@ -1,22 +1,19 @@
-import { ref, readonly, onScopeDispose, getCurrentScope } from 'vue'
+import { ref, readonly, onScopeDispose, getCurrentScope, type Ref } from 'vue'
 import {
   scanSystemFonts,
   readFontFile,
   isTauriAvailable,
   type SystemFontInfo,
 } from '../TauriFontBridge'
-import {
-  register,
-  type FontSource,
-} from '../FontRegistry'
-import { loadFont } from '../FontLoader'
+import { installFromRawFont } from '../fontInstaller'
+import { useFontLibraryStore } from '../stores/fontLibraryStore'
 
 export type { SystemFontInfo }
 
 export interface UseSystemFontsReturn {
-  available: ReturnType<typeof readonly<ReturnType<typeof ref<boolean>>>>
-  scanning: ReturnType<typeof readonly<ReturnType<typeof ref<boolean>>>>
-  fonts: ReturnType<typeof readonly<ReturnType<typeof ref<SystemFontInfo[]>>>>
+  available: Readonly<Ref<boolean>>
+  scanning: Readonly<Ref<boolean>>
+  fonts: Readonly<Ref<readonly SystemFontInfo[]>>
   scan: () => Promise<SystemFontInfo[]>
   installFont: (fontInfo: SystemFontInfo) => Promise<boolean>
   installFonts: (fontInfos: SystemFontInfo[]) => Promise<number>
@@ -46,30 +43,18 @@ export function useSystemFonts(): UseSystemFontsReturn {
     }
   }
 
+  /** 安装系统字体到库：复用 installFromRawFont 完整链（解析真实 family/weight/style →
+   *  FontFace 注册 + IndexedDB 持久化），再登记进 fontLibraryStore——重启可恢复、可删除。 */
   async function installFont(fontInfo: SystemFontInfo): Promise<boolean> {
     const buffer = await readFontFile(fontInfo.path)
     if (!buffer) return false
-
-    const id = `sys-${fontInfo.family}-${fontInfo.weight}-${fontInfo.style}`
-      .replace(/\s+/g, '-')
-
-    const source: FontSource = {
-      type: 'buffer',
-      buffer,
-      format: fontInfo.format,
-    }
-
-    register({
-      id,
-      family: fontInfo.family,
-      weight: fontInfo.weight,
-      style: fontInfo.style,
-      source,
-    })
-
     try {
-      await loadFont(id)
-      return true
+      const fileName = fontInfo.path.split(/[\\/]/).pop() || fontInfo.family
+      const { entry } = await installFromRawFont(buffer, fileName)
+      const libraryStore = useFontLibraryStore()
+      if (libraryStore.getEntryByFamily(entry.family)) return true // 已在库内视为成功
+      entry.source = 'system'
+      return libraryStore.addEntry(entry).ok
     } catch {
       return false
     }

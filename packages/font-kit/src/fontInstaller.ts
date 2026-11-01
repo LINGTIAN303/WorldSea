@@ -52,7 +52,7 @@ export const MAX_FONT_STORAGE = 400 * 1024 * 1024
  * 回退到从 head 表的 macStyle 推断。
  * 返回标准 CSS font-weight 值（100-900）。
  */
-function parseFontWeightFromBuffer(buffer: ArrayBuffer): number {
+export function parseFontWeightFromBuffer(buffer: ArrayBuffer): number {
   try {
     const view = new DataView(buffer)
     if (buffer.byteLength < 12) return 400
@@ -93,7 +93,7 @@ function parseFontWeightFromBuffer(buffer: ArrayBuffer): number {
  * 检查 OS/2 表的 fsSelection 位 0（ITALIC）和位 9（OBLIQUE），
  * 以及 post 表的 italicAngle。
  */
-function parseFontStyleFromBuffer(buffer: ArrayBuffer): string {
+export function parseFontStyleFromBuffer(buffer: ArrayBuffer): string {
   try {
     const view = new DataView(buffer)
     if (buffer.byteLength < 12) return 'normal'

@@ -141,7 +141,7 @@
 ### 5. 字体库的优化
 - **简述**：优化字体库系统
 - **涉及模块**：`@worldsea/font-kit`、`src/stores/fontLibraryStore.ts`、`src/stores/fontStore.ts`、`src/composables/useFontBootstrap.ts`、`src/composables/useFontPresets.ts`、`src/composables/fontSpanParser.ts`、`src/ui/font/`
-- **状态**：待启动
+- **状态**：执行中（2026-11-02 字体系统 v2 已落地主体：断链修复 + 系统字体直选 + 界面字号档位 + 视觉增强，Agent 自走查通过；项目级覆盖/预设字体包/内容行距档位三项挂账待拍板，见 [批计划](../plans/已完成/2026-11-02-字体系统v2.md)）
 - **优先级**：—
 - **备注**：font-kit 已有 FontLoader/FontRegistry/FontRenderer/TauriFontBridge/WsFontPack 完整体系，需明确优化方向
 

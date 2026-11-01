@@ -127,6 +127,7 @@ const unfiledCount = computed(() =>
 .ms-stats-today-num {
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
+  font-variant-numeric: tabular-nums; /* 数字等宽：字数跳动时宽度稳定（字体系统 v2 批 3） */
 }
 .ms-stats-today-num strong { font-size: var(--font-size-xl); color: var(--text-color); }
 .ms-stats-goal-hint { font-size: var(--font-size-xs); color: var(--text-tertiary); }

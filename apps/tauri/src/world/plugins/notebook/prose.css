@@ -19,6 +19,8 @@
   font-family: var(--font-family-content);
   font-size: var(--nb-font-size, var(--font-size-base));
   line-height: var(--nb-line-height, 1.75);
+  /* 长段落断行优化（Chromium 120+ 渐进增强，字体系统 v2 批 3） */
+  text-wrap: pretty;
   color: var(--color-text-primary);
   word-break: break-word;
 }

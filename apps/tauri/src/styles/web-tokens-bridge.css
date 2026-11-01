@@ -98,8 +98,8 @@
   --font-size-base: var(--fs-base);
   --font-size-lg: var(--fs-lg);
   --font-size-xl: var(--fs-xl);
-  --font-size-2xl: 24px;
-  --font-size-3xl: 30px;
+  --font-size-2xl: calc(24px * var(--ui-font-scale));
+  --font-size-3xl: calc(30px * var(--ui-font-scale));
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
@@ -203,10 +203,8 @@
   --color-primary-muted: var(--accent-soft);
   --color-error: var(--danger);
   --color-bg: var(--bg-surface);
-  /* 字体/字号语义 */
-  --font-family-content: var(--font-sans);
+  /* 字体/字号语义（分层字体默认定义已收进 theme.css 单一真源） */
   --font-family-display: var(--font-sans);
-  --font-family-editor-ui: var(--font-sans);
   --text-heading-font-size: var(--font-size-lg);
   --text-subheading-font-size: var(--font-size-base);
   --text-caption-font-size: var(--font-size-xs);
@@ -353,8 +351,8 @@
   --font-size-base: var(--fs-base);
   --font-size-lg: var(--fs-lg);
   --font-size-xl: var(--fs-xl);
-  --font-size-2xl: 24px;
-  --font-size-3xl: 30px;
+  --font-size-2xl: calc(24px * var(--ui-font-scale));
+  --font-size-3xl: calc(30px * var(--ui-font-scale));
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
   --font-weight-bold: 700;

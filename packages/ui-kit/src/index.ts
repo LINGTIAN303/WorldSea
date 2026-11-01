@@ -97,6 +97,7 @@ export type { TreeNodeData } from './components/entity/GenericTreeView.vue'
 export { default as FontSelector } from './components/font/FontSelector.vue'
 export { default as TextRenderPreview } from './components/font/TextRenderPreview.vue'
 export { default as FontPreviewPanel } from './components/font/FontPreviewPanel.vue'
+export { default as SystemFontPicker } from './components/font/SystemFontPicker.vue'
 
 // ----------------------------------------------------------------------------
 // 数据类 composables — 委托自 @worldsea/entity-core

@@ -49,14 +49,23 @@
   /* ── 排版 ── */
   --font-sans: 'Inter', system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
   --font-mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
-  --fs-3xs: 9px;          /* 极微小：徽标计数/键帽/极紧凑标签 */
-  --fs-2xs: 10px;         /* 次小：辅助/提示/时间戳/小标签 */
-  --fs-xs: 11px;
-  --fs-sm: 12px;
-  --fs-md: 13px;
-  --fs-base: 14px;
-  --fs-lg: 16px;
-  --fs-xl: 20px;
+  /* 字体分层（用户层）：chrome=界面 / content=正文编辑区 / editorUi=编辑器工具条 / preview=手机预览与导出。
+     默认 = --font-sans；用户在设置面指定后由 fontStore 写 documentElement inline 覆盖（inline 优先级高于本表）。
+     agent/canvas 层已退役不设变量（agent 面已退场；canvas 仅 canvas 图片渲染走 prefs 直读）。 */
+  --font-family-chrome: var(--font-sans);
+  --font-family-content: var(--font-sans);
+  --font-family-editor-ui: var(--font-sans);
+  --font-family-preview: var(--font-sans);
+  /* 界面字号档位：fontStore 按档位写 documentElement inline（0.85–1.15，默认 1 = 原值零变化） */
+  --ui-font-scale: 1;
+  --fs-3xs: calc(9px * var(--ui-font-scale));   /* 极微小：徽标计数/键帽/极紧凑标签 */
+  --fs-2xs: calc(10px * var(--ui-font-scale));  /* 次小：辅助/提示/时间戳/小标签 */
+  --fs-xs: calc(11px * var(--ui-font-scale));
+  --fs-sm: calc(12px * var(--ui-font-scale));
+  --fs-md: calc(13px * var(--ui-font-scale));
+  --fs-base: calc(14px * var(--ui-font-scale));
+  --fs-lg: calc(16px * var(--ui-font-scale));
+  --fs-xl: calc(20px * var(--ui-font-scale));
   --lh-base: 1.6;
   --lh-tight: 1.35;
   --lh-md: 1.5;           /* 紧凑多行文本（描述/摘要/多行输入） */
@@ -212,8 +221,8 @@
   --font-size-base: var(--fs-base);
   --font-size-lg: var(--fs-lg);
   --font-size-xl: var(--fs-xl);
-  --font-size-2xl: 22px;
-  --font-size-3xl: 24px;
+  --font-size-2xl: calc(22px * var(--ui-font-scale));
+  --font-size-3xl: calc(24px * var(--ui-font-scale));
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
@@ -325,13 +334,19 @@ body,
 }
 
 body {
-  font-family: var(--font-sans);
+  /* 界面字体（chrome 层）：默认 --font-sans，用户指定后由 fontStore 写 inline 变量覆盖（字体系统 v2 批 1 接线） */
+  font-family: var(--font-family-chrome, var(--font-sans));
   font-size: var(--fs-base);
   line-height: var(--lh-base);
   color: var(--text-primary);
   background: var(--bg-app);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+/* 数字等宽（tabular-nums）工具类：统计/计数/存储量等纵向对齐场景（字体系统 v2 批 3） */
+.tnum {
+  font-variant-numeric: tabular-nums;
 }
 
 /* 统一键盘焦点环：仅键盘导航时显示，鼠标点击不产生蓝框 */

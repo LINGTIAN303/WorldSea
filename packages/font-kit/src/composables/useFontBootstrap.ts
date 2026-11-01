@@ -17,8 +17,8 @@ export function useFontBootstrap() {
     // 2. 从 FontLibraryStore 恢复所有已安装字体
     await libraryStore.restoreAllFonts()
 
-    // 3. 应用分层 CSS 变量
-    fontStore.reapplyAllLayers()
+    // 3. 应用分层 CSS 变量与字号档位
+    fontStore.reapplyAll()
 
     // 4. 标记预设为已安装
     for (const entry of libraryStore.getAllEntries()) {

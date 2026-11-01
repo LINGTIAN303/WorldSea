@@ -36,7 +36,7 @@
             <span>字体</span>
             <select v-model="localFontFamily" class="pp-select-sm">
               <option value="">跟随设置</option>
-              <option v-for="p in contentPresets" :key="p.id" :value="p.family">{{ p.displayName }}</option>
+              <option v-for="e in libraryEntries" :key="e.id" :value="e.family">{{ e.displayName }}</option>
             </select>
           </label>
           <label class="pp-setting">
@@ -74,7 +74,7 @@ import { ref, computed } from 'vue'
 import { WsIcon } from '@worldsea/ui-kit'
 import DOMPurify from 'dompurify'
 import { useFontStore } from '@/stores/fontStore'
-import { useFontPresets } from '@worldsea/font-kit'
+import { useFontLibraryStore } from '@worldsea/font-kit'
 
 const props = defineProps<{
   visible: boolean
@@ -87,7 +87,8 @@ const props = defineProps<{
 defineEmits<{ close: [] }>()
 
 const fontStore = useFontStore()
-const { contentPresets } = useFontPresets()
+// 手机预览字体下拉数据源 = 字体库真实条目（预设死数据已退役，字体系统 v2 批 1）
+const libraryEntries = computed(() => useFontLibraryStore().getAllEntries())
 
 const isDock = computed(() => props.mode !== 'popup')
 
