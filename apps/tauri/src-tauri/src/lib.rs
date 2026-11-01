@@ -14,6 +14,10 @@ mod proc_quiet;
 mod lsp_commands;
 // 内容插件数据落盘（FileStorageBackend 依赖的 fs 命令）
 mod fs_commands;
+// 文件搜索命令（原 fs_commands 的搜索子系统迁出，控制单文件规模）
+mod fs_search;
+// 目录占用统计与整目录复制（原 fs_commands 的 usage/copy_dir 子系统迁出）
+mod fs_usage;
 // 文件系统监听（useFsWatcher 依赖的 cmd_fs_watch_*）
 mod fs_watch_commands;
 // 盘符枚举（自绘文件选择器根导航；只读）
@@ -196,10 +200,10 @@ pub fn run() {
             fs_commands::cmd_fs_mkdir,
             fs_commands::cmd_fs_copy,
             fs_commands::cmd_fs_copy_progress,
-            fs_commands::cmd_fs_copy_dir,
+            fs_usage::cmd_fs_copy_dir,
             fs_commands::cmd_fs_rename,
-            fs_commands::cmd_fs_search,
-            fs_commands::cmd_fs_usage,
+            fs_search::cmd_fs_search,
+            fs_usage::cmd_fs_usage,
             // 文档格式预览（2026-09-14）：本机 Office 转换 —— 探测 + ppt/pptx → PDF（带缓存）
             office_commands::cmd_office_available,
             office_commands::cmd_pptx_to_pdf,

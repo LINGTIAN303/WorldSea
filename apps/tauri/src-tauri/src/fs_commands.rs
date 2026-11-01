@@ -36,7 +36,7 @@ fn sensitive_dir_reason(p: &Path) -> Option<String> {
 }
 
 /// 写类命令入口防护：命中敏感目录直接拒绝（覆盖 write/mkdir/copy/rename/delete 的源与目标）。
-fn ensure_write_allowed(p: &Path) -> Result<(), String> {
+pub(crate) fn ensure_write_allowed(p: &Path) -> Result<(), String> {
     if let Some(reason) = sensitive_dir_reason(p) {
         return Err(format!("拒绝写入{reason}"));
     }
@@ -238,7 +238,7 @@ fn collect_entries(
 }
 
 /// 获取元数据的最后修改时间（unix 毫秒字符串；不可用时为 None）
-fn meta_to_mtime(meta: &fs::Metadata) -> Option<String> {
+pub(crate) fn meta_to_mtime(meta: &fs::Metadata) -> Option<String> {
     meta.modified()
         .ok()
         .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
@@ -328,229 +328,12 @@ pub async fn cmd_fs_copy_progress(
     })
 }
 
-/// 递归复制目录（项目备份用；目标父目录自动创建；返回复制文件数与字节数）
-fn copy_dir_recursive(src: &Path, dest: &Path) -> std::io::Result<(u64, u64)> {
-    fs::create_dir_all(dest)?;
-    let mut files = 0u64;
-    let mut bytes = 0u64;
-    for entry in fs::read_dir(src)? {
-        let entry = entry?;
-        let meta = entry.metadata()?;
-        if meta.is_dir() {
-            let (f, b) = copy_dir_recursive(&entry.path(), &dest.join(entry.file_name()))?;
-            files += f;
-            bytes += b;
-        } else if meta.is_file() {
-            bytes += fs::copy(entry.path(), dest.join(entry.file_name()))?;
-            files += 1;
-        }
-    }
-    Ok((files, bytes))
-}
-
-/// 递归复制目录（项目备份；源须为目录且目标不得已存在；返回复制量）
-#[tauri::command]
-pub async fn cmd_fs_copy_dir(src: String, dest: String) -> Result<FsUsage, String> {
-    let sp = Path::new(&src);
-    if !sp.is_dir() {
-        return Err(format!("源目录不存在或不是目录: {}", src));
-    }
-    ensure_write_allowed(Path::new(&src))?;
-    ensure_write_allowed(Path::new(&dest))?;
-    let dp = Path::new(&dest);
-    if dp.exists() {
-        return Err(format!("目标目录已存在: {}", dest));
-    }
-    let (file_count, total_size) = copy_dir_recursive(sp, dp).map_err(|e| e.to_string())?;
-    Ok(FsUsage { file_count, total_size, entries: Vec::new() })
-}
-
-/// 目录占用分项（存储概览「磁盘占用」；只读，无写守卫）
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct FsUsageEntry {
-    pub name: String,
-    pub file_count: u64,
-    pub size: u64,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct FsUsage {
-    pub file_count: u64,
-    pub total_size: u64,
-    pub entries: Vec<FsUsageEntry>,
-}
-
-/// 递归统计目录内文件总大小与文件数
-fn walk_usage(dir: &Path) -> std::io::Result<(u64, u64)> {
-    let mut size = 0u64;
-    let mut count = 0u64;
-    for entry in fs::read_dir(dir)? {
-        let entry = entry?;
-        let meta = entry.metadata()?;
-        if meta.is_dir() {
-            let (s, c) = walk_usage(&entry.path())?;
-            size += s;
-            count += c;
-        } else if meta.is_file() {
-            size += meta.len();
-            count += 1;
-        }
-    }
-    Ok((size, count))
-}
-
-/// 目录占用统计：总大小/文件数 + 一级子目录分项（按大小降序；根目录散落文件归入「(根目录文件)」项）
-#[tauri::command]
-pub async fn cmd_fs_usage(dir: String) -> Result<FsUsage, String> {
-    let root = Path::new(&dir);
-    if !root.is_dir() {
-        return Err(format!("目录不存在或不是目录: {}", dir));
-    }
-    let mut entries: Vec<FsUsageEntry> = Vec::new();
-    let mut total_size = 0u64;
-    let mut total_count = 0u64;
-    let mut loose_size = 0u64;
-    let mut loose_count = 0u64;
-    let rd = fs::read_dir(root).map_err(|e| e.to_string())?;
-    for entry in rd {
-        let entry = entry.map_err(|e| e.to_string())?;
-        let meta = entry.metadata().map_err(|e| e.to_string())?;
-        if meta.is_dir() {
-            let (s, c) = walk_usage(&entry.path()).map_err(|e| e.to_string())?;
-            entries.push(FsUsageEntry {
-                name: entry.file_name().to_string_lossy().into_owned(),
-                file_count: c,
-                size: s,
-            });
-            total_size += s;
-            total_count += c;
-        } else if meta.is_file() {
-            loose_size += meta.len();
-            loose_count += 1;
-        }
-    }
-    if loose_count > 0 {
-        entries.push(FsUsageEntry {
-            name: "(根目录文件)".to_string(),
-            file_count: loose_count,
-            size: loose_size,
-        });
-        total_size += loose_size;
-        total_count += loose_count;
-    }
-    entries.sort_by(|a, b| b.size.cmp(&a.size));
-    Ok(FsUsage { file_count: total_count, total_size, entries })
-}
-
 /// 重命名/移动文件或目录（同盘移动为原子操作）
 #[tauri::command]
 pub async fn cmd_fs_rename(src: String, dest: String) -> Result<(), String> {
     ensure_write_allowed(Path::new(&src))?;
     ensure_write_allowed(Path::new(&dest))?;
     fs::rename(&src, &dest).map_err(|e| e.to_string())
-}
-
-/// 目录内按文件名（glob，支持 * 和 ?）或文件内容子串搜索文件，递归子目录
-#[tauri::command]
-pub async fn cmd_fs_search(
-    path: String,
-    pattern: String,
-    search_type: Option<String>,
-    max_results: Option<usize>,
-) -> Result<Vec<FsEntry>, String> {
-    let base = Path::new(&path);
-    if !base.is_dir() {
-        return Err(format!("目录不存在或不是目录: {}", path));
-    }
-    let limit = max_results.unwrap_or(30);
-    let is_content = search_type.as_deref() == Some("content");
-    let mut out = Vec::new();
-    search_walk(base, &pattern, is_content, limit, &mut out).map_err(|e| e.to_string())?;
-    Ok(out)
-}
-
-/// 递归搜索目录：按文件名 pattern 匹配；is_content 时再按文件内容子串匹配
-fn search_walk(
-    dir: &Path,
-    pattern: &str,
-    is_content: bool,
-    limit: usize,
-    out: &mut Vec<FsEntry>,
-) -> std::io::Result<()> {
-    if out.len() >= limit {
-        return Ok(());
-    }
-    for entry in fs::read_dir(dir)? {
-        if out.len() >= limit {
-            break;
-        }
-        let entry = entry?;
-        let path = entry.path();
-        let meta = entry.metadata()?;
-        let is_dir = meta.is_dir();
-        let name = entry.file_name().to_string_lossy().into_owned();
-        let mut matched = glob_match(pattern, &name);
-        if !matched && is_content && !is_dir {
-            if let Ok(content) = fs::read_to_string(&path) {
-                if content.contains(pattern) {
-                    matched = true;
-                }
-            }
-        }
-        if matched {
-            out.push(FsEntry {
-                name,
-                path: path.to_string_lossy().replace('\\', "/"),
-                is_dir,
-                size: if is_dir { 0 } else { meta.len() },
-                modified: meta_to_mtime(&meta),
-            });
-        }
-        if is_dir {
-            search_walk(&path, pattern, is_content, limit, out)?;
-        }
-    }
-    Ok(())
-}
-
-/// 文件名匹配：含通配符（* ?）时走简易 glob，否则按子串包含匹配
-fn glob_match(pattern: &str, name: &str) -> bool {
-    if pattern.contains('*') || pattern.contains('?') {
-        simple_glob(pattern, name)
-    } else {
-        name.contains(pattern)
-    }
-}
-
-/// 简易通配符匹配（* 匹配任意长度，? 匹配单个字符）
-fn simple_glob(pattern: &str, text: &str) -> bool {
-    let p: Vec<char> = pattern.chars().collect();
-    let t: Vec<char> = text.chars().collect();
-    let (mut pi, mut ti) = (0usize, 0usize);
-    let mut star: Option<usize> = None;
-    let mut star_ti = 0usize;
-    while ti < t.len() {
-        if pi < p.len() && (p[pi] == '?' || p[pi] == t[ti]) {
-            pi += 1;
-            ti += 1;
-        } else if pi < p.len() && p[pi] == '*' {
-            star = Some(pi);
-            pi += 1;
-            star_ti = ti;
-        } else if let Some(sp) = star {
-            pi = sp + 1;
-            star_ti += 1;
-            ti = star_ti;
-        } else {
-            return false;
-        }
-    }
-    while pi < p.len() && p[pi] == '*' {
-        pi += 1;
-    }
-    pi == p.len()
 }
 
 #[cfg(test)]
