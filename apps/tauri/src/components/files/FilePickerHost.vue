@@ -130,6 +130,11 @@
                 {{ entries.length === 0 ? '此文件夹为空' : '当前过滤器下没有可显示的文件' }}
               </div>
 
+              <!-- 巨目录截断提示：条数够多时只说结论，不用错误色（这不是故障） -->
+              <div v-if="listTruncated && !loadingList" class="fp-truncated">
+                条目较多，仅显示前 {{ entries.length }} 项；可输入路径直达或在上方搜索
+              </div>
+
               <!-- 固定行高 + 虚拟窗口：巨目录（System32 等）只渲染可视区。
                    键盘导航绑在本容器上（tabindex=0）：↑↓ 移动、Enter 进入/确认、
                    Space 切换、Shift+↑↓ 或 Shift+点击 区间多选、Ctrl+A 全选、Backspace 上级。 -->
@@ -164,6 +169,8 @@
                     :title="row.limit ? row.limit : row.entry.path"
                     @click="onRowClick(row, { shift: $event.shiftKey })"
                     @dblclick="onRowDblClick(row)"
+                    @mouseenter="onRowHover(row, $event)"
+                    @mouseleave="onRowLeave"
                   >
                     <span class="fp-row-icon">
                       <WsIcon v-if="row.entry.isDir" name="folder" size="xs" />
@@ -186,6 +193,19 @@
               </div>
             </div>
           </div>
+
+          <!-- 悬停大图预览：悬浮在面板右侧，不挤占列表布局；延迟出现避免刷过每行都弹 -->
+          <Transition name="ws-scale-fade">
+            <div
+              v-if="preview"
+              class="fp-preview"
+              :style="{ top: `${preview.top}px`, left: `${preview.left}px` }"
+              aria-hidden="true"
+            >
+              <img :src="preview.src" :alt="preview.name" />
+              <div class="fp-preview-name">{{ preview.name }}</div>
+            </div>
+          </Transition>
 
           <div class="fp-foot">
             <span class="fp-foot-info">
@@ -220,7 +240,8 @@ import { useResizable } from '@worldsea/ui-kit/composables/useResizable'
 import { useFocusTrap } from '@/composables/useFocusTrap'
 import { activePick, settlePick } from '@/composables/filePickerApi'
 import { useFilePickerBrowse, ROW_HEIGHT } from '@/composables/useFilePickerBrowse'
-import { canThumbnail, formatModified, normalizePath, typeLabelOf } from './filePickerModel'
+import { useFilePickerPreview } from '@/composables/useFilePickerPreview'
+import { canThumbnail, formatModified, normalizePath, typeLabelOf, type FsEntry } from './filePickerModel'
 
 const req = activePick
 
@@ -237,6 +258,7 @@ const browse = useFilePickerBrowse({
 
 const {
   drives, quickLocations, recentDirs, currentPath, pathDraft, query, entries, loadingList, listError,
+  listTruncated,
   selected, focusIndex, history, historyIndex, isDirMode, multiple, canGoUp,
   visibleEntries, rows, crumbs, summary, overLimitCount, canConfirm,
   navigate, goBack, goForward, goUp, reload, commitPathDraft, resetPathDraft,
@@ -257,6 +279,14 @@ function railLabel(path: string): string {
  */
 function thumbUrl(path: string): string {
   return convertFileSrc(normalizePath(path))
+}
+
+/* ── 悬停大图预览（逻辑在 useFilePickerPreview） ── */
+const { preview, onRowHover: hoverRow, onRowLeave } = useFilePickerPreview()
+
+/** 行悬停：只把条目交给预览逻辑，DOM 事件留着算位置 */
+function onRowHover(row: { entry: FsEntry }, e: MouseEvent): void {
+  hoverRow(row.entry, e)
 }
 
 useFocusTrap(panelRef, {

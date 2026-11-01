@@ -31,6 +31,12 @@ import { useFilePickerSelection } from './useFilePickerSelection'
 export const ROW_HEIGHT = 30
 /** 视口外多渲染的行数（快速滚动时不露白） */
 const OVERSCAN = 6
+/**
+ * 单次列目录的条目上限。
+ * 巨目录（System32 / node_modules）全量返回会拖慢 IPC 与解析，2000 条已远超
+ * 选择场景的实际需要；超出时视图层提示「已截断」，用户可用搜索或路径直达。
+ */
+const LIST_LIMIT = 2000
 
 /** 盘符介质类型中文说明 */
 const DRIVE_KIND_LABELS: Record<string, string> = {
@@ -64,6 +70,8 @@ export function useFilePickerBrowse(options: {
   const entries = ref<FsEntry[]>([])
   const loadingList = ref(false)
   const listError = ref('')
+  /** 本目录条目数达到 LIST_LIMIT 被截断（视图层提示用） */
+  const listTruncated = ref(false)
   const focusIndex = ref(0)
   const scrollTop = ref(0)
   const viewportHeight = ref(400)
@@ -114,16 +122,26 @@ export function useFilePickerBrowse(options: {
     quickLocations.value = candidates.filter((c): c is QuickLocation => c !== null)
   }
 
-  /** 读取目录（不含递归；失败保留错误信息供重试） */
+  /**
+   * 读取目录（不含递归；失败保留错误信息供重试）。
+   * 传 `limit` 让巨目录在 Rust 侧就截断——本目录条目数超过上限时 listTruncated 置真，
+   * 视图层据此提示「已截断」，避免用户以为目录里就这么多。
+   */
   async function loadDir(path: string): Promise<void> {
     if (!path) return
     loadingList.value = true
     listError.value = ''
     try {
-      const list = await invoke<FsEntry[]>('cmd_fs_list', { path, recursive: false })
+      const list = await invoke<FsEntry[]>('cmd_fs_list', {
+        path,
+        recursive: false,
+        limit: LIST_LIMIT,
+      })
       entries.value = Array.isArray(list) ? list : []
+      listTruncated.value = entries.value.length >= LIST_LIMIT
     } catch (err) {
       entries.value = []
+      listTruncated.value = false
       listError.value = `无法读取该目录：${err instanceof Error ? err.message : String(err)}`
     } finally {
       loadingList.value = false
@@ -321,6 +339,7 @@ export function useFilePickerBrowse(options: {
     entries,
     loadingList,
     listError,
+    listTruncated,
     selected,
     focusIndex,
     history,

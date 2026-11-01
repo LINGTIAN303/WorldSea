@@ -164,13 +164,19 @@ pub async fn cmd_open_in_explorer(path: String) -> Result<(), String> {
     }
 }
 
-/// 列出目录内容（支持递归）
+/// 列出目录内容（支持递归）。
+///
+/// `limit`：最多返回多少条（None = 不限）。用于自绘文件选择器——巨目录（System32 /
+/// node_modules 等）一次性返回全量会拖慢 IPC 与前端解析，截断后由前端提示「已截断」。
+/// 截断在**收集阶段**生效，避免先读全量再切片的浪费；目录条目顺序不保证，但同一目录
+/// 多次调用结果稳定（readdir 顺序由文件系统决定）。
 #[tauri::command]
 pub async fn cmd_fs_list(
     path: String,
     recursive: Option<bool>,
+    limit: Option<usize>,
 ) -> Result<Vec<FsEntry>, String> {
-    list_dir_inner(&path, recursive.unwrap_or(false)).map_err(|e| e.to_string())
+    list_dir_inner(&path, recursive.unwrap_or(false), limit).map_err(|e| e.to_string())
 }
 
 /// 删除文件或目录（目录递归删除）
@@ -185,10 +191,10 @@ pub async fn cmd_fs_delete(path: String) -> Result<(), String> {
     }
 }
 
-/// 递归收集目录条目
-fn list_dir_inner(dir: &str, recursive: bool) -> std::io::Result<Vec<FsEntry>> {
+/// 递归收集目录条目（`limit` 在收集阶段生效，读够即停）
+fn list_dir_inner(dir: &str, recursive: bool, limit: Option<usize>) -> std::io::Result<Vec<FsEntry>> {
     let mut entries = Vec::new();
-    collect_entries(dir, dir, recursive, &mut entries)?;
+    collect_entries(dir, dir, recursive, limit, &mut entries)?;
     Ok(entries)
 }
 
@@ -197,10 +203,15 @@ fn collect_entries(
     root: &str,
     current: &str,
     recursive: bool,
+    limit: Option<usize>,
     out: &mut Vec<FsEntry>,
 ) -> std::io::Result<()> {
     let current_path = Path::new(current);
     for entry in fs::read_dir(current_path)? {
+        // 读够上限即返回：调用方只关心「有没有被截断」，不需要全量
+        if limit.is_some_and(|max| out.len() >= max) {
+            return Ok(());
+        }
         let entry = entry?;
         let file_type = entry.file_type()?;
         let is_dir = file_type.is_dir();
@@ -220,7 +231,7 @@ fn collect_entries(
             modified: metadata.as_ref().and_then(meta_to_mtime),
         });
         if recursive && is_dir {
-            collect_entries(root, &entry_path.to_string_lossy(), recursive, out)?;
+            collect_entries(root, &entry_path.to_string_lossy(), recursive, limit, out)?;
         }
     }
     Ok(())
@@ -541,3 +552,7 @@ fn simple_glob(pattern: &str, text: &str) -> bool {
     }
     pi == p.len()
 }
+
+#[cfg(test)]
+#[path = "fs_commands_tests.rs"]
+mod tests;

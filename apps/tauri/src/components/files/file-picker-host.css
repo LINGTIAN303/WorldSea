@@ -192,6 +192,15 @@
   font-size: var(--font-size-sm);
 }
 .fp-status--error { color: var(--danger); }
+/* 截断提示：中性信息条，与错误态区分（用弱化面而非语义色） */
+.fp-truncated {
+  padding: 6px 14px;
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  background: var(--sf-panel-bg-muted);
+  border-bottom: 1px solid var(--sf-panel-edge);
+  flex-shrink: 0;
+}
 .fp-link {
   border: none;
   background: none;
@@ -238,6 +247,37 @@
   object-fit: cover;
   border-radius: 3px;
   background: var(--sf-panel-bg-muted);
+}
+/* 悬停大图预览：fixed 定位（坐标由 JS 按行矩形计算），层级高于列表但低于模态 */
+.fp-preview {
+  position: fixed;
+  z-index: var(--z-popover);
+  width: 240px;
+  padding: 6px;
+  background: var(--sf-overlay-bg);
+  border: 1px solid var(--sf-overlay-edge);
+  border-radius: calc(var(--radius-md) * var(--sf-radius-scale));
+  box-shadow: var(--sf-overlay-shadow);
+  backdrop-filter: var(--sf-overlay-filter, none);
+  -webkit-backdrop-filter: var(--sf-overlay-filter, none);
+  pointer-events: none;
+}
+.fp-preview img {
+  display: block;
+  width: 100%;
+  max-height: 240px;
+  object-fit: contain;
+  border-radius: calc(var(--radius-sm) * var(--sf-radius-scale));
+  background: var(--sf-panel-bg-muted);
+}
+.fp-preview-name {
+  margin-top: 4px;
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .fp-row-name {
   flex: 1;
