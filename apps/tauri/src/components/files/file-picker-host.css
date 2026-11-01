@@ -138,27 +138,7 @@
 /* 左轨与网格的样式由子组件自持（file-picker-rail.css / file-picker-grid.css）——
    scoped 样式只命中本组件 DOM 与子组件根元素，子组件内部元素必须自带样式 */
 .fp-main { display: flex; flex-direction: column; flex: 1; min-width: 0; }
-.fp-crumbs {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 8px 14px 4px;
-  overflow-x: auto;
-  flex-shrink: 0;
-}
-.fp-crumb {
-  padding: 2px 6px;
-  border: none;
-  border-radius: var(--radius-xs);
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-  white-space: nowrap;
-  cursor: pointer;
-}
-.fp-crumb:hover { background: var(--sf-control-bg); color: var(--text-color); }
-.fp-crumb.on { color: var(--text-color); font-weight: var(--font-weight-semibold); }
-.fp-crumb-sep { color: var(--text-tertiary, var(--text-muted)); font-size: var(--font-size-xs); }
+/* 面包屑（含子目录下拉）样式在 file-picker-crumbs.css（FilePickerCrumbs 自持） */
 .fp-status {
   display: flex;
   align-items: center;

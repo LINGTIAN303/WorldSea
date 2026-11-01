@@ -93,14 +93,8 @@
 
             <!-- 主区：面包屑 + 列表/网格 -->
             <div ref="mainRef" class="fp-main">
-              <div class="fp-crumbs">
-                <template v-for="(crumb, i) in crumbs" :key="crumb.path">
-                  <span v-if="i > 0" class="fp-crumb-sep">/</span>
-                  <button class="fp-crumb" :class="{ on: i === crumbs.length - 1 }" @click="navigate(crumb.path)">
-                    {{ crumb.label }}
-                  </button>
-                </template>
-              </div>
+              <!-- 面包屑：点 chip 跳本级，点箭头展开同级子目录（渲染在 FilePickerCrumbs） -->
+              <FilePickerCrumbs ref="crumbsRef" :crumbs="crumbs" @navigate="navigate" />
 
               <!-- 目录切换过渡：key=路径强制重建内容层，方向感由 navDirection 选 enter 变体；
                    data-reduce-motion 根属性会把过渡压到近瞬移（theme.css 全局开关） -->
@@ -256,6 +250,8 @@ import { useFilePickerPreview } from '@/composables/useFilePickerPreview'
 import { useFilePickerKeys } from '@/composables/useFilePickerKeys'
 import FilePickerGrid from './FilePickerGrid.vue'
 import type { GridCell } from './FilePickerGrid.vue'
+import FilePickerRail from './FilePickerRail.vue'
+import FilePickerCrumbs from './FilePickerCrumbs.vue'
 import {
   canThumbnail, formatModified, normalizePath, overLimitReason, typeLabelOf,
   type FsEntry,
@@ -320,10 +316,17 @@ function onRowHover(row: { entry: FsEntry }, e: MouseEvent): void {
   hoverRow(row.entry, e)
 }
 
+/** 面包屑子组件（菜单开关由其自持，Esc 优先关菜单经 closeMenu 兑现） */
+const crumbsRef = ref<InstanceType<typeof FilePickerCrumbs> | null>(null)
+
 useFocusTrap(panelRef, {
   active: computed(() => !!req.value),
-  // 有选择时第一次 Esc 只清空选择，再按一次才关闭（与文件管理器习惯一致）
-  onEscape: () => (selected.value.size > 0 ? clearSelection() : cancel()),
+  // Esc 优先级：面包屑菜单 > 已选清空 > 关闭面板（与文件管理器习惯一致）
+  onEscape: () => {
+    if (crumbsRef.value?.hasOpenMenu()) return crumbsRef.value.closeMenu()
+    if (selected.value.size > 0) return clearSelection()
+    cancel()
+  },
 })
 
 function cancel(): void {

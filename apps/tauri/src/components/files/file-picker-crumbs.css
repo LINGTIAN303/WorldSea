@@ -1,0 +1,91 @@
+/* FilePickerCrumbs.vue 的 scoped 样式（经 <style scoped src> 引用）。
+   面包屑 chip + 下拉菜单，浮层走 sf-overlay 令牌（与面板其它浮层同材质）。 */
+
+.fp-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 14px 4px;
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+.fp-crumb-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-xs);
+}
+.fp-crumb {
+  padding: 2px 6px;
+  border: none;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.fp-crumb:hover { background: var(--sf-control-bg); color: var(--text-color); }
+.fp-crumb.on { color: var(--text-color); font-weight: var(--font-weight-semibold); }
+/* 下拉箭头：默认弱化，hover chip 或菜单展开时显现 */
+.fp-crumb-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-tertiary, var(--text-muted));
+  cursor: pointer;
+  opacity: 0;
+}
+.fp-crumb-chip:hover .fp-crumb-arrow,
+.fp-crumb-arrow.on { opacity: 1; }
+.fp-crumb-arrow:hover { background: var(--sf-control-bg); color: var(--text-color); }
+.fp-crumb-arrow.on { background: var(--sf-accent-surface-bg); color: var(--text-color); }
+.fp-crumb-sep { color: var(--text-tertiary, var(--text-muted)); font-size: var(--font-size-xs); }
+
+/* 子目录下拉菜单（Teleport 到 body，fixed 定位） */
+.fp-cm-backdrop {
+  position: fixed;
+  inset: var(--titlebar-height, 32px) 0 0 0;
+  z-index: calc(var(--z-modal) - 1);
+  background: transparent;
+}
+.fp-crumb-menu {
+  position: fixed;
+  z-index: var(--z-modal);
+  min-width: 160px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 4px;
+  background: var(--sf-overlay-bg);
+  border: 1px solid var(--sf-overlay-edge);
+  border-radius: calc(var(--radius-sm) * var(--sf-radius-scale));
+  box-shadow: var(--sf-overlay-shadow);
+  -webkit-backdrop-filter: var(--sf-overlay-filter, none);
+  backdrop-filter: var(--sf-overlay-filter, none);
+}
+.fp-crumb-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 10px;
+  border: none;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  text-align: left;
+  cursor: pointer;
+}
+.fp-crumb-menu-item:hover { background: var(--sf-control-bg); color: var(--text-color); }
+.fp-crumb-menu-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fp-crumb-menu-empty {
+  padding: 8px 10px;
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary, var(--text-muted));
+}
