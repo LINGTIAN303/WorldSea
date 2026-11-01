@@ -1,7 +1,13 @@
 <template>
   <Transition name="ws-scale-fade" appear>
   <div class="set-overlay" v-if="show" @click.self="close">
-    <div ref="dialogRef" class="set-shell" role="dialog" aria-modal="true" aria-labelledby="set-dialog-title" tabindex="-1">
+    <div ref="dialogRef" class="set-shell" role="dialog" aria-modal="true" aria-labelledby="set-dialog-title" tabindex="-1" :data-liquid-glass="liquidGlass ? 'on' : undefined">
+      <div v-if="liquidGlass" class="set-glass" aria-hidden="true">
+        <div class="set-glass__edge"></div>
+        <div class="set-glass__body"></div>
+        <div class="set-glass__frame"></div>
+        <div class="set-glass__rim"></div>
+      </div>
       <aside v-show="railVisible" class="set-rail" aria-label="配置目录" :style="railStyle">
         <button v-for="(it, i) in railItems" :key="i" class="set-rail-item"
           :class="railItemClass(i)" @click="goRail(i)">{{ it.text }}</button>
@@ -86,6 +92,7 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useUIStore, usePluginStore, isViewVisible } from '@worldsea/entity-core'
 import { useResizable, WsIcon } from '@worldsea/ui-kit'
+import { useStyle } from '@worldsea/style-kit'
 // 设置面板基座样式（.set-card/.sc-head/.set-row/.set-toggle/.set-hint 唯一权威定义）
 import '@worldsea/ui-kit/components/settings/settings-panels.css'
 import { useFocusTrap } from '@/composables/useFocusTrap'
@@ -112,6 +119,8 @@ const props = defineProps<{ show: boolean }>()
 const emit = defineEmits<{ close: [] }>()
 
 const dialogRef = ref<HTMLElement | null>(null)
+const { styleId } = useStyle()
+const liquidGlass = computed(() => styleId.value === 'liquid-glass')
 
 const { activate, deactivate } = useFocusTrap(dialogRef, {
   escapeDeactivates: true,

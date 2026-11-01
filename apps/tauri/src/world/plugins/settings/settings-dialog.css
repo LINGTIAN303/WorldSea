@@ -98,3 +98,82 @@
 /* 减弱动态效果：关闭平滑动画与过渡 */
 :root[data-anim-panels='off'] .set-tabs-arrow { transition: none; }
 :root[data-anim-panels='off'] .set-rail-item { transition: none; }
+
+/* ── 液化玻璃风格：设置弹层玻璃层（选中 liquid-glass 时启用） ── */
+.set-shell[data-liquid-glass='on'] {
+  background: transparent;
+  border-color: var(--sf-liquid-border);
+  box-shadow: var(--sf-liquid-shell-shadow);
+  -webkit-backdrop-filter: var(--sf-liquid-off);
+  backdrop-filter: var(--sf-liquid-off);
+}
+.set-glass {
+  position: absolute; inset: 0; z-index: 0; overflow: hidden;
+  border-radius: inherit; pointer-events: none;
+}
+/* 边带：外扩 24px 采样，再遮罩成环，只保留 14px 弯折带 */
+.set-glass__edge {
+  position: absolute; inset: -24px;
+  border-radius: calc(var(--radius-lg) * var(--sf-radius-scale) + 24px);
+  padding: calc(var(--sf-liquid-band) + 24px);
+  -webkit-mask: var(--sf-liquid-mask) content-box, var(--sf-liquid-mask);
+  -webkit-mask-composite: xor;
+  mask: var(--sf-liquid-mask) content-box, var(--sf-liquid-mask);
+  mask-composite: exclude;
+  -webkit-backdrop-filter: var(--sf-liquid-edge-filter);
+  backdrop-filter: var(--sf-liquid-edge-filter);
+}
+.set-glass__body {
+  position: absolute; inset: var(--sf-liquid-band);
+  border-radius: calc(var(--radius-lg) * var(--sf-radius-scale) - var(--sf-liquid-band));
+  background: var(--sf-liquid-body-bg);
+  -webkit-backdrop-filter: var(--sf-liquid-body-filter);
+  backdrop-filter: var(--sf-liquid-body-filter);
+}
+.set-glass::before {
+  content: ''; position: absolute; z-index: 2; pointer-events: none;
+  left: 5%; right: 5%; top: 5%; height: 46%;
+  border: 1px solid var(--sf-liquid-caustic); border-bottom-color: transparent;
+  border-radius: calc(var(--radius-lg) * var(--sf-radius-scale) * 0.82);
+  filter: blur(7px); opacity: var(--sf-liquid-caustic-opacity);
+}
+.set-glass::after {
+  content: ''; position: absolute; inset: 0; z-index: 2; pointer-events: none;
+  border-radius: inherit; background: var(--sf-liquid-glare);
+  filter: blur(3px);
+}
+.set-glass__frame {
+  position: absolute; inset: 0; z-index: 3; pointer-events: none;
+  border-radius: inherit; box-shadow: var(--sf-liquid-frame-shadow);
+}
+.set-glass__rim {
+  position: absolute; inset: 0; z-index: 4; padding: 1.5px; pointer-events: none;
+  border-radius: inherit; background: var(--sf-liquid-rim-bg);
+  -webkit-mask: var(--sf-liquid-mask) content-box, var(--sf-liquid-mask);
+  -webkit-mask-composite: xor;
+  mask: var(--sf-liquid-mask) content-box, var(--sf-liquid-mask);
+  mask-composite: exclude;
+}
+/* 内容压在玻璃层之上；左列 rail 在外壳外侧，保持原定位 */
+.set-shell[data-liquid-glass='on'] .set-topbar,
+.set-shell[data-liquid-glass='on'] .set-tabs-wrap,
+.set-shell[data-liquid-glass='on'] .set-cards {
+  position: relative; z-index: 1;
+}
+.set-shell[data-liquid-glass='on'] .set-topbar {
+  background: transparent;
+  box-shadow: var(--sf-liquid-off);
+  -webkit-backdrop-filter: var(--sf-liquid-off);
+  backdrop-filter: var(--sf-liquid-off);
+}
+/* 卡片退成玻璃上的分节，保留描边识别 */
+.set-shell[data-liquid-glass='on'] .set-card {
+  background: var(--sf-liquid-card-bg);
+  box-shadow: var(--sf-liquid-card-ring);
+}
+html[data-perf='on'] .set-shell[data-liquid-glass='on'] .set-glass__edge,
+html[data-perf='on'] .set-shell[data-liquid-glass='on'] .set-glass::after { display: none; }
+html[data-perf='on'] .set-shell[data-liquid-glass='on'] .set-glass__body {
+  -webkit-backdrop-filter: var(--sf-liquid-off);
+  backdrop-filter: var(--sf-liquid-off);
+}

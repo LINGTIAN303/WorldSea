@@ -68,11 +68,12 @@ describe('useStyle', () => {
     expect(localStorage.getItem('worldsea_ui_style_glass')).toBe('clear')
   })
 
-  it('计划中的风格不可选', async () => {
+  it('液化玻璃可选并持久化', async () => {
     const { useStyle } = await load()
     const api = useStyle()
     api.setStyle('liquid-glass')
-    expect(api.styleId.value).toBe('mist')
-    expect(document.documentElement.dataset.style).not.toBe('liquid-glass')
+    expect(api.styleId.value).toBe('liquid-glass')
+    expect(document.documentElement.dataset.style).toBe('liquid-glass')
+    expect(localStorage.getItem('worldsea_ui_style')).toBe('liquid-glass')
   })
 })

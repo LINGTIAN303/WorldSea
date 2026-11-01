@@ -44,9 +44,9 @@ export const STYLE_PACKS: Record<StyleId, StylePack> = {
   'liquid-glass': {
     id: 'liquid-glass',
     label: '液化玻璃',
-    description: '折射与光学形变（研究中，槽位保留）',
+    description: '纯 CSS 分层玻璃：边缘弯折带、锥形镜面、暗焦散与对角眩光',
     axes: { material: 100, depth: 2, morph: 80, tactile: 60 },
-    status: 'planned',
+    status: 'ready',
   },
 }
 

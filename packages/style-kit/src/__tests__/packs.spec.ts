@@ -3,10 +3,10 @@ import { STYLE_PACKS, DEFAULT_STYLE_ID, AXIS_META, READY_STYLE_IDS } from '../pa
 import { REQUIRED_VARS, FORBIDDEN_VARS } from '../contract'
 
 describe('风格包注册表', () => {
-  it('包含三套可选风格与一个液化玻璃槽位，默认 mist', () => {
+  it('包含四套可选风格，默认 mist', () => {
     expect(Object.keys(STYLE_PACKS).sort()).toEqual(['liquid-glass', 'mist', 'neu', 'soft-glass'])
-    expect(READY_STYLE_IDS.sort()).toEqual(['mist', 'neu', 'soft-glass'])
-    expect(STYLE_PACKS['liquid-glass'].status).toBe('planned')
+    expect(READY_STYLE_IDS.sort()).toEqual(['liquid-glass', 'mist', 'neu', 'soft-glass'])
+    expect(STYLE_PACKS['liquid-glass'].status).toBe('ready')
     expect(DEFAULT_STYLE_ID).toBe('mist')
   })
 
