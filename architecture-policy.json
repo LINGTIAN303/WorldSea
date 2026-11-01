@@ -91,6 +91,7 @@
         "plugin-sdk",
         "shared-composables",
         "shared-ui",
+        "style-kit",
         "ui-kit"
       ]
     },
@@ -136,6 +137,15 @@
       "requires": [
         "entity-core"
       ]
+    },
+    {
+      "id": "style-kit",
+      "kind": "ts",
+      "roots": [
+        "packages/style-kit/src"
+      ],
+      "manifest": "packages/style-kit/package.json",
+      "requires": []
     },
     {
       "id": "motion-kit",
@@ -221,7 +231,8 @@
         "font-kit",
         "motion-kit",
         "perf-kit",
-        "plugin-sdk"
+        "plugin-sdk",
+        "style-kit"
       ]
     },
     {

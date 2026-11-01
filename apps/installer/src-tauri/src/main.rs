@@ -4,6 +4,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod winintegration;
+// Windows Shell 集成（右键菜单 / 卸载登记项 / 目录占用统计）
+mod shell_integration;
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -12,17 +14,17 @@ use std::time::{Duration, Instant};
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
 use tauri::Emitter;
-use winreg::enums::{HKEY_CURRENT_USER, KEY_WRITE};
+use winreg::enums::HKEY_CURRENT_USER;
 use winreg::RegKey;
 use winintegration as win;
 
 const APP_ID: &str = "com.worldsea.desktop"; // 与主程序 identifier 一致（数据目录）
-const UNINSTALL_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\WorldSea";
-const CONTEXT_MENU_KEY: &str = r"Software\Classes\Directory\shell\WorldSea";
+pub(crate) const UNINSTALL_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\WorldSea";
+pub(crate) const CONTEXT_MENU_KEY: &str = r"Software\Classes\Directory\shell\WorldSea";
 const MAIN_EXE: &str = "worldsea-tauri-app.exe";
-const UNINSTALLER_NAME: &str = "Uninstall WorldSea.exe";
+pub(crate) const UNINSTALLER_NAME: &str = "Uninstall WorldSea.exe";
 // 版本单源为本 crate Cargo.toml，编译期注入（tauri.conf.json 不再声明 version）
-const VERSION: &str = env!("CARGO_PKG_VERSION");
+pub(crate) const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 static CANCELLED: AtomicBool = AtomicBool::new(false);
 
@@ -170,7 +172,7 @@ fn perform_install(
             }) { return finish_install(&app, false); }
 
         if contextmenu
-            && !step(&app, 5, total, "写入右键菜单集成", || write_context_menu(&main_in_dest))
+            && !step(&app, 5, total, "写入右键菜单集成", || shell_integration::write_context_menu(&main_in_dest))
         { return finish_install(&app, false); }
 
         if !step(&app, 6, total, "初始化本地数据目录 · 正在部署世界观引擎", || {
@@ -187,7 +189,7 @@ fn perform_install(
         }) { return finish_install(&app, false); }
 
         if !step(&app, 9, total, "写入卸载信息", || {
-            write_uninstall_registry(&dest, &main_in_dest)
+            shell_integration::write_uninstall_registry(&dest, &main_in_dest)
         }) { return finish_install(&app, false); }
 
         finish_install(&app, true);
@@ -262,56 +264,6 @@ fn deploy_workspace_dist(dest: &Path) -> Result<(), String> {
 }
 
 /// 目录总字节数（递归；EstimatedSize 用，失败按 0 计）
-fn dir_size_bytes(dir: &Path) -> u64 {
-    let mut total = 0u64;
-    let Ok(entries) = std::fs::read_dir(dir) else { return 0 };
-    for entry in entries.flatten() {
-        let Ok(meta) = entry.metadata() else { continue };
-        if meta.is_dir() {
-            total += dir_size_bytes(&entry.path());
-        } else {
-            total += meta.len();
-        }
-    }
-    total
-}
-
-fn write_context_menu(main_exe: &Path) -> Result<(), String> {
-    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-    let (key, _) = hkcu
-        .create_subkey_with_flags(CONTEXT_MENU_KEY, KEY_WRITE)
-        .map_err(|e| e.to_string())?;
-    key.set_value("", &"用 WorldSea 打开").map_err(|e| e.to_string())?;
-    key.set_value("Icon", &main_exe.display().to_string()).map_err(|e| e.to_string())?;
-    let (cmd, _) = hkcu
-        .create_subkey_with_flags(&format!("{CONTEXT_MENU_KEY}\\command"), KEY_WRITE)
-        .map_err(|e| e.to_string())?;
-    cmd.set_value("", &format!("\"{}\" \"%1\"", main_exe.display()))
-        .map_err(|e| e.to_string())
-}
-
-fn write_uninstall_registry(dest: &Path, main_exe: &Path) -> Result<(), String> {
-    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-    let (key, _) = hkcu
-        .create_subkey_with_flags(UNINSTALL_KEY, KEY_WRITE)
-        .map_err(|e| e.to_string())?;
-    let set_s = |name: &str, v: String| key.set_value(name, &v).map_err(|e| e.to_string());
-    set_s("DisplayName", "WorldSea".into())?;
-    set_s("DisplayVersion", VERSION.into())?;
-    set_s("Publisher", "WorldSea".into())?;
-    set_s("InstallLocation", dest.display().to_string())?;
-    set_s("DisplayIcon", main_exe.display().to_string())?;
-    set_s("UninstallString", format!("\"{}\" --uninstall", dest.join(UNINSTALLER_NAME).display()))?;
-    // EstimatedSize 注册表要求 REG_DWORD（KB）；程序 + Agent 运行时 + 工作台产物（解压后实际占用）
-    let size_kb = ((std::fs::metadata(main_exe).map(|m| m.len()).unwrap_or(0)
-        + dir_size_bytes(&dest.join("dsh-runtime"))
-        + dir_size_bytes(&dest.join("workspace-dist"))) / 1024) as u32;
-    key.set_value("EstimatedSize", &size_kb).map_err(|e| e.to_string())?;
-    key.set_value("NoModify", &1u32).map_err(|e| e.to_string())?;
-    key.set_value("NoRepair", &1u32).map_err(|e| e.to_string())?;
-    Ok(())
-}
-
 #[tauri::command]
 fn perform_uninstall(app: tauri::AppHandle, purge: bool) {
     std::thread::spawn(move || {
