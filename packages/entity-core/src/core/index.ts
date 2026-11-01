@@ -128,6 +128,14 @@ export type {
 export { registerProjectSwitcherApi, getProjectSwitcherApi } from './ProjectSwitcherApi'
 export type { ProjectSwitcherApi } from './ProjectSwitcherApi'
 
+// 自绘文件选择器注入接口 + 路径→File 适配（选择器 UI 在 apps 层注册）
+export { registerFilePickerApi, getFilePickerApi, hasFilePicker } from './FilePickerApi'
+export type { FilePickerApi, FilePickerRequest, FilePickerFilter } from './FilePickerApi'
+export { pathToFile, pathsToFiles, baseNameOf, mimeOf } from './pathToFile'
+export { pathToArrayBuffer, pathsToArrayBuffers, FILE_LINK_MAX_MB } from './pathToFile'
+export { pickLocalFiles, pickLocalBuffers } from './pickLocalFiles'
+export type { PickLocalOptions, PickLocalResult } from './pickLocalFiles'
+
 // 项目文件系统导出/导入（从根 src/core/ProjectFS.ts 迁移）
 export {
   exportProjectToDir,

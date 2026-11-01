@@ -3,19 +3,20 @@
  *
  * 与 imageAssets（apps 层，正文插图 2MB base64 链路）分流：本模块服务形象图/视频，
  * 大文件（模型可达 200MB、视频 1GB）不走 base64 IPC（内存放大 + IPC 超时），主链路为
- * 「plugin-dialog 选路径 → cmd_fs_copy 磁盘直拷」；拖拽/粘贴的 File 对象无磁盘路径
+ * 「自绘选择器选路径 → cmd_fs_copy 磁盘直拷」；拖拽/粘贴的 File 对象无磁盘路径
  * （dragDropEnabled:false，HTML5 拖拽拿不到 path），只能走 base64 兜底并受 30MB 硬上限，
  * 超限提示改用「选择文件」按钮。落盘同 `{entityDataDir}/assets/`（与素材面板同源）。
  *
+ * 选择器经 FilePickerApi 注入（UI 在 apps 层注册，未注册时降级为明确报错）。
  * resolveEntityDataDir 由 apps/tauri workspace.ts 下沉至此（单一真源，apps 侧改 re-export）。
  */
 
 import { invoke, convertFileSrc } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { homeDir, join } from '@tauri-apps/api/path'
-import { open } from '@tauri-apps/plugin-dialog'
 import type { PortraitKind } from '../types/entity'
 import { getProjectManager } from './ProjectManager'
+import { getFilePickerApi, hasFilePicker } from './FilePickerApi'
 
 /** 资产类别：形象图四细分 + 视频（决定扩展名表 / 上限 / 落盘文件名前缀） */
 export type AssetKind = PortraitKind | 'video'
@@ -213,23 +214,30 @@ async function resolveDestPath(kind: AssetKind, ext: string): Promise<string | n
 }
 
 /**
- * 对话框选路径 → `cmd_fs_copy_progress` 磁盘直拷（大文件主链路，分块 + 进度事件，
- * 不经 base64 IPC）。用户取消对话框返回 ok:false（无 reason，静默）。
+ * 选择器选路径 → `cmd_fs_copy_progress` 磁盘直拷（大文件主链路，分块 + 进度事件，
+ * 不经 base64 IPC）。用户取消选择返回 ok:false（无 reason，静默）。
  * onProgress(copied, total) 供调用方渲染进度（批 C 走查：大视频静默导入无反馈）。
  */
 export async function importAssetByDialog(
   kind: AssetKind,
   onProgress?: (copied: number, total: number) => void,
 ): Promise<AssetImportResult> {
+  // 自绘选择器未注册（浏览器预览 / 单测 / 启动早期）：明确报错而非静默取消，
+  // 否则用户会以为「点了没反应」
+  if (!hasFilePicker()) return { ok: false, reason: '文件选择器不可用（请使用桌面端）' }
   let picked: string | null = null
   try {
-    const r = await open({
+    const paths = await getFilePickerApi().pick({
+      mode: 'file',
       multiple: false,
+      title: `选择${ASSET_KIND_LABELS[kind]}`,
       filters: [{ name: ASSET_KIND_LABELS[kind], extensions: ASSET_KIND_EXTS[kind] }],
+      // 选择阶段就拦住超限文件，省得拷到一半才报错
+      maxBytes: ASSET_KIND_LIMITS[kind],
     })
-    picked = typeof r === 'string' ? r : null
+    picked = paths?.[0] ?? null
   } catch {
-    return { ok: false, reason: '打开文件对话框失败' }
+    return { ok: false, reason: '打开文件选择器失败' }
   }
   if (!picked) return { ok: false }
   return importAssetByPath(kind, picked, onProgress)

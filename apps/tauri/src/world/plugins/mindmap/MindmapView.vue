@@ -12,11 +12,10 @@
       <template v-if="!sidebarCollapsed">
         <div class="mmv-side-tools">
           <button class="mmv-tool-btn" title="新建空白导图" @click="onCreateDoc"><WsIcon name="plus" size="xs" /></button>
-          <button class="mmv-tool-btn" title="导入 Markdown 大纲为新导图" @click="fileInputRef?.click()"><WsIcon name="upload" size="xs" /></button>
+          <button class="mmv-tool-btn" title="导入 Markdown 大纲为新导图" @click="onImportFile"><WsIcon name="upload" size="xs" /></button>
           <button class="mmv-tool-btn" title="导出当前导图为 Markdown" :disabled="!store.currentId" @click="onExportMd"><WsIcon name="download" size="xs" /></button>
           <button class="mmv-tool-btn" title="导出当前导图为 PNG 图片" :disabled="!store.currentId" @click="onExportImage('png')"><WsIcon name="image-down" size="xs" /></button>
           <button class="mmv-tool-btn" title="导出当前导图为 SVG 矢量图" :disabled="!store.currentId" @click="onExportImage('svg')"><WsIcon name="file-down" size="xs" /></button>
-          <input ref="fileInputRef" type="file" accept=".md,.markdown,.txt" class="mmv-hidden-input" @change="onImportFile" />
         </div>
         <div class="mmv-side-template">
           <CustomDropdown
@@ -145,9 +144,8 @@
           </div>
           <div class="mmv-bind-row">
             <span class="mmv-bind-label">节点图片</span>
-            <button class="mmv-bind-btn" @click="imageInputRef?.click()">插入…</button>
+            <button class="mmv-bind-btn" @click="onImageFile">插入…</button>
             <button v-if="selectedObj?.image" class="mmv-bind-btn" @click="onRemoveImage">移除</button>
-            <input ref="imageInputRef" type="file" accept="image/*" class="mmv-hidden-input" @change="onImageFile" />
           </div>
           <div class="mmv-bind-note-row">
             <span class="mmv-bind-label">备注</span>
@@ -176,6 +174,7 @@ import { useEntityStore, useUIStore, type Entity } from '@worldsea/entity-core'
 import { CustomDropdown, useConfirm } from '@worldsea/plugin-sdk'
 import { useMindmapDocStore } from './mindmapStore'
 import { markdownToMindElixir, mindElixirToMarkdown, findImportViolation, mindElixirStats, MINDMAP_MAX_NODES, MINDMAP_MAX_DEPTH, MINDMAP_OPEN_MAX_NODES, MINDMAP_OPEN_MAX_DEPTH } from './mindmapMarkdown'
+import { pickLocalFiles } from '@/composables/pickLocalFiles'
 
 /** 节点绑定实体的元数据载体（mind-elixir 官方通用 metadata 字段） */
 interface NodeMeta { entityId?: string }
@@ -528,52 +527,47 @@ function onCreateFromTemplate(v: string) {
   toastSuccess(`已从模板「${tpl.label}」创建导图`)
 }
 
-const fileInputRef = ref<HTMLInputElement | null>(null)
-
-/** 导入 Markdown 文件 → 新导图 */
-function onImportFile(e: Event) {
-  const input = e.target as HTMLInputElement
-  const file = input.files?.[0]
-  input.value = '' // 允许重复导入同名文件
-  if (!file) return
-  const reader = new FileReader()
-  reader.onload = async () => {
-    const md = String(reader.result ?? '')
-    const name = file.name.replace(/\.(md|markdown|txt)$/i, '')
-    // 深度护栏：超限文本提供「仅标题」逃生门（数据在 init 前已落库，导入后崩溃会锁死视图）
-    const violation = findImportViolation(md)
-    if (violation) {
-      const fallback = markdownToMindElixir(md, { headingsOnly: true })
-      const stats = fallback ? mindElixirStats(fallback) : null
-      if (!stats || stats.nodeCount === 0 || stats.nodeCount > MINDMAP_MAX_NODES || stats.maxDepth > MINDMAP_MAX_DEPTH) {
-        toastWarn(`导入取消：${violation}（仅标题模式也无法收纳该文件）`)
-        return
-      }
-      const useHeadings = await confirm({
-        type: 'warning',
-        title: '文件超出渲染上限',
-        description: `${violation}。可改用「仅标题」模式：只取标题行共 ${stats.nodeCount} 节点（层级 ${stats.maxDepth}），描述与字段不进入导图。`,
-        confirmText: '仅标题导入',
-        cancelText: '取消',
-      })
-      if (!useHeadings) return
-      const id = store.createDoc(`${name}（仅标题）`)
-      store.persistDocData(id, fallback as MindElixirData)
-      openDoc(id)
-      toastSuccess(`已按「仅标题」导入「${name}」（${stats.nodeCount} 节点）`)
-      return
-    }
+/** 导入 Markdown 文件 → 新导图（自绘选择器选路径，再读文本） */
+async function onImportFile() {
+  const picked = await pickLocalFiles({
+    multiple: false,
+    title: '导入 Markdown 大纲',
+    filters: [{ name: 'Markdown / 文本', extensions: ['md', 'markdown', 'txt'] }],
+  })
+  const file = picked.files[0]
+  if (!file) {
+    if (!picked.cancelled) toastWarn(picked.reasons[0] ?? '文件读取失败')
+    return
+  }
+  const md = await file.text()
+  const name = file.name.replace(/\.(md|markdown|txt)$/i, '')
+  // 深度护栏：超限文本提供「仅标题」逃生门（数据在 init 前已落库，导入后崩溃会锁死视图）
+  const violation = findImportViolation(md)
+  if (!violation) {
     const data = markdownToMindElixir(md)
-    if (!data) {
-      toastSuccess('文件为空或无法解析出大纲结构')
-      return
-    }
+    if (!data) return void toastSuccess('文件为空或无法解析出大纲结构')
     const id = store.createDoc(name)
     store.persistDocData(id, data as MindElixirData)
     openDoc(id)
-    toastSuccess(`已导入「${name}」`)
+    return void toastSuccess(`已导入「${name}」`)
   }
-  reader.readAsText(file)
+  const fallback = markdownToMindElixir(md, { headingsOnly: true })
+  const stats = fallback ? mindElixirStats(fallback) : null
+  if (!stats || stats.nodeCount === 0 || stats.nodeCount > MINDMAP_MAX_NODES || stats.maxDepth > MINDMAP_MAX_DEPTH) {
+    return void toastWarn(`导入取消：${violation}（仅标题模式也无法收纳该文件）`)
+  }
+  const useHeadings = await confirm({
+    type: 'warning',
+    title: '文件超出渲染上限',
+    description: `${violation}。可改用「仅标题」模式：只取标题行共 ${stats.nodeCount} 节点（层级 ${stats.maxDepth}），描述与字段不进入导图。`,
+    confirmText: '仅标题导入',
+    cancelText: '取消',
+  })
+  if (!useHeadings) return
+  const headingsId = store.createDoc(`${name}（仅标题）`)
+  store.persistDocData(headingsId, fallback as MindElixirData)
+  openDoc(headingsId)
+  toastSuccess(`已按「仅标题」导入「${name}」（${stats.nodeCount} 节点）`)
 }
 
 /** 通用 Blob 下载（MD / PNG / SVG 共用） */
@@ -823,32 +817,34 @@ function rerenderNodePatch(obj: NodeObj, patch: Partial<NodeObj>) {
 
 /* ── 节点图片（NodeObj.image 内建渲染）── */
 
-const imageInputRef = ref<HTMLInputElement | null>(null)
-
 /** 插入图片：dataURL 内嵌进文档（构思用途）；宽上限 240px 等比缩放，>2MB 拒收 */
-function onImageFile(e: Event) {
-  const input = e.target as HTMLInputElement
-  const file = input.files?.[0]
-  input.value = ''
+async function onImageFile() {
   const obj = selectedObj.value
-  if (!file || !obj) return
-  if (file.size > 2 * 1024 * 1024) {
-    toastWarn('图片过大（超过 2MB），请压缩后再插入')
-    return
+  if (!obj) return
+  const picked = await pickLocalFiles({
+    multiple: false,
+    title: '插入节点图片',
+    filters: [{ name: '图片', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'] }],
+    maxBytes: 2 * 1024 * 1024,
+  })
+  const file = picked.files[0]
+  // 用户取消：静默返回（不可与「读了但超限」共用提示分支）
+  if (!file) return void (picked.cancelled || toastWarn(picked.reasons[0] ?? '图片读取失败'))
+  // 选中阶段已按 maxBytes 拦过；此处覆盖拖拽/异常路径的兜底
+  if (file.size > 2 * 1024 * 1024) return void toastWarn('图片过大（超过 2MB），请压缩后再插入')
+  const url = await new Promise<string>((resolve) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result ?? ''))
+    reader.readAsDataURL(file)
+  })
+  const img = new Image()
+  img.onload = () => {
+    const w = Math.min(240, img.naturalWidth)
+    const h = Math.round(img.naturalHeight * (w / img.naturalWidth))
+    rerenderNodePatch(obj, { image: { url, width: w, height: h, fit: 'cover' } })
+    scheduleSave()
   }
-  const reader = new FileReader()
-  reader.onload = () => {
-    const url = String(reader.result ?? '')
-    const img = new Image()
-    img.onload = () => {
-      const w = Math.min(240, img.naturalWidth)
-      const h = Math.round(img.naturalHeight * (w / img.naturalWidth))
-      rerenderNodePatch(obj, { image: { url, width: w, height: h, fit: 'cover' } })
-      scheduleSave()
-    }
-    img.src = url
-  }
-  reader.readAsDataURL(file)
+  img.src = url
 }
 
 function onRemoveImage() {

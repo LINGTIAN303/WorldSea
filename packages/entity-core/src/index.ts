@@ -83,6 +83,19 @@ export {
   // ProjectFS 依赖注入服务接口
   registerProjectSwitcherApi,
   getProjectSwitcherApi,
+  // 自绘文件选择器注入接口 + 路径→File 适配
+  registerFilePickerApi,
+  getFilePickerApi,
+  hasFilePicker,
+  pathToFile,
+  pathsToFiles,
+  baseNameOf,
+  mimeOf,
+  pathToArrayBuffer,
+  pathsToArrayBuffers,
+  FILE_LINK_MAX_MB,
+  pickLocalFiles,
+  pickLocalBuffers,
   // 项目文件系统导出/导入
   exportProjectToDir,
   importProjectFromDir,
@@ -173,6 +186,12 @@ export type {
   SettingsApi,
   // ProjectFS 依赖注入服务接口
   ProjectSwitcherApi,
+  // 自绘文件选择器注入接口
+  FilePickerApi,
+  FilePickerRequest,
+  FilePickerFilter,
+  PickLocalOptions,
+  PickLocalResult,
   // 项目文件系统导出/导入
   ProjectManifest,
   ProjectCache,

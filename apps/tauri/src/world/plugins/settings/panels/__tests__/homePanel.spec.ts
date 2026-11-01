@@ -34,6 +34,12 @@ vi.mock('@/composables/imageAssets', () => ({
   get writeImageAsset() { return writeImageAsset },
   ASSET_MAX_BYTES: 2 * 1024 * 1024,
 }))
+// 自绘选择器：测试里直接给 File，跳过真实面板
+const picked = ref<{ files: File[]; cancelled: boolean; reasons: string[] }>({ files: [], cancelled: true, reasons: [] })
+const pickLocalFiles = vi.fn(async () => picked.value)
+vi.mock('@/composables/pickLocalFiles', () => ({
+  get pickLocalFiles() { return pickLocalFiles },
+}))
 
 import HomePanel from '../HomePanel.vue'
 
@@ -73,15 +79,26 @@ describe('HomePanel', () => {
   })
 
   it('上传封面写资产并保存', async () => {
+    const file = new File(['x'], 'cover.png', { type: 'image/png' })
+    picked.value = { files: [file], cancelled: false, reasons: [] }
     const w = mount(HomePanel)
     await settleLoad()
-    const input = w.find('input[type=file]')
-    const file = new File(['x'], 'cover.png', { type: 'image/png' })
-    Object.defineProperty(input.element, 'files', { value: [file] })
-    await input.trigger('change')
+    const upload = w.findAll('button').find(b => b.text() === '上传封面')!
+    await upload.trigger('click')
     await vi.advanceTimersByTimeAsync(0)
+    expect(pickLocalFiles).toHaveBeenCalled()
     expect(writeImageAsset).toHaveBeenCalledWith(file)
     expect(save).toHaveBeenCalledWith(expect.objectContaining({ coverImage: 'asset://cover.png' }))
+  })
+
+  it('取消选择不写资产也不报错', async () => {
+    picked.value = { files: [], cancelled: true, reasons: [] }
+    const w = mount(HomePanel)
+    await settleLoad()
+    const upload = w.findAll('button').find(b => b.text() === '上传封面')!
+    await upload.trigger('click')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(writeImageAsset).not.toHaveBeenCalled()
   })
 
   it('移除封面保存空值；搜索模式平铺', async () => {

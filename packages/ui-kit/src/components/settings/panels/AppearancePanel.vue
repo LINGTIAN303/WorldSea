@@ -97,11 +97,10 @@
         <template v-else-if="idx === 2">
           <div class="sc-head">字体库</div>
           <div class="sf-library-header">
-            <label class="sf-import-btn" :class="{ 'is-busy': importingFont }">
+            <button class="sf-import-btn" :class="{ 'is-busy': importingFont }" :disabled="importingFont" @click="onFontImport">
               <WsInlineLoading v-if="importingFont" size="sm" label="正在安装字体" />
               <span>{{ importingFont ? '安装中' : '导入字体' }}</span>
-              <input type="file" accept=".wsfont,.ttf,.otf,.woff,.woff2,.zip" :disabled="importingFont" @change="onFontImport" style="display:none" />
-            </label>
+            </button>
             <span class="sf-storage-hint">{{ fontStorageHint }}</span>
           </div>
           <div v-if="fontLibraryEntries.length === 0" class="set-hint" style="padding:12px 0">尚未安装字体，点击"导入字体"添加</div>
@@ -179,7 +178,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useSettingsStore, useTheme, useFontStore, ACCENT_PRESETS, CUSTOM_ACCENT_ID, quantizeAnchor, type FontLayer } from '@worldsea/entity-core'
+import { useSettingsStore, useTheme, useFontStore, pickLocalBuffers, ACCENT_PRESETS, CUSTOM_ACCENT_ID, quantizeAnchor, type FontLayer } from '@worldsea/entity-core'
 import { useFontPresets, useFontLibraryStore, type FontLibraryEntry, type FontVariantEntry } from '@worldsea/font-kit'
 import { installFromWsfont, installFromRawFont, installFromZip } from '@worldsea/font-kit'
 import WsIcon from '../../WsIcon.vue'
@@ -413,64 +412,56 @@ function onVariantChange(layer: FontLayer, key: string) {
   fontStore.setLayerVariant(layer, Number(w), s)
 }
 
-function onFontImport(e: Event) {
-  const input = e.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
-  if (importingFont.value) {
-    input.value = ''
+const FONT_MAX_BYTES = 200 * 1024 * 1024
+
+/**
+ * 导入字体：走 asset 协议大文件通道（不经 base64 IPC，200MB 上限得以保住）。
+ * 原实现用 `<input type="file">` + `file.arrayBuffer()`，与自绘选择器统一后
+ * 体积改由选择器 maxBytes 前置拦截。
+ */
+async function onFontImport() {
+  if (importingFont.value) return
+  const picked = await pickLocalBuffers({
+    multiple: false,
+    title: '导入字体',
+    filters: [{ name: '字体（wsfont / TTF / OTF / WOFF / ZIP）', extensions: ['wsfont', 'ttf', 'otf', 'woff', 'woff2', 'zip'] }],
+    maxBytes: FONT_MAX_BYTES,
+  })
+  if (picked.cancelled) return
+  const buffer = picked.items[0]
+  const path = picked.paths[0] ?? ''
+  if (!buffer) {
+    toastWarn(picked.reasons[0] ?? '字体文件读取失败')
     return
   }
-  if (file.size > 200 * 1024 * 1024) {
-    toastWarn(`文件过大 (${(file.size / 1024 / 1024).toFixed(1)} MB)，上限 200 MB`)
-    input.value = ''
-    return
-  }
-  const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
+  const fileName = path.split(/[\\/]/).pop() ?? ''
+  const ext = fileName.split('.').pop()?.toLowerCase() ?? ''
   importingFont.value = true
-
-  ;(async () => {
-    try {
-      const buffer = await file.arrayBuffer()
-
-      if (ext === 'zip') {
-        const { entries } = await installFromZip(buffer, file.name)
-        let installed = 0
-        for (const entry of entries) {
-          const result = libraryStore.addEntry(entry)
-          if (result.ok) installed++
-        }
-        toastSuccess(`已从 ZIP 安装 ${installed} 个字体`)
-      } else {
-        let entry: FontLibraryEntry | undefined
-
-        if (ext === 'wsfont') {
-          const result = await installFromWsfont(buffer)
-          entry = result.entry
-        } else if (['ttf', 'otf', 'woff', 'woff2'].includes(ext)) {
-          const result = await installFromRawFont(buffer, file.name)
-          entry = result.entry
-        }
-
-        if (entry) {
-          const result = libraryStore.addEntry(entry)
-          if (result.ok) {
-            toastSuccess(`已安装字体: ${entry.displayName}`)
-          } else {
-            toastWarn(result.reason || '安装失败')
-          }
-        } else {
-          toastWarn('不支持的字体格式')
-        }
+  try {
+    if (ext === 'zip') {
+      const { entries } = await installFromZip(buffer, fileName)
+      let installed = 0
+      for (const entry of entries) {
+        if (libraryStore.addEntry(entry).ok) installed++
       }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : '字体安装失败，请确认文件格式正确'
-      toastWarn(msg)
-    } finally {
-      importingFont.value = false
+      toastSuccess(`已从 ZIP 安装 ${installed} 个字体`)
+      return
     }
-  })()
-  input.value = ''
+    let entry: FontLibraryEntry | undefined
+    if (ext === 'wsfont') {
+      entry = (await installFromWsfont(buffer)).entry
+    } else if (['ttf', 'otf', 'woff', 'woff2'].includes(ext)) {
+      entry = (await installFromRawFont(buffer, fileName)).entry
+    }
+    if (!entry) return void toastWarn('不支持的字体格式')
+    const result = libraryStore.addEntry(entry)
+    if (result.ok) toastSuccess(`已安装字体: ${entry.displayName}`)
+    else toastWarn(result.reason || '安装失败')
+  } catch (err) {
+    toastWarn(err instanceof Error ? err.message : '字体安装失败，请确认文件格式正确')
+  } finally {
+    importingFont.value = false
+  }
 }
 </script>
 

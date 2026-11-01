@@ -61,12 +61,11 @@
         <div v-if="mode === 'import'" class="ie-section">
           <!-- 文件选择 -->
           <div class="ie-upload" @dragover.prevent @drop.prevent="onFileDrop">
-            <input type="file" accept=".json,.yaml,.yml,.ws" @change="onFileChange" ref="fileInput" hidden />
             <div v-if="parsing" class="ie-dropzone ie-dropzone--loading">
               <WsInlineLoading size="lg" label="正在解析导入文件" />
               <p>正在解析文件…</p>
             </div>
-            <div v-else-if="!importPack" class="ie-dropzone" @click="fileInput?.click()">
+            <div v-else-if="!importPack" class="ie-dropzone" @click="onPickFile">
               <WsIcon class="dz-icon" name="folder" size="lg" />
               <p>点击选择文件，或拖拽 JSON / YAML 文件到此处</p>
             </div>
@@ -199,6 +198,7 @@ import {
   getImportController,
   serializerRegistry,
   useAutoBackup,
+  pickLocalFiles,
   type WorldSeaPack,
   type ImportStrategy,
   type ImportReport,
@@ -346,7 +346,6 @@ const importStages = computed<LoadingStage[]>(() => {
 
 const importPack = ref<WorldSeaPack | null>(null)
 const importFileName = ref('')
-const fileInput = ref<HTMLInputElement>()
 
 // 监听策略切换
 watch(importStrategy, (val) => {
@@ -399,10 +398,15 @@ watch([mode, exportFormat, selectedSerializers], async () => {
   }
 }, { immediate: true })
 
-/* ─── 导入文件 ─── */
-function onFileChange(e: Event) {
-  const file = (e.target as HTMLInputElement).files?.[0]
-  if (file) void parseFile(file)
+/* ─── 导入文件（自绘选择器；拖拽/粘贴仍走 onFileDrop） ─── */
+async function onPickFile() {
+  const r = await pickLocalFiles({
+    multiple: false,
+    title: '选择导入文件',
+    filters: [{ name: 'WorldSea 数据包 / JSON / YAML', extensions: ['json', 'yaml', 'yml', 'ws'] }],
+  })
+  if (r.items[0]) await parseFile(r.items[0])
+  else if (r.reasons.length) importError.value = r.reasons[0]
 }
 
 function onFileDrop(e: DragEvent) {
@@ -417,8 +421,7 @@ async function parseFile(file: File) {
   importFileName.value = file.name
   parsing.value = true
   try {
-    const ctrl = getImportController()
-    importPack.value = await ctrl.parseImportBlob(file)
+    importPack.value = await getImportController().parseImportBlob(file)
   } catch (err: any) {
     importError.value = err.message
   } finally {
@@ -451,11 +454,8 @@ async function doExport() {
         exportProgress.value = { done, total }
         if (done >= total) exportStage.value = 1
       }
-      if (exportFormat.value === 'ws') {
-        await ctrl.downloadWS(undefined, selectedSerializers.value, onProgress)
-      } else {
-        await ctrl.download(exportFormat.value, undefined, selectedSerializers.value, onProgress)
-      }
+      if (exportFormat.value === 'ws') await ctrl.downloadWS(undefined, selectedSerializers.value, onProgress)
+      else await ctrl.download(exportFormat.value, undefined, selectedSerializers.value, onProgress)
     })
   } catch (err: any) {
     exportError.value = err?.message ?? String(err)

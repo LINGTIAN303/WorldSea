@@ -33,7 +33,6 @@
         <button class="ftb-tool-btn" @click="openInput('newFolder', currentPath)" :title="'新建文件夹'"><WsIcon name="folder" size="xs" /><span>新建文件夹</span></button>
         <button class="ftb-tool-btn" @click="onUpload" :title="'上传'"><WsIcon name="upload" size="xs" /><span>上传</span></button>
         <button v-if="isInsideTmp" class="ftb-tool-btn danger" @click="onClearTmp" title="删除临时区全部内容（含子 Agent 临时目录 sub-*），Agent 下次使用会自动重建"><WsIcon name="trash" size="xs" /><span>清空临时区</span></button>
-        <input ref="fileInput" type="file" class="ftb-file-input" @change="onFilePicked" />
       </div>
     </div>
 
@@ -43,7 +42,6 @@
       <button class="ftb-tool-btn" @click="openInput('newFolder', currentPath)" :title="'新建文件夹'"><WsIcon name="folder" size="xs" /><span v-if="!compact">新建文件夹</span></button>
       <button class="ftb-tool-btn" @click="onUpload" :title="'上传'"><WsIcon name="upload" size="xs" /><span v-if="!compact">上传</span></button>
       <button v-if="isInsideTmp" class="ftb-tool-btn danger" @click="onClearTmp" title="删除临时区全部内容（含子 Agent 临时目录 sub-*），Agent 下次使用会自动重建"><WsIcon name="trash" size="xs" /><span v-if="!compact">清空临时区</span></button>
-      <input ref="fileInput" type="file" class="ftb-file-input" @change="onFilePicked" />
     </div>
 
     <!-- 回收站视图（三期「删除可逆化」）：还原 / 永久删除 / 清空 -->
@@ -155,6 +153,7 @@ import { invoke } from '@/composables/transport'
 import { resolveWorkspaceDir, ensureWorkspaceDir } from '@/composables/workspace'
 import { useFileTrash, type FileTrashRecord } from '@/composables/fileTrash'
 import { toastInfo, toastError } from '@/composables/useToast'
+import { getFilePickerApi, hasFilePicker, baseNameOf } from '@worldsea/entity-core/core'
 
 /** 目录树节点（对应 cmd_fs_list 返回的 FsEntry camelCase 结构） */
 export interface FsNode {
@@ -215,7 +214,6 @@ const currentPath = ref<string | null>(null)
 const rootChildren = ref<FsNode[]>([])
 const { visible: treeLoading, run: runTreeLoad } = useAsyncTask({ successHold: 0 })
 const treeLoaded = ref(false)
-const fileInput = ref<HTMLInputElement>()
 const inputDialog = ref<InputDialog | null>(null)
 const resolvedRoot = ref<string | null>(props.rootPath)
 
@@ -619,24 +617,21 @@ async function onClearTmp(): Promise<void> {
   }
 }
 
-/** 触发文件选择（上传） */
-function onUpload(): void {
-  fileInput.value?.click()
-}
-
-/** 上传文件：读取为文本后写入当前目录 */
-async function onFilePicked(e: Event): Promise<void> {
-  const input = e.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file || !currentPath.value) return
+/** 上传：自绘选择器选路径 → 磁盘直拷（原实现走 file.text()，二进制文件会被破坏） */
+async function onUpload(): Promise<void> {
+  if (!currentPath.value) return
+  if (!hasFilePicker()) {
+    toastError('文件选择器不可用（请使用桌面端）')
+    return
+  }
+  const paths = await getFilePickerApi().pick({ mode: 'file', multiple: false, title: '上传文件到当前目录' })
+  const src = paths?.[0]
+  if (!src) return
   try {
-    const content = await file.text()
-    await invoke('cmd_fs_write', { path: joinPath(currentPath.value, file.name), content, createDirs: false })
+    await invoke('cmd_fs_copy', { src, dest: joinPath(currentPath.value, baseNameOf(src)) })
     await refresh()
   } catch (err) {
-    console.warn('[FileTreeBrowser] 上传失败:', err)
-  } finally {
-    input.value = ''
+    toastError(`上传失败：${err instanceof Error ? err.message : String(err)}`)
   }
 }
 

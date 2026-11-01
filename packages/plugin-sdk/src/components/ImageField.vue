@@ -33,18 +33,9 @@
           <p>拖拽图片到此处</p>
           <p>或点击选择文件</p>
         </div>
-        <input
-          v-show="!focalMode"
-          ref="fileInputRef"
-          type="file"
-          accept="image/*"
-          class="image-file-input"
-          @click.stop
-          @change="onFileSelect"
-        />
       </div>
       <div class="image-field-actions">
-        <TuiButton variant="secondary" size="sm" @click="fileInputRef?.click()">选择文件</TuiButton>
+        <TuiButton variant="secondary" size="sm" @click="onFileSelect">选择文件</TuiButton>
         <TuiButton v-if="resolvedUrl" variant="danger-ghost" size="sm" @click="removeImage">移除</TuiButton>
         <TuiButton v-if="resolvedUrl" variant="secondary" size="sm" class="btn-focal" @click="toggleFocalMode">
           {{ focalMode ? '完成调整' : '调整封面焦点' }}
@@ -67,7 +58,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useEntityImage } from '@worldsea/entity-core/composables'
-import { useFileStore } from '@worldsea/entity-core'
+import { useFileStore, pickLocalFiles } from '@worldsea/entity-core'
 import { TuiButton, WsIcon  } from '@worldsea/ui-kit'
 
 const props = defineProps<{
@@ -87,7 +78,6 @@ const emit = defineEmits<{
 }>()
 
 const fileStore = useFileStore()
-const fileInputRef = ref<HTMLInputElement>()
 const isDragging = ref(false)
 const urlInput = ref('')
 const focalMode = ref(false)
@@ -174,9 +164,7 @@ function onDropZoneClick(e: MouseEvent) {
 function onDropZoneKeydown(e: KeyboardEvent) {
   if (e.key !== 'Enter' && e.key !== ' ') return
   e.preventDefault()
-  if (!focalMode.value) {
-    fileInputRef.value?.click()
-  }
+  if (!focalMode.value) void onFileSelect()
 }
 
 function onWheel(e: WheelEvent) {
@@ -229,11 +217,14 @@ function onDocumentPaste(e: ClipboardEvent) {
   }
 }
 
-function onFileSelect(e: Event) {
-  const input = e.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (file) uploadFile(file)
-  input.value = ''
+async function onFileSelect() {
+  const r = await pickLocalFiles({
+    multiple: false,
+    title: '选择图片',
+    filters: [{ name: '图片', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'] }],
+  })
+  const file = r.items[0]
+  if (file) await uploadFile(file)
 }
 
 function applyUrl() {

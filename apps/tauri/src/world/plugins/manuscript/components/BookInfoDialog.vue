@@ -12,10 +12,9 @@
           <div v-else class="binfo-cover-empty"><WsIcon name="book" size="xl" /></div>
         </div>
         <div class="binfo-cover-actions">
-          <TuiButton variant="secondary" size="sm" @click="coverInput?.click()">上传封面</TuiButton>
+          <TuiButton variant="secondary" size="sm" @click="onPickCover">上传封面</TuiButton>
           <TuiButton v-if="coverPreview" variant="secondary" size="sm" @click="removeCover">移除封面</TuiButton>
         </div>
-        <input ref="coverInput" type="file" accept="image/*" class="binfo-hidden-input" @change="onPickCover" />
       </div>
 
       <div class="binfo-field">
@@ -64,6 +63,7 @@ import { TuiButton, WsIcon, WsInlineLoading } from '@worldsea/ui-kit'
 import { useEntityStore } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
 import { writeImageAsset, ASSET_MAX_BYTES } from '@/composables/imageAssets'
+import { pickLocalFiles } from '@/composables/pickLocalFiles'
 import { toastError } from '@/composables/useToast'
 import { useFocusTrap } from '@/composables/useFocusTrap'
 
@@ -111,7 +111,6 @@ function removeTag(t: string) {
 const coverFile = ref<File | null>(null)
 const coverRemoved = ref(false)
 const coverPreview = ref(props.book ? ((props.book.coverImage as string) || (props.book.properties.cover as string) || '') : '')
-const coverInput = ref<HTMLInputElement | null>(null)
 let previewObjectUrl = ''
 
 function setPreview(src: string) {
@@ -122,12 +121,20 @@ function setPreview(src: string) {
   coverPreview.value = src
 }
 
-/** 选择后本地预校验（与 writeImageAsset 同口径，避免保存时才发现超限） */
-function onPickCover(e: Event) {
-  const input = e.target as HTMLInputElement
-  const file = input.files?.[0]
-  input.value = '' // 允许连续选择同一文件
-  if (!file) return
+/** 自绘选择器选封面（选中阶段按 maxBytes 拦截，选中后仍按 writeImageAsset 同口径预校验） */
+async function onPickCover() {
+  const picked = await pickLocalFiles({
+    multiple: false,
+    title: '选择封面图片',
+    filters: [{ name: '图片', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'] }],
+    maxBytes: ASSET_MAX_BYTES,
+  })
+  if (picked.cancelled) return
+  const file = picked.files[0]
+  if (!file) {
+    toastError(picked.reasons[0] ?? '封面读取失败')
+    return
+  }
   if (!file.type.startsWith('image/')) {
     toastError(`「${file.name}」不是图片文件`)
     return

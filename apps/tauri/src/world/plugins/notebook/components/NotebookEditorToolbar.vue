@@ -23,8 +23,7 @@
       <button class="tb-btn" :class="{ active: editor?.isActive('taskList') }" @click="editor?.chain().focus().toggleTaskList().run()" title="任务列表" aria-label="任务列表"><WsIcon name="task-plan" size="xs" /></button>
       <button class="tb-btn" @click="editor?.chain().focus().setHorizontalRule().run()" title="分割线" aria-label="分割线"><WsIcon name="minus" size="xs" /></button>
       <button class="tb-btn" @click="editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()" title="插入表格" aria-label="插入表格"><WsIcon name="table" size="xs" /></button>
-      <button class="tb-btn" @click="imageInput?.click()" title="插入图片（本地文件，≤2MB）" aria-label="插入图片"><WsIcon name="image" size="xs" /></button>
-      <input ref="imageInput" type="file" accept="image/*" multiple class="tb-hidden-input" @change="onPickImages" />
+      <button class="tb-btn" @click="onPickImages" title="插入图片（本地文件，≤2MB）" aria-label="插入图片"><WsIcon name="image" size="xs" /></button>
     </div>
     <!-- 表格上下文组：光标在表格内才出现（结构操作）；禁用态由 can() 判定（如只剩一行时禁删行），不留无反馈的死按钮 -->
     <template v-if="inTable">
@@ -101,8 +100,9 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import type { Editor } from '@tiptap/vue-3'
 import { WsIcon, WsInlineLoading } from '@worldsea/ui-kit'
-import { insertImageFilesInto } from '@/composables/imageInsert'
-import { toastSuccess } from '@/composables/useToast'
+import { insertImageFilesInto, IMAGE_MAX_BYTES } from '@/composables/imageInsert'
+import { toastSuccess, toastWarn } from '@/composables/useToast'
+import { pickLocalFiles } from '@/composables/pickLocalFiles'
 import { applyTypographyToEditor, type QuoteStyle } from '@/composables/typographyRules'
 import { nbQuoteStyle } from '../composables/useNotePrefs'
 import NotebookTypographyPanel from './NotebookTypographyPanel.vue'
@@ -175,14 +175,18 @@ function setHeading(e: Event) {
   }
 }
 
-// 图片插入（工具栏按钮 → 隐藏文件选择器）；粘贴 / 拖拽走 useNoteEditor 的 handlePaste/handleDrop
-const imageInput = ref<HTMLInputElement | null>(null)
-async function onPickImages(e: Event) {
-  const input = e.target as HTMLInputElement
-  const files = Array.from(input.files ?? [])
-  input.value = '' // 允许连续选择同一文件
-  if (!files.length) return
-  const n = await insertImageFilesInto(props.editor, files)
+// 图片插入（工具栏按钮 → 自绘选择器）；粘贴 / 拖拽走 useNoteEditor 的 handlePaste/handleDrop
+async function onPickImages() {
+  const picked = await pickLocalFiles({
+    multiple: true,
+    title: '插入图片',
+    filters: [{ name: '图片', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'] }],
+    maxBytes: IMAGE_MAX_BYTES,
+  })
+  if (picked.cancelled) return
+  if (picked.reasons.length) toastWarn(picked.reasons[0])
+  if (!picked.files.length) return
+  const n = await insertImageFilesInto(props.editor, picked.files)
   if (n > 0) toastSuccess(`已插入 ${n} 张图片（base64 存入正文，单张上限 2MB）`)
 }
 

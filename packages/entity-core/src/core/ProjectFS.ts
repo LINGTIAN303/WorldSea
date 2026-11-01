@@ -3,6 +3,7 @@
 import { getProjectManager } from './ProjectManager'
 import { useEntityStore, useRelationStore, useSettingsStore } from '../stores'
 import { getProjectSwitcherApi } from './ProjectSwitcherApi'
+import { getFilePickerApi } from './FilePickerApi'
 import { getProjectExtraProviders } from './projectExtras'
 import { getFileStorageBackend } from './StorageBackend'
 import { exportProjectIcons, importProjectIcons } from './projectIconsFS'
@@ -84,15 +85,10 @@ async function listDir(path: string, recursive = false): Promise<Array<{
   return invoke('cmd_fs_list', { path, recursive }) as Promise<any[]>
 }
 
-/** 打开目录选择对话框 */
+/** 打开目录选择（自绘选择器；未注册或取消均返回 null） */
 async function openDirDialog(title: string): Promise<string | null> {
-  try {
-    const { open } = await import('@tauri-apps/plugin-dialog')
-    const selected = await open({ directory: true, title, multiple: false })
-    return selected as string | null
-  } catch {
-    return null
-  }
+  const paths = await getFilePickerApi().pick({ mode: 'directory', title }).catch(() => null)
+  return paths?.[0] ?? null
 }
 
 /** 写入文本文件（createDirs：目标目录不存在则创建） */

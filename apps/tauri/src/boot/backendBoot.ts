@@ -7,12 +7,16 @@ import { registerValidationApi } from '@worldsea/entity-core'
 import { registerBackend } from '@worldsea/canvas-engine/core'
 import { injectAllKeyframes } from '@worldsea/motion-kit'
 import { installAutoLinkWiring } from '@/shell/autoLinkWiring'
+import { installFilePickerApi } from '@/composables/filePickerApi'
 
 let backendBootPromise: Promise<void> | null = null
 
 async function runBackendBoot(): Promise<void> {
   // AutoLink ② 批装配（策略注册 / 设置桥 / 确认桥 / 撤销上限）
   installAutoLinkWiring()
+
+  // 自绘文件选择器：接口在 entity-core、UI 在 FilePickerHost——此处只注册转发实现
+  installFilePickerApi()
 
   registerBackend({
     getBackendType: coreBackend.getBackendType,

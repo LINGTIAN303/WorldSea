@@ -16,6 +16,8 @@ mod lsp_commands;
 mod fs_commands;
 // 文件系统监听（useFsWatcher 依赖的 cmd_fs_watch_*）
 mod fs_watch_commands;
+// 盘符枚举（自绘文件选择器根导航；只读）
+mod fs_drives;
 // 项目切换命令（前端 useProjectSwitcher Tauri 分支）
 mod project_commands;
 // 实体/关系/KV/文件命令（TauriStorageBackend fallback 用，SQLite 全局库）
@@ -210,6 +212,8 @@ pub fn run() {
             // 文件系统监听（useFsWatcher）
             fs_watch_commands::cmd_fs_watch_start,
             fs_watch_commands::cmd_fs_watch_stop,
+            // 盘符枚举（自绘文件选择器根导航）
+            fs_drives::cmd_fs_drives,
             // 实体/关系/KV/文件命令（TauriStorageBackend fallback）
             entity_commands::cmd_get_all_entities,
             entity_commands::cmd_get_entity,

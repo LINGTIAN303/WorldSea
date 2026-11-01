@@ -37,6 +37,8 @@
     <DialogContainer />
     <WsConfirmDialog />
     <WsAskDialog />
+    <!-- 自绘文件选择器单例宿主（消费 entity-core FilePickerApi 注入槽的请求队列） -->
+    <FilePickerHost />
     <!-- 快捷键系统 L0 显示面（帮助/撤销历史——redo 回调与 toggle 语义耦合快捷键系统，不插件化） -->
     <ShortcutHelpModal :show="shortcutHelpOpen" @close="shortcutHelpOpen = false" />
     <UndoHistoryPanel :show="undoHistoryOpen" @close="undoHistoryOpen = false" @redo="onRedoFromHistory" />
@@ -53,6 +55,7 @@ import Sidebar from './sidebar/SidebarHost.vue'
 import { Toast, DialogContainer, ViewContainer, WsLoadingOverlay, WsAmbientLine, useBackgroundTask, toastWarn } from '@worldsea/ui-kit'
 import WsConfirmDialog from '../WsConfirmDialog.vue'
 import WsAskDialog from '../WsAskDialog.vue'
+import FilePickerHost from '@/components/files/FilePickerHost.vue'
 import HomeSurface from '@/ui/home/HomeSurface.vue'
 import { useHomeNavigation } from '@/ui/home/useHomeNavigation'
 import { useShellViewSwitch } from './useShellViewSwitch'

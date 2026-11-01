@@ -39,7 +39,8 @@ commands.allow = [
     # cmd_fs_copy_dir：D 项「项目备份」（2026-10-02 立项）明确裁定放行
     # cmd_fs_copy：形象图/视频资产对话框路径直传（2026-10-25 形象图批计划 A 批，产物可达，按口径放行）
     # cmd_fs_copy_progress：同链路的分块复制 + 进度事件（批 C 走查追加，大视频导入反馈）
-    "cmd_fs_copy", "cmd_fs_copy_progress", "cmd_fs_copy_dir", "cmd_fs_delete", "cmd_fs_list",
+    # cmd_fs_drives：自绘文件选择器根导航的盘符枚举（只读；批 0 地基）
+    "cmd_fs_copy", "cmd_fs_copy_progress", "cmd_fs_copy_dir", "cmd_fs_delete", "cmd_fs_drives", "cmd_fs_list",
     "cmd_fs_mkdir", "cmd_fs_read", "cmd_fs_rename", "cmd_fs_search",
     "cmd_fs_stat", "cmd_fs_usage", "cmd_fs_watch_start", "cmd_fs_watch_stop", "cmd_fs_write",
     "cmd_get_all_entities", "cmd_get_all_files", "cmd_get_all_relations", "cmd_get_entities_by_type",

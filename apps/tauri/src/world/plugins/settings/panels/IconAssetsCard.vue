@@ -6,7 +6,6 @@
     </div>
 
     <div class="ia-upload-row">
-      <input ref="fileInput" class="ia-file" type="file" accept=".svg,.png,.webp,image/svg+xml,image/png,image/webp" @change="onFileChange" />
       <button class="set-btn" type="button" :disabled="!available || uploading" @click="chooseFile">
         {{ uploading ? '上传中…' : '上传图标' }}
       </button>
@@ -40,13 +39,13 @@ import {
 } from '@worldsea/entity-core'
 import { matchKeywords, toastSuccess, toastWarn, useConfirm, WsIcon } from '@worldsea/ui-kit'
 import { uploadIconFile } from '@/world/iconAssetUpload'
+import { pickLocalFiles } from '@/composables/pickLocalFiles'
 
 const props = withDefaults(defineProps<{ searchQuery?: string }>(), { searchQuery: '' })
 
 const keywords = '自定义图标 上传 图标库 项目 全局 icon upload custom'
 const iconStore = useIconAssetStore()
 const { confirm } = useConfirm()
-const fileInput = ref<HTMLInputElement | null>(null)
 const alsoGlobal = ref(false)
 const uploading = ref(false)
 const checkingId = ref('')
@@ -54,15 +53,20 @@ const available = computed(() => isTauri())
 
 const assets = computed<ScopedIconAsset[]>(() => iconStore.allAssets)
 
-function chooseFile(): void {
-  fileInput.value?.click()
-}
-
-async function onFileChange(event: Event): Promise<void> {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  input.value = ''
-  if (!file) return
+/** 自绘选择器选图标文件（SVG ≤256KB / 位图 ≤512KB 的细粒度校验在 validateIconAsset 内） */
+async function chooseFile(): Promise<void> {
+  const picked = await pickLocalFiles({
+    multiple: false,
+    title: '上传自定义图标',
+    filters: [{ name: '图标（SVG / PNG / WebP）', extensions: ['svg', 'png', 'webp'] }],
+    maxBytes: 512 * 1024,
+  })
+  if (picked.cancelled) return
+  const file = picked.files[0]
+  if (!file) {
+    toastWarn(picked.reasons[0] ?? '图标读取失败')
+    return
+  }
   uploading.value = true
   try {
     const result = await uploadIconFile(file, { alsoGlobal: alsoGlobal.value })

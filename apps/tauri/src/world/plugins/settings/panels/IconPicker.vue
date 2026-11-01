@@ -49,7 +49,6 @@
       </div>
 
       <div v-if="packFilter === 'custom'" class="ip-custom-tools">
-        <input ref="uploadInput" class="ip-file" type="file" accept=".svg,.png,.webp,image/svg+xml,image/png,image/webp" @change="onUploadChange" />
         <button class="ip-upload" type="button" :disabled="!available || uploading" @click="chooseUpload">
           {{ uploading ? '上传中…' : '上传图标' }}
         </button>
@@ -147,6 +146,7 @@ import TuiModal from '@/components/ui/TuiModal.vue'
 import IconLicenseDialog from './IconLicenseDialog.vue'
 import { iconSlotKindLabel, iconSourceLabel, type IconPickerConfirm, type IconPickerTarget } from '@/world/iconPanelModel'
 import { uploadIconFile } from '@/world/iconAssetUpload'
+import { pickLocalFiles } from '@/composables/pickLocalFiles'
 
 type DomainFilter = IconDomain | 'all'
 
@@ -170,7 +170,6 @@ const syncTypes = ref(false)
 const applyGlobal = ref(false)
 const gridRef = ref<HTMLElement | null>(null)
 const iconAssets = useIconAssetStore()
-const uploadInput = ref<HTMLInputElement | null>(null)
 const uploading = ref(false)
 const available = computed(() => isTauri())
 const licenseOpen = ref(false)
@@ -302,15 +301,20 @@ function choosePack(id: string): void {
   domainFilter.value = 'all'
 }
 
-function chooseUpload(): void {
-  uploadInput.value?.click()
-}
-
-async function onUploadChange(event: Event): Promise<void> {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  input.value = ''
-  if (!file) return
+/** 自绘选择器选图标文件（细粒度校验在 validateIconAsset 内） */
+async function chooseUpload(): Promise<void> {
+  const picked = await pickLocalFiles({
+    multiple: false,
+    title: '上传自定义图标',
+    filters: [{ name: '图标（SVG / PNG / WebP）', extensions: ['svg', 'png', 'webp'] }],
+    maxBytes: 512 * 1024,
+  })
+  if (picked.cancelled) return
+  const file = picked.files[0]
+  if (!file) {
+    toastWarn(picked.reasons[0] ?? '图标读取失败')
+    return
+  }
   uploading.value = true
   try {
     const result = await uploadIconFile(file)

@@ -44,10 +44,9 @@
               <span v-else class="hp-cover-empty"><WsIcon name="image" size="lg" /></span>
             </div>
             <div class="hp-cover-actions">
-              <TuiButton size="sm" variant="secondary" :disabled="!loaded" @click="coverInput?.click()">上传封面</TuiButton>
+              <TuiButton size="sm" variant="secondary" :disabled="!loaded" @click="onPickCover">上传封面</TuiButton>
               <TuiButton v-if="draft.coverImage" size="sm" variant="secondary" :disabled="!loaded" @click="removeCover">移除封面</TuiButton>
             </div>
-            <input ref="coverInput" type="file" accept="image/*" class="hp-hidden" :disabled="!loaded" @change="onPickCover" />
           </div>
         </div>
 
@@ -78,7 +77,8 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { CardDeck, TuiButton, WsIcon } from '@worldsea/ui-kit'
 import { HOME_PROFILE_LIMITS, useHomeProfileStore } from '@/stores/homeProfileStore'
 import { useProjectSwitcher } from '@/composables/useProjectSwitcher'
-import { writeImageAsset } from '@/composables/imageAssets'
+import { writeImageAsset, ASSET_MAX_BYTES } from '@/composables/imageAssets'
+import { pickLocalFiles } from '@/composables/pickLocalFiles'
 
 defineProps<{ searchQuery?: string }>()
 const emit = defineEmits<{ 'card-change': [index: number] }>()
@@ -86,7 +86,6 @@ const emit = defineEmits<{ 'card-change': [index: number] }>()
 const store = useHomeProfileStore()
 const project = useProjectSwitcher()
 const draft = reactive({ tagline: '', about: '', coverImage: '' })
-const coverInput = ref<HTMLInputElement | null>(null)
 const deckRef = ref<InstanceType<typeof CardDeck> | null>(null)
 const saveState = ref<'idle' | 'saving' | 'saved' | 'error'>('idle')
 const errorText = ref('')
@@ -126,12 +125,21 @@ async function flushSave() {
   }
 }
 
-async function onPickCover(e: Event) {
+async function onPickCover() {
   if (!loaded.value) return
-  const input = e.target as HTMLInputElement
-  const file = input.files?.[0]
-  input.value = ''
-  if (!file) return
+  const picked = await pickLocalFiles({
+    multiple: false,
+    title: '选择首页封面',
+    filters: [{ name: '图片', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'] }],
+    maxBytes: ASSET_MAX_BYTES,
+  })
+  if (picked.cancelled) return
+  const file = picked.files[0]
+  if (!file) {
+    saveState.value = 'error'
+    errorText.value = picked.reasons[0] ?? '封面上传失败'
+    return
+  }
   const result = await writeImageAsset(file)
   if (!result.ok || !result.src) {
     saveState.value = 'error'

@@ -42,7 +42,8 @@ webview2-com = "0.38"
 # Win32_Graphics_Dwm：DWMWA_TRANSITIONS_FORCEDISABLED（窗口过渡禁用，见 src/window_transitions.rs）
 windows = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Dwm"] }
 # win_job.rs（LSP 子进程 Job Object 整树回收；0.61 起 HANDLE 为指针，与原 agent-commands 同版本）
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_JobObjects", "Win32_System_Threading"] }
+# Win32_Storage_FileSystem：fs_drives.rs 盘符枚举（GetLogicalDrives / GetDriveTypeW）
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_JobObjects", "Win32_System_Threading", "Win32_Storage_FileSystem"] }
 
 # 实体存储命令（TauriStorageBackend fallback）：sqlx 0.8 + sqlite
 sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio"] }
