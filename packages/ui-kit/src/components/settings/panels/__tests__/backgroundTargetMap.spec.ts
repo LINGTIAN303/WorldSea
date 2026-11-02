@@ -57,11 +57,14 @@ describe('BackgroundTargetMap', () => {
     expect(w.emitted('select')?.[1]).toEqual(['home'])
   })
 
-  it('地图切换有固定舞台，不随视图塌高', () => {
+  it('地图切换有固定舞台，不随视图塌高', async () => {
     const w = mount(BackgroundTargetMap, { props })
     const stage = w.find('.bg-map__stage')
     expect(stage.exists()).toBe(true)
     expect(stage.find('.bg-map__viewport--workspace').exists()).toBe(true)
+    await w.setProps({ map: 'home' })
+    await nextTick()
+    expect(stage.find('.bg-map__viewport--home').exists()).toBe(true)
   })
 
   it('大背景卡片点选 canvas，选中展开', async () => {
@@ -136,7 +139,13 @@ describe('BackgroundTargetMap', () => {
     await nextTick()
     expect(layerStyle()).toContain('asset://p.webp')
 
+    // 全局范围不受项目覆盖影响
+    await w.setProps({ scope: 'global' })
+    await nextTick()
+    expect(layerStyle()).toContain('asset://g.webp')
+
     api.setProjectConfig({ version: 1, targets: {} })
+    await w.setProps({ scope: 'project' })
     await nextTick()
     expect(w.find('.bg-map__region--sidebar .bg-map__state').text()).toBe('跟随')
     expect(layerStyle()).toContain('asset://g.webp')

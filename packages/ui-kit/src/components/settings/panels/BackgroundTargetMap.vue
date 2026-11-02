@@ -3,8 +3,8 @@
     <div class="bg-map__head">
       <span class="bg-map__title">界面映射</span>
       <div class="bg-map__switch" role="group" aria-label="界面映射切换">
-        <button :class="{ on: map === 'workspace' }" :disabled="disabled" @click="emit('switch-map', 'workspace')">工作台</button>
-        <button :class="{ on: map === 'home' }" :disabled="disabled" @click="emit('switch-map', 'home')">首页</button>
+        <button :class="{ on: map === 'workspace' }" :aria-pressed="map === 'workspace'" :disabled="disabled" @click="emit('switch-map', 'workspace')">工作台</button>
+        <button :class="{ on: map === 'home' }" :aria-pressed="map === 'home'" :disabled="disabled" @click="emit('switch-map', 'home')">首页</button>
       </div>
     </div>
 
@@ -23,10 +23,10 @@
             <span class="bg-map__state" :data-state="stateOf(region.target).key">{{ stateOf(region.target).text }}</span>
           </button>
         </div>
-        <div v-else key="home" class="bg-map__viewport bg-map__viewport--home">
+        <div v-else key="home" class="bg-map__viewport bg-map__viewport--home" role="group" aria-label="首页界面">
           <button
             class="bg-map__home" :class="{ 'is-selected': selected === 'home' }" :disabled="disabled"
-            :aria-pressed="selected === 'home'" @click="emit('select', 'home')"
+            :aria-pressed="selected === 'home'" aria-label="首页" @click="emit('select', 'home')"
           >
             <BackgroundLayer target="home" :scope="previewScope('home')" preview />
             <span class="bg-map__home-cover">项目封面<small>在编辑简介更换</small></span>
@@ -188,7 +188,7 @@ function stateOf(target: BackgroundTarget): { key: TargetStateKey; text: string 
   border-radius: calc(var(--radius-sm) * var(--sf-radius-scale));
   background: color-mix(in srgb, var(--bg-app) 82%, transparent);
   font-size: var(--fs-xs);
-  color: var(--text-muted);
+  color: var(--text-secondary);
 }
 .bg-map__state::before,
 .bg-canvas-card__state::before {
@@ -204,7 +204,11 @@ function stateOf(target: BackgroundTarget): { key: TargetStateKey; text: string 
 .bg-map__state[data-state='off'],
 .bg-map__state[data-state='unset'],
 .bg-canvas-card__state[data-state='off'],
-.bg-canvas-card__state[data-state='unset'] { color: var(--text-muted); }
+.bg-canvas-card__state[data-state='unset'] { color: var(--text-secondary); }
+.bg-map__state[data-state='off']::before,
+.bg-map__state[data-state='unset']::before,
+.bg-canvas-card__state[data-state='off']::before,
+.bg-canvas-card__state[data-state='unset']::before { background: var(--text-muted); }
 .bg-map__state[data-state='follow'],
 .bg-canvas-card__state[data-state='follow'] { color: var(--text-secondary); }
 .bg-map__state[data-state='missing'],
@@ -325,7 +329,7 @@ function stateOf(target: BackgroundTarget): { key: TargetStateKey; text: string 
   border-radius: calc(var(--radius-sm) * var(--sf-radius-scale));
   background: color-mix(in srgb, var(--bg-app) 82%, transparent);
   font-size: var(--fs-xs);
-  color: var(--text-muted);
+  color: var(--text-secondary);
 }
 
 /* 地图切换：淡入 + 轻微位移；减弱动效时直切 */
