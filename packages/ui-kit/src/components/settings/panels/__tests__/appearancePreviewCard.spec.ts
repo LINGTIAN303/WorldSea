@@ -38,4 +38,15 @@ describe('AppearancePanel —— Deck 六卡分支', () => {
     // 面板挂载即 store 初始化成功（键存在性经 v-model 绑定消费，无异常即通）
     expect(w.find('.deck-card[data-index="5"]').exists()).toBe(true)
   })
+
+  it('背景卡命中填充/焦点/暗化/模糊', () => {
+    setActivePinia(createPinia())
+    for (const q of ['填充', '焦点', '暗化', '模糊']) {
+      const w = mount(AppearancePanel, { props: { searchQuery: q } })
+      const cards = w.findAll('.deck-card')
+      expect(cards[1].isVisible()).toBe(true)
+      expect(cards[0].isVisible()).toBe(false)
+      w.unmount()
+    }
+  })
 })

@@ -13,4 +13,10 @@ describe('设置分类', () => {
     expect(idx).toBe(1)
     expect(SETTINGS_CATEGORIES[idx]?.label).toBe('动画效果')
   })
+
+  it('外观分类含背景参数关键词', () => {
+    for (const word of ['填充', '焦点', '暗化', '模糊']) {
+      expect(SETTINGS_CATEGORY_KEYWORDS.appearance).toContain(word)
+    }
+  })
 })
