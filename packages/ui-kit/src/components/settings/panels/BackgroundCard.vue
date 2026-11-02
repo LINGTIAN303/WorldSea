@@ -74,7 +74,8 @@ import { useBackground, type BackgroundFit, type FocusStep } from '@worldsea/sty
 import { pickAndSaveWorkspaceBackground, removeWorkspaceBackground } from '@worldsea/entity-core/core'
 import WorkspaceBackground from '../../layout/WorkspaceBackground.vue'
 
-const { background, missing, setEnabled, setImage, clear, setFit, setFocus, setDim, setBlur, flush } = useBackground()
+const { background, missing: missingMap, setEnabled, setImage, clear, setFit, setFocus, setDim, setBlur, flush } = useBackground()
+const missing = computed(() => missingMap.value.canvas.light || missingMap.value.canvas.dark)
 const picking = ref(false)
 const error = ref('')
 const hasBackground = computed(() => !!background.value.src && !missing.value)

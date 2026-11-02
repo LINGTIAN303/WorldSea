@@ -185,6 +185,23 @@ describe('useBackground', () => {
     expect(api.srcs.value.canvas.light).toBe('asset://g.webp')
   })
 
+  it('项目覆盖不吞掉全局缺失标记', async () => {
+    const { useBackground } = await load()
+    const api = useBackground()
+    api.setTargetImage('canvas', 'light', { path: '/g.webp', src: 'asset://g.webp' }, 'global')
+    api.markMissing('canvas', 'light', 'global')
+    expect(api.missing.value.canvas.light).toBe(true)
+    api.setProjectConfig({
+      version: 1,
+      targets: {
+        canvas: { enabled: true, paths: { light: '', dark: '' }, fit: 'cover', focusX: 50, focusY: 50, dim: 35, blur: 8 },
+      },
+    })
+    expect(api.missing.value.canvas.light).toBe(false)
+    api.setProjectConfig(null)
+    expect(api.missing.value.canvas.light).toBe(true)
+  })
+
   it('亮图缺失回填暗图，双主题变量都写入', async () => {
     const { useBackground } = await load()
     const api = useBackground()

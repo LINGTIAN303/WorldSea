@@ -207,7 +207,15 @@ const globalConfig = ref<BackgroundGlobalConfig>(cloneDefaults())
 const projectConfig = ref<BackgroundProjectConfig | null>(null)
 const globalSrcs = ref<SrcMap>(emptySrcs())
 const projectSrcs = ref<SrcMap>(emptySrcs())
-const missing = ref<MissingMap>(emptyMissing())
+const globalMissing = ref<MissingMap>(emptyMissing())
+const projectMissing = ref<MissingMap>(emptyMissing())
+const missing = computed<MissingMap>(() => {
+  const out = emptyMissing()
+  for (const target of BACKGROUND_TARGETS) {
+    out[target] = projectConfig.value?.targets[target] ? projectMissing.value[target] : globalMissing.value[target]
+  }
+  return out
+})
 let loaded = false
 let persistTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -266,9 +274,9 @@ function datasetKey(target: BackgroundTarget): string {
 
 function applyLegacy(root: HTMLElement) {
   const cfg = globalConfig.value.targets.canvas
-  const s = srcs.value.canvas
+  const s = globalSrcs.value.canvas
   const light = s.light || s.dark
-  const bothMissing = missing.value.canvas.light && missing.value.canvas.dark
+  const bothMissing = globalMissing.value.canvas.light && globalMissing.value.canvas.dark
   if (light && !bothMissing) {
     root.style.setProperty('--ws-bg-image', `url("${light}")`)
     root.style.setProperty('--ws-bg-size', sizeValue(cfg.fit))
@@ -331,10 +339,15 @@ function writeSrc(scope: BackgroundScope, target: BackgroundTarget, theme: Backg
   bucket.value = { ...bucket.value, [target]: targetSrcs }
 }
 
+function setMissing(scope: BackgroundScope, target: BackgroundTarget, theme: BackgroundTheme, value: boolean) {
+  const bucket = scope === 'project' ? projectMissing : globalMissing
+  bucket.value = { ...bucket.value, [target]: { ...bucket.value[target], [theme]: value } }
+}
+
 function setProjectConfig(config: BackgroundProjectConfig | null) {
   projectConfig.value = config
   projectSrcs.value = emptySrcs()
-  missing.value = emptyMissing()
+  projectMissing.value = emptyMissing()
   apply()
 }
 
@@ -342,14 +355,14 @@ function setTargetSrcs(target: BackgroundTarget, next: { light?: string; dark?: 
   const bucket = scope === 'project' ? projectSrcs : globalSrcs
   bucket.value = { ...bucket.value, [target]: { light: next.light ?? '', dark: next.dark ?? '' } }
   for (const theme of BACKGROUND_THEMES) {
-    if (bucket.value[target][theme]) missing.value[target][theme] = false
+    if (bucket.value[target][theme]) setMissing(scope, target, theme, false)
   }
   apply()
 }
 
 function setTargetSrc(target: BackgroundTarget, theme: BackgroundTheme, src: string, scope: BackgroundScope) {
   writeSrc(scope, target, theme, src)
-  if (src) missing.value[target][theme] = false
+  if (src) setMissing(scope, target, theme, false)
   apply()
 }
 
@@ -371,7 +384,7 @@ function setTargetImage(target: BackgroundTarget, theme: BackgroundTheme, image:
     enabled: firstImage ? true : current.enabled,
   }, target))
   writeSrc(scope, target, theme, image.src)
-  if (image.src) missing.value[target][theme] = false
+  if (image.src) setMissing(scope, target, theme, false)
   if (scope === 'global') persistNow()
   apply()
 }
@@ -381,7 +394,7 @@ function clearTargetImage(target: BackgroundTarget, theme: BackgroundTheme, scop
   const current = targetConfigAt(scope, target)
   writeTargetConfig(scope, target, normalizeTargetConfig({ ...current, paths: { ...current.paths, [theme]: '' } }, target))
   writeSrc(scope, target, theme, '')
-  missing.value[target][theme] = false
+  setMissing(scope, target, theme, false)
   if (scope === 'global') schedulePersist()
   apply()
 }
@@ -392,11 +405,13 @@ function setTargetCustom(target: BackgroundTarget, custom: boolean) {
     const targets = { ...projectConfig.value?.targets }
     if (!targets[target]) targets[target] = { ...globalConfig.value.targets[target], paths: { light: '', dark: '' } }
     projectConfig.value = { version: 1, targets }
+    projectMissing.value = { ...projectMissing.value, [target]: { light: false, dark: false } }
   } else {
     const targets = { ...projectConfig.value?.targets }
     delete targets[target]
     projectConfig.value = { version: 1, targets }
     projectSrcs.value = { ...projectSrcs.value, [target]: { light: '', dark: '' } }
+    projectMissing.value = { ...projectMissing.value, [target]: { light: false, dark: false } }
   }
   apply()
 }
@@ -408,13 +423,13 @@ function markMissing(
   scope: BackgroundScope = 'global',
 ) {
   writeSrc(scope, target, theme, '')
-  missing.value[target][theme] = true
+  setMissing(scope, target, theme, true)
   apply()
 }
 
 const background = computed<WorkspaceBackground>(() => {
   const c = globalConfig.value.targets.canvas
-  const s = srcs.value.canvas
+  const s = globalSrcs.value.canvas
   return {
     version: 1,
     enabled: c.enabled,
@@ -434,7 +449,7 @@ function setImage(image: BackgroundImageRef) {
 
 function setSrc(src: string) {
   setTargetSrc('canvas', 'light', src, 'global')
-  missing.value.canvas.light = false
+  setMissing('global', 'canvas', 'light', false)
   persistNow()
 }
 
@@ -443,8 +458,7 @@ function clear() {
   targets.canvas = defaultTarget()
   globalConfig.value = { ...globalConfig.value, targets }
   globalSrcs.value = { ...globalSrcs.value, canvas: { light: '', dark: '' } }
-  missing.value.canvas.light = false
-  missing.value.canvas.dark = false
+  globalMissing.value = { ...globalMissing.value, canvas: { light: false, dark: false } }
   apply()
   persistNow()
 }

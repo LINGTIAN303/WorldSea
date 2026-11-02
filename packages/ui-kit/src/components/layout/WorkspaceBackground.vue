@@ -11,5 +11,6 @@ import { useBackground } from '@worldsea/style-kit'
 
 const props = withDefaults(defineProps<{ preview?: boolean }>(), { preview: false })
 const { background, missing } = useBackground()
-const visible = computed(() => !missing.value && !!background.value.src && (props.preview || background.value.enabled))
+const missingBoth = computed(() => missing.value.canvas.light && missing.value.canvas.dark)
+const visible = computed(() => !missingBoth.value && !!background.value.src && (props.preview || background.value.enabled))
 </script>
