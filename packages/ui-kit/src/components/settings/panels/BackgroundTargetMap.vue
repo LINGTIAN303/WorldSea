@@ -169,13 +169,24 @@ function stateOf(target: BackgroundTarget): { key: TargetStateKey; text: string 
 .bg-map__region--content-toolbar { left: 23%; right: 0; top: 13%; height: 15%; }
 .bg-map__region--content-view { left: 23%; right: 0; top: calc(13% + 15% + 3px); bottom: 0; }
 
-.bg-map__name { position: relative; z-index: 1; font-size: var(--fs-xs); color: var(--text-secondary); }
+.bg-map__name {
+  position: relative;
+  z-index: 1;
+  padding: 1px 4px;
+  border-radius: calc(var(--radius-sm) * var(--sf-radius-scale));
+  background: color-mix(in srgb, var(--bg-app) 82%, transparent);
+  font-size: var(--fs-xs);
+  color: var(--text-color);
+}
 .bg-map__state {
   position: relative;
   z-index: 1;
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  padding: 1px 4px;
+  border-radius: calc(var(--radius-sm) * var(--sf-radius-scale));
+  background: color-mix(in srgb, var(--bg-app) 82%, transparent);
   font-size: var(--fs-xs);
   color: var(--text-muted);
 }
@@ -303,13 +314,16 @@ function stateOf(target: BackgroundTarget): { key: TargetStateKey; text: string 
 .bg-canvas-card :deep(.ws-bg-layer) { z-index: -1; }
 .bg-canvas-card.is-selected { aspect-ratio: 16 / 9; min-height: 0; align-items: flex-end; padding: 10px; }
 .bg-canvas-card:disabled { cursor: not-allowed; }
-.bg-canvas-card__label { position: relative; z-index: 1; font-size: var(--fs-sm); color: var(--text-secondary); }
+.bg-canvas-card__label { position: relative; z-index: 1; padding: 1px 4px; border-radius: calc(var(--radius-sm) * var(--sf-radius-scale)); background: color-mix(in srgb, var(--bg-app) 82%, transparent); font-size: var(--fs-sm); color: var(--text-color); }
 .bg-canvas-card__state {
   position: relative;
   z-index: 1;
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  padding: 1px 4px;
+  border-radius: calc(var(--radius-sm) * var(--sf-radius-scale));
+  background: color-mix(in srgb, var(--bg-app) 82%, transparent);
   font-size: var(--fs-xs);
   color: var(--text-muted);
 }
