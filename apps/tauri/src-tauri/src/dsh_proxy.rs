@@ -57,6 +57,7 @@ const ALLOWED_METHODS: [&str; 3] = ["GET", "HEAD", "POST"];
 ///   `/open-in-app/icon`（前缀）、`/oauth/callback`（账户 OAuth 回调）；`connection.fetch.register`：`/api/file`（落在 `/api` 下）；
 /// - `frontend-static` 兜底座：dist 根的 `assets/`、`favicon*.svg`、`manifest.webmanifest`、`preview*`、index。
 /// 新增宿主路由时的动作：加进本表 + 补 `allowlist_covers_enumerated_host_routes` 用例；漏掉会在壳日志留 `404（路径白名单外）` 行，可用 `WORLDSEA_BRIDGE_OPEN=1` 先放行排查。
+/// 第三方插件命名空间不在此表：见下方 `PLUGIN_PREFIXES`。
 const ALLOWED_PREFIXES: [&str; 8] = [
     "/assets/",
     "/plugins/",
@@ -67,6 +68,11 @@ const ALLOWED_PREFIXES: [&str; 8] = [
     "/open-in-app/",
     "/oauth/callback",
 ];
+
+/// 第三方插件路由前缀：插件用 `webServer.register` 挂在自己的命名空间下，宿主源码里无静态清单可枚举——逐条登记。
+/// 未登记的插件命名空间仍按白名单外 404；漏登记时插件注入的脚本会触发页面 watchdog 错误页（dsh-whale-widget 即此）。
+/// 新增插件路由：补一条 + 补 `allowlist_covers_enumerated_host_routes` 用例。
+const PLUGIN_PREFIXES: [&str; 2] = ["/dsh-whale/", "/dsh-bili/"];
 
 /// 不转发给页面的响应头：`set-cookie` 会把宿主凭据塞进页面 cookie jar（壳自己持有即可），
 /// 其余是 hop-by-hop / 编码类头（转发体已由壳侧解码为明文）。
@@ -104,7 +110,10 @@ pub(crate) fn path_allowed(path_only: &str, open: bool) -> bool {
     if path_only == "/" || path_only == "/index.html" {
         return true;
     }
-    ALLOWED_PREFIXES.iter().any(|prefix| path_only.starts_with(prefix))
+    ALLOWED_PREFIXES
+        .iter()
+        .chain(PLUGIN_PREFIXES.iter())
+        .any(|prefix| path_only.starts_with(prefix))
 }
 
 /// 路径是否含越界段（`.` / `..`；percent 编码形态由宿主侧 URL 归一化负责，壳这里挡明文）。

@@ -13,6 +13,9 @@
   管道模式起该单点改注入 `openStream` 钩子——传输形态换掉，接缝不变）；
 - 转发 `/api` 时按 Electron 桌面版同构处理：删掉页面的 origin/cookie/sec-fetch-*，补壳侧凭据
   （带 303 换来的 `dsh-auth-*` cookie）；管道模式由 `PipeClient` 合成 `Host: 127.0.0.1`；
+- 路径闸门（`dsh_proxy.rs`）：`ALLOWED_PREFIXES` 枚举 dsh 内置路由，第三方插件命名空间在 `PLUGIN_PREFIXES`
+  单列（当前 `/dsh-whale/`、`/dsh-bili/`）。新增带路由的插件必须逐条登记——漏登记会让插件注入的脚本
+  加载失败并触发页面 watchdog 错误页；`WORLDSEA_BRIDGE_OPEN=1` 可临时放行排查；
 - 协议名 `worldsea`，Windows 落形见〔自定义协议落形〕。
 
 ## 〔自定义协议落形〕

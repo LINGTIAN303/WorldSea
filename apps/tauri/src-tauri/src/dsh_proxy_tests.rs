@@ -469,7 +469,7 @@ fn diagnostics_endpoint_is_env_gated() {
 #[test]
 fn allowlist_covers_enumerated_host_routes() {
     // 枚举自 dsh 源码（2026-09-24，rc.1）：webServer.register 全部调用点 + connection.fetch.register
-    // + frontend-static 兜底座的 dist 根文件。白名单若被收窄，本用例必须报红。
+    // + frontend-static 兜底座的 dist 根文件；第三方插件命名空间（PLUGIN_PREFIXES）见用例末尾。白名单若被收窄，本用例必须报红。
     for path in [
         "/plugins/events",
         "/plugins/@deepseek-ai/dsh-client-ui-chat/client.js",
@@ -491,6 +491,11 @@ fn allowlist_covers_enumerated_host_routes() {
     // 反面：不在枚举清单里的路径不得放行
     assert!(!path_allowed("/open-in-app-old/apps", false));
     assert!(!path_allowed("/desktop-smoke", false));
+    assert!(!path_allowed("/dsh-evil/widget.js", false));
+    // 第三方插件命名空间（PLUGIN_PREFIXES）：注入脚本 + 插件自带 API 必须放行（漏登记 = 页面 watchdog 错误页）
+    for path in ["/dsh-whale/widget.js", "/dsh-whale/balance", "/dsh-bili/api/status", "/dsh-bili/api/settings"] {
+        assert!(path_allowed(path, false), "白名单缺插件路由：{path}");
+    }
 }
 
 #[test]
