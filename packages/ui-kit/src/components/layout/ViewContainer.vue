@@ -4,24 +4,26 @@
     :class="{ 'sidebar-collapsed': uiStore.sidebarCollapsed, 'sidebar-right': sidebarRight, 'split-nav': uiStore.sproutNavMode === 'split', 'split-domain-left': uiStore.sproutNavMode === 'split' && uiStore.splitSidebarOrder === 'domain-left', 'split-domain-right': uiStore.sproutNavMode === 'split' && uiStore.splitSidebarOrder === 'sprout-left', 'split-domain-collapsed': uiStore.sproutNavMode === 'split' && uiStore.domainSidebarCollapsed }"
     @contextmenu.prevent="onViewContext"
   >
-    <!-- 内容区背景层：层自身 z0，工具条/画布块在启用时相对定位、按树序绘制在其上；
-         宿主不加 z-index，视图内 fixed 浮层仍留在根层叠，压得过侧栏与窗口栏 -->
-    <BackgroundLayer target="content-view" />
     <!-- 视图工具条（随流首子元素，2026-08-10）：占位 44px 不悬浮；两壳 v-show 常驻
          保证 ViewContainer 永不卸载，Teleport 目标 #view-toolbar-* 常驻，根治壳切换崩溃 -->
     <ViewToolbar />
     <!-- 视图画布（独立圆角块，随流位于工具条下方） -->
     <div class="view-content" :class="{ 'is-view-entering': viewEntering }">
-      <div v-if="!hasView" class="view-empty">
-        <WsIcon name="globe" :size="56" class="view-empty-icon" />
-        <h2>WorldSea</h2>
-        <p>选择一个视图开始管理你的世界观</p>
+      <!-- 视图区背景层固定贴在圆角块内、滚动层之前：壁纸不随内容滚走；
+           宿主不加 z-index，视图内 fixed 浮层仍留在根层叠，压得过侧栏与窗口栏 -->
+      <BackgroundLayer target="content-view" />
+      <div class="view-scroll">
+        <div v-if="!hasView" class="view-empty">
+          <WsIcon name="globe" :size="56" class="view-empty-icon" />
+          <h2>WorldSea</h2>
+          <p>选择一个视图开始管理你的世界观</p>
+        </div>
+        <div v-else-if="!viewComp" class="view-empty">
+          <WsInlineLoading size="lg" label="正在装配视图" />
+          <p>正在装配视图</p>
+        </div>
+        <component v-else :is="viewComp" :key="uiStore.currentView + ':' + uiStore.viewRefreshKey" />
       </div>
-      <div v-else-if="!viewComp" class="view-empty">
-        <WsInlineLoading size="lg" label="正在装配视图" />
-        <p>正在装配视图</p>
-      </div>
-      <component v-else :is="viewComp" :key="uiStore.currentView + ':' + uiStore.viewRefreshKey" />
 
       <div
         v-if="jumpBackMenu.show"
@@ -159,12 +161,20 @@ onBeforeUnmount(() => {
 }
 /* ── 视图画布（独立圆角块，随流位于工具条下方，间隙由 view-container gap 提供） ── */
 .view-content {
+  position: relative;
+  overflow: hidden;
   flex: 1;
-  overflow: auto;
   min-height: 0;
   background: var(--region-bg, var(--bg-surface));
   border: 1px solid var(--region-border, var(--border));
   border-radius: var(--region-radius, var(--radius-md));
+}
+/* 背景层固定在圆角块内；滚动与视图内容都在内层，壁纸不随内容滚走 */
+.view-scroll {
+  position: relative;
+  height: 100%;
+  overflow: auto;
+  min-height: 0;
 }
 .view-empty {
   display: flex;

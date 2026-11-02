@@ -1,4 +1,4 @@
-/* 界面背景 v2：五目标背景层 + 主题变量映射；层语义见 docs/details/架构/界面背景机制-v2.md §4.4 */
+/* 界面背景 v2.1：六目标背景层 + 主题变量映射；层语义见 docs/details/架构/界面背景机制-v2.md §4.4 */
 .ws-bg-layer {
   position: absolute;
   inset: 0;
@@ -9,8 +9,6 @@
 }
 /* 画布层是全窗口底图，位于 .shell 堆叠上下文的 0 层 */
 .ws-bg-layer--canvas { z-index: 0; }
-/* 内容层是 .view-container 内的定位 z0 子层：压住宿主底色，又被工具条/画布块按树序盖住 */
-.ws-bg-layer--content { z-index: 0; }
 
 /* 每目标把根上的亮/暗图与参数映射为层内变量；分区目标追加半透明表面色 */
 .ws-bg-layer--canvas {
@@ -49,14 +47,25 @@
   --layer-blur: var(--ws-bg-sidebar-blur);
   --layer-tint: var(--sf-nav-bg);
 }
-.ws-bg-layer--content {
-  --layer-image: var(--ws-bg-content-image);
-  --layer-size: var(--ws-bg-content-size);
-  --layer-repeat: var(--ws-bg-content-repeat);
-  --layer-position: var(--ws-bg-content-position);
-  --layer-dim: var(--ws-bg-content-dim);
-  --layer-blur: var(--ws-bg-content-blur);
+.ws-bg-layer--content-toolbar {
+  --layer-image: var(--ws-bg-content-toolbar-image);
+  --layer-size: var(--ws-bg-content-toolbar-size);
+  --layer-repeat: var(--ws-bg-content-toolbar-repeat);
+  --layer-position: var(--ws-bg-content-toolbar-position);
+  --layer-dim: var(--ws-bg-content-toolbar-dim);
+  --layer-blur: var(--ws-bg-content-toolbar-blur);
   --layer-tint: transparent;
+}
+.ws-bg-layer--content-view {
+  --layer-image: var(--ws-bg-content-view-image);
+  --layer-size: var(--ws-bg-content-view-size);
+  --layer-repeat: var(--ws-bg-content-view-repeat);
+  --layer-position: var(--ws-bg-content-view-position);
+  --layer-dim: var(--ws-bg-content-view-dim);
+  --layer-blur: var(--ws-bg-content-view-blur);
+  --layer-tint: transparent;
+  /* 视图层固定在 .view-content 圆角块内的 0 层：宿主不建堆叠上下文，内层滚动按树序盖住它 */
+  z-index: 0;
 }
 
 .ws-bg-layer__image {
@@ -94,25 +103,25 @@ html[data-perf='on'] .ws-bg-layer__image {
   transform: none;
 }
 
-/* 目标启用时宿主透明化：分区图/首页图落在宿主底色之上、内容之下 */
+/* 目标启用时宿主透明化：分区图落在宿主底色之上、内容之下 */
 html[data-ws-bg-home='on'] .home-surface { background: transparent; }
 html[data-ws-bg-titlebar='on'] .titlebar { background: transparent; }
 html[data-ws-bg-sidebar='on'] .sidebar,
 html[data-ws-bg-sidebar='on'] .ws-sn-sidebar,
 html[data-ws-bg-sidebar='on'] .ws-split-sidebar { background: transparent; }
-html[data-ws-bg-content='on'] .view-container { background: transparent; }
 html[data-ws-bg-canvas='on'] .shell-surface-root,
 html[data-ws-bg-canvas='on'] .shell-body,
 html[data-ws-bg-canvas='on'] .view-container { background: transparent; }
 
-/* 内容层是 .view-container 内唯一的定位 z0 子层；工具条/视图画布只加相对定位、z 保持 auto，
-   按树序排在 z0 层之后绘制。两者都不给 z-index：宿主一旦形成堆叠上下文，
-   视图内 position:fixed 浮层（预览/导出/模板/右键菜单）会被钳制，压不过侧栏与窗口栏。
-   工具条 overlay 模式本就绝对定位，排除在外，避免被相对定位顶掉。 */
-html[data-ws-bg-content='on'] .view-toolbar:not(.view-toolbar--overlay),
-html[data-ws-bg-content='on'] .view-content {
+/* 工具条只在目标启用且 bar 形态时透明化并升到 z1：局部堆叠上下文只包住工具条内联控件与下拉菜单，
+   不承载视图 fixed 浮层；overlay 胶囊排除在外，保留自身玻璃。
+   视图圆角块只清底色，position/overflow 由组件样式常驻承担，宿主始终不建堆叠上下文。 */
+html[data-ws-bg-content-toolbar='on'] .view-toolbar:not(.view-toolbar--overlay) {
   position: relative;
+  z-index: 1;
+  background: transparent;
 }
+html[data-ws-bg-content-view='on'] .view-content { background: transparent; }
 
 /* 主题切换只做变量选择；亮暗回退已在 useBackground 完成 */
 html {
@@ -120,12 +129,14 @@ html {
   --ws-bg-home-image: var(--ws-bg-home-image-light, none);
   --ws-bg-titlebar-image: var(--ws-bg-titlebar-image-light, none);
   --ws-bg-sidebar-image: var(--ws-bg-sidebar-image-light, none);
-  --ws-bg-content-image: var(--ws-bg-content-image-light, none);
+  --ws-bg-content-toolbar-image: var(--ws-bg-content-toolbar-image-light, none);
+  --ws-bg-content-view-image: var(--ws-bg-content-view-image-light, none);
 }
 html[data-theme='dark'] {
   --ws-bg-canvas-image: var(--ws-bg-canvas-image-dark, none);
   --ws-bg-home-image: var(--ws-bg-home-image-dark, none);
   --ws-bg-titlebar-image: var(--ws-bg-titlebar-image-dark, none);
   --ws-bg-sidebar-image: var(--ws-bg-sidebar-image-dark, none);
-  --ws-bg-content-image: var(--ws-bg-content-image-dark, none);
+  --ws-bg-content-toolbar-image: var(--ws-bg-content-toolbar-image-dark, none);
+  --ws-bg-content-view-image: var(--ws-bg-content-view-image-dark, none);
 }

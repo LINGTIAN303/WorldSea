@@ -14,6 +14,8 @@
     @mouseenter="overlayOpen = true"
     @mouseleave="overlayOpen = false"
   >
+    <!-- 工具条背景层只在随流 bar 形态挂载：overlay 胶囊与 none 折叠不套背景 -->
+    <BackgroundLayer target="content-toolbar" v-if="toolbarMode === 'bar'" />
     <nav class="vt-breadcrumb" aria-label="面包屑">
       <WsIcon v-if="currentViewIcon" :name="currentViewIcon" size="sm" class="vt-icon" />
       <span class="vt-crumb">{{ currentViewLabel }}</span>
@@ -77,6 +79,7 @@ import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { useUIStore, usePluginStore } from '@worldsea/entity-core'
 import WsIcon from '../WsIcon.vue'
 import ViewToolbarFilter from './ViewToolbarFilter.vue'
+import BackgroundLayer from './BackgroundLayer.vue'
 
 // ViewContainer 随流工具条：面包屑 / 筛选 / 搜索 / 动作 / 新建 / 更多菜单。
 // 视图组件（GenericEntityView 等）经 Teleport 把各自控件注入 #view-toolbar-*。
