@@ -1,4 +1,4 @@
-/** 工作台全局背景图：选择、长边归一化、写入 app data、删除/解析；不进入项目目录。 */
+/** 背景图资产：选择、长边归一化、全局/项目落盘、删除/解析、孤儿清理；v1 工作台包装保留。 */
 import { invoke, convertFileSrc } from '@tauri-apps/api/core'
 import { appDataDir, join } from '@tauri-apps/api/path'
 import { pickLocalFiles } from './pickLocalFiles'
@@ -9,9 +9,22 @@ export const BACKGROUND_MAX_BYTES = 20 * 1024 * 1024
 export const BACKGROUND_MAX_EDGE = 2560
 const ALLOWED_EXTS = new Set(['png', 'jpg', 'jpeg', 'webp'])
 
+/** 与 style-kit 的 BackgroundTarget / BackgroundTheme 结构兼容，不引入包依赖 */
+export type BackgroundTargetKey = 'canvas' | 'home' | 'titlebar' | 'sidebar' | 'content'
+export type BackgroundThemeKey = 'light' | 'dark'
+
+export interface BackgroundSaveRequest {
+  scope: 'global' | 'project'
+  projectDir?: string
+  target: BackgroundTargetKey
+  theme: BackgroundThemeKey
+}
+
 export interface BackgroundImportResult {
   ok: boolean
   path?: string
+  /** 项目范围返回相对 POSIX 路径（写进项目配置）；全局范围无此字段 */
+  relativePath?: string
   src?: string
   reason?: string
 }
@@ -23,9 +36,10 @@ export function fitLongEdge(width: number, height: number, max = BACKGROUND_MAX_
   return { width: Math.max(1, Math.round(w * scale)), height: Math.max(1, Math.round(h * scale)) }
 }
 
-export function backgroundFileName(ext: string, now = Date.now()): string {
-  const safe = (ext || '').toLowerCase().replace(/[^a-z0-9]/g, '')
-  return `workspace-${now}.${ALLOWED_EXTS.has(safe) ? safe : 'webp'}`
+export function backgroundFileName(target: string, theme: string, ext: string, now = Date.now()): string {
+  const safe = (value: string) => value.toLowerCase().replace(/[^a-z0-9-]/g, '')
+  const normalized = ext.toLowerCase()
+  return `background-${safe(target)}-${safe(theme)}-${now}.${ALLOWED_EXTS.has(normalized) ? normalized : 'webp'}`
 }
 
 async function encodeBackground(file: File): Promise<{ bytes: Uint8Array; ext: string } | null> {
@@ -54,36 +68,40 @@ async function encodeBackground(file: File): Promise<{ bytes: Uint8Array; ext: s
   }
 }
 
-export async function pickAndSaveWorkspaceBackground(): Promise<BackgroundImportResult | null> {
+export async function pickAndSaveBackground(req: BackgroundSaveRequest): Promise<BackgroundImportResult | null> {
   if (!isTauri()) return { ok: false, reason: '当前环境不支持选择文件' }
+  if (req.scope === 'project' && !req.projectDir) return { ok: false, reason: '未打开项目' }
   const picked = await pickLocalFiles({
     multiple: false,
-    title: '选择工作台背景',
+    title: '选择背景图',
     filters: [{ name: '图片', extensions: ['png', 'jpg', 'jpeg', 'webp'] }],
     maxBytes: BACKGROUND_MAX_BYTES,
   })
   if (picked.cancelled) return null
   const file = picked.items[0]
   if (!file) return { ok: false, reason: picked.reasons[0] ?? '没有可用的图片' }
-  let encoded: { bytes: Uint8Array; ext: string } | null = null
-  try {
-    encoded = await encodeBackground(file)
-  } catch {
-    encoded = null
-  }
+  const encoded = await encodeBackground(file).catch(() => null)
   if (!encoded) return { ok: false, reason: '图片解码失败，请换一张 PNG/JPG/WebP' }
   try {
-    const dir = await join(await appDataDir(), 'worldsea', 'backgrounds')
+    const dir = req.scope === 'project'
+      ? await join(req.projectDir!, '.worldsea', 'backgrounds')
+      : await join(await appDataDir(), 'worldsea', 'backgrounds')
     await invoke('cmd_fs_mkdir', { path: dir })
-    const path = await join(dir, backgroundFileName(encoded.ext))
+    const name = backgroundFileName(req.target, req.theme, encoded.ext)
+    const path = await join(dir, name)
     await invoke('cmd_fs_write', { path, content: bytesToBase64(encoded.bytes), createDirs: true, encoding: 'base64' })
-    return { ok: true, path, src: convertFileSrc(path) }
+    return {
+      ok: true,
+      path,
+      relativePath: req.scope === 'project' ? `.worldsea/backgrounds/${name}` : undefined,
+      src: convertFileSrc(path),
+    }
   } catch (err) {
     return { ok: false, reason: err instanceof Error ? err.message : String(err) }
   }
 }
 
-export async function removeWorkspaceBackground(path: string): Promise<void> {
+export async function removeBackgroundFile(path: string): Promise<void> {
   if (!path) return
   try {
     await invoke('cmd_fs_delete', { path })
@@ -99,7 +117,7 @@ function sleep(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms))
 }
 
-export async function resolveWorkspaceBackgroundSrc(path: string): Promise<string | null> {
+export async function resolveBackgroundSrc(path: string): Promise<string | null> {
   if (!path) return null
   let lastError: unknown = null
   for (const delay of STAT_RETRY_DELAYS) {
@@ -119,22 +137,22 @@ function pathKey(path: string) {
   return path.replace(/\\/g, '/').toLowerCase()
 }
 
-export async function cleanupWorkspaceBackgroundOrphans(
-  referencedPaths: string[] | (() => string[]),
+export async function cleanupBackgroundOrphans(
+  dir: string,
+  referenced: string[] | (() => string[]),
 ): Promise<void> {
   if (!isTauri()) return
   try {
-    const dir = await join(await appDataDir(), 'worldsea', 'backgrounds')
     const entries = await invoke('cmd_fs_list', { path: dir, recursive: false }) as Array<{
       name: string; path: string; isDir: boolean
     }>
-    const keep = () => new Set(
-      (typeof referencedPaths === 'function' ? referencedPaths() : referencedPaths)
+    const keep = new Set(
+      (typeof referenced === 'function' ? referenced() : referenced)
         .filter(Boolean).map(pathKey),
     )
     for (const entry of entries) {
       if (entry.isDir || !BACKGROUND_FILE_RE.test(entry.name)) continue
-      if (keep().has(pathKey(entry.path))) continue
+      if (keep.has(pathKey(entry.path))) continue
       try {
         await invoke('cmd_fs_delete', { path: entry.path })
       } catch (err) {
@@ -144,4 +162,27 @@ export async function cleanupWorkspaceBackgroundOrphans(
   } catch {
     // 目录不存在或读取失败：无孤儿可清，静默跳过
   }
+}
+
+export async function cleanupGlobalBackgroundOrphans(
+  referenced: string[] | (() => string[]),
+): Promise<void> {
+  if (!isTauri()) return
+  try {
+    await cleanupBackgroundOrphans(await join(await appDataDir(), 'worldsea', 'backgrounds'), referenced)
+  } catch {
+    // 全局目录不可用：无孤儿可清，静默跳过
+  }
+}
+
+// v1 工作台包装：旧设置卡与启动引导按「全局 · 画布 · 亮色」消费
+export async function pickAndSaveWorkspaceBackground(): Promise<BackgroundImportResult | null> {
+  return pickAndSaveBackground({ scope: 'global', target: 'canvas', theme: 'light' })
+}
+export const removeWorkspaceBackground = removeBackgroundFile
+export const resolveWorkspaceBackgroundSrc = resolveBackgroundSrc
+export async function cleanupWorkspaceBackgroundOrphans(
+  referenced: string[] | (() => string[]),
+): Promise<void> {
+  await cleanupGlobalBackgroundOrphans(referenced)
 }

@@ -249,15 +249,25 @@ export {
   getComputedFormulas,
 } from './formula-auto'
 
-// 工作台全局背景图导入（app data 目录，不进入项目资产）
+// 背景图导入（全局 app data / 项目 .worldsea/backgrounds；v1 工作台包装保留）
 export {
   BACKGROUND_MAX_BYTES,
   BACKGROUND_MAX_EDGE,
   fitLongEdge,
   backgroundFileName,
+  pickAndSaveBackground,
+  removeBackgroundFile,
+  resolveBackgroundSrc,
+  cleanupBackgroundOrphans,
+  cleanupGlobalBackgroundOrphans,
   pickAndSaveWorkspaceBackground,
   removeWorkspaceBackground,
   resolveWorkspaceBackgroundSrc,
   cleanupWorkspaceBackgroundOrphans,
 } from './backgroundAsset'
-export type { BackgroundImportResult } from './backgroundAsset'
+export type {
+  BackgroundTargetKey,
+  BackgroundThemeKey,
+  BackgroundSaveRequest,
+  BackgroundImportResult,
+} from './backgroundAsset'
