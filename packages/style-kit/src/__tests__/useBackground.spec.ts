@@ -164,6 +164,18 @@ describe('useBackground', () => {
     }
   })
 
+  it('工具条/视图为分区目标：caps 关闭且归一化固定 cover/居中', async () => {
+    const { BACKGROUND_TARGET_CAPS, normalizeTargetConfig } = await load()
+    expect(BACKGROUND_TARGET_CAPS['content-toolbar']).toEqual({ fit: false, focus: false })
+    expect(BACKGROUND_TARGET_CAPS['content-view']).toEqual({ fit: false, focus: false })
+    for (const target of ['content-toolbar', 'content-view'] as const) {
+      const c = normalizeTargetConfig({ fit: 'tile', focusX: 0, focusY: 100 }, target)
+      expect(c.fit).toBe('cover')
+      expect(c.focusX).toBe(50)
+      expect(c.focusY).toBe(50)
+    }
+  })
+
   it('旧 content 全局配置迁移到 content-view', async () => {
     localStorage.setItem('worldsea_background_v2', JSON.stringify({
       version: 2,
@@ -184,6 +196,7 @@ describe('useBackground', () => {
     expect(view.fit).toBe('cover')
     expect(view.focusX).toBe(50)
     expect('content' in api.globalConfig.value.targets).toBe(false)
+    expect(api.globalConfig.value.targets['content-toolbar'].paths).toEqual({ light: '', dark: '' })
   })
 
   it('旧 content 项目配置迁移到 content-view', async () => {
@@ -225,6 +238,9 @@ describe('useBackground', () => {
     expect(root.style.getPropertyValue('--ws-bg-content-toolbar-image-light')).toContain('asset://t.webp')
     api.updateTarget('content-toolbar', { enabled: false }, 'global')
     expect(root.dataset.wsBgContentToolbar).toBeUndefined()
+    api.setTargetImage('content-view', 'light', { path: '/v.webp', src: 'asset://v.webp' }, 'global')
+    expect(root.dataset.wsBgContentView).toBe('on')
+    expect(root.style.getPropertyValue('--ws-bg-content-view-image-light')).toContain('asset://v.webp')
   })
 
   it('分区目标归一化强制 cover/居中', async () => {
