@@ -132,8 +132,9 @@ import {
   type BackgroundFit, type BackgroundProjectConfig, type BackgroundTarget, type BackgroundTheme, type FocusStep,
 } from '@worldsea/style-kit'
 import {
-  deleteProjectBackground, getFileStorageBackend, pickAndSaveBackground, readProjectBackground,
-  removeBackgroundFile, removeProjectBackgroundFile, resolveProjectBackgroundAssets, writeProjectBackground,
+  cleanupProjectBackgroundOrphans, deleteProjectBackground, getFileStorageBackend, pickAndSaveBackground,
+  readProjectBackground, removeBackgroundFile, removeProjectBackgroundFile, resolveProjectBackgroundAssets,
+  writeProjectBackground,
 } from '@worldsea/entity-core/core'
 import { useFileSystemProject } from '@worldsea/entity-core/composables'
 import BackgroundLayer from '../../layout/BackgroundLayer.vue'
@@ -256,13 +257,31 @@ function projectSnapshot(): BackgroundProjectConfig | null {
   return JSON.parse(JSON.stringify(config)) as BackgroundProjectConfig
 }
 
+/** 配置里引用的项目相对路径；供孤儿清理保留在用图片 */
+function referencedPaths(config: BackgroundProjectConfig): string[] {
+  const refs: string[] = []
+  for (const target of Object.values(config.targets)) {
+    if (!target) continue
+    for (const theme of BACKGROUND_THEMES) {
+      const rel = target.paths[theme]
+      if (rel) refs.push(rel)
+    }
+  }
+  return refs
+}
+
 function writeProjectSnapshot(snap: ProjectSaveSnapshot) {
   if (snap.config) {
-    void writeProjectBackground(snap.dir, snap.config).catch((err) => {
-      console.warn('[background] 保存项目背景失败:', err)
-    })
+    const config = snap.config
+    // 写配置成功后清理未被引用的项目图片；清理内部吞错，不影响保存链路
+    void writeProjectBackground(snap.dir, config)
+      .then(() => cleanupProjectBackgroundOrphans(snap.dir, referencedPaths(config)))
+      .catch((err) => {
+        console.warn('[background] 保存项目背景失败:', err)
+      })
   } else {
-    void deleteProjectBackground(snap.dir)
+    // 项目回到全跟随全局：删配置后清空残留图片
+    void deleteProjectBackground(snap.dir).then(() => cleanupProjectBackgroundOrphans(snap.dir, []))
   }
 }
 

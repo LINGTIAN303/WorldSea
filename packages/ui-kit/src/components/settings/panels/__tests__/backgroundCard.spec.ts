@@ -19,6 +19,7 @@ const core = vi.hoisted(() => ({
   writeProjectBackground: vi.fn(),
   deleteProjectBackground: vi.fn(),
   resolveProjectBackgroundAssets: vi.fn(),
+  cleanupProjectBackgroundOrphans: vi.fn(async () => undefined),
 }))
 
 vi.mock('@worldsea/entity-core/composables', async () => {
@@ -36,6 +37,7 @@ vi.mock('@worldsea/entity-core/core', () => ({
   writeProjectBackground: core.writeProjectBackground,
   deleteProjectBackground: core.deleteProjectBackground,
   resolveProjectBackgroundAssets: core.resolveProjectBackgroundAssets,
+  cleanupProjectBackgroundOrphans: core.cleanupProjectBackgroundOrphans,
 }))
 
 import { BACKGROUND_TARGETS, BACKGROUND_THEMES, useBackground } from '@worldsea/style-kit'
@@ -103,6 +105,7 @@ beforeEach(() => {
   core.writeProjectBackground.mockResolvedValue(undefined)
   core.deleteProjectBackground.mockResolvedValue(undefined)
   core.resolveProjectBackgroundAssets.mockResolvedValue({ srcs: {}, missing: {} })
+  core.cleanupProjectBackgroundOrphans.mockResolvedValue(undefined)
 })
 
 describe('BackgroundCard', () => {
@@ -154,6 +157,8 @@ describe('BackgroundCard', () => {
     // 已无自定义目标：删除配置文件而非写空配置
     expect(core.deleteProjectBackground).toHaveBeenCalledWith('C:/proj/worlddata')
     expect(core.writeProjectBackground).not.toHaveBeenCalled()
+    // 项目回到全跟随全局：以空引用清理残留图片
+    expect(core.cleanupProjectBackgroundOrphans).toHaveBeenCalledWith('C:/proj/worlddata', [])
   })
 
   it('范围/目标切换只改当前卡片状态，不改其他目标配置', async () => {
@@ -341,6 +346,29 @@ describe('BackgroundCard', () => {
     expect(core.writeProjectBackground).toHaveBeenLastCalledWith('C:/proj/worlddata', expect.objectContaining({
       targets: expect.objectContaining({ canvas: expect.objectContaining({ dim: 52 }) }),
     }))
+  })
+
+  it('项目范围保存成功后按配置引用清理孤儿背景', async () => {
+    mockProjectLoad(
+      { canvas: { ...defaultTargets(), enabled: true, paths: { light: '.worldsea/backgrounds/a.webp', dark: '' } } },
+      { srcs: { canvas: { light: 'asset://p/a.webp', dark: null } }, missing: { canvas: { light: false, dark: false } } },
+    )
+    const w = await mountCard()
+    await scopeButton(w, '本项目').trigger('click')
+    core.writeProjectBackground.mockClear()
+    core.cleanupProjectBackgroundOrphans.mockClear()
+    // 暗化防抖落盘后，清理收到项目目录与配置引用的相对路径
+    const dim = w.find('input[aria-label="暗化"]')
+    ;(dim.element as HTMLInputElement).value = '41'
+    await dim.trigger('input')
+    expect(core.cleanupProjectBackgroundOrphans).not.toHaveBeenCalled()
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    await flushPromises()
+    expect(core.writeProjectBackground).toHaveBeenCalledTimes(1)
+    expect(core.cleanupProjectBackgroundOrphans).toHaveBeenCalledWith(
+      'C:/proj/worlddata',
+      ['.worldsea/backgrounds/a.webp'],
+    )
   })
 
   it('切换项目前把旧项目挂起快照写到旧目录', async () => {
