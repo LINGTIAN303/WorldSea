@@ -102,7 +102,7 @@ onBeforeUnmount(() => document.removeEventListener('click', onClickOutside, true
   border: 1px solid var(--border);
   border-radius: var(--radius-sm, 4px);
   background: var(--input-bg);
-  color: var(--text);
+  color: var(--text, var(--text-primary));
   font-size: var(--font-size-sm);
   cursor: pointer;
   transition: border-color 0.15s;
@@ -179,7 +179,7 @@ onBeforeUnmount(() => document.removeEventListener('click', onClickOutside, true
   border-radius: var(--radius-sm, 4px);
   cursor: pointer;
   font-size: var(--font-size-sm);
-  color: var(--text);
+  color: var(--text, var(--text-primary));
   transition: background 0.12s;
 }
 

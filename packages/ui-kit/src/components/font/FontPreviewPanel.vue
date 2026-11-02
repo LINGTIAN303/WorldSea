@@ -77,6 +77,9 @@
           <button class="fpp-export-btn" :disabled="!canExport" @click="onExport">
             导出图片
           </button>
+          <button class="fpp-export-btn fpp-apply-canvas" :disabled="!fontFamily" :title="fontFamily ? `把「${fontFamily}」设为画布字体（canvas 渲染导出链）` : '先在上方选择字体'" @click="onApplyCanvas">
+            设为画布字体
+          </button>
         </div>
       </div>
     </Transition>
@@ -90,6 +93,7 @@ import WsIcon from '../WsIcon.vue'
 import FontSelector from './FontSelector.vue'
 import TextRenderPreview from './TextRenderPreview.vue'
 import { toBlob, type ImageFormat, type TextRenderOptions } from '@worldsea/font-kit'
+import { useFontStore } from '@worldsea/entity-core'
 
 const props = defineProps<{
   visible: boolean
@@ -158,6 +162,17 @@ const textContent = ref('你好世界 Hello World')
 const textColor = ref('#ffffff')
 const bgColor = ref('#1a1a2e')
 const exportFormat = ref<ImageFormat>('png')
+
+// 画布层联动（字体系统 v2 收尾批）：打开时以「画布字体」为默认；可一键把当前字体设回画布层
+const fontStore = useFontStore()
+watch(() => props.visible, (v) => {
+  if (v) fontFamily.value = fontStore.prefs.canvas.family
+})
+
+function onApplyCanvas() {
+  if (!fontFamily.value) return
+  fontStore.setLayerFont('canvas', fontFamily.value)
+}
 
 const previewRef = ref<InstanceType<typeof TextRenderPreview>>()
 

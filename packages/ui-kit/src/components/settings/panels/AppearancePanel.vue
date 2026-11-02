@@ -107,7 +107,14 @@
             </button>
             <span class="sf-storage-hint">{{ fontStorageHint }}</span>
           </div>
-          <SystemFontPicker />
+          <div class="sf-lib-actions">
+            <SystemFontPicker />
+            <button class="sf-preview-btn" title="把已装字体渲染为图片并导出 PNG/JPEG/WebP" @click="previewOpen = true">
+              <WsIcon name="type" size="xs" />
+              <span>预览与导出</span>
+            </button>
+          </div>
+          <FontPreviewPanel v-model:visible="previewOpen" />
           <div v-if="fontLibraryEntries.length === 0" class="set-hint" style="padding:12px 0">尚未安装字体，点击"导入字体"添加</div>
           <div v-else class="sf-library-list">
             <!-- 无分组的独立字体 -->
@@ -198,6 +205,7 @@ import { useFontLibraryStore, type FontLibraryEntry, type FontVariantEntry } fro
 import { installFromWsfont, installFromRawFont, installFromZip } from '@worldsea/font-kit'
 import WsIcon from '../../WsIcon.vue'
 import SystemFontPicker from '../../font/SystemFontPicker.vue'
+import FontPreviewPanel from '../../font/FontPreviewPanel.vue'
 import WsInlineLoading from '../../feedback/loading/WsInlineLoading.vue'
 import ColorPickerDialog from '../../editor/ColorPickerDialog.vue'
 import EntityMultiSelect from './EntityMultiSelect.vue'
@@ -237,6 +245,8 @@ function onPerfModeChange(on: boolean) {
 }
 const fontStore = useFontStore()
 const libraryStore = useFontLibraryStore()
+// 字体预览与导出弹层开关（收尾批：三组件消费上）
+const previewOpen = ref(false)
 const fontLibraryEntries = computed(() => libraryStore.getAllEntries())
 
 const standaloneEntries = computed(() =>
@@ -556,6 +566,9 @@ async function onFontImport() {
 .sf-import-btn.is-busy { cursor: progress; color: var(--text-tertiary); }
 
 .sf-library-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.sf-lib-actions { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.sf-preview-btn { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--border, var(--color-border)); border-radius: var(--radius-sm, 6px); background: transparent; color: var(--text-secondary, var(--color-text-secondary)); cursor: pointer; font-size: var(--font-size-sm); }
+.sf-preview-btn:hover { color: var(--text-primary, var(--color-text-primary)); border-color: var(--accent); }
 .sf-storage-hint { font-size: var(--fs-sm); color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
 .sf-library-list { display: flex; flex-direction: column; gap: 8px; }
 .sf-lib-card {
