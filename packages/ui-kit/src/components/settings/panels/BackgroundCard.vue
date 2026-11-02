@@ -4,14 +4,14 @@
 
     <div class="bg-preview">
       <WorkspaceBackground preview />
-      <span v-if="!hasBackground" class="bg-preview__empty">未选择图片</span>
+      <span v-if="!hasPath" class="bg-preview__empty">未选择图片</span>
     </div>
 
     <div class="bg-actions">
       <button class="set-btn" :disabled="picking" @click="onPick">
-        {{ picking ? '正在导入…' : hasBackground ? '替换图片' : '选择图片' }}
+        {{ picking ? '正在导入…' : hasPath ? '替换图片' : '选择图片' }}
       </button>
-      <button v-if="hasBackground" class="set-btn" :disabled="picking" @click="onRemove">移除</button>
+      <button v-if="hasPath" class="set-btn" :disabled="picking" @click="onRemove">移除</button>
     </div>
     <p v-if="missing" class="set-hint bg-error">背景文件不可用，请重新选择。</p>
     <p v-else-if="error" class="set-hint bg-error">{{ error }}</p>
@@ -77,7 +77,8 @@ import WorkspaceBackground from '../../layout/WorkspaceBackground.vue'
 const { background, missing, setEnabled, setImage, clear, setFit, setFocus, setDim, setBlur, flush } = useBackground()
 const picking = ref(false)
 const error = ref('')
-const hasBackground = computed(() => !!background.value.src)
+const hasBackground = computed(() => !!background.value.src && !missing.value)
+const hasPath = computed(() => !!background.value.path)
 const FOCUS_CELLS: Array<{ key: string; x: FocusStep; y: FocusStep; label: string }> = [
   { key: 'tl', x: 0, y: 0, label: '左上' },
   { key: 'tc', x: 50, y: 0, label: '上中' },

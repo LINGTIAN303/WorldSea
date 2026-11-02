@@ -92,7 +92,7 @@ function schedulePersist() {
 function apply() {
   const root = document.documentElement
   const bg = state.value
-  if (bg.src) {
+  if (!missing.value && bg.src) {
     root.style.setProperty('--ws-bg-image', `url("${bg.src}")`)
     root.style.setProperty('--ws-bg-size', bg.fit === 'cover' ? 'cover' : bg.fit === 'contain' ? 'contain' : 'auto')
     root.style.setProperty('--ws-bg-repeat', bg.fit === 'tile' ? 'repeat' : 'no-repeat')
@@ -102,7 +102,7 @@ function apply() {
   } else {
     for (const name of BACKGROUND_VARS) root.style.removeProperty(name)
   }
-  if (bg.enabled && bg.src) root.dataset.workspaceBg = 'on'
+  if (!missing.value && bg.enabled && bg.src) root.dataset.workspaceBg = 'on'
   else delete root.dataset.workspaceBg
 }
 
@@ -124,10 +124,8 @@ function setSrc(src: string) {
   persistNow()
 }
 function markMissing() {
-  state.value = { ...state.value, src: '', enabled: false }
   missing.value = true
   apply()
-  persistNow()
 }
 function clear() {
   state.value = { ...BACKGROUND_DEFAULTS }

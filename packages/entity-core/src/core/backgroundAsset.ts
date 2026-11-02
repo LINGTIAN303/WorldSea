@@ -92,12 +92,24 @@ export async function removeWorkspaceBackground(path: string): Promise<void> {
   }
 }
 
+const STAT_RETRY_DELAYS = [0, 250, 500] as const
+
+function sleep(ms: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, ms))
+}
+
 export async function resolveWorkspaceBackgroundSrc(path: string): Promise<string | null> {
   if (!path) return null
-  try {
-    await invoke('cmd_fs_stat', { path })
-    return convertFileSrc(path)
-  } catch {
-    return null
+  let lastError: unknown = null
+  for (const delay of STAT_RETRY_DELAYS) {
+    if (delay > 0) await sleep(delay)
+    try {
+      await invoke('cmd_fs_stat', { path })
+      return convertFileSrc(path)
+    } catch (err) {
+      lastError = err
+    }
   }
+  console.warn('[background] 背景文件校验失败:', lastError)
+  return null
 }

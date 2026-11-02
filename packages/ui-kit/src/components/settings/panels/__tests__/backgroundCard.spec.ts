@@ -72,4 +72,14 @@ describe('BackgroundCard', () => {
     await nextTick()
     expect(w.text()).toContain('背景文件不可用，请重新选择。')
   })
+
+  it('软缺失时保留路径、禁用开关并提示', async () => {
+    api.setImage({ path: '/a.webp', src: 'asset://a.webp' })
+    api.markMissing()
+    const w = mount(BackgroundCard)
+    await nextTick()
+    expect(w.find('.set-toggle input').attributes('disabled')).toBeDefined()
+    expect(w.find('.bg-actions').text()).toContain('替换图片')
+    expect(w.text()).toContain('背景文件不可用，请重新选择。')
+  })
 })

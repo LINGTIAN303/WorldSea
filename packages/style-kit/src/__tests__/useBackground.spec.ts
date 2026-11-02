@@ -86,18 +86,21 @@ describe('useBackground', () => {
     expect(root.style.getPropertyValue('--ws-bg-repeat')).toBe('no-repeat')
   })
 
-  it('markMissing 保留 path、清 src/禁用；setSrc 恢复', async () => {
-    const { useBackground } = await load()
+  it('markMissing 软缺失：保留配置、不写存储；setSrc 恢复', async () => {
+    const { useBackground, BACKGROUND_KEY } = await load()
     const api = useBackground()
     api.setImage({ path: '/a.webp', src: 'asset://a.webp' })
+    localStorage.removeItem(BACKGROUND_KEY)
     api.markMissing()
     expect(api.background.value.path).toBe('/a.webp')
-    expect(api.background.value.src).toBe('')
-    expect(api.background.value.enabled).toBe(false)
-    expect(api.missing.value).toBe(true)
-    api.setSrc('asset://a.webp')
     expect(api.background.value.src).toBe('asset://a.webp')
+    expect(api.background.value.enabled).toBe(true)
+    expect(api.missing.value).toBe(true)
+    expect(localStorage.getItem(BACKGROUND_KEY)).toBeNull()
+    expect(document.documentElement.dataset.workspaceBg).toBeUndefined()
+    api.setSrc('asset://a.webp')
     expect(api.missing.value).toBe(false)
+    expect(document.documentElement.dataset.workspaceBg).toBe('on')
   })
 
   it('clear 清空配置、变量与属性', async () => {

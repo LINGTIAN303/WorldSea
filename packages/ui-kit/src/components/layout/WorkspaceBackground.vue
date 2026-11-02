@@ -10,6 +10,6 @@ import { computed } from 'vue'
 import { useBackground } from '@worldsea/style-kit'
 
 const props = withDefaults(defineProps<{ preview?: boolean }>(), { preview: false })
-const { background } = useBackground()
-const visible = computed(() => !!background.value.src && (props.preview || background.value.enabled))
+const { background, missing } = useBackground()
+const visible = computed(() => !missing.value && !!background.value.src && (props.preview || background.value.enabled))
 </script>

@@ -7,13 +7,23 @@ vi.mock('../StorageBackend', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../StorageBackend')>()),
   isTauri: () => true,
 }))
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: vi.fn(),
+  convertFileSrc: (path: string) => `asset://${path}`,
+}))
+vi.mock('@tauri-apps/api/path', () => ({
+  appDataDir: vi.fn(async () => 'C:/AppData'),
+  join: vi.fn(async (...parts: string[]) => parts.join('/').replace(/\/+/g, '/')),
+}))
 
+import { invoke } from '@tauri-apps/api/core'
 import { pickLocalFiles } from '../pickLocalFiles'
 import {
   BACKGROUND_MAX_EDGE,
   backgroundFileName,
   fitLongEdge,
   pickAndSaveWorkspaceBackground,
+  resolveWorkspaceBackgroundSrc,
 } from '../backgroundAsset'
 
 describe('backgroundAsset 纯函数', () => {
@@ -52,5 +62,41 @@ describe('pickAndSaveWorkspaceBackground', () => {
   it('没有文件时返回原因', async () => {
     vi.mocked(pickLocalFiles).mockResolvedValue({ items: [], cancelled: false, reasons: ['超限'], paths: [] })
     await expect(pickAndSaveWorkspaceBackground()).resolves.toEqual({ ok: false, reason: '超限' })
+  })
+})
+
+describe('resolveWorkspaceBackgroundSrc', () => {
+  beforeEach(() => {
+    vi.mocked(invoke).mockReset()
+    vi.useRealTimers()
+  })
+
+  it('瞬时失败重试后成功', async () => {
+    vi.useFakeTimers()
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.mocked(invoke)
+      .mockRejectedValueOnce(new Error('busy'))
+      .mockRejectedValueOnce(new Error('busy'))
+      .mockResolvedValueOnce({})
+    const pending = resolveWorkspaceBackgroundSrc('C:/bg.webp')
+    await vi.advanceTimersByTimeAsync(750)
+    await expect(pending).resolves.toBe('asset://C:/bg.webp')
+    expect(invoke).toHaveBeenCalledTimes(3)
+    expect(warn).not.toHaveBeenCalled()
+    warn.mockRestore()
+    vi.useRealTimers()
+  })
+
+  it('三次都失败返回 null 并告警', async () => {
+    vi.useFakeTimers()
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.mocked(invoke).mockRejectedValue(new Error('missing'))
+    const pending = resolveWorkspaceBackgroundSrc('C:/gone.webp')
+    await vi.advanceTimersByTimeAsync(750)
+    await expect(pending).resolves.toBeNull()
+    expect(invoke).toHaveBeenCalledTimes(3)
+    expect(warn).toHaveBeenCalled()
+    warn.mockRestore()
+    vi.useRealTimers()
   })
 })
