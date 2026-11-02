@@ -21,6 +21,7 @@ import { pickLocalFiles } from '../pickLocalFiles'
 import {
   BACKGROUND_MAX_EDGE,
   backgroundFileName,
+  backgroundRelativePath,
   cleanupBackgroundOrphans,
   cleanupWorkspaceBackgroundOrphans,
   fitLongEdge,
@@ -45,6 +46,16 @@ describe('backgroundAsset 纯函数', () => {
   it('文件名只保留安全扩展名', () => {
     expect(backgroundFileName('canvas', 'light', 'webp', 123)).toBe('background-canvas-light-123.webp')
     expect(backgroundFileName('canvas', 'light', 'exe', 123)).toBe('background-canvas-light-123.webp')
+  })
+
+  it('扩展名缺失回退 webp', () => {
+    expect(backgroundFileName('canvas', 'light', undefined as unknown as string, 1)).toBe('background-canvas-light-1.webp')
+    expect(backgroundFileName('canvas', 'light', null as unknown as string, 1)).toBe('background-canvas-light-1.webp')
+  })
+
+  it('项目相对路径契约', () => {
+    expect(backgroundRelativePath('background-canvas-light-1.webp')).toBe('.worldsea/backgrounds/background-canvas-light-1.webp')
+    expect(backgroundRelativePath(backgroundFileName('Canvas/../', 'LIGHT!', 'png', 1))).toBe('.worldsea/backgrounds/background-canvas-light-1.png')
   })
 
   it('文件名带目标与主题', () => {
@@ -78,10 +89,15 @@ describe('pickAndSaveWorkspaceBackground', () => {
 })
 
 describe('pickAndSaveBackground', () => {
+  beforeEach(() => {
+    vi.mocked(pickLocalFiles).mockClear()
+  })
+
   it('项目范围缺 projectDir 返回原因', async () => {
     await expect(pickAndSaveBackground({
       scope: 'project', target: 'canvas', theme: 'light',
     })).resolves.toEqual({ ok: false, reason: '未打开项目' })
+    expect(pickLocalFiles).not.toHaveBeenCalled()
   })
 })
 
@@ -186,5 +202,36 @@ describe('cleanupBackgroundOrphans', () => {
   it('目录读取失败时静默返回', async () => {
     vi.mocked(invoke).mockRejectedValue(new Error('no dir'))
     await expect(cleanupBackgroundOrphans('C:/bg', [])).resolves.toBeUndefined()
+  })
+
+  it('空目录参数直接返回，不列目录', async () => {
+    await cleanupBackgroundOrphans('', [])
+    expect(invoke).not.toHaveBeenCalled()
+  })
+
+  it('项目配置相对路径按目录归一后保留在用文件', async () => {
+    const dir = 'C:/p/.worldsea/backgrounds'
+    vi.mocked(invoke).mockImplementation(async (cmd: string) => (cmd === 'cmd_fs_list'
+      ? [
+        { name: 'keep.webp', path: `${dir}/keep.webp`, isDir: false },
+        { name: 'background-keep.webp', path: `${dir}/background-keep.webp`, isDir: false },
+        { name: 'workspace-drop.webp', path: `${dir}/workspace-drop.webp`, isDir: false },
+      ]
+      : undefined))
+    await cleanupBackgroundOrphans(dir, [
+      '.worldsea/backgrounds/keep.webp',
+      backgroundRelativePath('background-keep.webp'),
+    ])
+    expect(invoke).not.toHaveBeenCalledWith('cmd_fs_delete', { path: `${dir}/keep.webp` })
+    expect(invoke).not.toHaveBeenCalledWith('cmd_fs_delete', { path: `${dir}/background-keep.webp` })
+    expect(invoke).toHaveBeenCalledWith('cmd_fs_delete', { path: `${dir}/workspace-drop.webp` })
+  })
+
+  it('大写扩展名 PNG 也按背景文件匹配删除', async () => {
+    vi.mocked(invoke).mockImplementation(async (cmd: string) => (cmd === 'cmd_fs_list'
+      ? [{ name: 'WORKSPACE-OLD.PNG', path: 'C:/bg/WORKSPACE-OLD.PNG', isDir: false }]
+      : undefined))
+    await cleanupBackgroundOrphans('C:/bg', [])
+    expect(invoke).toHaveBeenCalledWith('cmd_fs_delete', { path: 'C:/bg/WORKSPACE-OLD.PNG' })
   })
 })

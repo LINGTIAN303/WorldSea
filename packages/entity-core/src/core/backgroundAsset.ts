@@ -38,8 +38,13 @@ export function fitLongEdge(width: number, height: number, max = BACKGROUND_MAX_
 
 export function backgroundFileName(target: string, theme: string, ext: string, now = Date.now()): string {
   const safe = (value: string) => value.toLowerCase().replace(/[^a-z0-9-]/g, '')
-  const normalized = ext.toLowerCase()
+  const normalized = String(ext ?? '').toLowerCase()
   return `background-${safe(target)}-${safe(theme)}-${now}.${ALLOWED_EXTS.has(normalized) ? normalized : 'webp'}`
+}
+
+/** 项目范围背景图写进项目配置的相对 POSIX 路径 */
+export function backgroundRelativePath(fileName: string): string {
+  return `.worldsea/backgrounds/${fileName}`
 }
 
 async function encodeBackground(file: File): Promise<{ bytes: Uint8Array; ext: string } | null> {
@@ -93,7 +98,7 @@ export async function pickAndSaveBackground(req: BackgroundSaveRequest): Promise
     return {
       ok: true,
       path,
-      relativePath: req.scope === 'project' ? `.worldsea/backgrounds/${name}` : undefined,
+      relativePath: req.scope === 'project' ? backgroundRelativePath(name) : undefined,
       src: convertFileSrc(path),
     }
   } catch (err) {
@@ -137,18 +142,30 @@ function pathKey(path: string) {
   return path.replace(/\\/g, '/').toLowerCase()
 }
 
+const PROJECT_BG_PREFIX = '.worldsea/backgrounds/'
+
+/** 引用值可能是项目配置里的相对路径，按 dir 还原为绝对路径后再比对，避免误删在用文件 */
+function referencedPathKey(path: string, dir: string): string {
+  const posix = path.replace(/\\/g, '/')
+  if (/^(?:[a-z]:\/|\/)/i.test(posix)) return pathKey(posix)
+  const relative = posix.toLowerCase().startsWith(PROJECT_BG_PREFIX)
+    ? posix.slice(PROJECT_BG_PREFIX.length)
+    : posix.replace(/^\.\//, '')
+  return pathKey(`${dir.replace(/\\/g, '/').replace(/\/+$/, '')}/${relative}`)
+}
+
 export async function cleanupBackgroundOrphans(
   dir: string,
   referenced: string[] | (() => string[]),
 ): Promise<void> {
-  if (!isTauri()) return
+  if (!dir || !isTauri()) return
   try {
     const entries = await invoke('cmd_fs_list', { path: dir, recursive: false }) as Array<{
       name: string; path: string; isDir: boolean
     }>
     const keep = new Set(
       (typeof referenced === 'function' ? referenced() : referenced)
-        .filter(Boolean).map(pathKey),
+        .filter(Boolean).map((path) => referencedPathKey(path, dir)),
     )
     for (const entry of entries) {
       if (entry.isDir || !BACKGROUND_FILE_RE.test(entry.name)) continue
@@ -167,7 +184,6 @@ export async function cleanupBackgroundOrphans(
 export async function cleanupGlobalBackgroundOrphans(
   referenced: string[] | (() => string[]),
 ): Promise<void> {
-  if (!isTauri()) return
   try {
     await cleanupBackgroundOrphans(await join(await appDataDir(), 'worldsea', 'backgrounds'), referenced)
   } catch {
