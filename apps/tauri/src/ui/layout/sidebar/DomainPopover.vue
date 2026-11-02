@@ -148,11 +148,16 @@ function onKeydown(event: KeyboardEvent) {
 
 onMounted(() => {
   window.addEventListener('pointerdown', onPointerDown, true)
-  window.addEventListener('keydown', onKeydown)
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('pointerdown', onPointerDown, true)
   window.removeEventListener('keydown', onKeydown)
+})
+
+// Esc 监听随展开挂载 / 收起卸载（快捷键系统整理批：消除常驻空转监听；openId 为多面板互斥单开态）
+watch(openId, (v) => {
+  if (v) window.addEventListener('keydown', onKeydown)
+  else window.removeEventListener('keydown', onKeydown)
 })
 </script>

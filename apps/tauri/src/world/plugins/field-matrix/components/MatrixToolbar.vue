@@ -11,6 +11,7 @@
       title="按 / 聚焦搜索"
       autocomplete="off"
       @input="emit('update:query', ($event.target as HTMLInputElement).value)"
+      @keydown.esc="onKeydown"
     >
   </Teleport>
 
@@ -64,7 +65,7 @@
 
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
-import { TuiButton } from '@worldsea/ui-kit'
+import { TuiButton, useShortcuts } from '@worldsea/ui-kit'
 import type { FieldMatrixStats } from '../model/types'
 
 defineProps<{
@@ -97,12 +98,7 @@ function onJump(event: Event) {
 }
 
 function onKeydown(event: KeyboardEvent) {
-  const tag = document.activeElement?.tagName ?? ''
-  if (event.key === '/' && !/^(INPUT|TEXTAREA|SELECT)$/.test(tag)) {
-    event.preventDefault()
-    searchRef.value?.focus()
-    searchRef.value?.select()
-  }
+  // Esc 仅在搜索框聚焦时清空筛选（元素聚焦态行为，按规范保留组件内）
   if (event.key === 'Escape' && document.activeElement === searchRef.value) {
     emit('update:query', '')
     emit('update:onlyRequired', false)
@@ -112,8 +108,24 @@ function onKeydown(event: KeyboardEvent) {
   }
 }
 
-onMounted(() => document.addEventListener('keydown', onKeydown))
-onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown))
+// `/` 聚焦搜索是命令型快捷键 → 收编注册表（快捷键系统整理批，2026-11-03）：
+// 可改键、进帮助弹窗与设置目录、参与冲突检测；原常驻 document 直听退役。
+// 视图挂载期注册/卸载（view scope：仅 field-matrix 视图内生效）。
+const { register, unregister } = useShortcuts()
+onMounted(() => {
+  register({
+    id: 'fm.focus-search',
+    keys: ['/'],
+    description: '聚焦搜索',
+    scope: 'view',
+    preventDefault: true,
+    handler: () => {
+      searchRef.value?.focus()
+      searchRef.value?.select()
+    },
+  })
+})
+onBeforeUnmount(() => unregister('fm.focus-search'))
 </script>
 
 <style scoped>

@@ -46,7 +46,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
-import { useConfirm, useShortcuts } from '@worldsea/ui-kit'
+import { useConfirm, useShortcuts, normalizeKeys } from '@worldsea/ui-kit'
 import MapToolbar from './map/MapToolbar.vue'
 import MapTooltip from './map/MapTooltip.vue'
 import MapContextMenu from './map/MapContextMenu.vue'
@@ -65,7 +65,7 @@ const props = defineProps<{ regions: any[] }>()
 const entityStore = useEntityStore()
 const relationStore = useRelationStore()
 const { confirm } = useConfirm()
-const { register: registerShortcut, unregister: unregisterShortcut } = useShortcuts()
+const { register: registerShortcut, unregister: unregisterShortcut, getRegisteredKeys } = useShortcuts()
 
 const mapRoot = ref<HTMLDivElement>()
 const canvasRef = ref<HTMLCanvasElement>()
@@ -592,9 +592,26 @@ watch(() => relationStore.relations.length, scheduleDraw)
 
 // === 键盘事件 ===
 
+// 边境线是「按住生效」的持续态键（同 Space 平移画布先例）：keydown 置位 / keyup 复位。
+// 键值匹配读注册表当前键值（region.borderline，快捷键系统整理批归一）——用户改键后按住新键即生效，
+// 消除「注册表登记形同虚设」的双路径问题（原实现写死 e.altKey / e.key === 'Alt'）。
+function matchesBorderlineKeys(e: KeyboardEvent): boolean {
+  const keys = getRegisteredKeys('region.borderline')
+  if (!keys) return false
+  if (e.type === 'keydown') return sameKeySet(normalizeKeys(e), keys)
+  // keyup：e.key 已回到单键本体（修饰键 = 'Alt'；单键 = 键名本身），别名归一后比对
+  const raw = e.key === ' ' ? 'space' : e.key.toLowerCase()
+  const aliases: Record<string, string> = { arrowup: 'up', arrowdown: 'down', arrowleft: 'left', arrowright: 'right', escape: 'escape' }
+  return keys.includes(aliases[raw] ?? raw)
+}
+
+function sameKeySet(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every(k => b.includes(k))
+}
+
 function onBorderlineKeyDown(e: KeyboardEvent) {
   if (mode.value !== 'draw') return
-  if (e.altKey) {
+  if (matchesBorderlineKeys(e)) {
     e.preventDefault()
     borderlineActive.value = true
     scheduleDraw()
@@ -602,7 +619,7 @@ function onBorderlineKeyDown(e: KeyboardEvent) {
 }
 
 function onBorderlineKeyUp(e: KeyboardEvent) {
-  if (e.key === 'Alt') {
+  if (matchesBorderlineKeys(e)) {
     borderlineActive.value = false
     borderlineMode.value = null
     scheduleDraw()

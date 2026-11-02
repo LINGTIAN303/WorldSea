@@ -218,7 +218,6 @@ watch(() => uiStore.currentView, id => recordRecent(id), { immediate: true })
 
 onMounted(() => {
   window.addEventListener('pointerdown', onPointerDown, true)
-  window.addEventListener('keydown', onKeydown)
   window.addEventListener('resize', onWindowChange)
   window.addEventListener('scroll', onWindowChange, true)
 })
@@ -229,6 +228,12 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown)
   window.removeEventListener('resize', onWindowChange)
   window.removeEventListener('scroll', onWindowChange, true)
+})
+
+// Esc 监听随展开挂载 / 收起卸载（快捷键系统整理批：消除常驻空转监听；外点/锚点监听保持常驻）
+watch(open, (v) => {
+  if (v) window.addEventListener('keydown', onKeydown)
+  else window.removeEventListener('keydown', onKeydown)
 })
 </script>
 

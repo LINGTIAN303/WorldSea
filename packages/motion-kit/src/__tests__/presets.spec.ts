@@ -31,6 +31,8 @@ const LEGACY_TRANSITION_NAMES = new Set([
   'fpp-backdrop',
   'fpp-panel',
   'fs-dropdown',
+  // 背景图批（92675d9）新增未登记，静态守卫补录（快捷键整理批跑门禁时发现）
+  'bg-map-fade',
 ])
 
 /** 画布专用 TransitionGroup 名（由 board-motion.css 自带实现，不走全局预设表）。 */

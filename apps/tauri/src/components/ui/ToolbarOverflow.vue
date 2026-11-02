@@ -22,7 +22,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { WsIcon } from '@worldsea/ui-kit'
 
 /**
@@ -45,11 +45,15 @@ function onDocKey(e: KeyboardEvent) {
 
 onMounted(() => {
   document.addEventListener('click', onDocClick)
-  document.addEventListener('keydown', onDocKey)
 })
 onBeforeUnmount(() => {
   document.removeEventListener('click', onDocClick)
   document.removeEventListener('keydown', onDocKey)
+})
+// Esc 监听随展开挂载 / 收起卸载（快捷键系统整理批：消除常驻空转监听；外点 click 保持常驻）
+watch(open, (v) => {
+  if (v) document.addEventListener('keydown', onDocKey)
+  else document.removeEventListener('keydown', onDocKey)
 })
 </script>
 

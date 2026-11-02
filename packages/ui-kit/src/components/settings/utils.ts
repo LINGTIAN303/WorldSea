@@ -86,6 +86,8 @@ export const SHORTCUT_CATALOG: ShortcutItem[] = [
   { id: 'outline-board.fit-all', description: '大纲白板：适配全部', keys: ['!'], scope: 'view' },
   { id: 'outline-board.draw-section', description: '大纲白板：画区', keys: ['s'], scope: 'view' },
   { id: 'outline-board.escape', description: '大纲白板：取消选中 / 退出画区', keys: ['escape'], scope: 'view' },
+  // 字段矩阵（2026-11-03 快捷键系统整理批：原常驻 document 直听收编注册表）
+  { id: 'fm.focus-search', description: '字段矩阵：聚焦搜索', keys: ['/'], scope: 'view' },
 ]
 
 /** 快捷键分组顺序（低→高优先级，与 useShortcuts.SCOPE_ORDER 互补同步；space 已退役） */
