@@ -5,17 +5,22 @@ const load = async () => {
   return import('../composables/useBackground')
 }
 
-const TARGETS = ['canvas', 'home', 'titlebar', 'sidebar', 'content'] as const
+const TARGETS = ['canvas', 'home', 'titlebar', 'sidebar', 'content-toolbar', 'content-view'] as const
 const TARGET_VAR_SUFFIXES = ['image-light', 'image-dark', 'size', 'repeat', 'position', 'dim', 'blur'] as const
 const V1_ALIASES = [
   'background', 'setImage', 'setSrc', 'clear', 'setEnabled', 'setFit',
   'setFocus', 'setDim', 'setBlur', 'flush',
 ]
 
+/** 连字符目标写 dataset 时转 camelCase：content-toolbar → wsBgContentToolbar */
+function datasetKey(target: string) {
+  return `wsBg${target.split('-').map((p) => p[0].toUpperCase() + p.slice(1)).join('')}`
+}
+
 function resetDom() {
   const root = document.documentElement
   for (const target of TARGETS) {
-    delete root.dataset[`wsBg${target[0].toUpperCase()}${target.slice(1)}`]
+    delete root.dataset[datasetKey(target)]
     for (const suffix of TARGET_VAR_SUFFIXES) root.style.removeProperty(`--ws-bg-${target}-${suffix}`)
   }
 }
@@ -146,15 +151,80 @@ describe('useBackground', () => {
     expect(root.dataset.wsBgCanvas).toBeUndefined()
   })
 
-  it('五目标默认值齐全', async () => {
+  it('六目标默认值齐全', async () => {
     const { BACKGROUND_DEFAULTS } = await load()
-    expect(Object.keys(BACKGROUND_DEFAULTS.targets).sort()).toEqual(['canvas', 'content', 'home', 'sidebar', 'titlebar'])
+    expect(Object.keys(BACKGROUND_DEFAULTS.targets).sort()).toEqual([
+      'canvas', 'content-toolbar', 'content-view', 'home', 'sidebar', 'titlebar',
+    ])
     for (const c of Object.values(BACKGROUND_DEFAULTS.targets)) {
       expect(c.enabled).toBe(false)
       expect(c.paths).toEqual({ light: '', dark: '' })
       expect(c.dim).toBe(35)
       expect(c.blur).toBe(8)
     }
+  })
+
+  it('旧 content 全局配置迁移到 content-view', async () => {
+    localStorage.setItem('worldsea_background_v2', JSON.stringify({
+      version: 2,
+      targets: {
+        content: {
+          enabled: true,
+          paths: { light: '/content.webp', dark: '/content-dark.webp' },
+          fit: 'tile', focusX: 0, focusY: 100, dim: 20, blur: 4,
+        },
+      },
+    }))
+    const { applyPersistedBackground, useBackground } = await load()
+    applyPersistedBackground()
+    const api = useBackground()
+    const view = api.globalConfig.value.targets['content-view']
+    expect(view.enabled).toBe(true)
+    expect(view.paths).toEqual({ light: '/content.webp', dark: '/content-dark.webp' })
+    expect(view.fit).toBe('cover')
+    expect(view.focusX).toBe(50)
+    expect('content' in api.globalConfig.value.targets).toBe(false)
+  })
+
+  it('旧 content 项目配置迁移到 content-view', async () => {
+    const { normalizeProjectConfig } = await load()
+    const config = normalizeProjectConfig({
+      version: 1,
+      targets: {
+        content: { enabled: true, paths: { light: '.worldsea/backgrounds/a.webp', dark: '' } },
+      },
+    })
+    expect(config?.targets['content-view']?.paths.light).toBe('.worldsea/backgrounds/a.webp')
+    expect(config?.targets['content-toolbar']).toBeUndefined()
+  })
+
+  it('新旧 key 同时存在时优先新 key', async () => {
+    const { normalizeGlobalConfig, normalizeProjectConfig } = await load()
+    const global = normalizeGlobalConfig({
+      targets: {
+        content: { enabled: true, paths: { light: '/old.webp', dark: '' } },
+        'content-view': { enabled: false, paths: { light: '/new.webp', dark: '' } },
+      },
+    })
+    expect(global.targets['content-view'].paths.light).toBe('/new.webp')
+    const project = normalizeProjectConfig({
+      targets: {
+        content: { paths: { light: '.worldsea/backgrounds/old.webp', dark: '' } },
+        'content-view': { paths: { light: '.worldsea/backgrounds/new.webp', dark: '' } },
+      },
+    })
+    expect(project?.targets['content-view']?.paths.light).toBe('.worldsea/backgrounds/new.webp')
+  })
+
+  it('含连字符的目标写 camelCase dataset 与变量', async () => {
+    const { useBackground } = await load()
+    const api = useBackground()
+    api.setTargetImage('content-toolbar', 'light', { path: '/t.webp', src: 'asset://t.webp' }, 'global')
+    const root = document.documentElement
+    expect(root.dataset.wsBgContentToolbar).toBe('on')
+    expect(root.style.getPropertyValue('--ws-bg-content-toolbar-image-light')).toContain('asset://t.webp')
+    api.updateTarget('content-toolbar', { enabled: false }, 'global')
+    expect(root.dataset.wsBgContentToolbar).toBeUndefined()
   })
 
   it('分区目标归一化强制 cover/居中', async () => {
@@ -240,7 +310,7 @@ describe('useBackground', () => {
     expect(root.dataset.wsBgCanvas).toBe('on')
   })
 
-  it('五个目标分别写 data 属性与变量', async () => {
+  it('六个目标分别写 data 属性与变量', async () => {
     const { useBackground, BACKGROUND_TARGETS } = await load()
     const api = useBackground()
     for (const target of BACKGROUND_TARGETS) {
@@ -248,7 +318,7 @@ describe('useBackground', () => {
     }
     const root = document.documentElement
     for (const target of BACKGROUND_TARGETS) {
-      expect(root.dataset[`wsBg${target[0].toUpperCase()}${target.slice(1)}`]).toBe('on')
+      expect(root.dataset[datasetKey(target)]).toBe('on')
       expect(root.style.getPropertyValue(`--ws-bg-${target}-image-light`)).toContain(`asset://${target}.webp`)
     }
   })

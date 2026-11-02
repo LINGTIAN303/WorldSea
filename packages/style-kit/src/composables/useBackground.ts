@@ -1,7 +1,13 @@
-/** 背景状态单例：五目标配置、全局+项目覆盖合并、分范围运行时态与根变量。 */
+/** 背景状态单例：六目标配置、全局+项目覆盖合并、分范围运行时态与根变量。 */
 import { computed, ref } from 'vue'
 
-export type BackgroundTarget = 'canvas' | 'home' | 'titlebar' | 'sidebar' | 'content'
+export type BackgroundTarget =
+  | 'canvas'
+  | 'home'
+  | 'titlebar'
+  | 'sidebar'
+  | 'content-toolbar'
+  | 'content-view'
 export type BackgroundTheme = 'light' | 'dark'
 export type BackgroundScope = 'global' | 'project'
 export type BackgroundFit = 'cover' | 'contain' | 'tile'
@@ -34,14 +40,17 @@ export interface BackgroundProjectConfig {
 
 export const BACKGROUND_KEY = 'worldsea_background_v2'
 export const BACKGROUND_V1_KEY = 'worldsea_workspace_background'
-export const BACKGROUND_TARGETS: readonly BackgroundTarget[] = ['canvas', 'home', 'titlebar', 'sidebar', 'content']
+export const BACKGROUND_TARGETS: readonly BackgroundTarget[] = [
+  'canvas', 'home', 'titlebar', 'sidebar', 'content-toolbar', 'content-view',
+]
 export const BACKGROUND_THEMES: readonly BackgroundTheme[] = ['light', 'dark']
 export const BACKGROUND_TARGET_CAPS: Record<BackgroundTarget, { fit: boolean; focus: boolean }> = {
   canvas: { fit: true, focus: true },
   home: { fit: true, focus: true },
   titlebar: { fit: false, focus: false },
   sidebar: { fit: false, focus: false },
-  content: { fit: false, focus: false },
+  'content-toolbar': { fit: false, focus: false },
+  'content-view': { fit: false, focus: false },
 }
 
 const FOCUS_STEPS: FocusStep[] = [0, 50, 100]
@@ -112,12 +121,24 @@ export function normalizeTargetConfig(raw: unknown, target: BackgroundTarget): B
   }
 }
 
-/** 全局配置归一化：五个目标逐个归一化，缺失目标用默认值 */
+/** 旧 content 键：新 content-view 缺失时作为迁移输入；不复制到 content-toolbar */
+function legacyContent(raw: Record<string, unknown>): unknown {
+  return raw.content
+}
+
+/** 目标条目：新 key 优先，缺失时 content-view 回落旧 content */
+function targetEntry(targetsRaw: Record<string, unknown>, target: BackgroundTarget): unknown {
+  return targetsRaw[target] ?? (target === 'content-view' ? legacyContent(targetsRaw) : undefined)
+}
+
+/** 全局配置归一化：六个目标逐个归一化，缺失目标用默认值 */
 export function normalizeGlobalConfig(raw: unknown): BackgroundGlobalConfig {
   const value = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {}
   const targetsRaw = value.targets && typeof value.targets === 'object' ? value.targets as Record<string, unknown> : {}
   const targets = {} as Record<BackgroundTarget, BackgroundTargetConfig>
-  for (const target of BACKGROUND_TARGETS) targets[target] = normalizeTargetConfig(targetsRaw[target], target)
+  for (const target of BACKGROUND_TARGETS) {
+    targets[target] = normalizeTargetConfig(targetEntry(targetsRaw, target), target)
+  }
   return { version: 2, targets }
 }
 
@@ -129,7 +150,7 @@ export function normalizeProjectConfig(raw: unknown): BackgroundProjectConfig | 
   const targets: Partial<Record<BackgroundTarget, BackgroundTargetConfig>> = {}
   let count = 0
   for (const target of BACKGROUND_TARGETS) {
-    const entry = targetsRaw[target]
+    const entry = targetEntry(targetsRaw, target)
     if (!entry || typeof entry !== 'object') continue
     targets[target] = normalizeTargetConfig(entry, target)
     count++
@@ -226,8 +247,9 @@ function sizeValue(fit: BackgroundFit): string {
   return fit === 'cover' ? 'cover' : fit === 'contain' ? 'contain' : 'auto'
 }
 
+/** 连字符目标写 dataset 转 camelCase：content-toolbar → wsBgContentToolbar */
 function datasetKey(target: BackgroundTarget): string {
-  return `wsBg${target[0].toUpperCase()}${target.slice(1)}`
+  return `wsBg${target.split('-').map((part) => part[0].toUpperCase() + part.slice(1)).join('')}`
 }
 
 function apply() {

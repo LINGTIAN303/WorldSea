@@ -6,7 +6,7 @@
   >
     <!-- 内容区背景层：层自身 z0，工具条/画布块在启用时相对定位、按树序绘制在其上；
          宿主不加 z-index，视图内 fixed 浮层仍留在根层叠，压得过侧栏与窗口栏 -->
-    <BackgroundLayer target="content" />
+    <BackgroundLayer target="content-view" />
     <!-- 视图工具条（随流首子元素，2026-08-10）：占位 44px 不悬浮；两壳 v-show 常驻
          保证 ViewContainer 永不卸载，Teleport 目标 #view-toolbar-* 常驻，根治壳切换崩溃 -->
     <ViewToolbar />

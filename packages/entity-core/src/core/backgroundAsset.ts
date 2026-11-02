@@ -10,7 +10,8 @@ export const BACKGROUND_MAX_EDGE = 2560
 const ALLOWED_EXTS = new Set(['png', 'jpg', 'jpeg', 'webp'])
 
 /** 与 style-kit 的 BackgroundTarget / BackgroundTheme 结构兼容，不引入包依赖 */
-export type BackgroundTargetKey = 'canvas' | 'home' | 'titlebar' | 'sidebar' | 'content'
+export type BackgroundTargetKey =
+  | 'canvas' | 'home' | 'titlebar' | 'sidebar' | 'content-toolbar' | 'content-view'
 export type BackgroundThemeKey = 'light' | 'dark'
 
 export interface BackgroundSaveRequest {

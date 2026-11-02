@@ -179,9 +179,9 @@ describe('resolveProjectBackgroundAssets', () => {
     expect(missing.home.dark).toBe(false)
   })
 
-  it('srcs / missing 覆盖全部五个目标与两个主题键', async () => {
+  it('srcs / missing 覆盖全部六个目标与两个主题键', async () => {
     const { srcs, missing } = await resolveProjectBackgroundAssets(DIR, [])
-    const expected = ['canvas', 'content', 'home', 'sidebar', 'titlebar']
+    const expected = ['canvas', 'content-toolbar', 'content-view', 'home', 'sidebar', 'titlebar']
     expect(Object.keys(srcs).sort()).toEqual(expected)
     expect(Object.keys(missing).sort()).toEqual(expected)
     for (const target of expected) {

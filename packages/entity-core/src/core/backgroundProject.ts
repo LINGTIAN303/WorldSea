@@ -11,7 +11,9 @@ export const PROJECT_BACKGROUND_PREFIX = '.worldsea/backgrounds/'
 /** 项目背景配置文件在项目目录内的相对路径 */
 export const PROJECT_BACKGROUND_CONFIG = '.worldsea/background.json'
 
-const TARGETS: BackgroundTargetKey[] = ['canvas', 'home', 'titlebar', 'sidebar', 'content']
+const TARGETS: BackgroundTargetKey[] = [
+  'canvas', 'home', 'titlebar', 'sidebar', 'content-toolbar', 'content-view',
+]
 const THEMES: BackgroundThemeKey[] = ['light', 'dark']
 
 /** 待解析的项目图片引用；path 为项目相对路径（可能为空或非法，由本模块判定） */
@@ -21,7 +23,7 @@ export interface ProjectBackgroundRef {
   path: string
 }
 
-/** 按 target → theme 索引的解析结果，覆盖全部五个目标与两个主题 */
+/** 按 target → theme 索引的解析结果，覆盖全部六个目标与两个主题 */
 export interface ProjectBackgroundAssets {
   srcs: Record<string, Record<string, string | null>>
   missing: Record<string, Record<string, boolean>>

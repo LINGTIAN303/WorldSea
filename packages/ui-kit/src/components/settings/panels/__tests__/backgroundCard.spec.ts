@@ -166,7 +166,7 @@ describe('BackgroundCard', () => {
     const before = JSON.stringify(api.globalConfig.value)
     const w = await mountCard()
     await targetButton(w, '窗口栏').trigger('click')
-    await targetButton(w, '画布').trigger('click')
+    await targetButton(w, '大背景').trigger('click')
     await scopeButton(w, '本项目').trigger('click')
     await scopeButton(w, '全局').trigger('click')
     expect(JSON.stringify(api.globalConfig.value)).toBe(before)

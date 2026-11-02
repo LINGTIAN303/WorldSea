@@ -140,11 +140,12 @@ import { useFileSystemProject } from '@worldsea/entity-core/composables'
 import BackgroundLayer from '../../layout/BackgroundLayer.vue'
 
 const TARGET_LABELS: Record<BackgroundTarget, string> = {
-  canvas: '画布',
+  canvas: '大背景',
   home: '首页',
   titlebar: '窗口栏',
   sidebar: '侧栏',
-  content: '内容区',
+  'content-toolbar': '工具条',
+  'content-view': '视图',
 }
 const FOCUS_CELLS: Array<{ key: string; x: FocusStep; y: FocusStep; label: string }> = [
   { key: 'tl', x: 0, y: 0, label: '左上' },
@@ -485,7 +486,7 @@ onBeforeUnmount(() => {
 }
 .bg-project__state { font-size: var(--fs-sm); color: var(--text-secondary); }
 
-/* 预览按目标形状：画布/首页 16:9，窗口栏横条，侧栏竖条，内容区矩形 */
+/* 预览按目标形状：大背景/首页 16:9，窗口栏横条，侧栏竖条，工具条/视图矩形 */
 .bg-preview {
   position: relative;
   overflow: hidden;
@@ -496,7 +497,7 @@ onBeforeUnmount(() => {
 }
 .bg-preview--canvas,
 .bg-preview--home,
-.bg-preview--content { aspect-ratio: 16 / 9; }
+.bg-preview--content-view { aspect-ratio: 16 / 9; }
 .bg-preview--titlebar { height: 44px; }
 .bg-preview--sidebar { width: 110px; height: 150px; }
 .bg-preview__empty {
