@@ -84,8 +84,20 @@ pub(crate) fn write_dsh_theme(app: &tauri::AppHandle, value: &str) -> Result<(),
 
 /// 切换空间前对齐（dsh 里改过主题 → 切到工作台时跟随）：读数不同则以 dsh 为新真源。
 pub(crate) fn adopt_from_dsh(app: &tauri::AppHandle) {
+    // 读 dsh 期间若有主题写入在途或新写入，本轮放弃；下一轮切换再对齐
+    if crate::app_prefs::theme_write_in_progress() {
+        return;
+    }
+    let epoch = crate::app_prefs::theme_write_epoch();
     let Some(dsh) = read_dsh_theme(app) else { return };
-    if load(app).as_deref() == Some(dsh.as_str()) {
+    if crate::app_prefs::theme_write_in_progress() || crate::app_prefs::theme_write_epoch() != epoch {
+        return;
+    }
+    let source = load(app);
+    if crate::app_prefs::theme_write_epoch() != epoch {
+        return;
+    }
+    if source.as_deref() == Some(dsh.as_str()) {
         return;
     }
     match save(app, &dsh) {

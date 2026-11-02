@@ -119,14 +119,21 @@ function onSystemThemeChange() {
 if (mql && typeof mql.addEventListener === 'function') {
   mql.addEventListener('change', onSystemThemeChange)
 }
-// E2：壳广播（壳侧或另一窗改了主题）→ 以真源重应用；与本地同值时 no-op（防「产品→壳→产品」回环）
+// E2：壳广播（壳侧或另一窗改了主题）→ 以真源重应用；与本地/内存同值时 no-op
+// （双条件：localStorage 不可写时 preference 仍能挡住重复应用）
+let unlistenTheme: (() => void) | null = null
+let themeListenerDisposed = false
 try {
   void listen<{ theme?: string }>('worldsea:theme-changed', event => {
     const next = event.payload?.theme
-    if ((next === 'light' || next === 'dark' || next === 'system') && next !== loadPreference()) {
+    if ((next === 'light' || next === 'dark' || next === 'system')
+      && (next !== loadPreference() || next !== preference.value)) {
       // 壳来源只应用，不回写壳：回写会形成「壳→产品→壳」回声回路
       applyState(next)
     }
+  }).then(unlisten => {
+    if (themeListenerDisposed) { unlisten(); return }
+    unlistenTheme = unlisten
   }).catch(() => {
     /* 事件面不可用（非 Tauri 环境）时忽略 */
   })
@@ -136,7 +143,10 @@ try {
 // Vite HMR：模块热更新时移除旧监听，避免监听器叠加（批次100 P3；生产无热更新，无害）
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
+    themeListenerDisposed = true
     mql?.removeEventListener('change', onSystemThemeChange)
+    unlistenTheme?.()
+    unlistenTheme = null
   })
 }
 

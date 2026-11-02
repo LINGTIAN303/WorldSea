@@ -10,6 +10,31 @@ fn valid_values_are_the_three_state_model() {
 }
 
 #[test]
+fn theme_sync_is_noop_only_when_source_and_dsh_match() {
+    assert!(theme_sync_is_noop(Some("dark"), "dark", Some("dark")));
+    assert!(!theme_sync_is_noop(Some("light"), "dark", Some("dark")));
+    assert!(!theme_sync_is_noop(Some("dark"), "dark", Some("system")));
+    assert!(!theme_sync_is_noop(None, "dark", Some("dark")));
+}
+
+#[test]
+fn theme_write_epoch_is_monotonic() {
+    let before = theme_write_epoch();
+    bump_theme_write_epoch();
+    assert!(theme_write_epoch() > before);
+}
+
+#[test]
+fn theme_write_guard_clears_in_progress_flag() {
+    assert!(!theme_write_in_progress());
+    {
+        THEME_WRITE_IN_PROGRESS.store(true, Ordering::Relaxed);
+        let _guard = ThemeWriteGuard;
+    }
+    assert!(!theme_write_in_progress());
+}
+
+#[test]
 fn product_domain_prefs_normalize_fieldwise() {
     // 全缺省：节缺失 → 说明书开 / 薄指针关 / 快照 auto
     let defaults = normalize_product_domain(None);

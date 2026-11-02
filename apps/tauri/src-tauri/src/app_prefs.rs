@@ -5,7 +5,7 @@
 //   此后真源为准、每次改动写回 `POST /api/settings/update`。壳自有面（HTML 错误页 / 安全网 / 横幅）：按 [`dark_now`] 取亮暗两套值。
 
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 use serde::{Deserialize, Serialize};
 use tauri::Manager;
@@ -14,6 +14,38 @@ use tauri::Manager;
 const THEMES: [&str; 3] = ["light", "dark", "system"];
 /// 壳自有面的当前深浅：错误页在无窗口上下文处渲染，故走进程级原子（启动与每次改动时刷新）。
 static DARK_NOW: AtomicBool = AtomicBool::new(true);
+/// 主题写入代数：命令开始/结束各加一；adopt 读取前后不一致 → 本轮放弃跟随，避免覆盖新写入。
+static THEME_WRITE_EPOCH: AtomicU64 = AtomicU64::new(0);
+/// 主题写入在途：adopt 遇到在途写入直接放弃，避免读到写 dsh 期间的旧值。
+static THEME_WRITE_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
+
+/// 当前主题写入代数（供 adopt 判断读 dsh 期间是否有新写入）。
+pub(crate) fn theme_write_epoch() -> u64 {
+    THEME_WRITE_EPOCH.load(Ordering::Relaxed)
+}
+
+/// 是否有主题写入在途。
+pub(crate) fn theme_write_in_progress() -> bool {
+    THEME_WRITE_IN_PROGRESS.load(Ordering::Relaxed)
+}
+
+fn bump_theme_write_epoch() {
+    THEME_WRITE_EPOCH.fetch_add(1, Ordering::Relaxed);
+}
+
+/// 写入在途标志的 RAII 清理：任何提前返回/错误都恢复 false。
+struct ThemeWriteGuard;
+
+impl Drop for ThemeWriteGuard {
+    fn drop(&mut self) {
+        THEME_WRITE_IN_PROGRESS.store(false, Ordering::Relaxed);
+    }
+}
+
+/// 同值且 dsh 已对齐 = 无需重复写 settings/update 或广播。
+pub(crate) fn theme_sync_is_noop(previous: Option<&str>, value: &str, dsh: Option<&str>) -> bool {
+    previous == Some(value) && dsh == Some(value)
+}
 /// 页面事件名（产品页监听；dsh 页不监听——它的主题由其设置通道驱动）。
 pub const THEME_EVENT: &str = "worldsea:theme-changed";
 
@@ -206,16 +238,28 @@ pub fn cmd_theme_set(
     if !valid(&value) {
         return Err(format!("未知主题值 {value}（可用：light / dark / system）"));
     }
+    THEME_WRITE_IN_PROGRESS.store(true, Ordering::Relaxed);
+    let _write_guard = ThemeWriteGuard;
+    bump_theme_write_epoch();
+    let previous = load(&app);
     save(&app, &value)?;
     let dark = resolve_dark(&value, &window);
     set_dark(dark);
     println!("[DSH-SHELL] theme: 真源 → {value}（壳自有面{}；同步 dsh）", if dark { "深色" } else { "浅色" });
+    // 同值且 dsh 已对齐：跳过重复 settings/update，避免目录刷新风暴
+    let dsh = crate::app_prefs_dsh::read_dsh_theme(&app);
+    if theme_sync_is_noop(previous.as_deref(), &value, dsh.as_deref()) {
+        println!("[DSH-SHELL] theme: 真源未变且 dsh 已对齐（{value}），跳过重复同步");
+        bump_theme_write_epoch();
+        return Ok(value);
+    }
     if let Err(e) = crate::app_prefs_dsh::write_dsh_theme(&app, &value) {
         eprintln!("[DSH-SHELL] theme: 同步 dsh 失败：{e}");
     }
     broadcast(&app, dark, &value);
     // 主题跟随图标：深浅变了 → 窗口任务栏 + 托盘图标同步换（幂等）
     crate::theme_icon::apply(&app);
+    bump_theme_write_epoch();
     Ok(value)
 }
 
