@@ -3,7 +3,7 @@
     <template #card="{ idx, cls }">
       <div class="set-card deck-card" :class="cls" :data-index="idx">
         <div class="sc-head"><span>项目首页</span></div>
-        <p class="set-hint">这些内容只影响产品域首页，不改变项目名。</p>
+        <p class="set-hint">这些内容只影响产品域首页，不改变项目名。工作台背景在「外观 → 背景」中设置。</p>
 
         <div class="hp-field">
           <label class="hp-label" for="home-tagline">一句话简介</label>
