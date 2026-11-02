@@ -4,7 +4,8 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, enableAutoUnmount, mount } from '@vue/test-utils'
-import type { Ref } from 'vue'
+import { nextTick, type Ref } from 'vue'
+import { createPinia, setActivePinia } from 'pinia'
 
 const env = vi.hoisted(() => ({
   projectDir: 'C:/proj/worlddata' as string,
@@ -41,6 +42,7 @@ vi.mock('@worldsea/entity-core/core', () => ({
 }))
 
 import { BACKGROUND_TARGETS, BACKGROUND_THEMES, useBackground } from '@worldsea/style-kit'
+import { usePluginStore, useUIStore } from '@worldsea/entity-core'
 import BackgroundCard from '../BackgroundCard.vue'
 
 enableAutoUnmount(afterEach)
@@ -98,6 +100,8 @@ function mockProjectLoad(targets: Record<string, unknown>, assets?: { srcs?: Rec
 }
 
 beforeEach(() => {
+  setActivePinia(createPinia())
+  document.documentElement.dataset.theme = 'light'
   env.projectDir = 'C:/proj/worlddata'
   boundDir().value = 'C:/proj'
   api.setProjectConfig(null)
@@ -327,6 +331,60 @@ describe('BackgroundCard', () => {
     await canvasCard(w).trigger('click')
     expect(w.find('.bg-map__home.is-selected').exists()).toBe(false)
     expect(w.find('.bg-canvas-card.is-selected').exists()).toBe(true)
+  })
+
+  it('选中大背景后编辑区出现 16:9 预览，切回区域后消失', async () => {
+    api.setTargetImage('canvas', 'light', { path: '/c.webp', src: 'asset://c.webp' }, 'global')
+    const w = await mountCard()
+    await canvasCard(w).trigger('click')
+    expect(w.find('.bg-editor__preview').exists()).toBe(true)
+    expect(w.find('.bg-editor__preview .ws-bg-layer').exists()).toBe(true)
+    await mapRegion(w, '侧栏').trigger('click')
+    expect(w.find('.bg-editor__preview').exists()).toBe(false)
+  })
+
+  it('地图亮暗预览切换只影响预览', async () => {
+    api.setTargetImage('titlebar', 'light', { path: '/l.webp', src: 'asset://light.webp' }, 'global')
+    api.setTargetImage('titlebar', 'dark', { path: '/d.webp', src: 'asset://dark.webp' }, 'global')
+    const w = await mountCard()
+    const layerStyle = () => w.find('.bg-map__region--titlebar .ws-bg-layer').attributes('style') ?? ''
+    expect(layerStyle()).toContain('asset://light.webp')
+    await w.findAll('.bg-map__theme button')[1].trigger('click')
+    await nextTick()
+    expect(layerStyle()).toContain('asset://dark.webp')
+    expect(document.documentElement.dataset.theme).toBe('light')
+  })
+
+  it('选中目标后把编辑区滚到可见位置', async () => {
+    const scroll = vi.fn()
+    const original = Element.prototype.scrollIntoView
+    Element.prototype.scrollIntoView = scroll
+    try {
+      const w = await mountCard()
+      await mapRegion(w, '侧栏').trigger('click')
+      await nextTick()
+      expect(scroll).toHaveBeenCalled()
+    } finally {
+      Element.prototype.scrollIntoView = original
+    }
+  })
+
+  it('工具条形态读取当前视图并明示是否生效', async () => {
+    const ui = useUIStore()
+    const plugins = usePluginStore()
+    ui.setSurface('workspace')
+    ui.setView('v-overlay')
+    plugins.registerView({ id: 'v-overlay', label: 'V', icon: '', component: {} as never, toolbar: 'overlay' })
+    const w = await mountCard()
+    await mapRegion(w, '工具条').trigger('click')
+    expect(w.find('.bg-map__mode').text()).toBe('悬浮')
+    expect(w.find('.bg-editor__mode').text()).toContain('悬浮工具条，背景不生效')
+    plugins.unregisterView('v-overlay')
+    plugins.registerView({ id: 'v-bar', label: 'V', icon: '', component: {} as never, toolbar: 'bar' })
+    ui.setView('v-bar')
+    await nextTick()
+    expect(w.find('.bg-map__mode').exists()).toBe(false)
+    expect(w.find('.bg-editor__mode').text()).toContain('随流工具条，背景生效')
   })
 
   it('选图期间锁定地图区域、地图切换与大背景卡片', async () => {

@@ -8,11 +8,17 @@
 <script setup lang="ts">
 /** 目标背景层：六目标通用；是否显示由生效配置或指定范围的运行时态决定。 */
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { useBackground, type BackgroundTarget } from '@worldsea/style-kit'
+import { useBackground, type BackgroundTarget, type BackgroundTheme } from '@worldsea/style-kit'
 
 type PreviewScope = 'effective' | 'global' | 'project'
 
-const props = withDefaults(defineProps<{ target: BackgroundTarget; preview?: boolean; scope?: PreviewScope }>(), {
+const props = withDefaults(defineProps<{
+  target: BackgroundTarget
+  preview?: boolean
+  scope?: PreviewScope
+  /** 仅设置卡预览用：覆盖亮暗选择，不写全局主题 */
+  previewTheme?: BackgroundTheme
+}>(), {
   preview: false,
   scope: 'effective',
 })
@@ -22,17 +28,19 @@ const { effective, srcs, missing, globalConfig, projectConfig, globalSrcs, proje
 const dark = ref(false)
 let themeObserver: MutationObserver | null = null
 function syncTheme() {
-  dark.value = document.documentElement.dataset.theme === 'dark'
+  dark.value = props.previewTheme
+    ? props.previewTheme === 'dark'
+    : document.documentElement.dataset.theme === 'dark'
 }
 function teardownThemeObserver() {
   themeObserver?.disconnect()
   themeObserver = null
 }
-// 生效范围的亮暗由根变量样式表处理，只有指定范围才需要观察主题
-watch(() => props.scope, (scope) => {
+// 生效范围的亮暗由根变量样式表处理；指定范围或预览主题由层自己选图
+watch([() => props.scope, () => props.previewTheme], ([scope, previewTheme]) => {
   teardownThemeObserver()
-  if (scope === 'effective') return
   syncTheme()
+  if (scope === 'effective' || previewTheme) return
   themeObserver = new MutationObserver(syncTheme)
   themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
 }, { immediate: true })

@@ -21,8 +21,11 @@
       :map="map"
       :selected="target"
       :disabled="picking !== null"
+      :toolbar-mode="currentToolbarMode"
+      :preview-theme="previewTheme"
       @select="onSelectTarget"
       @switch-map="onSwitchMap"
+      @switch-theme="previewTheme = $event"
     />
 
     <!-- 项目范围：跟随全局 / 本项目自定义 -->
@@ -38,9 +41,18 @@
     </template>
 
     <!-- 上下文编辑区：作用于当前选中目标 -->
-    <div class="bg-editor">
+    <div ref="editorRef" class="bg-editor">
       <div class="bg-editor__head">{{ TARGET_LABELS[target] }}</div>
-      <p v-if="target === 'content-toolbar'" class="set-hint">工具条背景仅在使用随流工具条（bar）的视图生效；悬浮胶囊与隐藏工具条不套背景。</p>
+      <template v-if="target === 'content-toolbar'">
+        <p class="set-hint">工具条背景仅在使用随流工具条（bar）的视图生效；悬浮胶囊与隐藏工具条不套背景。</p>
+        <p class="set-hint bg-editor__mode" :class="{ 'bg-error': currentToolbarMode !== 'bar' }">{{ toolbarModeText }}</p>
+      </template>
+
+      <!-- 大背景是独立面，选中后在编辑区给完整 16:9 预览 -->
+      <div v-if="target === 'canvas'" class="bg-editor__preview">
+        <BackgroundLayer target="canvas" :scope="previewScope" :preview-theme="previewTheme" preview />
+        <span v-if="!canvasPreviewHasSource" class="bg-editor__preview-empty">{{ readOnly ? '跟随全局，暂无图片' : '未选择图片' }}</span>
+      </div>
 
       <!-- 亮/暗图片槽 -->
       <div v-for="theme in BACKGROUND_THEMES" :key="theme" class="bg-slot" :class="`bg-slot--${theme}`">
@@ -124,7 +136,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   BACKGROUND_TARGETS, BACKGROUND_THEMES, BACKGROUND_TARGET_CAPS, normalizeProjectConfig, useBackground,
   type BackgroundFit, type BackgroundProjectConfig, type BackgroundTarget, type BackgroundTheme, type FocusStep,
@@ -135,7 +147,9 @@ import {
   writeProjectBackground,
 } from '@worldsea/entity-core/core'
 import { useFileSystemProject } from '@worldsea/entity-core/composables'
-import BackgroundTargetMap from './BackgroundTargetMap.vue'
+import { usePluginStore, useUIStore } from '@worldsea/entity-core'
+import BackgroundLayer from '../../layout/BackgroundLayer.vue'
+import BackgroundTargetMap, { type ToolbarMode } from './BackgroundTargetMap.vue'
 import { BACKGROUND_TARGET_LABELS, BACKGROUND_WORKSPACE_TARGETS } from './backgroundTargets'
 
 const TARGET_LABELS = BACKGROUND_TARGET_LABELS
@@ -163,6 +177,28 @@ const map = ref<'workspace' | 'home'>('workspace')
 const lastWorkspaceTarget = ref<BackgroundTarget>('titlebar')
 const picking = ref<BackgroundTheme | null>(null)
 const error = ref('')
+const editorRef = ref<HTMLElement | null>(null)
+const uiStore = useUIStore()
+const pluginStore = usePluginStore()
+const previewTheme = ref<BackgroundTheme>(currentTheme())
+
+function currentTheme(): BackgroundTheme {
+  return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'
+}
+
+/** 当前工作台视图的工具条形态；无视图/首页时 unavailable */
+const currentToolbarMode = computed<ToolbarMode>(() => {
+  if (uiStore.surface !== 'workspace' || !uiStore.currentView) return 'unavailable'
+  return pluginStore.getView(uiStore.currentView)?.toolbar ?? 'bar'
+})
+const toolbarModeText = computed(() => {
+  switch (currentToolbarMode.value) {
+    case 'bar': return '当前视图：随流工具条，背景生效。'
+    case 'overlay': return '当前视图：悬浮工具条，背景不生效。'
+    case 'none': return '当前视图：隐藏工具条，背景不生效。'
+    default: return '当前无工作台视图，打开视图后按形态生效。'
+  }
+})
 
 const { boundDir } = useFileSystemProject()
 // 读写基准是实体存储根 <workspace>/worlddata；boundDir 只是项目切换触发器
@@ -180,6 +216,22 @@ const caps = computed(() => BACKGROUND_TARGET_CAPS[target.value])
 const hasAnyPath = computed(() => !!(selected.value.paths.light || selected.value.paths.dark))
 const previewScope = computed<'global' | 'project'>(() =>
   scope.value === 'project' && isProjectCustom.value ? 'project' : 'global')
+const canvasPreviewHasSource = computed(() => {
+  const srcs = previewScope.value === 'project' ? projectSrcs.value.canvas : globalSrcs.value.canvas
+  const miss = previewScope.value === 'project' ? projectMissing.value.canvas : globalMissing.value.canvas
+  return !!(srcs.light || srcs.dark) && !(miss.light && miss.dark)
+})
+
+/** 选中后把编辑区带到可见位置；已在视口内时 nearest 不移动 */
+function scrollEditorIntoView() {
+  void nextTick(() => {
+    const el = editorRef.value
+    if (!el) return
+    const reduced = document.documentElement.dataset.reduceMotion === 'on'
+      || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    el.scrollIntoView?.({ block: 'nearest', behavior: reduced ? 'auto' : 'smooth' })
+  })
+}
 
 /** 地图切换：首页地图只映射 home；工作台恢复上次结构目标，默认窗口栏 */
 function isWorkspaceTarget(t: BackgroundTarget): boolean {
@@ -195,12 +247,14 @@ function onSelectTarget(t: BackgroundTarget) {
   } else if (t === 'home') {
     map.value = 'home'
   }
+  scrollEditorIntoView()
 }
 function onSwitchMap(next: 'workspace' | 'home') {
   if (picking.value || next === map.value) return
   error.value = ''
   map.value = next
   target.value = next === 'home' ? 'home' : lastWorkspaceTarget.value
+  scrollEditorIntoView()
 }
 watch(scope, () => { error.value = '' })
 
@@ -513,6 +567,28 @@ onBeforeUnmount(() => {
   font-size: var(--fs-sm);
   font-weight: 500;
   color: var(--text-color);
+}
+.bg-editor__mode { margin-top: 2px; }
+.bg-editor__preview {
+  position: relative;
+  overflow: hidden;
+  z-index: 0;
+  aspect-ratio: 16 / 9;
+  margin-bottom: 8px;
+  border: 1px solid var(--sf-panel-edge);
+  border-radius: calc(var(--radius-md) * var(--sf-radius-scale));
+  background: var(--bg-app);
+}
+.bg-editor__preview :deep(.ws-bg-layer) { z-index: 0; }
+.bg-editor__preview-empty {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
 }
 
 .bg-slot {

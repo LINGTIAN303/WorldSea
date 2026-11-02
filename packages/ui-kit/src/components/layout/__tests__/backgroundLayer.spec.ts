@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { nextTick } from 'vue'
 import BackgroundLayer from '../BackgroundLayer.vue'
 import { BACKGROUND_TARGETS, BACKGROUND_THEMES, useBackground } from '@worldsea/style-kit'
 
@@ -90,5 +91,18 @@ describe('BackgroundLayer', () => {
       .find('.ws-bg-layer').exists()).toBe(true)
     expect(mount(BackgroundLayer, { props: { target: 'canvas', scope: 'project', preview: true } })
       .find('.ws-bg-layer').exists()).toBe(false)
+  })
+
+  it('previewTheme 覆盖预览亮暗，不依赖 document 主题', async () => {
+    api.setTargetImage('canvas', 'light', { path: '/l.webp', src: 'asset://light.webp' }, 'global')
+    api.setTargetImage('canvas', 'dark', { path: '/d.webp', src: 'asset://dark.webp' }, 'global')
+    const w = mount(BackgroundLayer, {
+      props: { target: 'canvas', scope: 'global', preview: true, previewTheme: 'dark' },
+    })
+    const style = () => (w.find('.ws-bg-layer').element as HTMLElement).style.getPropertyValue('--layer-image')
+    expect(style()).toContain('asset://dark.webp')
+    await w.setProps({ previewTheme: 'light' })
+    await nextTick()
+    expect(style()).toContain('asset://light.webp')
   })
 })

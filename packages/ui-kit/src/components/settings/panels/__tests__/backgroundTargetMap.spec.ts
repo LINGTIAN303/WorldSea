@@ -7,7 +7,14 @@ import BackgroundTargetMap from '../BackgroundTargetMap.vue'
 
 enableAutoUnmount(afterEach)
 
-const props = { scope: 'global' as const, map: 'workspace' as const, selected: 'titlebar' as const, disabled: false }
+const props = {
+  scope: 'global' as const,
+  map: 'workspace' as const,
+  selected: 'titlebar' as const,
+  disabled: false,
+  toolbarMode: 'bar' as const,
+  previewTheme: 'light' as const,
+}
 
 const api = useBackground()
 
@@ -45,6 +52,31 @@ describe('BackgroundTargetMap', () => {
     expect(w.emitted('select')?.[0]).toEqual(['sidebar'])
     await w.findAll('.bg-map__switch button')[1].trigger('click')
     expect(w.emitted('switch-map')?.[0]).toEqual(['home'])
+  })
+
+  it('亮暗预览切换发事件', async () => {
+    const w = mount(BackgroundTargetMap, { props })
+    await w.findAll('.bg-map__theme button')[1].trigger('click')
+    expect(w.emitted('switch-theme')?.[0]).toEqual(['dark'])
+    await w.findAll('.bg-map__theme button')[0].trigger('click')
+    expect(w.emitted('switch-theme')?.[1]).toEqual(['light'])
+  })
+
+  it('工具条形态徽标：bar 不显示，其余显示对应文案', () => {
+    expect(mount(BackgroundTargetMap, { props }).find('.bg-map__mode').exists()).toBe(false)
+    for (const [mode, text] of [['overlay', '悬浮'], ['none', '隐藏'], ['unavailable', '无视图']] as const) {
+      const w = mount(BackgroundTargetMap, { props: { ...props, toolbarMode: mode } })
+      expect(w.find('.bg-map__mode').text()).toBe(text)
+      w.unmount()
+    }
+  })
+
+  it('地图预览层使用传入的预览主题', () => {
+    api.setTargetImage('titlebar', 'light', { path: '/l.webp', src: 'asset://light.webp' }, 'global')
+    api.setTargetImage('titlebar', 'dark', { path: '/d.webp', src: 'asset://dark.webp' }, 'global')
+    const w = mount(BackgroundTargetMap, { props: { ...props, previewTheme: 'dark' } })
+    const style = w.find('.bg-map__region--titlebar .ws-bg-layer').attributes('style') ?? ''
+    expect(style).toContain('asset://dark.webp')
   })
 
   it('首页地图整页点选 home，封面不抢点击', async () => {

@@ -2,9 +2,15 @@
   <div class="bg-map">
     <div class="bg-map__head">
       <span class="bg-map__title">界面映射</span>
-      <div class="bg-map__switch" role="group" aria-label="界面映射切换">
-        <button :class="{ on: map === 'workspace' }" :aria-pressed="map === 'workspace'" :disabled="disabled" @click="emit('switch-map', 'workspace')">工作台</button>
-        <button :class="{ on: map === 'home' }" :aria-pressed="map === 'home'" :disabled="disabled" @click="emit('switch-map', 'home')">首页</button>
+      <div class="bg-map__controls">
+        <div class="bg-map__theme" role="group" aria-label="预览主题">
+          <button :class="{ on: previewTheme === 'light' }" :aria-pressed="previewTheme === 'light'" :disabled="disabled" aria-label="亮色预览" @click="emit('switch-theme', 'light')">亮</button>
+          <button :class="{ on: previewTheme === 'dark' }" :aria-pressed="previewTheme === 'dark'" :disabled="disabled" aria-label="暗色预览" @click="emit('switch-theme', 'dark')">暗</button>
+        </div>
+        <div class="bg-map__switch" role="group" aria-label="界面映射切换">
+          <button :class="{ on: map === 'workspace' }" :aria-pressed="map === 'workspace'" :disabled="disabled" @click="emit('switch-map', 'workspace')">工作台</button>
+          <button :class="{ on: map === 'home' }" :aria-pressed="map === 'home'" :disabled="disabled" @click="emit('switch-map', 'home')">首页</button>
+        </div>
       </div>
     </div>
 
@@ -16,10 +22,12 @@
             v-for="region in WORKSPACE_REGIONS" :key="region.target"
             class="bg-map__region" :class="[`bg-map__region--${region.target}`, { 'is-selected': selected === region.target }]"
             :disabled="disabled" :aria-pressed="selected === region.target"
+            :title="regionTitle(region.target)"
             @click="emit('select', region.target)"
           >
-            <BackgroundLayer :target="region.target" :scope="previewScope(region.target)" preview />
+            <BackgroundLayer :target="region.target" :scope="previewScope(region.target)" :preview-theme="previewTheme" preview />
             <span class="bg-map__name">{{ region.label }}</span>
+            <span v-if="region.target === 'content-toolbar' && toolbarMode !== 'bar'" class="bg-map__mode" :data-mode="toolbarMode">{{ toolbarModeBadge }}</span>
             <span class="bg-map__state" :data-state="stateOf(region.target).key">{{ stateOf(region.target).text }}</span>
           </button>
         </div>
@@ -28,7 +36,7 @@
             class="bg-map__home" :class="{ 'is-selected': selected === 'home' }" :disabled="disabled"
             :aria-pressed="selected === 'home'" aria-label="首页" @click="emit('select', 'home')"
           >
-            <BackgroundLayer target="home" :scope="previewScope('home')" preview />
+            <BackgroundLayer target="home" :scope="previewScope('home')" :preview-theme="previewTheme" preview />
             <span class="bg-map__home-cover">项目封面<small>在编辑简介更换</small></span>
             <span class="bg-map__home-hero">项目标题 / 简介 / 操作</span>
             <span class="bg-map__home-row" aria-hidden="true"><i v-for="n in 4" :key="n"></i></span>
@@ -46,7 +54,7 @@
       class="bg-canvas-card" :class="{ 'is-selected': selected === 'canvas' }" :disabled="disabled"
       :aria-pressed="selected === 'canvas'" @click="emit('select', 'canvas')"
     >
-      <BackgroundLayer target="canvas" :scope="previewScope('canvas')" preview />
+      <BackgroundLayer target="canvas" :scope="previewScope('canvas')" :preview-theme="previewTheme" preview />
       <span class="bg-canvas-card__label">大背景</span>
       <span class="bg-canvas-card__state" :data-state="stateOf('canvas').key">{{ stateOf('canvas').text }}</span>
     </button>
@@ -54,17 +62,26 @@
 </template>
 
 <script setup lang="ts">
-import { useBackground, type BackgroundTarget } from '@worldsea/style-kit'
+import { computed } from 'vue'
+import { useBackground, type BackgroundTarget, type BackgroundTheme } from '@worldsea/style-kit'
 import BackgroundLayer from '../../layout/BackgroundLayer.vue'
 import { BACKGROUND_TARGET_LABELS, BACKGROUND_WORKSPACE_TARGETS } from './backgroundTargets'
+
+export type ToolbarMode = 'bar' | 'overlay' | 'none' | 'unavailable'
 
 const props = defineProps<{
   scope: 'global' | 'project'
   map: 'workspace' | 'home'
   selected: BackgroundTarget
   disabled: boolean
+  toolbarMode: ToolbarMode
+  previewTheme: BackgroundTheme
 }>()
-const emit = defineEmits<{ select: [BackgroundTarget]; 'switch-map': ['workspace' | 'home'] }>()
+const emit = defineEmits<{
+  select: [BackgroundTarget]
+  'switch-map': ['workspace' | 'home']
+  'switch-theme': [BackgroundTheme]
+}>()
 
 const {
   globalConfig, projectConfig, globalSrcs, projectSrcs, globalMissing, projectMissing,
@@ -85,6 +102,20 @@ function previewScope(target: BackgroundTarget): 'global' | 'project' {
 
 type TargetStateKey = 'follow' | 'missing' | 'unset' | 'on' | 'off'
 
+const toolbarModeBadge = computed(() => (
+  props.toolbarMode === 'overlay' ? '悬浮'
+    : props.toolbarMode === 'none' ? '隐藏'
+      : props.toolbarMode === 'unavailable' ? '无视图'
+        : ''
+))
+
+function regionTitle(target: BackgroundTarget): string {
+  const base = `${BACKGROUND_TARGET_LABELS[target]}：${stateOf(target).text}`
+  return target === 'content-toolbar' && toolbarModeBadge.value
+    ? `${base}；${toolbarModeBadge.value}工具条`
+    : base
+}
+
 /** 区域状态口径：项目跟随 > 两主题缺图 > 无图 > 启用开关 */
 function stateOf(target: BackgroundTarget): { key: TargetStateKey; text: string } {
   const custom = projectTarget(target)
@@ -99,18 +130,21 @@ function stateOf(target: BackgroundTarget): { key: TargetStateKey; text: string 
 </script>
 
 <style scoped>
-.bg-map { display: flex; flex-direction: column; gap: 8px; }
+.bg-map { display: flex; flex-direction: column; gap: 8px; container-type: inline-size; }
 
-.bg-map__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.bg-map__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .bg-map__title { font-size: var(--fs-sm); color: var(--text-secondary); }
+.bg-map__controls { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 
-.bg-map__switch {
+.bg-map__switch,
+.bg-map__theme {
   display: flex;
   border: 1px solid var(--sf-control-edge);
   border-radius: calc(var(--radius-sm) * var(--sf-radius-scale));
   overflow: hidden;
 }
-.bg-map__switch button {
+.bg-map__switch button,
+.bg-map__theme button {
   padding: 4px 10px;
   border: none;
   background: transparent;
@@ -119,14 +153,20 @@ function stateOf(target: BackgroundTarget): { key: TargetStateKey; text: string 
   font-size: var(--fs-xs);
   cursor: pointer;
 }
-.bg-map__switch button + button { border-left: 1px solid var(--sf-control-edge); }
-.bg-map__switch button.on { background: var(--accent-soft); color: var(--accent); }
-.bg-map__switch button:disabled { opacity: 0.5; cursor: not-allowed; }
+.bg-map__theme button { padding: 4px 7px; }
+.bg-map__switch button + button,
+.bg-map__theme button + button { border-left: 1px solid var(--sf-control-edge); }
+.bg-map__switch button.on,
+.bg-map__theme button.on { background: var(--accent-soft); color: var(--accent); }
+.bg-map__switch button:disabled,
+.bg-map__theme button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* 舞台固定比例；两个视图绝对定位填满，切换过渡不影响布局高度 */
 .bg-map__stage {
   position: relative;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 2 / 1;
+  min-height: 190px;
+  max-height: 220px;
   overflow: hidden;
   border: 1px solid var(--sf-panel-edge);
   border-radius: calc(var(--radius-md) * var(--sf-radius-scale));
@@ -139,11 +179,7 @@ function stateOf(target: BackgroundTarget): { key: TargetStateKey; text: string 
   position: absolute;
   overflow: hidden;
   z-index: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  padding: 6px;
+  padding: 0;
   border: 1px solid var(--sf-control-edge);
   border-radius: calc(var(--radius-sm) * var(--sf-radius-scale));
   background: var(--sf-panel-bg-muted);
@@ -160,17 +196,28 @@ function stateOf(target: BackgroundTarget): { key: TargetStateKey; text: string 
 .bg-map__region--titlebar {
   inset: 0 0 auto 0;
   height: 12%;
-  flex-direction: row;
+  display: flex;
   align-items: center;
   gap: 6px;
   padding: 0 8px;
 }
 .bg-map__region--sidebar { left: 0; top: 13%; bottom: 0; width: 22%; }
-.bg-map__region--content-toolbar { left: 23%; right: 0; top: 13%; height: 15%; }
-.bg-map__region--content-view { left: 23%; right: 0; top: calc(13% + 15% + 3px); bottom: 0; }
+.bg-map__region--content-toolbar {
+  left: 23%;
+  right: 0;
+  top: 13%;
+  height: 16%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+}
+.bg-map__region--content-view { left: 23%; right: 0; top: calc(13% + 16% + 3px); bottom: 0; }
 
 .bg-map__name {
-  position: relative;
+  position: absolute;
+  top: 4px;
+  left: 6px;
   z-index: 1;
   padding: 1px 4px;
   border-radius: calc(var(--radius-sm) * var(--sf-radius-scale));
@@ -179,7 +226,9 @@ function stateOf(target: BackgroundTarget): { key: TargetStateKey; text: string 
   color: var(--text-color);
 }
 .bg-map__state {
-  position: relative;
+  position: absolute;
+  right: 6px;
+  bottom: 4px;
   z-index: 1;
   display: inline-flex;
   align-items: center;
@@ -188,6 +237,29 @@ function stateOf(target: BackgroundTarget): { key: TargetStateKey; text: string 
   border-radius: calc(var(--radius-sm) * var(--sf-radius-scale));
   background: color-mix(in srgb, var(--bg-app) 82%, transparent);
   font-size: var(--fs-xs);
+  color: var(--text-secondary);
+}
+.bg-map__region--titlebar .bg-map__name,
+.bg-map__region--content-toolbar .bg-map__name { position: relative; top: auto; left: auto; }
+.bg-map__region--titlebar .bg-map__state,
+.bg-map__region--content-toolbar .bg-map__state {
+  position: relative;
+  right: auto;
+  bottom: auto;
+  margin-left: auto;
+}
+.bg-map__mode {
+  position: relative;
+  z-index: 1;
+  padding: 1px 4px;
+  border-radius: calc(var(--radius-sm) * var(--sf-radius-scale));
+  background: color-mix(in srgb, var(--danger) 16%, var(--bg-app));
+  font-size: var(--fs-xs);
+  color: var(--danger);
+  white-space: nowrap;
+}
+.bg-map__mode[data-mode='unavailable'] {
+  background: color-mix(in srgb, var(--bg-app) 82%, transparent);
   color: var(--text-secondary);
 }
 .bg-map__state::before,
@@ -288,12 +360,12 @@ function stateOf(target: BackgroundTarget): { key: TargetStateKey; text: string 
 .bg-map__home-block small { font-size: var(--fs-xs); color: var(--text-muted); }
 .bg-map__home-block--assets { left: 6%; right: 52%; }
 .bg-map__home-block--writing { left: 52%; right: 6%; }
-.bg-map__home .bg-map__name { position: absolute; left: 6px; bottom: 6px; }
-.bg-map__home .bg-map__state { position: absolute; right: 6px; bottom: 6px; }
+.bg-map__home .bg-map__name { top: auto; left: 6px; bottom: 6px; }
+.bg-map__home .bg-map__state { right: 6px; bottom: 6px; }
 
 .is-selected { outline: 2px solid var(--accent); outline-offset: -2px; }
 
-/* 大背景卡片：缩略条 → 选中 16:9 预览；层位于卡片底色上、文字下 */
+/* 大背景卡片固定缩略条；选中后 16:9 预览在编辑区，避免卡片展开把编辑区顶出首屏 */
 .bg-canvas-card {
   position: relative;
   display: flex;
@@ -316,7 +388,7 @@ function stateOf(target: BackgroundTarget): { key: TargetStateKey; text: string 
   transition: border-color 160ms var(--ease-out), background-color 160ms var(--ease-out);
 }
 .bg-canvas-card :deep(.ws-bg-layer) { z-index: -1; }
-.bg-canvas-card.is-selected { aspect-ratio: 16 / 9; min-height: 0; align-items: flex-end; padding: 10px; }
+.bg-canvas-card.is-selected { border-color: var(--accent); }
 .bg-canvas-card:disabled { cursor: not-allowed; }
 .bg-canvas-card__label { position: relative; z-index: 1; padding: 1px 4px; border-radius: calc(var(--radius-sm) * var(--sf-radius-scale)); background: color-mix(in srgb, var(--bg-app) 82%, transparent); font-size: var(--fs-sm); color: var(--text-color); }
 .bg-canvas-card__state {
@@ -330,6 +402,14 @@ function stateOf(target: BackgroundTarget): { key: TargetStateKey; text: string 
   background: color-mix(in srgb, var(--bg-app) 82%, transparent);
   font-size: var(--fs-xs);
   color: var(--text-secondary);
+}
+
+/* 窄卡：状态收成颜色点（title 保留完整文案），标签与工具条形态徽标保留 */
+@container (max-width: 360px) {
+  .bg-map__state { padding: 0; background: transparent; font-size: 0; }
+  .bg-map__state::before { width: 7px; height: 7px; }
+  .bg-map__name { padding: 1px 2px; font-size: 10px; }
+  .bg-map__mode { padding: 1px 3px; font-size: 10px; }
 }
 
 /* 地图切换：淡入 + 轻微位移；减弱动效时直切 */
