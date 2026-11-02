@@ -1,5 +1,6 @@
 <template>
   <div class="shell">
+    <WorkspaceBackground />
     <TitleBar />
     <WelcomeOverlay />
     <div class="shell-content">
@@ -52,7 +53,7 @@ import { ref, computed, defineAsyncComponent, onMounted, onUnmounted } from 'vue
 import TitleBar from './TitleBar.vue'
 import ShellSurface from './ShellSurface.vue'
 import Sidebar from './sidebar/SidebarHost.vue'
-import { Toast, DialogContainer, ViewContainer, WsLoadingOverlay, WsAmbientLine, useBackgroundTask, toastWarn } from '@worldsea/ui-kit'
+import { Toast, DialogContainer, ViewContainer, WsLoadingOverlay, WsAmbientLine, WorkspaceBackground, useBackgroundTask, toastWarn } from '@worldsea/ui-kit'
 import WsConfirmDialog from '../WsConfirmDialog.vue'
 import WsAskDialog from '../WsAskDialog.vue'
 import FilePickerHost from '@/components/files/FilePickerHost.vue'
@@ -209,6 +210,7 @@ async function onRedoFromHistory(indices: number[]) {
 
 <style scoped>
 .shell {
+  position: relative;
   display: flex;
   flex-direction: column;
   width: 100%;

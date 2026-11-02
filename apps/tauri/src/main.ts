@@ -11,7 +11,10 @@ import './styles/web-tokens-bridge.css'
 import '@worldsea/style-kit/styles.css'
 import './styles/liquid-glass-surfaces.css'
 import '@worldsea/motion-kit/presets.css'
-import { applyPersistedStyle } from '@worldsea/style-kit'
+// 工作台背景层样式（图片层 + 暗化 + 启用时的画布透明化）
+import './styles/workspace-background.css'
+import { applyPersistedStyle, applyPersistedBackground, useBackground } from '@worldsea/style-kit'
+import { resolveWorkspaceBackgroundSrc } from '@worldsea/entity-core/core'
 
 import { startBackendBoot } from './boot/backendBoot'
 
@@ -30,8 +33,19 @@ app.use(VueCodemirror, { extensions: [wsBasicSetup] })
 
 // 风格必须在挂载前落地：data-style + 四维变量，避免首帧回退到默认令牌
 applyPersistedStyle()
+// 背景同理：挂载前写入 CSS 变量与 data-workspace-bg，避免首帧无背景
+applyPersistedBackground()
 
 app.mount('#app')
+
+// 挂载后校验背景文件是否仍在（异步，不阻塞首帧）：失效则标记缺失并关闭背景
+void (async () => {
+  const { background, setSrc, markMissing } = useBackground()
+  if (!background.value.path) return
+  const src = await resolveWorkspaceBackgroundSrc(background.value.path)
+  if (src) setSrc(src)
+  else markMissing()
+})()
 
 // mount 后启动后端装配；App 启动链 await 同一 Promise（幂等），失败由启动错误页承接
 startBackendBoot().catch((err) => {
