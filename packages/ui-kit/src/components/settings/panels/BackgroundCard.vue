@@ -15,17 +15,15 @@
     </div>
     <p v-if="!hasProject" class="set-hint">未打开项目，仅可设置全局背景。</p>
 
-    <!-- 目标 -->
-    <div class="bg-targets bg-seg-row" role="group" aria-label="背景目标">
-      <button
-        v-for="t in BACKGROUND_TARGETS"
-        :key="t"
-        class="bg-seg"
-        :class="{ on: target === t }"
-        :disabled="picking !== null"
-        @click="target = t"
-      >{{ TARGET_LABELS[t] }}</button>
-    </div>
+    <!-- 映射即预览：工作台四区 / 首页整图，下方大背景卡片 -->
+    <BackgroundTargetMap
+      :scope="scope"
+      :map="map"
+      :selected="target"
+      :disabled="picking !== null"
+      @select="onSelectTarget"
+      @switch-map="onSwitchMap"
+    />
 
     <!-- 项目范围：跟随全局 / 本项目自定义 -->
     <template v-if="scope === 'project'">
@@ -39,88 +37,88 @@
       <p v-else-if="!hasAnyPath" class="set-hint">本项目自定义已继承全局参数，请为本项目重新选择图片。</p>
     </template>
 
-    <!-- 预览 -->
-    <div class="bg-preview" :class="`bg-preview--${target}`">
-      <BackgroundLayer :target="target" :scope="previewScope" preview />
-      <span v-if="!previewHasSource" class="bg-preview__empty">{{ readOnly ? '跟随全局，暂无图片' : '未选择图片' }}</span>
-    </div>
+    <!-- 上下文编辑区：作用于当前选中目标 -->
+    <div class="bg-editor">
+      <div class="bg-editor__head">{{ TARGET_LABELS[target] }}</div>
+      <p v-if="target === 'content-toolbar'" class="set-hint">工具条背景仅在使用随流工具条（bar）的视图生效；悬浮胶囊与隐藏工具条不套背景。</p>
 
-    <!-- 亮/暗图片槽 -->
-    <div v-for="theme in BACKGROUND_THEMES" :key="theme" class="bg-slot" :class="`bg-slot--${theme}`">
-      <span class="bg-slot__label">{{ theme === 'light' ? '亮色图' : '暗色图' }}</span>
-      <div class="bg-slot__thumb" :style="thumbStyle(theme)">
-        <span v-if="!thumbSrc(theme)" class="bg-slot__placeholder">无</span>
+      <!-- 亮/暗图片槽 -->
+      <div v-for="theme in BACKGROUND_THEMES" :key="theme" class="bg-slot" :class="`bg-slot--${theme}`">
+        <span class="bg-slot__label">{{ theme === 'light' ? '亮色图' : '暗色图' }}</span>
+        <div class="bg-slot__thumb" :style="thumbStyle(theme)">
+          <span v-if="!thumbSrc(theme)" class="bg-slot__placeholder">无</span>
+        </div>
+        <div class="bg-slot__actions">
+          <button class="set-btn bg-slot__pick" :disabled="readOnly || picking !== null" @click="onPick(theme)">
+            {{ picking === theme ? '正在导入…' : selected.paths[theme] ? '替换图片' : '选择图片' }}
+          </button>
+          <button
+            v-if="selected.paths[theme]"
+            class="set-btn bg-slot__remove"
+            :disabled="readOnly || picking !== null"
+            @click="onRemove(theme)"
+          >移除</button>
+        </div>
+        <p v-if="missingFor(theme)" class="set-hint bg-error">背景文件不可用，请重新选择。</p>
       </div>
-      <div class="bg-slot__actions">
-        <button class="set-btn bg-slot__pick" :disabled="readOnly || picking !== null" @click="onPick(theme)">
-          {{ picking === theme ? '正在导入…' : selected.paths[theme] ? '替换图片' : '选择图片' }}
-        </button>
-        <button
-          v-if="selected.paths[theme]"
-          class="set-btn bg-slot__remove"
-          :disabled="readOnly || picking !== null"
-          @click="onRemove(theme)"
-        >移除</button>
-      </div>
-      <p v-if="missingFor(theme)" class="set-hint bg-error">背景文件不可用，请重新选择。</p>
-    </div>
-    <p v-if="error" class="set-hint bg-error">{{ error }}</p>
+      <p v-if="error" class="set-hint bg-error">{{ error }}</p>
 
-    <!-- 启用 -->
-    <div class="set-row">
-      <span>启用背景</span>
-      <label class="set-toggle">
-        <input
-          type="checkbox"
-          aria-label="启用背景"
-          :checked="selected.enabled"
-          :disabled="readOnly || !hasAnyPath"
-          @change="onToggle(($event.target as HTMLInputElement).checked)"
-        />
-        <span class="set-toggle-slider"></span>
-      </label>
-    </div>
+      <!-- 启用 -->
+      <div class="set-row">
+        <span>启用背景</span>
+        <label class="set-toggle">
+          <input
+            type="checkbox"
+            aria-label="启用背景"
+            :checked="selected.enabled"
+            :disabled="readOnly || !hasAnyPath"
+            @change="onToggle(($event.target as HTMLInputElement).checked)"
+          />
+          <span class="set-toggle-slider"></span>
+        </label>
+      </div>
 
-    <!-- 参数：分区目标固定 cover/居中，不展示填充与焦点 -->
-    <div v-if="caps.fit" class="set-row">
-      <span>填充</span>
-      <select class="set-select bg-fit" aria-label="填充方式" :value="selected.fit" :disabled="readOnly || !hasAnyPath" @change="onFit">
-        <option value="cover">铺满</option>
-        <option value="contain">完整</option>
-        <option value="tile">平铺</option>
-      </select>
-    </div>
-    <div v-if="caps.focus" class="set-row">
-      <span>焦点</span>
-      <div class="bg-focus" role="group" aria-label="背景焦点">
-        <button
-          v-for="cell in FOCUS_CELLS"
-          :key="cell.key"
-          class="bg-focus__cell"
-          :class="{ on: selected.focusX === cell.x && selected.focusY === cell.y }"
-          :disabled="readOnly || !hasAnyPath || selected.fit === 'tile'"
-          :aria-label="cell.label"
-          @click="onFocus(cell.x, cell.y)"
-        ></button>
+      <!-- 参数：分区目标固定 cover/居中，不展示填充与焦点 -->
+      <div v-if="caps.fit" class="set-row">
+        <span>填充</span>
+        <select class="set-select bg-fit" aria-label="填充方式" :value="selected.fit" :disabled="readOnly || !hasAnyPath" @change="onFit">
+          <option value="cover">铺满</option>
+          <option value="contain">完整</option>
+          <option value="tile">平铺</option>
+        </select>
       </div>
-    </div>
-    <div class="set-row">
-      <span>暗化</span>
-      <div class="set-range-wrap">
-        <input type="range" aria-label="暗化" min="0" max="80" step="1" class="set-range bg-dim" :value="selected.dim" :disabled="readOnly || !hasAnyPath" @input="onDim" @change="persistNow" />
-        <span class="set-range-val">{{ selected.dim }}%</span>
+      <div v-if="caps.focus" class="set-row">
+        <span>焦点</span>
+        <div class="bg-focus" role="group" aria-label="背景焦点">
+          <button
+            v-for="cell in FOCUS_CELLS"
+            :key="cell.key"
+            class="bg-focus__cell"
+            :class="{ on: selected.focusX === cell.x && selected.focusY === cell.y }"
+            :disabled="readOnly || !hasAnyPath || selected.fit === 'tile'"
+            :aria-label="cell.label"
+            @click="onFocus(cell.x, cell.y)"
+          ></button>
+        </div>
       </div>
-    </div>
-    <div class="set-row">
-      <span>模糊</span>
-      <div class="set-range-wrap">
-        <input type="range" aria-label="模糊" min="0" max="30" step="1" class="set-range bg-blur" :value="selected.blur" :disabled="readOnly || !hasAnyPath" @input="onBlur" @change="persistNow" />
-        <span class="set-range-val">{{ selected.blur }}px</span>
+      <div class="set-row">
+        <span>暗化</span>
+        <div class="set-range-wrap">
+          <input type="range" aria-label="暗化" min="0" max="80" step="1" class="set-range bg-dim" :value="selected.dim" :disabled="readOnly || !hasAnyPath" @input="onDim" @change="persistNow" />
+          <span class="set-range-val">{{ selected.dim }}%</span>
+        </div>
+      </div>
+      <div class="set-row">
+        <span>模糊</span>
+        <div class="set-range-wrap">
+          <input type="range" aria-label="模糊" min="0" max="30" step="1" class="set-range bg-blur" :value="selected.blur" :disabled="readOnly || !hasAnyPath" @input="onBlur" @change="persistNow" />
+          <span class="set-range-val">{{ selected.blur }}px</span>
+        </div>
       </div>
     </div>
 
     <p class="set-hint">
-      画布背景在所有区域之下；分区背景只作用于对应区域。首页底图与项目封面相互独立。暗化过低会降低文字可读性。五个目标按需启用，避免同时解码过多图片。
+      大背景在所有区域之下；分区背景只作用于对应区域。首页底图与项目封面相互独立。暗化过低会降低文字可读性。六个目标按需启用，避免同时解码过多图片。
     </p>
   </div>
 </template>
@@ -137,16 +135,10 @@ import {
   writeProjectBackground,
 } from '@worldsea/entity-core/core'
 import { useFileSystemProject } from '@worldsea/entity-core/composables'
-import BackgroundLayer from '../../layout/BackgroundLayer.vue'
+import BackgroundTargetMap from './BackgroundTargetMap.vue'
+import { BACKGROUND_TARGET_LABELS } from './backgroundTargets'
 
-const TARGET_LABELS: Record<BackgroundTarget, string> = {
-  canvas: '大背景',
-  home: '首页',
-  titlebar: '窗口栏',
-  sidebar: '侧栏',
-  'content-toolbar': '工具条',
-  'content-view': '视图',
-}
+const TARGET_LABELS = BACKGROUND_TARGET_LABELS
 const FOCUS_CELLS: Array<{ key: string; x: FocusStep; y: FocusStep; label: string }> = [
   { key: 'tl', x: 0, y: 0, label: '左上' },
   { key: 'tc', x: 50, y: 0, label: '上中' },
@@ -166,7 +158,9 @@ const {
 } = useBackground()
 
 const scope = ref<'global' | 'project'>('global')
-const target = ref<BackgroundTarget>('canvas')
+const target = ref<BackgroundTarget>('titlebar')
+const map = ref<'workspace' | 'home'>('workspace')
+const lastWorkspaceTarget = ref<BackgroundTarget>('titlebar')
 const picking = ref<BackgroundTheme | null>(null)
 const error = ref('')
 
@@ -186,11 +180,26 @@ const caps = computed(() => BACKGROUND_TARGET_CAPS[target.value])
 const hasAnyPath = computed(() => !!(selected.value.paths.light || selected.value.paths.dark))
 const previewScope = computed<'global' | 'project'>(() =>
   scope.value === 'project' && isProjectCustom.value ? 'project' : 'global')
-const previewHasSource = computed(() => {
-  const src = previewScope.value === 'project' ? projectSrcs.value[target.value] : globalSrcs.value[target.value]
-  const miss = previewScope.value === 'project' ? projectMissing.value[target.value] : globalMissing.value[target.value]
-  return !!(src.light || src.dark) && !(miss.light && miss.dark)
-})
+
+/** 地图切换：首页地图只映射 home；工作台恢复上次结构目标，默认窗口栏 */
+function isWorkspaceTarget(t: BackgroundTarget): boolean {
+  return t === 'titlebar' || t === 'sidebar' || t === 'content-toolbar' || t === 'content-view'
+}
+function onSelectTarget(t: BackgroundTarget) {
+  if (picking.value) return
+  target.value = t
+  if (isWorkspaceTarget(t)) {
+    lastWorkspaceTarget.value = t
+    map.value = 'workspace'
+  } else if (t === 'home') {
+    map.value = 'home'
+  }
+}
+function onSwitchMap(next: 'workspace' | 'home') {
+  if (picking.value) return
+  map.value = next
+  target.value = next === 'home' ? 'home' : lastWorkspaceTarget.value
+}
 
 function thumbSrc(theme: BackgroundTheme): string {
   const srcs = previewScope.value === 'project' ? projectSrcs.value : globalSrcs.value
@@ -475,7 +484,6 @@ onBeforeUnmount(() => {
 .bg-seg.on { background: var(--accent-soft); color: var(--accent); }
 .bg-seg:disabled { opacity: 0.5; cursor: not-allowed; }
 .bg-scope { margin-bottom: 8px; }
-.bg-targets { margin-bottom: 8px; }
 
 .bg-project {
   display: flex;
@@ -486,27 +494,18 @@ onBeforeUnmount(() => {
 }
 .bg-project__state { font-size: var(--fs-sm); color: var(--text-secondary); }
 
-/* 预览按目标形状：大背景/首页 16:9，窗口栏横条，侧栏竖条，工具条/视图矩形 */
-.bg-preview {
-  position: relative;
-  overflow: hidden;
-  margin-top: 8px;
-  border-radius: calc(var(--radius-md) * var(--sf-radius-scale));
-  border: 1px solid var(--sf-panel-edge);
-  background: var(--bg-app);
+/* 上下文编辑区：与映射之间用细分隔线区分「选哪里」与「调什么」 */
+.bg-editor {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--sf-panel-edge);
 }
-.bg-preview--canvas,
-.bg-preview--home,
-.bg-preview--content-view { aspect-ratio: 16 / 9; }
-.bg-preview--titlebar { height: 44px; }
-.bg-preview--sidebar { width: 110px; height: 150px; }
-.bg-preview__empty {
-  position: absolute; inset: 0; z-index: 1;
-  display: flex; align-items: center; justify-content: center;
-  font-size: var(--fs-xs); color: var(--text-muted);
+.bg-editor__head {
+  margin-bottom: 6px;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--text-color);
 }
-/* 层默认负 z-index 会落到卡片底色之下：预览容器内抬到 0 层 */
-.bg-preview :deep(.ws-bg-layer) { z-index: 0; }
 
 .bg-slot {
   display: flex;

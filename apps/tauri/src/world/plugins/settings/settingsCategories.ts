@@ -19,7 +19,7 @@ export const SETTINGS_CATEGORIES = [
 ] as const
 
 export const SETTINGS_CATEGORY_KEYWORDS: Record<string, string> = {
-  appearance: '主题 外观 深色 浅色 宇宙 极光 锻造 水墨 棱镜 编辑器 高亮 脉冲 动画 淡化 扩散 透明度 theme highlight 字体 字体库 字体分层 导入 变体 背景 壁纸 背景图 wallpaper 填充 焦点 暗化 模糊 分区 窗口栏 侧栏 内容区 首页 亮色 暗色',
+  appearance: '主题 外观 深色 浅色 宇宙 极光 锻造 水墨 棱镜 编辑器 高亮 脉冲 动画 淡化 扩散 透明度 theme highlight 字体 字体库 字体分层 导入 变体 背景 壁纸 背景图 wallpaper 填充 焦点 暗化 模糊 分区 窗口栏 侧栏 内容区 工具条 视图 大背景 首页 亮色 暗色',
   icons: '图标 图标库 芽 实体 实体类型 语义域 详情 页签 tab 区域类型 全局 项目 跟随 icon icons sprout entity domain detail tab region global project',
   home: '首页 主页 项目首页 封面 简介 一句话 短文 tagline about cover profile',
   plugins: '插件 外部插件 内置插件 功能插件 常驻 非芽 芽 扩展 模块 启用 禁用 内置 本地 远程 外部 sprout 分组 全选 源码 重载 装载 plugin external puzzle utility',

@@ -25,4 +25,10 @@ describe('设置分类', () => {
       expect(SETTINGS_CATEGORY_KEYWORDS.appearance).toContain(word)
     }
   })
+
+  it('外观分类含六目标与映射关键词', () => {
+    for (const word of ['大背景', '工具条', '视图', '分区', '首页']) {
+      expect(SETTINGS_CATEGORY_KEYWORDS.appearance).toContain(word)
+    }
+  })
 })

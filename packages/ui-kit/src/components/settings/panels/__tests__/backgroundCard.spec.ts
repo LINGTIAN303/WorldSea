@@ -60,10 +60,20 @@ function defaultTargets() {
   }
 }
 
-function targetButton(w: ReturnType<typeof mount>, label: string) {
-  const btn = w.findAll('.bg-targets .bg-seg').find((b) => b.text() === label)
-  if (!btn) throw new Error(`未找到目标按钮：${label}`)
+function mapRegion(w: ReturnType<typeof mount>, label: string) {
+  const btn = w.findAll('.bg-map__region').find((b) => b.text().includes(label))
+  if (!btn) throw new Error(`未找到映射区域：${label}`)
   return btn
+}
+
+function switchMap(w: ReturnType<typeof mount>, label: string) {
+  const btn = w.findAll('.bg-map__switch button').find((b) => b.text() === label)
+  if (!btn) throw new Error(`未找到地图切换：${label}`)
+  return btn
+}
+
+function canvasCard(w: ReturnType<typeof mount>) {
+  return w.find('.bg-canvas-card')
 }
 
 function scopeButton(w: ReturnType<typeof mount>, label: string) {
@@ -112,6 +122,7 @@ describe('BackgroundCard', () => {
   it('本项目自定义继承全局参数但图片为空', async () => {
     api.updateTarget('canvas', { dim: 55, enabled: true, paths: { light: 'C:/global.webp', dark: '' } }, 'global')
     const w = await mountCard()
+    await canvasCard(w).trigger('click')
     await scopeButton(w, '本项目').trigger('click')
     expect(w.text()).toContain('当前跟随全局')
     await w.find('.bg-project__btn').trigger('click')
@@ -141,6 +152,7 @@ describe('BackgroundCard', () => {
         },
       },
     })
+    await canvasCard(w).trigger('click')
     await scopeButton(w, '本项目').trigger('click')
     expect(w.text()).toContain('本项目自定义中')
     await w.find('.bg-project__btn').trigger('click')
@@ -165,8 +177,7 @@ describe('BackgroundCard', () => {
     api.updateTarget('titlebar', { dim: 12 }, 'global')
     const before = JSON.stringify(api.globalConfig.value)
     const w = await mountCard()
-    await targetButton(w, '窗口栏').trigger('click')
-    await targetButton(w, '大背景').trigger('click')
+    await canvasCard(w).trigger('click')
     await scopeButton(w, '本项目').trigger('click')
     await scopeButton(w, '全局').trigger('click')
     expect(JSON.stringify(api.globalConfig.value)).toBe(before)
@@ -176,6 +187,7 @@ describe('BackgroundCard', () => {
   it('首次选图自动启用；已有路径时替换保留原 enabled', async () => {
     core.pickAndSaveBackground.mockResolvedValue({ ok: true, path: 'C:/bg/a.webp', src: 'asset://a.webp' })
     const w = await mountCard()
+    await canvasCard(w).trigger('click')
     await w.find('.bg-slot--light .bg-slot__pick').trigger('click')
     await flushPromises()
     expect(api.globalConfig.value.targets.canvas.paths.light).toBe('C:/bg/a.webp')
@@ -192,6 +204,7 @@ describe('BackgroundCard', () => {
 
   it('项目范围选图写入相对路径并保存项目配置', async () => {
     const w = await mountCard()
+    await canvasCard(w).trigger('click')
     await scopeButton(w, '本项目').trigger('click')
     await w.find('.bg-project__btn').trigger('click')
     await flushPromises()
@@ -225,6 +238,7 @@ describe('BackgroundCard', () => {
   it('项目范围跟随全局时控件只读；本项目自定义后可编辑', async () => {
     api.updateTarget('canvas', { enabled: true, paths: { light: 'C:/g.webp', dark: '' } }, 'global')
     const w = await mountCard()
+    await canvasCard(w).trigger('click')
     await scopeButton(w, '本项目').trigger('click')
     expect(w.text()).toContain('当前跟随全局')
     expect(w.find('input[aria-label="启用背景"]').attributes('disabled')).toBeDefined()
@@ -240,6 +254,7 @@ describe('BackgroundCard', () => {
     api.setTargetImage('canvas', 'dark', { path: 'C:/bg/b.webp', src: 'asset://b.webp' }, 'global')
     api.markMissing('canvas', 'light', 'global')
     const w = await mountCard()
+    await canvasCard(w).trigger('click')
     expect(w.findAll('.bg-slot--light .bg-error').length).toBe(1)
     expect(w.findAll('.bg-slot--dark .bg-error').length).toBe(0)
     expect(w.find('.bg-slot--dark .bg-slot__pick').attributes('disabled')).toBeUndefined()
@@ -249,14 +264,19 @@ describe('BackgroundCard', () => {
     expect(api.globalConfig.value.targets.canvas.paths.dark).toBe('C:/bg/c.webp')
   })
 
-  it('分区目标不显示填充/焦点控件；画布/首页显示', async () => {
+  it('分区目标不显示填充/焦点控件；大背景/首页显示', async () => {
     const w = await mountCard()
-    expect(w.find('.bg-fit').exists()).toBe(true)
-    expect(w.find('.bg-focus').exists()).toBe(true)
-    await targetButton(w, '侧栏').trigger('click')
+    // 默认选中窗口栏：结构目标不显示填充与焦点
+    expect(w.find('.bg-editor__head').text()).toBe('窗口栏')
     expect(w.find('.bg-fit').exists()).toBe(false)
     expect(w.find('.bg-focus').exists()).toBe(false)
-    await targetButton(w, '首页').trigger('click')
+    await canvasCard(w).trigger('click')
+    expect(w.find('.bg-fit').exists()).toBe(true)
+    expect(w.find('.bg-focus').exists()).toBe(true)
+    await mapRegion(w, '侧栏').trigger('click')
+    expect(w.find('.bg-fit').exists()).toBe(false)
+    expect(w.find('.bg-focus').exists()).toBe(false)
+    await switchMap(w, '首页').trigger('click')
     expect(w.find('.bg-fit').exists()).toBe(true)
     expect(w.find('.bg-focus').exists()).toBe(true)
   })
@@ -265,13 +285,82 @@ describe('BackgroundCard', () => {
     api.setTargetImage('canvas', 'light', { path: 'C:/bg/a.webp', src: 'asset://a.webp' }, 'global')
     api.setTargetImage('home', 'light', { path: 'C:/bg/home.webp', src: 'asset://home.webp' }, 'global')
     const w = await mountCard()
+    await canvasCard(w).trigger('click')
     await w.find('.bg-fit').setValue('contain')
-    await targetButton(w, '首页').trigger('click')
+    await switchMap(w, '首页').trigger('click')
     await w.find('.bg-fit').setValue('tile')
     expect(api.globalConfig.value.targets.canvas.fit).toBe('contain')
     expect(api.globalConfig.value.targets.home.fit).toBe('tile')
     const saved = JSON.parse(localStorage.getItem('worldsea_background_v2')!)
     expect(saved.targets.canvas.fit).toBe('contain')
+  })
+
+  it('地图切首页自动选中首页；切回工作台恢复上次结构目标', async () => {
+    const w = await mountCard()
+    expect(w.find('.bg-editor__head').text()).toBe('窗口栏')
+    await mapRegion(w, '侧栏').trigger('click')
+    expect(w.find('.bg-editor__head').text()).toBe('侧栏')
+    await switchMap(w, '首页').trigger('click')
+    expect(w.find('.bg-map__home.is-selected').exists()).toBe(true)
+    expect(w.find('.bg-editor__head').text()).toBe('首页')
+    await switchMap(w, '工作台').trigger('click')
+    expect(mapRegion(w, '侧栏').classes()).toContain('is-selected')
+    expect(w.find('.bg-editor__head').text()).toBe('侧栏')
+  })
+
+  it('大背景卡片选中 canvas，地图当前页保留但无选中区域', async () => {
+    const w = await mountCard()
+    await canvasCard(w).trigger('click')
+    expect(w.find('.bg-editor__head').text()).toBe('大背景')
+    expect(w.find('.bg-canvas-card.is-selected').exists()).toBe(true)
+    expect(w.findAll('.bg-map__region.is-selected').length).toBe(0)
+    // canvas 不改地图：仍停在首页切换后的原地图上
+    await switchMap(w, '首页').trigger('click')
+    await canvasCard(w).trigger('click')
+    expect(w.find('.bg-map__home.is-selected').exists()).toBe(false)
+    expect(w.find('.bg-canvas-card.is-selected').exists()).toBe(true)
+  })
+
+  it('选图期间锁定地图区域、地图切换与大背景卡片', async () => {
+    let resolvePick!: (value: unknown) => void
+    core.pickAndSaveBackground.mockReturnValue(new Promise((resolve) => { resolvePick = resolve }))
+    const w = await mountCard()
+    await w.find('.bg-slot--light .bg-slot__pick').trigger('click')
+    await flushPromises()
+    expect(mapRegion(w, '侧栏').attributes('disabled')).toBeDefined()
+    expect(switchMap(w, '首页').attributes('disabled')).toBeDefined()
+    expect(canvasCard(w).attributes('disabled')).toBeDefined()
+    resolvePick(null)
+    await flushPromises()
+    expect(mapRegion(w, '侧栏').attributes('disabled')).toBeUndefined()
+    expect(canvasCard(w).attributes('disabled')).toBeUndefined()
+  })
+
+  it('选中工具条时提示仅随流工具条生效', async () => {
+    const w = await mountCard()
+    expect(w.text()).not.toContain('悬浮胶囊')
+    await mapRegion(w, '工具条').trigger('click')
+    expect(w.find('.bg-editor__head').text()).toBe('工具条')
+    expect(w.text()).toContain('工具条背景仅在使用随流工具条（bar）的视图生效；悬浮胶囊与隐藏工具条不套背景。')
+  })
+
+  it('项目跟随/自定义作用于当前选中的工具条目标', async () => {
+    api.updateTarget('content-toolbar', { dim: 44, enabled: true }, 'global')
+    const w = await mountCard()
+    await mapRegion(w, '工具条').trigger('click')
+    await scopeButton(w, '本项目').trigger('click')
+    expect(w.text()).toContain('当前跟随全局')
+    await w.find('.bg-project__btn').trigger('click')
+    await flushPromises()
+    const cfg = api.projectConfig.value?.targets['content-toolbar']
+    expect(cfg?.dim).toBe(44)
+    expect(cfg?.paths).toEqual({ light: '', dark: '' })
+    expect(core.writeProjectBackground).toHaveBeenLastCalledWith('C:/proj/worlddata', expect.objectContaining({
+      targets: expect.objectContaining({ 'content-toolbar': expect.objectContaining({ dim: 44 }) }),
+    }))
+    await w.find('.bg-project__btn').trigger('click')
+    await flushPromises()
+    expect(api.projectConfig.value?.targets['content-toolbar']).toBeUndefined()
   })
 
   it('无项目时「本项目」禁用并提示；切项目后重新加载项目配置', async () => {
@@ -309,6 +398,7 @@ describe('BackgroundCard', () => {
     core.resolveProjectBackgroundAssets.mockReturnValue(new Promise((resolve) => { resolveAssets = resolve }))
     const w = await mountCard()
     // 资源解析未返回时用户点「本项目自定义」：旧加载必须作废
+    await canvasCard(w).trigger('click')
     await scopeButton(w, '本项目').trigger('click')
     await w.find('.bg-project__btn').trigger('click')
     await flushPromises()
@@ -328,6 +418,7 @@ describe('BackgroundCard', () => {
       { srcs: { canvas: { light: 'asset://p/a.webp', dark: null } }, missing: { canvas: { light: false, dark: false } } },
     )
     const w = await mountCard()
+    await canvasCard(w).trigger('click')
     await scopeButton(w, '本项目').trigger('click')
     core.writeProjectBackground.mockClear()
     // 启用开关：改完即落盘
@@ -354,6 +445,7 @@ describe('BackgroundCard', () => {
       { srcs: { canvas: { light: 'asset://p/a.webp', dark: null } }, missing: { canvas: { light: false, dark: false } } },
     )
     const w = await mountCard()
+    await canvasCard(w).trigger('click')
     await scopeButton(w, '本项目').trigger('click')
     core.writeProjectBackground.mockClear()
     core.cleanupProjectBackgroundOrphans.mockClear()
@@ -377,6 +469,7 @@ describe('BackgroundCard', () => {
       { srcs: { canvas: { light: 'asset://p/a.webp', dark: null } }, missing: { canvas: { light: false, dark: false } } },
     )
     const w = await mountCard()
+    await canvasCard(w).trigger('click')
     await scopeButton(w, '本项目').trigger('click')
     core.writeProjectBackground.mockClear()
     const dim = w.find('input[aria-label="暗化"]')
@@ -402,6 +495,7 @@ describe('BackgroundCard', () => {
       { srcs: { canvas: { light: 'asset://p/1.webp', dark: null } }, missing: { canvas: { light: false, dark: false } } },
     )
     const w = await mountCard()
+    await canvasCard(w).trigger('click')
     await scopeButton(w, '本项目').trigger('click')
     core.pickAndSaveBackground.mockResolvedValue({
       ok: true,
@@ -433,6 +527,7 @@ describe('BackgroundCard', () => {
       { srcs: { canvas: { light: null, dark: null } }, missing: { canvas: { light: true, dark: false } } },
     )
     const w = await mountCard()
+    await canvasCard(w).trigger('click')
     await scopeButton(w, '本项目').trigger('click')
     expect(w.findAll('.bg-slot--light .bg-error').length).toBe(1)
     expect(w.findAll('.bg-slot--dark .bg-error').length).toBe(0)
