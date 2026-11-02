@@ -1,8 +1,8 @@
 <template>
-  <CardDeck :count="5" :flat="!!searchQuery" @change="(i) => emit('card-change', i)" ref="deckRef">
+  <CardDeck :count="6" :flat="!!searchQuery" @change="(i) => emit('card-change', i)" ref="deckRef">
     <template #card="{ idx, cls }">
       <div class="set-card deck-card" :class="cls" :data-index="idx"
-        v-show="idx === 0 ? match('主题 theme 外观 底色 深色 浅色 跟随系统 强调色 颜色 编辑器 图谱 星图 眼睛 虹膜 iris 风格 材质 实体 形变 触感 拟态 玻璃 glass neu mist') : idx === 1 ? match('高亮 highlight 脉冲 动画 淡化 扩散 透明度') : true">
+        v-show="idx === 0 ? match('主题 theme 外观 底色 深色 浅色 跟随系统 强调色 颜色 编辑器 图谱 星图 眼睛 虹膜 iris 风格 材质 实体 形变 触感 拟态 玻璃 glass neu mist') : idx === 1 ? match('背景 图片 壁纸 背景图 wallpaper') : idx === 2 ? match('高亮 highlight 脉冲 动画 淡化 扩散 透明度') : true">
         <!-- 主题（2026-09-13 收束：主题 = 底色 × 强调色 两轴，不再陈列六个预设主题卡） -->
         <template v-if="idx === 0">
           <div class="sc-head">主题</div>
@@ -82,8 +82,12 @@
             <WsIcon name="theme-editor" size="xs" /> 主题编辑器
           </button>
         </template>
-        <!-- 高亮 -->
+        <!-- 背景 -->
         <template v-else-if="idx === 1">
+          <BackgroundCard />
+        </template>
+        <!-- 高亮 -->
+        <template v-else-if="idx === 2">
           <div class="sc-head">高亮</div>
           <div class="set-row"><span>脉冲动画</span><label class="set-toggle"><input type="checkbox" v-model="store.highlight_pulseEnabled" /><span class="set-toggle-slider"></span></label></div>
           <div class="set-row"><span>启用淡化</span><label class="set-toggle"><input type="checkbox" v-model="store.highlight_dimmingEnabled" /><span class="set-toggle-slider"></span></label></div>
@@ -94,7 +98,7 @@
           </template>
         </template>
         <!-- 字体库 -->
-        <template v-else-if="idx === 2">
+        <template v-else-if="idx === 3">
           <div class="sc-head">字体库</div>
           <div class="sf-library-header">
             <button class="sf-import-btn" :class="{ 'is-busy': importingFont }" :disabled="importingFont" @click="onFontImport">
@@ -136,7 +140,7 @@
           </div>
         </template>
         <!-- 字体分层 -->
-        <template v-else-if="idx === 3">
+        <template v-else-if="idx === 4">
           <div class="sc-head">字体分层</div>
           <div class="set-hint" style="margin-bottom:8px">每层字体可独立设置，未设置则跟随上层默认值</div>
           <div class="sf-scale-row">
@@ -197,6 +201,7 @@ import SystemFontPicker from '../../font/SystemFontPicker.vue'
 import WsInlineLoading from '../../feedback/loading/WsInlineLoading.vue'
 import ColorPickerDialog from '../../editor/ColorPickerDialog.vue'
 import EntityMultiSelect from './EntityMultiSelect.vue'
+import BackgroundCard from './BackgroundCard.vue'
 import { toastSuccess, toastWarn, CardDeck } from '@worldsea/ui-kit'
 import { useStyle, STYLE_LIST, type StyleId, type GlassVariant } from '@worldsea/style-kit'
 import { matchKeywords, FONT_LAYERS, weightLabel, sourceLabel, formatSize } from '../utils'
