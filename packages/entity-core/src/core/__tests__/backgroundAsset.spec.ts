@@ -23,11 +23,10 @@ import {
   backgroundFileName,
   backgroundRelativePath,
   cleanupBackgroundOrphans,
-  cleanupWorkspaceBackgroundOrphans,
+  cleanupGlobalBackgroundOrphans,
   fitLongEdge,
   pickAndSaveBackground,
-  pickAndSaveWorkspaceBackground,
-  resolveWorkspaceBackgroundSrc,
+  resolveBackgroundSrc,
 } from '../backgroundAsset'
 
 describe('backgroundAsset 纯函数', () => {
@@ -72,25 +71,20 @@ describe('backgroundAsset 纯函数', () => {
   })
 })
 
-describe('pickAndSaveWorkspaceBackground', () => {
+describe('pickAndSaveBackground', () => {
   beforeEach(() => {
     vi.mocked(pickLocalFiles).mockReset()
   })
 
-  it('取消返回 null', async () => {
+  it('全局范围取消返回 null', async () => {
     vi.mocked(pickLocalFiles).mockResolvedValue({ items: [], cancelled: true, reasons: [], paths: [] })
-    await expect(pickAndSaveWorkspaceBackground()).resolves.toBeNull()
+    await expect(pickAndSaveBackground({ scope: 'global', target: 'canvas', theme: 'light' })).resolves.toBeNull()
   })
 
-  it('没有文件时返回原因', async () => {
+  it('全局范围没有文件时返回原因', async () => {
     vi.mocked(pickLocalFiles).mockResolvedValue({ items: [], cancelled: false, reasons: ['超限'], paths: [] })
-    await expect(pickAndSaveWorkspaceBackground()).resolves.toEqual({ ok: false, reason: '超限' })
-  })
-})
-
-describe('pickAndSaveBackground', () => {
-  beforeEach(() => {
-    vi.mocked(pickLocalFiles).mockClear()
+    await expect(pickAndSaveBackground({ scope: 'global', target: 'canvas', theme: 'light' }))
+      .resolves.toEqual({ ok: false, reason: '超限' })
   })
 
   it('项目范围缺 projectDir 返回原因', async () => {
@@ -101,7 +95,7 @@ describe('pickAndSaveBackground', () => {
   })
 })
 
-describe('resolveWorkspaceBackgroundSrc', () => {
+describe('resolveBackgroundSrc', () => {
   beforeEach(() => {
     vi.mocked(invoke).mockReset()
     vi.useRealTimers()
@@ -114,7 +108,7 @@ describe('resolveWorkspaceBackgroundSrc', () => {
       .mockRejectedValueOnce(new Error('busy'))
       .mockRejectedValueOnce(new Error('busy'))
       .mockResolvedValueOnce({})
-    const pending = resolveWorkspaceBackgroundSrc('C:/bg.webp')
+    const pending = resolveBackgroundSrc('C:/bg.webp')
     await vi.advanceTimersByTimeAsync(750)
     await expect(pending).resolves.toBe('asset://C:/bg.webp')
     expect(invoke).toHaveBeenCalledTimes(3)
@@ -127,7 +121,7 @@ describe('resolveWorkspaceBackgroundSrc', () => {
     vi.useFakeTimers()
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     vi.mocked(invoke).mockRejectedValue(new Error('missing'))
-    const pending = resolveWorkspaceBackgroundSrc('C:/gone.webp')
+    const pending = resolveBackgroundSrc('C:/gone.webp')
     await vi.advanceTimersByTimeAsync(750)
     await expect(pending).resolves.toBeNull()
     expect(invoke).toHaveBeenCalledTimes(3)
@@ -137,7 +131,7 @@ describe('resolveWorkspaceBackgroundSrc', () => {
   })
 })
 
-describe('cleanupWorkspaceBackgroundOrphans', () => {
+describe('cleanupGlobalBackgroundOrphans', () => {
   beforeEach(() => {
     vi.mocked(invoke).mockReset()
   })
@@ -154,7 +148,7 @@ describe('cleanupWorkspaceBackgroundOrphans', () => {
       }
       return undefined
     })
-    await cleanupWorkspaceBackgroundOrphans(['C:\\AppData\\worldsea\\backgrounds\\WORKSPACE-1.webp'])
+    await cleanupGlobalBackgroundOrphans(['C:\\AppData\\worldsea\\backgrounds\\WORKSPACE-1.webp'])
     expect(invoke).toHaveBeenCalledWith('cmd_fs_delete', { path: 'C:/AppData/worldsea/backgrounds/workspace-2.webp' })
     expect(invoke).not.toHaveBeenCalledWith('cmd_fs_delete', { path: 'C:/AppData/worldsea/backgrounds/workspace-1.webp' })
     expect(invoke).not.toHaveBeenCalledWith('cmd_fs_delete', { path: 'C:/AppData/worldsea/backgrounds/notes.txt' })
@@ -163,7 +157,7 @@ describe('cleanupWorkspaceBackgroundOrphans', () => {
 
   it('目录读取失败时静默返回', async () => {
     vi.mocked(invoke).mockRejectedValue(new Error('no dir'))
-    await expect(cleanupWorkspaceBackgroundOrphans([])).resolves.toBeUndefined()
+    await expect(cleanupGlobalBackgroundOrphans([])).resolves.toBeUndefined()
   })
 })
 

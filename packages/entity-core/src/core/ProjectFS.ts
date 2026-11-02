@@ -7,6 +7,7 @@ import { getFilePickerApi } from './FilePickerApi'
 import { getProjectExtraProviders } from './projectExtras'
 import { getFileStorageBackend } from './StorageBackend'
 import { exportProjectIcons, importProjectIcons } from './projectIconsFS'
+import { exportProjectBackgrounds, importProjectBackgrounds } from './backgroundProject'
 import { createBatchIpc } from '@worldsea/perf-kit/io'
 
 /* ════════════════════════════════════════
@@ -235,6 +236,14 @@ export async function exportProjectToDir(
     console.warn('[ProjectFS] 自定义图标导出失败（不影响主体）:', err)
   }
 
+  // 5d. 项目背景配置与被引用图片（可选分区；旧数据包无配置时静默跳过）
+  try {
+    const backgroundSourceDir = getFileStorageBackend()?.projectDir
+    await exportProjectBackgrounds(toPosixPath(backgroundSourceDir ?? ''), projectDir, (done, total) => onProgress?.('assets', done, total))
+  } catch (err) {
+    console.warn('[ProjectFS] 项目背景导出失败（不影响主体）:', err)
+  }
+
   // 6. 导出首页 profile（`.worldsea/home.json`，设计 §5.3 白名单）：可选文件，缺失即跳过
   const homeSourcePath = currentHomeProfilePath()
   if (homeSourcePath) {
@@ -370,6 +379,14 @@ export async function importProjectFromDir(
     await importProjectIcons(sourceDir, (done, total) => onProgress?.('assets', done, total))
   } catch (err) {
     console.warn('[ProjectFS] 自定义图标导入失败（不影响主体）:', err)
+  }
+
+  // 7d. 项目背景图片与配置（缺失文件槽位置空；失败不阻断主体）
+  try {
+    const backgroundTargetDir = getFileStorageBackend()?.projectDir
+    await importProjectBackgrounds(toPosixPath(sourceDir), toPosixPath(backgroundTargetDir ?? ''), (done, total) => onProgress?.('assets', done, total))
+  } catch (err) {
+    console.warn('[ProjectFS] 项目背景导入失败（不影响主体）:', err)
   }
 
   // 8. 导入首页 profile（可选文件：缺失即跳过；写入新项目实体根的 `.worldsea/`）

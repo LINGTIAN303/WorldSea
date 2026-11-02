@@ -1,4 +1,4 @@
-/** 背景图资产：选择、长边归一化、全局/项目落盘、删除/解析、孤儿清理；v1 工作台包装保留。 */
+/** 背景图资产：选择、长边归一化、全局/项目落盘、删除/解析、孤儿清理。 */
 import { invoke, convertFileSrc } from '@tauri-apps/api/core'
 import { appDataDir, join } from '@tauri-apps/api/path'
 import { pickLocalFiles } from './pickLocalFiles'
@@ -191,14 +191,3 @@ export async function cleanupGlobalBackgroundOrphans(
   }
 }
 
-// v1 工作台包装：旧设置卡与启动引导按「全局 · 画布 · 亮色」消费
-export async function pickAndSaveWorkspaceBackground(): Promise<BackgroundImportResult | null> {
-  return pickAndSaveBackground({ scope: 'global', target: 'canvas', theme: 'light' })
-}
-export const removeWorkspaceBackground = removeBackgroundFile
-export const resolveWorkspaceBackgroundSrc = resolveBackgroundSrc
-export async function cleanupWorkspaceBackgroundOrphans(
-  referenced: string[] | (() => string[]),
-): Promise<void> {
-  await cleanupGlobalBackgroundOrphans(referenced)
-}

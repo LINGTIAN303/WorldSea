@@ -249,7 +249,7 @@ export {
   getComputedFormulas,
 } from './formula-auto'
 
-// 背景图导入（全局 app data / 项目 .worldsea/backgrounds；v1 工作台包装保留）
+// 背景图导入（全局 app data / 项目 .worldsea/backgrounds）
 export {
   BACKGROUND_MAX_BYTES,
   BACKGROUND_MAX_EDGE,
@@ -261,10 +261,6 @@ export {
   resolveBackgroundSrc,
   cleanupBackgroundOrphans,
   cleanupGlobalBackgroundOrphans,
-  pickAndSaveWorkspaceBackground,
-  removeWorkspaceBackground,
-  resolveWorkspaceBackgroundSrc,
-  cleanupWorkspaceBackgroundOrphans,
 } from './backgroundAsset'
 export type {
   BackgroundTargetKey,
