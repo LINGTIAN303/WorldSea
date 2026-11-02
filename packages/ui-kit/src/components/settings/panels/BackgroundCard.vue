@@ -136,7 +136,7 @@ import {
 } from '@worldsea/entity-core/core'
 import { useFileSystemProject } from '@worldsea/entity-core/composables'
 import BackgroundTargetMap from './BackgroundTargetMap.vue'
-import { BACKGROUND_TARGET_LABELS } from './backgroundTargets'
+import { BACKGROUND_TARGET_LABELS, BACKGROUND_WORKSPACE_TARGETS } from './backgroundTargets'
 
 const TARGET_LABELS = BACKGROUND_TARGET_LABELS
 const FOCUS_CELLS: Array<{ key: string; x: FocusStep; y: FocusStep; label: string }> = [
@@ -183,7 +183,7 @@ const previewScope = computed<'global' | 'project'>(() =>
 
 /** 地图切换：首页地图只映射 home；工作台恢复上次结构目标，默认窗口栏 */
 function isWorkspaceTarget(t: BackgroundTarget): boolean {
-  return t === 'titlebar' || t === 'sidebar' || t === 'content-toolbar' || t === 'content-view'
+  return BACKGROUND_WORKSPACE_TARGETS.some((target) => target === t)
 }
 function onSelectTarget(t: BackgroundTarget) {
   if (picking.value) return

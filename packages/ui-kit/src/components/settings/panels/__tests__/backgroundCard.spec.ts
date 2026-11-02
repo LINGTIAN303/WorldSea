@@ -61,7 +61,7 @@ function defaultTargets() {
 }
 
 function mapRegion(w: ReturnType<typeof mount>, label: string) {
-  const btn = w.findAll('.bg-map__region').find((b) => b.text().includes(label))
+  const btn = w.findAll('.bg-map__region').find((b) => b.find('.bg-map__name').text() === label)
   if (!btn) throw new Error(`未找到映射区域：${label}`)
   return btn
 }
@@ -177,6 +177,7 @@ describe('BackgroundCard', () => {
     api.updateTarget('titlebar', { dim: 12 }, 'global')
     const before = JSON.stringify(api.globalConfig.value)
     const w = await mountCard()
+    await mapRegion(w, '侧栏').trigger('click')
     await canvasCard(w).trigger('click')
     await scopeButton(w, '本项目').trigger('click')
     await scopeButton(w, '全局').trigger('click')
@@ -330,10 +331,13 @@ describe('BackgroundCard', () => {
     expect(mapRegion(w, '侧栏').attributes('disabled')).toBeDefined()
     expect(switchMap(w, '首页').attributes('disabled')).toBeDefined()
     expect(canvasCard(w).attributes('disabled')).toBeDefined()
+    expect(scopeButton(w, '本项目').attributes('disabled')).toBeDefined()
+    expect(w.find('.bg-slot--light .bg-slot__pick').attributes('disabled')).toBeDefined()
     resolvePick(null)
     await flushPromises()
     expect(mapRegion(w, '侧栏').attributes('disabled')).toBeUndefined()
     expect(canvasCard(w).attributes('disabled')).toBeUndefined()
+    expect(scopeButton(w, '本项目').attributes('disabled')).toBeUndefined()
   })
 
   it('选中工具条时提示仅随流工具条生效', async () => {
