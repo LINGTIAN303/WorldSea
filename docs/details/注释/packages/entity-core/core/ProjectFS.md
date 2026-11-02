@@ -9,6 +9,8 @@
 
 > **2026-10-23 注**（产品域首页收口）：`.worldsea/` 下新增可选的 `home.json`（首页 profile），导出/导入已纳入白名单：导出从当前项目实体根读取，导入写入新项目实体根；文件缺失时两侧都静默跳过，不阻塞主体。该文件是可选文件，`ProjectFS` 的格式版本不变。导入时 `switchProject` 返回 false 即中止（避免数据写进旧项目）；**已知边界**：应用启动链未调用 `registerProjectSwitcherApi`，导入流程当前不可达（导出已接，pre-existing）；写入 home.json 后广播 `ws-home-profile-changed`，让已挂载的首页资料 store 重读（切换项目早于本步写入，首轮 load 可能读到空资料）。**2026-10-23 优化批**：`WorldSeaPack` 新增 `home-profile` 序列化分区（`core/serializers/HomeProfileSerializer.ts`），从当前项目收集、按 overwrite/merge 写回并广播同一事件；导入导出弹窗默认包含该分区。项目文件夹导入（`importProjectFromDir`）仍因 `registerProjectSwitcherApi` 未注册不可达。
 
+> **2026-11-02 注**（界面背景 v2）：导出步骤 5d / 导入步骤 7d 在图标步骤之后接入项目背景分区——`.worldsea/background.json` 与服务端只复制被引用的 `.worldsea/backgrounds/<file>`。源目录取 `getFileStorageBackend().projectDir`（实体存储根 `<workspace>/worlddata`），导出目标根用导出的 `projectDir`；导入在 `switchProject` 之后取新项目目录。旧数据包无背景配置时两侧静默跳过；单文件缺失只清槽位/跳过并告警；整步异常 `console.warn`，不阻断导出/导入主体。图片清单与路径校验见 `core/backgroundProject.ts`（`normalizeProjectBackgroundPath` 拒绝绝对路径、`..` 与反斜杠）。
+
 ````
 /**
  * ProjectFS — 项目文件系统导出/导入
@@ -36,7 +38,10 @@
  * │   ├── icon-assets.json       # 自定义图标登记（可选）
  * │   └── icon-overrides.json    # 项目图标覆盖（可选）
  * └── .worldsea/                 # 内部元数据
- *     └── cache.json              # 版本/校验信息
+ *     ├── cache.json              # 版本/校验信息
+ *     ├── home.json               # 首页 profile（可选）
+ *     ├── background.json         # 项目背景配置（可选，目标 → 亮暗相对路径）
+ *     └── backgrounds/            # 项目背景图片（可选，仅复制被引用文件）
  * ```
  */
 ````
