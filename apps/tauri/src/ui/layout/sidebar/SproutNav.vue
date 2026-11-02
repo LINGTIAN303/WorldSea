@@ -5,6 +5,8 @@
     role="navigation"
     aria-label="芽导航"
   >
+    <!-- 侧栏背景层：宿主为 z10 堆叠上下文（contain: strict），层 z-1 位于底色之上、内容之下 -->
+    <BackgroundLayer target="sidebar" />
     <button
       v-if="uiStore.sidebarCollapsed"
       class="ws-sn-toggle"
@@ -84,7 +86,7 @@
 
 <script setup lang="ts">
 import { computed, watch } from 'vue'
-import { WsIcon } from '@worldsea/ui-kit'
+import { WsIcon, BackgroundLayer } from '@worldsea/ui-kit'
 import type { PluginView } from '@worldsea/entity-core/types'
 import { useUIStore, type SproutDomainFilter } from '@/stores/uiStore'
 import { useSettingsStore } from '@/stores/settingsStore'

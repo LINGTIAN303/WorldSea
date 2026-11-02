@@ -16,6 +16,7 @@ import { bootstrapShell } from '@/plugins/boot'
 import { isTauri, hasTauriInvoke } from '@worldsea/entity-core/core'
 import { useFsWatcher } from './useFsWatcher'
 import { setSpaceSwitchBlocked } from './shellSwitch'
+import { clearProjectBackground, loadProjectBackgroundForCurrentProject } from './useBackgroundBootstrap'
 
 /** 项目切换的 4 个用户可见阶段（实现步骤归并，避免面板过长）。 */
 export const PROJECT_SWITCH_STAGES = [
@@ -180,6 +181,8 @@ export function useProjectSwitcher() {
 
     switching.value = true
     setSpaceSwitchBlocked(true)
+    // 先清空旧项目背景覆盖，避免切换过程中闪现上一项目的分区图
+    clearProjectBackground()
     switchTargetId.value = targetId
     switchStage.value = 0
     switchTargetName.value = projectList.value.find(p => p.id === targetId)?.name ?? targetId
@@ -216,6 +219,10 @@ export function useProjectSwitcher() {
         await fsProject.onProjectSwitched()
         currentProject.value = (await pm.getCurrentProject()) ?? null
         await refreshProjectList()
+        // 新项目指针与存储根已就绪：异步加载项目背景覆盖，失败只告警，不阻断切换
+        void loadProjectBackgroundForCurrentProject().catch(err => {
+          console.warn('[Background] 项目背景加载失败:', err)
+        })
         window.dispatchEvent(new CustomEvent('project:switched', {
           detail: { projectId: targetId },
         }))
@@ -226,6 +233,10 @@ export function useProjectSwitcher() {
       return true
     } catch (err) {
       console.error('[ProjectSwitcher] 项目切换失败:', err)
+      // 失败可能停在部分状态：按当前指针重新加载背景覆盖，恢复失败前的显示
+      void loadProjectBackgroundForCurrentProject().catch(restoreErr => {
+        console.warn('[Background] 项目背景恢复失败:', restoreErr)
+      })
       return false
     } finally {
       switching.value = false

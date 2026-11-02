@@ -4,6 +4,8 @@
        基础合并（2026-08-08）：MenuBar 左侧功能区（☰ 侧边栏切换 + 项目切换器 + 目录）上移并入窗口栏
       2026-09-30 C 批：旧「space 变体」死代码随 E7 残留清退删除（Agent 面为 dsh 窗口，不吃本组件） -->
   <div class="titlebar" :class="{ 'is-fullscreen': fullscreen }" data-tauri-drag-region>
+    <!-- 窗口栏背景层（v2 五目标之一）：绝对定位，不参与拖拽与布局 -->
+    <BackgroundLayer target="titlebar" />
     <!-- 左侧：进入 Agent 空间按钮（D1-b 双窗：本页恒为工作台窗，方向固定切到 dsh 窗口；
          胶囊文案=当前空间「工作台」，tooltip=动作「进入 Agent 空间」，与 dsh 侧注入栏对称） -->
     <div class="titlebar-shell-left">
@@ -59,7 +61,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { isTauri } from '@worldsea/entity-core/core'
 import { useUIStore } from '@/stores/uiStore'
 import { usePluginStore } from '@worldsea/entity-core'
-import { WsIcon } from '@worldsea/ui-kit'
+import { WsIcon, BackgroundLayer } from '@worldsea/ui-kit'
 import ProjectSwitcher from '@/ui/project/ProjectSwitcher.vue'
 import ProjectHomeButton from './ProjectHomeButton.vue'
 import { switchShell } from '@/composables/shellSwitch'

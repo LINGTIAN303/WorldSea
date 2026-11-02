@@ -10,6 +10,7 @@ import { useFontBootstrap } from '@worldsea/font-kit'
 import { bootstrapShell } from './plugins/boot'
 import { startBackendBoot } from './boot/backendBoot'
 import { useProjectSwitcher } from './composables/useProjectSwitcher'
+import { loadProjectBackgroundForCurrentProject } from './composables/useBackgroundBootstrap'
 import { useSystemBridge } from './composables/useSystemBridge'
 import SplashScreen from './ui/boot/SplashScreen.vue'
 import GlobalEditMenu from './ui/GlobalEditMenu.vue'
@@ -154,6 +155,10 @@ async function runBoot(): Promise<void> {
 
     uiStore.setBootStage('project')
     await withBootTimeout(projectSwitcher.initialize(), '恢复项目')
+    // 项目背景覆盖异步加载：不阻塞启动；失败只告警，界面回落全局背景
+    void loadProjectBackgroundForCurrentProject().catch(err => {
+      console.warn('[Background] 项目背景加载失败:', err)
+    })
 
     uiStore.setBootStage('shell')
     await withBootTimeout(bootstrapShell(), '装配界面')

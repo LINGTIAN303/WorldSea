@@ -92,6 +92,18 @@ html[data-perf='on'] .ws-bg-layer__image {
   transform: none;
 }
 
+/* 目标启用时宿主透明化：分区图/首页图落在宿主底色之上、内容之下；
+   内容区额外建普通堆叠上下文（不加 isolation），承接 z-1 层 */
+html[data-ws-bg-home='on'] .home-surface { background: transparent; }
+html[data-ws-bg-titlebar='on'] .titlebar { background: transparent; }
+html[data-ws-bg-sidebar='on'] .sidebar,
+html[data-ws-bg-sidebar='on'] .ws-sn-sidebar,
+html[data-ws-bg-sidebar='on'] .ws-split-sidebar { background: transparent; }
+html[data-ws-bg-content='on'] .view-container { background: transparent; z-index: 0; }
+html[data-ws-bg-canvas='on'] .shell-surface-root,
+html[data-ws-bg-canvas='on'] .shell-body,
+html[data-ws-bg-canvas='on'] .view-container { background: transparent; }
+
 /* 主题切换只做变量选择；亮暗回退已在 useBackground 完成 */
 html {
   --ws-bg-canvas-image: var(--ws-bg-canvas-image-light, none);

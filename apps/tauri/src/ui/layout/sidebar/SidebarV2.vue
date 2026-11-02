@@ -13,6 +13,8 @@
     @wheel.prevent="onWheel"
     @pointerdown="onPointerDown"
   >
+    <!-- 侧栏背景层：宿主为 z10 堆叠上下文（contain: layout paint），层 z-1 位于底色之上、内容之下 -->
+    <BackgroundLayer target="sidebar" />
     <button
       v-if="uiStore.sidebarCollapsed"
       class="sidebar-toggle"
@@ -74,7 +76,7 @@ import { useUIStore } from '@/stores/uiStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useEntityStore } from '@worldsea/entity-core'
 import type { PluginView } from '@worldsea/entity-core/types'
-import { WsIcon } from '@worldsea/ui-kit'
+import { WsIcon, BackgroundLayer } from '@worldsea/ui-kit'
 import { hasIcon } from '@/assets/iconRegistry'
 import CountBadge from './CountBadge.vue'
 import QuickAccess from './QuickAccess.vue'

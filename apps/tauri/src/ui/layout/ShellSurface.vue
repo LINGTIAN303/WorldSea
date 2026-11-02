@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref, watch } from 'vue'
+import { BackgroundLayer } from '@worldsea/ui-kit'
 
 const props = withDefaults(defineProps<{
   surface: 'home' | 'workspace'
@@ -58,6 +59,8 @@ onBeforeUnmount(clearHideTimer)
   >
     <Transition name="ws-surface">
       <div v-if="surface === 'home'" class="shell-surface-slot shell-home-layer" data-surface="home">
+        <!-- 首页背景层：层 z-1 位于首页层底色之上、首页内容之下（宿主已是 z20 堆叠上下文） -->
+        <BackgroundLayer target="home" />
         <slot name="home" />
       </div>
     </Transition>

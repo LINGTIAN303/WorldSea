@@ -5,6 +5,8 @@
     role="navigation"
     aria-label="语义域导航"
   >
+    <!-- 侧栏背景层：宿主为 z10 堆叠上下文（contain: strict），层 z-1 位于底色之上、内容之下 -->
+    <BackgroundLayer target="sidebar" />
     <button
       v-if="uiStore.domainSidebarCollapsed"
       class="ws-split-toggle"
@@ -62,7 +64,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
-import { WsIcon } from '@worldsea/ui-kit'
+import { WsIcon, BackgroundLayer } from '@worldsea/ui-kit'
 import { useUIStore, type SproutDomainFilter } from '@/stores/uiStore'
 import AppMenu from '@/ui/layout/AppMenu.vue'
 import { useSidebarInteraction } from './useSidebarInteraction'

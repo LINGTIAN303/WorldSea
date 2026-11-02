@@ -15,8 +15,8 @@ import '@worldsea/motion-kit/presets.css'
 import './styles/workspace-background.css'
 // 界面背景 v2：五目标层与主题变量映射（v1 透明化规则待清理）
 import './styles/background-targets.css'
-import { applyPersistedStyle, applyPersistedBackground, useBackground } from '@worldsea/style-kit'
-import { cleanupWorkspaceBackgroundOrphans, resolveWorkspaceBackgroundSrc } from '@worldsea/entity-core/core'
+import { applyPersistedStyle, applyPersistedBackground } from '@worldsea/style-kit'
+import { hydrateGlobalBackground, validateGlobalBackground } from './composables/useBackgroundBootstrap'
 
 import { startBackendBoot } from './boot/backendBoot'
 
@@ -37,22 +37,13 @@ app.use(VueCodemirror, { extensions: [wsBasicSetup] })
 applyPersistedStyle()
 // 背景同理：挂载前写入 CSS 变量与 data-workspace-bg，避免首帧无背景
 applyPersistedBackground()
+// v2：挂载前把全局背景路径换成 asset URL 注入 store.srcs，避免首帧空档
+hydrateGlobalBackground()
 
 app.mount('#app')
 
-// 挂载后校验背景文件是否仍在（异步，不阻塞首帧）：失效只标记缺失，不改持久化配置
-void (async () => {
-  const { background, setSrc, markMissing } = useBackground()
-  const path = background.value.path
-  if (path) {
-    const src = await resolveWorkspaceBackgroundSrc(path)
-    // 校验期间用户可能已换图/清空：路径已变则丢弃本次结果，避免覆盖新选择或误标缺失
-    if (background.value.path !== path) return
-    if (src) setSrc(src)
-    else markMissing()
-  }
-  await cleanupWorkspaceBackgroundOrphans(() => (background.value.path ? [background.value.path] : []))
-})()
+// 挂载后校验全局背景文件是否仍在（异步，不阻塞首帧）：失效只标记缺失，不改持久化配置
+void validateGlobalBackground()
 
 // mount 后启动后端装配；App 启动链 await 同一 Promise（幂等），失败由启动错误页承接
 startBackendBoot().catch((err) => {
