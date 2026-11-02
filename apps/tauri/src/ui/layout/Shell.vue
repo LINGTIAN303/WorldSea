@@ -1,6 +1,7 @@
 <template>
   <div class="shell">
-    <WorkspaceBackground />
+    <!-- 画布背景层：全窗口底图，位于所有区域之下（v2 五目标之 canvas） -->
+    <BackgroundLayer target="canvas" />
     <TitleBar />
     <WelcomeOverlay />
     <div class="shell-content">
@@ -53,7 +54,7 @@ import { ref, computed, defineAsyncComponent, onMounted, onUnmounted } from 'vue
 import TitleBar from './TitleBar.vue'
 import ShellSurface from './ShellSurface.vue'
 import Sidebar from './sidebar/SidebarHost.vue'
-import { Toast, DialogContainer, ViewContainer, WsLoadingOverlay, WsAmbientLine, WorkspaceBackground, useBackgroundTask, toastWarn } from '@worldsea/ui-kit'
+import { Toast, DialogContainer, ViewContainer, WsLoadingOverlay, WsAmbientLine, BackgroundLayer, useBackgroundTask, toastWarn } from '@worldsea/ui-kit'
 import WsConfirmDialog from '../WsConfirmDialog.vue'
 import WsAskDialog from '../WsAskDialog.vue'
 import FilePickerHost from '@/components/files/FilePickerHost.vue'

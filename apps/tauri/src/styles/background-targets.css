@@ -1,0 +1,109 @@
+/* 界面背景 v2：五目标背景层 + 主题变量映射；层语义见 docs/details/架构/界面背景机制-v2.md §4.4 */
+.ws-bg-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  /* 分区层在宿主 z-index 堆叠上下文内退到内容之下、宿主底色之上 */
+  z-index: -1;
+}
+/* 画布层是全窗口底图，位于 .shell 堆叠上下文的 0 层 */
+.ws-bg-layer--canvas { z-index: 0; }
+
+/* 每目标把根上的亮/暗图与参数映射为层内变量；分区目标追加半透明表面色 */
+.ws-bg-layer--canvas {
+  --layer-image: var(--ws-bg-canvas-image);
+  --layer-size: var(--ws-bg-canvas-size);
+  --layer-repeat: var(--ws-bg-canvas-repeat);
+  --layer-position: var(--ws-bg-canvas-position);
+  --layer-dim: var(--ws-bg-canvas-dim);
+  --layer-blur: var(--ws-bg-canvas-blur);
+  --layer-tint: transparent;
+}
+.ws-bg-layer--home {
+  --layer-image: var(--ws-bg-home-image);
+  --layer-size: var(--ws-bg-home-size);
+  --layer-repeat: var(--ws-bg-home-repeat);
+  --layer-position: var(--ws-bg-home-position);
+  --layer-dim: var(--ws-bg-home-dim);
+  --layer-blur: var(--ws-bg-home-blur);
+  --layer-tint: transparent;
+}
+.ws-bg-layer--titlebar {
+  --layer-image: var(--ws-bg-titlebar-image);
+  --layer-size: var(--ws-bg-titlebar-size);
+  --layer-repeat: var(--ws-bg-titlebar-repeat);
+  --layer-position: var(--ws-bg-titlebar-position);
+  --layer-dim: var(--ws-bg-titlebar-dim);
+  --layer-blur: var(--ws-bg-titlebar-blur);
+  --layer-tint: var(--sf-chrome-bg);
+}
+.ws-bg-layer--sidebar {
+  --layer-image: var(--ws-bg-sidebar-image);
+  --layer-size: var(--ws-bg-sidebar-size);
+  --layer-repeat: var(--ws-bg-sidebar-repeat);
+  --layer-position: var(--ws-bg-sidebar-position);
+  --layer-dim: var(--ws-bg-sidebar-dim);
+  --layer-blur: var(--ws-bg-sidebar-blur);
+  --layer-tint: var(--sf-nav-bg);
+}
+.ws-bg-layer--content {
+  --layer-image: var(--ws-bg-content-image);
+  --layer-size: var(--ws-bg-content-size);
+  --layer-repeat: var(--ws-bg-content-repeat);
+  --layer-position: var(--ws-bg-content-position);
+  --layer-dim: var(--ws-bg-content-dim);
+  --layer-blur: var(--ws-bg-content-blur);
+  --layer-tint: transparent;
+}
+
+.ws-bg-layer__image {
+  position: absolute;
+  inset: -32px;
+  background-color: var(--bg-app);
+  background-image: var(--layer-image, none);
+  background-size: var(--layer-size, cover);
+  background-repeat: var(--layer-repeat, no-repeat);
+  background-position: var(--layer-position, 50% 50%);
+  filter: blur(var(--layer-blur, 0px));
+  /* 外扩 + 微缩放：模糊后不露出边缘 */
+  transform: scale(1.03);
+}
+
+.ws-bg-layer__shade {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--bg-app) calc(var(--layer-dim, 35) * 1%), transparent);
+}
+/* 表面色用伪元素整值叠加：玻璃风格的 --sf-*-bg 是「噪声图 + 渐变」复合值，
+   放进 linear-gradient 色标会使整条 background 失效（暗化一并丢失）。 */
+.ws-bg-layer__shade::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--layer-tint, transparent);
+  /* 表面色保留风格倾向但不盖死图片：mist/neu 为不透明色，全量叠加图片不可见 */
+  opacity: var(--layer-tint-alpha, 0.6);
+}
+
+/* 性能模式：关闭模糊与外扩缩放，图片仍保留 */
+html[data-perf='on'] .ws-bg-layer__image {
+  filter: none;
+  transform: none;
+}
+
+/* 主题切换只做变量选择；亮暗回退已在 useBackground 完成 */
+html {
+  --ws-bg-canvas-image: var(--ws-bg-canvas-image-light, none);
+  --ws-bg-home-image: var(--ws-bg-home-image-light, none);
+  --ws-bg-titlebar-image: var(--ws-bg-titlebar-image-light, none);
+  --ws-bg-sidebar-image: var(--ws-bg-sidebar-image-light, none);
+  --ws-bg-content-image: var(--ws-bg-content-image-light, none);
+}
+html[data-theme='dark'] {
+  --ws-bg-canvas-image: var(--ws-bg-canvas-image-dark, none);
+  --ws-bg-home-image: var(--ws-bg-home-image-dark, none);
+  --ws-bg-titlebar-image: var(--ws-bg-titlebar-image-dark, none);
+  --ws-bg-sidebar-image: var(--ws-bg-sidebar-image-dark, none);
+  --ws-bg-content-image: var(--ws-bg-content-image-dark, none);
+}

@@ -78,6 +78,8 @@ export type { LoadingStage, LoadingStatus } from './components/feedback/loading/
 export { default as Sidebar } from './components/layout/Sidebar.vue'
 export { default as ViewContainer } from './components/layout/ViewContainer.vue'
 export { default as WorkspaceBackground } from './components/layout/WorkspaceBackground.vue'
+// 五目标背景层（canvas/home/titlebar/sidebar/content 共用）
+export { default as BackgroundLayer } from './components/layout/BackgroundLayer.vue'
 export { default as ViewToolbar } from './components/layout/ViewToolbar.vue'
 export { default as ViewToolbarFilter } from './components/layout/ViewToolbarFilter.vue'
 export { default as GlobalSearch } from './components/search/GlobalSearch.vue'

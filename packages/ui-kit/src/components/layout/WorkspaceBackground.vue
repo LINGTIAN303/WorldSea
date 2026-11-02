@@ -1,16 +1,8 @@
-<template>
-  <div v-if="visible" class="workspace-bg" aria-hidden="true">
-    <div class="workspace-bg__image"></div>
-    <div class="workspace-bg__dim"></div>
-  </div>
-</template>
+<template><BackgroundLayer target="canvas" :preview="preview" class="workspace-bg" /></template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useBackground } from '@worldsea/style-kit'
+/** v1 兼容薄包装：旧设置卡与调用方仍按「工作台画布」消费；保留 .workspace-bg 供其预览样式定位。 */
+import BackgroundLayer from './BackgroundLayer.vue'
 
-const props = withDefaults(defineProps<{ preview?: boolean }>(), { preview: false })
-const { background, missing } = useBackground()
-const missingBoth = computed(() => missing.value.canvas.light && missing.value.canvas.dark)
-const visible = computed(() => !missingBoth.value && !!background.value.src && (props.preview || background.value.enabled))
+withDefaults(defineProps<{ preview?: boolean }>(), { preview: false })
 </script>

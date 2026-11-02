@@ -13,6 +13,8 @@ import './styles/liquid-glass-surfaces.css'
 import '@worldsea/motion-kit/presets.css'
 // 工作台背景层样式（图片层 + 暗化 + 启用时的画布透明化）
 import './styles/workspace-background.css'
+// 界面背景 v2：五目标层与主题变量映射（v1 透明化规则待清理）
+import './styles/background-targets.css'
 import { applyPersistedStyle, applyPersistedBackground, useBackground } from '@worldsea/style-kit'
 import { cleanupWorkspaceBackgroundOrphans, resolveWorkspaceBackgroundSrc } from '@worldsea/entity-core/core'
 
