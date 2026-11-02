@@ -233,7 +233,7 @@ export function useProjectSwitcher() {
       return true
     } catch (err) {
       console.error('[ProjectSwitcher] 项目切换失败:', err)
-      // 失败可能停在部分状态：按当前指针重新加载背景覆盖，恢复失败前的显示
+      // 失败可能停在部分状态：按当前指针重新加载背景覆盖
       void loadProjectBackgroundForCurrentProject().catch(restoreErr => {
         console.warn('[Background] 项目背景恢复失败:', restoreErr)
       })

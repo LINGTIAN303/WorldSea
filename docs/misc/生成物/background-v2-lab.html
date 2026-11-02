@@ -234,6 +234,7 @@ html[data-perf='on'] {
   z-index: -1;
 }
 .ws-bg-layer--canvas { z-index: 0; }
+.ws-bg-layer--content { z-index: 0; }
 
 .ws-bg-layer--canvas {
   --layer-image: var(--ws-bg-canvas-image);
@@ -324,15 +325,23 @@ html[data-theme='dark'] {
   --ws-bg-content-image: var(--ws-bg-content-image-dark, none);
 }
 
-/* 目标启用时的宿主透明化（Task 5 将落到产品 CSS） */
+/* 目标启用时的宿主透明化（与产品 background-targets.css 同语义） */
 html[data-ws-bg-home='on'] .home-surface { background: transparent; }
 html[data-ws-bg-titlebar='on'] .titlebar { background: transparent; }
 html[data-ws-bg-sidebar='on'] .sidebar,
 html[data-ws-bg-sidebar='on'] .ws-split-sidebar { background: transparent; }
-html[data-ws-bg-content='on'] .view-container { background: transparent; z-index: 0; }
+html[data-ws-bg-content='on'] .view-container { background: transparent; }
 html[data-ws-bg-canvas='on'] .shell-surface-root,
 html[data-ws-bg-canvas='on'] .shell-body,
 html[data-ws-bg-canvas='on'] .view-container { background: transparent; }
+
+/* 内容层是 .view-container 内唯一的定位 z0 子层；工具条/视图画布只加相对定位、z 保持 auto，
+   按树序排在 z0 层之后绘制。两者都不给 z-index：宿主一旦形成堆叠上下文，
+   视图内 position:fixed 浮层会被钳制，压不过侧栏与窗口栏。 */
+html[data-ws-bg-content='on'] .view-toolbar:not(.view-toolbar--overlay),
+html[data-ws-bg-content='on'] .view-content {
+  position: relative;
+}
 
 /* =====================================================================
    模拟壳：结构/z-index 与产品一致
@@ -764,7 +773,7 @@ body {
         <li>文字对比：标题/次级文字在各组合下可读，暗化过低时注意可读性。</li>
         <li>层叠顺序：首页封面卡在首页图之上；工具条与画布块在内容区图之上。</li>
         <li>无布局位移：逐个开关目标，区域尺寸与滚动条不变化。</li>
-        <li>无 backdrop root 断链：内容区启用后玻璃浮层仍能采样图片（view-container 仅 z-index 0）。</li>
+        <li>无 backdrop root 断链：内容区启用后玻璃浮层仍能采样图片（内容层自身 z0，宿主不建堆叠上下文）。</li>
         <li>性能模式：所有背景模糊关闭，图片保留；玻璃滤镜同时退化为无模糊。</li>
       </ol>
     </section>
@@ -914,7 +923,7 @@ body {
         </div>
       </div>
     </div>
-    <p class="lab-legend">层叠：canvas z0（.shell 内）→ 分区层 z-1（titlebar z100 / sidebar z10 / content 的 view-container z0 / home z20 堆叠上下文内）→ 宿主内容。分区层不参与布局、不接收指针。</p>
+    <p class="lab-legend">层叠：canvas z0（.shell 内）→ 分区层 z-1（titlebar z100 / sidebar z10 / home z20 堆叠上下文内）→ 宿主内容；content 例外：宿主不建堆叠上下文，内容层自身 z0，工具条/画布块相对定位按树序盖在其上。分区层不参与布局、不接收指针。</p>
   </main>
 </div>
 

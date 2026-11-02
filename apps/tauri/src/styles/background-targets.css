@@ -4,11 +4,13 @@
   inset: 0;
   overflow: hidden;
   pointer-events: none;
-  /* 分区层在宿主 z-index 堆叠上下文内退到内容之下、宿主底色之上 */
+  /* 分区层默认在宿主自身堆叠上下文内退到内容之下、宿主底色之上 */
   z-index: -1;
 }
 /* 画布层是全窗口底图，位于 .shell 堆叠上下文的 0 层 */
 .ws-bg-layer--canvas { z-index: 0; }
+/* 内容层是 .view-container 内的定位 z0 子层：压住宿主底色，又被工具条/画布块按树序盖住 */
+.ws-bg-layer--content { z-index: 0; }
 
 /* 每目标把根上的亮/暗图与参数映射为层内变量；分区目标追加半透明表面色 */
 .ws-bg-layer--canvas {
@@ -92,17 +94,25 @@ html[data-perf='on'] .ws-bg-layer__image {
   transform: none;
 }
 
-/* 目标启用时宿主透明化：分区图/首页图落在宿主底色之上、内容之下；
-   内容区额外建普通堆叠上下文（不加 isolation），承接 z-1 层 */
+/* 目标启用时宿主透明化：分区图/首页图落在宿主底色之上、内容之下 */
 html[data-ws-bg-home='on'] .home-surface { background: transparent; }
 html[data-ws-bg-titlebar='on'] .titlebar { background: transparent; }
 html[data-ws-bg-sidebar='on'] .sidebar,
 html[data-ws-bg-sidebar='on'] .ws-sn-sidebar,
 html[data-ws-bg-sidebar='on'] .ws-split-sidebar { background: transparent; }
-html[data-ws-bg-content='on'] .view-container { background: transparent; z-index: 0; }
+html[data-ws-bg-content='on'] .view-container { background: transparent; }
 html[data-ws-bg-canvas='on'] .shell-surface-root,
 html[data-ws-bg-canvas='on'] .shell-body,
 html[data-ws-bg-canvas='on'] .view-container { background: transparent; }
+
+/* 内容层是 .view-container 内唯一的定位 z0 子层；工具条/视图画布只加相对定位、z 保持 auto，
+   按树序排在 z0 层之后绘制。两者都不给 z-index：宿主一旦形成堆叠上下文，
+   视图内 position:fixed 浮层（预览/导出/模板/右键菜单）会被钳制，压不过侧栏与窗口栏。
+   工具条 overlay 模式本就绝对定位，排除在外，避免被相对定位顶掉。 */
+html[data-ws-bg-content='on'] .view-toolbar:not(.view-toolbar--overlay),
+html[data-ws-bg-content='on'] .view-content {
+  position: relative;
+}
 
 /* 主题切换只做变量选择；亮暗回退已在 useBackground 完成 */
 html {

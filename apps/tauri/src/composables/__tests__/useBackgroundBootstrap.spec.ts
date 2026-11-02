@@ -27,6 +27,7 @@ vi.mock('@worldsea/entity-core/core', () => ({
 import { BACKGROUND_TARGETS, useBackground } from '@worldsea/style-kit'
 import {
   clearProjectBackground, hydrateGlobalBackground, loadProjectBackgroundForCurrentProject,
+  validateGlobalBackground,
 } from '../useBackgroundBootstrap'
 
 const api = useBackground()
@@ -44,6 +45,8 @@ beforeEach(() => {
   mocks.convertFileSrc.mockClear()
   mocks.readProjectBackground.mockReset()
   mocks.resolveProjectBackgroundAssets.mockReset()
+  mocks.resolveBackgroundSrc.mockReset()
+  mocks.cleanupGlobalBackgroundOrphans.mockReset()
 })
 
 describe('hydrateGlobalBackground', () => {
@@ -74,6 +77,49 @@ describe('hydrateGlobalBackground', () => {
 
     expect(mocks.convertFileSrc).not.toHaveBeenCalled()
     expect(api.srcs.value.home).toEqual({ light: '', dark: '' })
+  })
+})
+
+describe('validateGlobalBackground', () => {
+  it('成功路径写 src、失败路径只标缺失，孤儿清理收到全部非空全局路径', async () => {
+    api.updateTarget('canvas', { enabled: true, paths: { light: 'C:/bg/canvas-light.webp', dark: '' } }, 'global')
+    api.updateTarget('home', { enabled: true, paths: { light: 'C:/bg/home-light.webp', dark: '' } }, 'global')
+    api.updateTarget('sidebar', {
+      enabled: true,
+      paths: { light: 'C:/bg/side-light.webp', dark: 'C:/bg/side-dark.webp' },
+    }, 'global')
+    mocks.resolveBackgroundSrc.mockImplementation(async (path: string) =>
+      (path.endsWith('side-dark.webp') ? null : `asset://${path}`))
+    mocks.cleanupGlobalBackgroundOrphans.mockResolvedValue(undefined)
+
+    await validateGlobalBackground()
+
+    expect(api.srcs.value.canvas.light).toBe('asset://C:/bg/canvas-light.webp')
+    expect(api.srcs.value.home.light).toBe('asset://C:/bg/home-light.webp')
+    // 失效路径清空该槽 src 并记缺失，同目标另一主题不受影响
+    expect(api.srcs.value.sidebar).toEqual({ light: 'asset://C:/bg/side-light.webp', dark: '' })
+    expect(api.missing.value.sidebar.dark).toBe(true)
+    expect(api.missing.value.home).toEqual({ light: false, dark: false })
+
+    expect(mocks.cleanupGlobalBackgroundOrphans).toHaveBeenCalledTimes(1)
+    const referenced = mocks.cleanupGlobalBackgroundOrphans.mock.calls[0][0]
+    expect(typeof referenced).toBe('function')
+    expect(referenced()).toEqual([
+      'C:/bg/canvas-light.webp',
+      'C:/bg/home-light.webp',
+      'C:/bg/side-light.webp',
+      'C:/bg/side-dark.webp',
+    ])
+  })
+
+  it('非 Tauri 环境不解析也不清理', async () => {
+    api.updateTarget('home', { enabled: true, paths: { light: 'C:/bg/home.webp', dark: '' } }, 'global')
+    mocks.isTauri.mockReturnValue(false)
+
+    await validateGlobalBackground()
+
+    expect(mocks.resolveBackgroundSrc).not.toHaveBeenCalled()
+    expect(mocks.cleanupGlobalBackgroundOrphans).not.toHaveBeenCalled()
   })
 })
 

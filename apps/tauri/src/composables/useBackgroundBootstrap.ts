@@ -34,6 +34,8 @@ export async function validateGlobalBackground() {
       const path = api.globalConfig.value.targets[target].paths[theme]
       if (!path) continue
       const src = await resolveBackgroundSrc(path)
+      // 校验期间用户换了图：旧路径的结果作废，不能覆盖新选择
+      if (api.globalConfig.value.targets[target].paths[theme] !== path) continue
       if (src) api.setTargetSrc(target, theme, src, 'global')
       else api.markMissing(target, theme, 'global')
     }

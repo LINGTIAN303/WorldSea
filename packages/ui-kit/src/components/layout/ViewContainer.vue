@@ -4,7 +4,8 @@
     :class="{ 'sidebar-collapsed': uiStore.sidebarCollapsed, 'sidebar-right': sidebarRight, 'split-nav': uiStore.sproutNavMode === 'split', 'split-domain-left': uiStore.sproutNavMode === 'split' && uiStore.splitSidebarOrder === 'domain-left', 'split-domain-right': uiStore.sproutNavMode === 'split' && uiStore.splitSidebarOrder === 'sprout-left', 'split-domain-collapsed': uiStore.sproutNavMode === 'split' && uiStore.domainSidebarCollapsed }"
     @contextmenu.prevent="onViewContext"
   >
-    <!-- 内容区背景层：启用时宿主加 z-index:0 形成普通堆叠上下文，层 z-1 在工具条/视图画布之下 -->
+    <!-- 内容区背景层：层自身 z0，工具条/画布块在启用时相对定位、按树序绘制在其上；
+         宿主不加 z-index，视图内 fixed 浮层仍留在根层叠，压得过侧栏与窗口栏 -->
     <BackgroundLayer target="content" />
     <!-- 视图工具条（随流首子元素，2026-08-10）：占位 44px 不悬浮；两壳 v-show 常驻
          保证 ViewContainer 永不卸载，Teleport 目标 #view-toolbar-* 常驻，根治壳切换崩溃 -->
