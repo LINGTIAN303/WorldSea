@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { nextTick } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import { useBackground } from '@worldsea/style-kit'
 
@@ -60,5 +61,15 @@ describe('BackgroundCard', () => {
     expect(api.background.value.fit).toBe('contain')
     await w.find('.set-toggle input').setValue(false)
     expect(api.background.value.enabled).toBe(false)
+  })
+
+  it('关闭后预览仍显示；文件缺失时提示重新选择', async () => {
+    api.setImage({ path: '/a.webp', src: 'asset://a.webp' })
+    api.setEnabled(false)
+    const w = mount(BackgroundCard)
+    expect(w.find('.workspace-bg').exists()).toBe(true)
+    api.markMissing()
+    await nextTick()
+    expect(w.text()).toContain('背景文件不可用，请重新选择。')
   })
 })

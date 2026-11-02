@@ -11,7 +11,7 @@
       <button class="set-btn" :disabled="picking" @click="onPick">
         {{ picking ? '正在导入…' : hasBackground ? '替换图片' : '选择图片' }}
       </button>
-      <button v-if="hasBackground" class="set-btn" @click="onRemove">移除</button>
+      <button v-if="hasBackground" class="set-btn" :disabled="picking" @click="onRemove">移除</button>
     </div>
     <p v-if="missing" class="set-hint bg-error">背景文件不可用，请重新选择。</p>
     <p v-else-if="error" class="set-hint bg-error">{{ error }}</p>
@@ -19,14 +19,14 @@
     <div class="set-row">
       <span>启用背景</span>
       <label class="set-toggle">
-        <input type="checkbox" :checked="background.enabled" :disabled="!hasBackground" @change="onToggle(($event.target as HTMLInputElement).checked)" />
+        <input type="checkbox" aria-label="启用背景" :checked="background.enabled" :disabled="!hasBackground" @change="onToggle(($event.target as HTMLInputElement).checked)" />
         <span class="set-toggle-slider"></span>
       </label>
     </div>
 
     <div class="set-row">
       <span>填充</span>
-      <select class="set-select" :value="background.fit" :disabled="!hasBackground" @change="onFit">
+      <select class="set-select" aria-label="填充方式" :value="background.fit" :disabled="!hasBackground" @change="onFit">
         <option value="cover">铺满</option>
         <option value="contain">完整</option>
         <option value="tile">平铺</option>
@@ -51,7 +51,7 @@
     <div class="set-row">
       <span>暗化</span>
       <div class="set-range-wrap">
-        <input type="range" min="0" max="80" step="1" class="set-range" :value="background.dim" :disabled="!hasBackground" @input="onDim" @change="flush" />
+        <input type="range" aria-label="暗化" min="0" max="80" step="1" class="set-range" :value="background.dim" :disabled="!hasBackground" @input="onDim" @change="flush" />
         <span class="set-range-val">{{ background.dim }}%</span>
       </div>
     </div>
@@ -59,12 +59,12 @@
     <div class="set-row">
       <span>模糊</span>
       <div class="set-range-wrap">
-        <input type="range" min="0" max="30" step="1" class="set-range" :value="background.blur" :disabled="!hasBackground" @input="onBlur" @change="flush" />
+        <input type="range" aria-label="模糊" min="0" max="30" step="1" class="set-range" :value="background.blur" :disabled="!hasBackground" @input="onBlur" @change="flush" />
         <span class="set-range-val">{{ background.blur }}px</span>
       </div>
     </div>
 
-    <p class="set-hint">背景作用于工作台画布，区域缝隙与玻璃表面会透出；首页仍使用「设置 → 首页」里的项目封面。</p>
+    <p class="set-hint">背景作用于工作台画布，区域缝隙与玻璃表面会透出；首页仍使用「设置 → 首页」里的项目封面。暗化过低会降低文字可读性。</p>
   </div>
 </template>
 
@@ -123,9 +123,11 @@ function onToggle(on: boolean) {
 }
 function onFit(event: Event) {
   setFit((event.target as HTMLSelectElement).value as BackgroundFit)
+  flush()
 }
 function onFocus(x: FocusStep, y: FocusStep) {
   setFocus(x, y)
+  flush()
 }
 function onDim(event: Event) {
   setDim(Number((event.target as HTMLInputElement).value))

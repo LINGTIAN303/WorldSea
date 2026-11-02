@@ -76,7 +76,12 @@ function load() {
 
 function persistNow() {
   if (persistTimer) { clearTimeout(persistTimer); persistTimer = null }
-  storage()?.setItem(BACKGROUND_KEY, JSON.stringify(state.value))
+  try {
+    storage()?.setItem(BACKGROUND_KEY, JSON.stringify(state.value))
+  } catch (err) {
+    // 配额超限/隐私模式禁写：仅告警，内存态与 CSS 变量已生效，不向上抛
+    console.warn('[背景] 配置写入 localStorage 失败:', err)
+  }
 }
 
 function schedulePersist() {

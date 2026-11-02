@@ -41,8 +41,11 @@ app.mount('#app')
 // 挂载后校验背景文件是否仍在（异步，不阻塞首帧）：失效则标记缺失并关闭背景
 void (async () => {
   const { background, setSrc, markMissing } = useBackground()
-  if (!background.value.path) return
-  const src = await resolveWorkspaceBackgroundSrc(background.value.path)
+  const path = background.value.path
+  if (!path) return
+  const src = await resolveWorkspaceBackgroundSrc(path)
+  // 校验期间用户可能已换图/清空：路径已变则丢弃本次结果，避免覆盖新选择或误标缺失
+  if (background.value.path !== path) return
   if (src) setSrc(src)
   else markMissing()
 })()
