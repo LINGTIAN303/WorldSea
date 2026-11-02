@@ -248,3 +248,15 @@ export {
   unregisterFormulaAutoRecalc,
   getComputedFormulas,
 } from './formula-auto'
+
+// 工作台全局背景图导入（app data 目录，不进入项目资产）
+export {
+  BACKGROUND_MAX_BYTES,
+  BACKGROUND_MAX_EDGE,
+  fitLongEdge,
+  backgroundFileName,
+  pickAndSaveWorkspaceBackground,
+  removeWorkspaceBackground,
+  resolveWorkspaceBackgroundSrc,
+} from './backgroundAsset'
+export type { BackgroundImportResult } from './backgroundAsset'
