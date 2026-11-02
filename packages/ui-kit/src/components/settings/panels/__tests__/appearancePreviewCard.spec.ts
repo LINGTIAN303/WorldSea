@@ -1,5 +1,5 @@
-// 外观面板第五卡结构守卫（2026-10-25 形象图批 C/D1 走查疑点）：Deck 五张卡各自渲染
-// 对应分支——第五张（data-index=4）必须是「卡片与预览」（含视频封面区与形象图追踪区），
+// 外观面板第六卡结构守卫（2026-10-25 形象图批 C/D1 走查疑点）：Deck 六张卡各自渲染
+// 对应分支——第六张（data-index=5）必须是「卡片与预览」（含视频封面区与形象图追踪区），
 // 而非复用 idx 0 的主题内容。
 import { describe, it, expect, beforeEach } from 'vitest'
 import 'fake-indexeddb/auto'
@@ -10,14 +10,14 @@ import AppearancePanel from '../AppearancePanel.vue'
 
 beforeEach(() => { localStorage.clear() })
 
-describe('AppearancePanel —— Deck 五卡分支', () => {
-  it('第五张卡（idx=4）为「卡片与预览」，含视频封面三档与形象图追踪，不含主题内容', () => {
+describe('AppearancePanel —— Deck 六卡分支', () => {
+  it('第六张卡（idx=5）为「卡片与预览」，含视频封面三档与形象图追踪，不含主题内容', () => {
     setActivePinia(createPinia())
     const w = mount(AppearancePanel, { props: { searchQuery: '' } })
     const cards = w.findAll('.deck-card')
-    expect(cards.length).toBe(5)
-    const fifth = w.find('.deck-card[data-index="4"]')
-    const text = fifth.text()
+    expect(cards.length).toBe(6)
+    const sixth = w.find('.deck-card[data-index="5"]')
+    const text = sixth.text()
     expect(text).toContain('卡片与预览')
     expect(text).toContain('视频封面')
     expect(text).toContain('卡片内自动播放')
@@ -28,7 +28,7 @@ describe('AppearancePanel —— Deck 五卡分支', () => {
     expect(text).not.toContain('底色')
     // 每卡恰一个 sc-head：设置外壳左列目录按 sc-head 抓标题并按索引翻卡——
     // 一卡多头会目录越位点错卡（D1 走查实锤：视频封面→主题、形象图追踪→高亮）
-    expect(fifth.findAll('.sc-head').length).toBe(1)
+    expect(sixth.findAll('.sc-head').length).toBe(1)
     for (const c of cards) expect(c.findAll('.sc-head').length).toBe(1)
   })
 
@@ -36,6 +36,6 @@ describe('AppearancePanel —— Deck 五卡分支', () => {
     setActivePinia(createPinia())
     const w = mount(AppearancePanel, { props: { searchQuery: '' } })
     // 面板挂载即 store 初始化成功（键存在性经 v-model 绑定消费，无异常即通）
-    expect(w.find('.deck-card[data-index="4"]').exists()).toBe(true)
+    expect(w.find('.deck-card[data-index="5"]').exists()).toBe(true)
   })
 })
