@@ -1,0 +1,28 @@
+/* 工作台背景：图片层 + 暗化；启用时只透明化工作台画布容器 */
+.workspace-bg {
+  position: absolute; inset: 0; z-index: 0;
+  overflow: hidden; pointer-events: none;
+}
+.workspace-bg__image {
+  position: absolute; inset: -32px;
+  background-color: var(--bg-app);
+  background-image: var(--ws-bg-image);
+  background-size: var(--ws-bg-size, cover);
+  background-repeat: var(--ws-bg-repeat, no-repeat);
+  background-position: var(--ws-bg-position, 50% 50%);
+  filter: blur(var(--ws-bg-blur, 0px));
+  transform: scale(1.03);
+}
+.workspace-bg__dim {
+  position: absolute; inset: 0;
+  background: color-mix(in srgb, var(--bg-app) calc(var(--ws-bg-dim, 35) * 1%), transparent);
+}
+html[data-workspace-bg='on'] .shell-surface-root,
+html[data-workspace-bg='on'] .shell-body,
+html[data-workspace-bg='on'] .view-container {
+  background: transparent;
+}
+html[data-perf='on'] .workspace-bg__image {
+  filter: none;
+  transform: none;
+}

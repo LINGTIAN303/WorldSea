@@ -77,6 +77,7 @@ export { default as WsAmbientLine } from './components/feedback/loading/WsAmbien
 export type { LoadingStage, LoadingStatus } from './components/feedback/loading/types'
 export { default as Sidebar } from './components/layout/Sidebar.vue'
 export { default as ViewContainer } from './components/layout/ViewContainer.vue'
+export { default as WorkspaceBackground } from './components/layout/WorkspaceBackground.vue'
 export { default as ViewToolbar } from './components/layout/ViewToolbar.vue'
 export { default as ViewToolbarFilter } from './components/layout/ViewToolbarFilter.vue'
 export { default as GlobalSearch } from './components/search/GlobalSearch.vue'
