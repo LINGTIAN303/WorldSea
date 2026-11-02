@@ -93,6 +93,7 @@ export async function removeWorkspaceBackground(path: string): Promise<void> {
 }
 
 const STAT_RETRY_DELAYS = [0, 250, 500] as const
+const BACKGROUND_FILE_RE = /^(?:workspace|background)-[a-z0-9._-]+\.(?:png|jpe?g|webp)$/i
 
 function sleep(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms))
@@ -112,4 +113,30 @@ export async function resolveWorkspaceBackgroundSrc(path: string): Promise<strin
   }
   console.warn('[background] 背景文件校验失败:', lastError)
   return null
+}
+
+function pathKey(path: string) {
+  return path.replace(/\\/g, '/').toLowerCase()
+}
+
+export async function cleanupWorkspaceBackgroundOrphans(referencedPaths: string[]): Promise<void> {
+  if (!isTauri()) return
+  try {
+    const dir = await join(await appDataDir(), 'worldsea', 'backgrounds')
+    const entries = await invoke('cmd_fs_list', { path: dir, recursive: false }) as Array<{
+      name: string; path: string; isDir: boolean
+    }>
+    const keep = new Set(referencedPaths.filter(Boolean).map(pathKey))
+    for (const entry of entries) {
+      if (entry.isDir || !BACKGROUND_FILE_RE.test(entry.name)) continue
+      if (keep.has(pathKey(entry.path))) continue
+      try {
+        await invoke('cmd_fs_delete', { path: entry.path })
+      } catch (err) {
+        console.warn('[background] 清理孤儿背景失败:', entry.path, err)
+      }
+    }
+  } catch {
+    // 目录不存在或读取失败：无孤儿可清，静默跳过
+  }
 }

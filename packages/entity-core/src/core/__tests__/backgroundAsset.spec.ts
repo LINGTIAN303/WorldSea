@@ -21,6 +21,7 @@ import { pickLocalFiles } from '../pickLocalFiles'
 import {
   BACKGROUND_MAX_EDGE,
   backgroundFileName,
+  cleanupWorkspaceBackgroundOrphans,
   fitLongEdge,
   pickAndSaveWorkspaceBackground,
   resolveWorkspaceBackgroundSrc,
@@ -98,5 +99,35 @@ describe('resolveWorkspaceBackgroundSrc', () => {
     expect(warn).toHaveBeenCalled()
     warn.mockRestore()
     vi.useRealTimers()
+  })
+})
+
+describe('cleanupWorkspaceBackgroundOrphans', () => {
+  beforeEach(() => {
+    vi.mocked(invoke).mockReset()
+  })
+
+  it('只删除未引用且前缀匹配的文件', async () => {
+    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+      if (cmd === 'cmd_fs_list') {
+        return [
+          { name: 'workspace-1.webp', path: 'C:/AppData/worldsea/backgrounds/workspace-1.webp', isDir: false },
+          { name: 'workspace-2.webp', path: 'C:/AppData/worldsea/backgrounds/workspace-2.webp', isDir: false },
+          { name: 'notes.txt', path: 'C:/AppData/worldsea/backgrounds/notes.txt', isDir: false },
+          { name: 'sub', path: 'C:/AppData/worldsea/backgrounds/sub', isDir: true },
+        ]
+      }
+      return undefined
+    })
+    await cleanupWorkspaceBackgroundOrphans(['C:\\AppData\\worldsea\\backgrounds\\WORKSPACE-1.webp'])
+    expect(invoke).toHaveBeenCalledWith('cmd_fs_delete', { path: 'C:/AppData/worldsea/backgrounds/workspace-2.webp' })
+    expect(invoke).not.toHaveBeenCalledWith('cmd_fs_delete', { path: 'C:/AppData/worldsea/backgrounds/workspace-1.webp' })
+    expect(invoke).not.toHaveBeenCalledWith('cmd_fs_delete', { path: 'C:/AppData/worldsea/backgrounds/notes.txt' })
+    expect(invoke).not.toHaveBeenCalledWith('cmd_fs_delete', { path: 'C:/AppData/worldsea/backgrounds/sub' })
+  })
+
+  it('目录读取失败时静默返回', async () => {
+    vi.mocked(invoke).mockRejectedValue(new Error('no dir'))
+    await expect(cleanupWorkspaceBackgroundOrphans([])).resolves.toBeUndefined()
   })
 })

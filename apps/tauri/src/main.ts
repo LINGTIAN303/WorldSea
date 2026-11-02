@@ -14,7 +14,7 @@ import '@worldsea/motion-kit/presets.css'
 // 工作台背景层样式（图片层 + 暗化 + 启用时的画布透明化）
 import './styles/workspace-background.css'
 import { applyPersistedStyle, applyPersistedBackground, useBackground } from '@worldsea/style-kit'
-import { resolveWorkspaceBackgroundSrc } from '@worldsea/entity-core/core'
+import { cleanupWorkspaceBackgroundOrphans, resolveWorkspaceBackgroundSrc } from '@worldsea/entity-core/core'
 
 import { startBackendBoot } from './boot/backendBoot'
 
@@ -38,16 +38,18 @@ applyPersistedBackground()
 
 app.mount('#app')
 
-// 挂载后校验背景文件是否仍在（异步，不阻塞首帧）：失效则标记缺失并关闭背景
+// 挂载后校验背景文件是否仍在（异步，不阻塞首帧）：失效只标记缺失，不改持久化配置
 void (async () => {
   const { background, setSrc, markMissing } = useBackground()
   const path = background.value.path
-  if (!path) return
-  const src = await resolveWorkspaceBackgroundSrc(path)
-  // 校验期间用户可能已换图/清空：路径已变则丢弃本次结果，避免覆盖新选择或误标缺失
-  if (background.value.path !== path) return
-  if (src) setSrc(src)
-  else markMissing()
+  if (path) {
+    const src = await resolveWorkspaceBackgroundSrc(path)
+    // 校验期间用户可能已换图/清空：路径已变则丢弃本次结果，避免覆盖新选择或误标缺失
+    if (background.value.path !== path) return
+    if (src) setSrc(src)
+    else markMissing()
+  }
+  await cleanupWorkspaceBackgroundOrphans(background.value.path ? [background.value.path] : [])
 })()
 
 // mount 后启动后端装配；App 启动链 await 同一 Promise（幂等），失败由启动错误页承接
