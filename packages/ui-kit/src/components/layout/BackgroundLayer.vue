@@ -1,23 +1,82 @@
 <template>
-  <div v-if="visible" class="ws-bg-layer" :class="`ws-bg-layer--${target}`" aria-hidden="true">
+  <div v-if="visible" class="ws-bg-layer" :class="`ws-bg-layer--${target}`" :style="scopeStyle" aria-hidden="true">
     <div class="ws-bg-layer__image"></div>
     <div class="ws-bg-layer__shade"></div>
   </div>
 </template>
 
 <script setup lang="ts">
-/** 目标背景层：五目标通用；是否显示由 store 的生效配置/运行时 URL/缺失态决定。 */
-import { computed } from 'vue'
+/** 目标背景层：五目标通用；是否显示由生效配置或指定范围的运行时态决定。 */
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useBackground, type BackgroundTarget } from '@worldsea/style-kit'
 
-const props = withDefaults(defineProps<{ target: BackgroundTarget; preview?: boolean }>(), { preview: false })
-const { effective, srcs, missing } = useBackground()
+type PreviewScope = 'effective' | 'global' | 'project'
+
+const props = withDefaults(defineProps<{ target: BackgroundTarget; preview?: boolean; scope?: PreviewScope }>(), {
+  preview: false,
+  scope: 'effective',
+})
+const { effective, srcs, missing, globalConfig, projectConfig, globalSrcs, projectSrcs, globalMissing, projectMissing } = useBackground()
+
+// 非生效范围由层自己挑亮/暗图（根变量只承载生效配置），故监听 data-theme
+const dark = ref(false)
+let themeObserver: MutationObserver | null = null
+onMounted(() => {
+  dark.value = document.documentElement.dataset.theme === 'dark'
+  themeObserver = new MutationObserver(() => {
+    dark.value = document.documentElement.dataset.theme === 'dark'
+  })
+  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+})
+onBeforeUnmount(() => themeObserver?.disconnect())
+
+/** 指定范围的配置/运行时态；项目范围无自定义目标时返回 null（隐藏） */
+const scoped = computed(() => {
+  if (props.scope === 'global') {
+    return {
+      cfg: globalConfig.value.targets[props.target],
+      src: globalSrcs.value[props.target],
+      miss: globalMissing.value[props.target],
+    }
+  }
+  if (props.scope === 'project') {
+    const cfg = projectConfig.value?.targets[props.target]
+    return cfg ? { cfg, src: projectSrcs.value[props.target], miss: projectMissing.value[props.target] } : null
+  }
+  return null
+})
+
 // 任一主题有图且并非两主题都缺失才显示；预览模式忽略启用开关（设置卡预览用）
 const visible = computed(() => {
-  const cfg = effective.value[props.target]
-  const src = srcs.value[props.target]
-  const miss = missing.value[props.target]
+  if (!scoped.value) {
+    const cfg = effective.value[props.target]
+    const src = srcs.value[props.target]
+    const miss = missing.value[props.target]
+    const hasSrc = !!(src.light || src.dark) && !(miss.light && miss.dark)
+    return props.preview ? hasSrc : cfg.enabled && hasSrc
+  }
+  const { cfg, src, miss } = scoped.value
   const hasSrc = !!(src.light || src.dark) && !(miss.light && miss.dark)
   return props.preview ? hasSrc : cfg.enabled && hasSrc
+})
+
+function sizeValue(fit: string): string {
+  return fit === 'cover' ? 'cover' : fit === 'contain' ? 'contain' : 'auto'
+}
+
+// 指定范围用内联 --layer-* 覆盖样式表里的根变量映射；主题缺图回退另一主题
+const scopeStyle = computed(() => {
+  const view = scoped.value
+  if (!view) return undefined
+  const { cfg, src } = view
+  const image = dark.value ? src.dark || src.light : src.light || src.dark
+  return {
+    '--layer-image': `url("${image}")`,
+    '--layer-size': sizeValue(cfg.fit),
+    '--layer-repeat': cfg.fit === 'tile' ? 'repeat' : 'no-repeat',
+    '--layer-position': `${cfg.focusX}% ${cfg.focusY}%`,
+    '--layer-dim': String(cfg.dim),
+    '--layer-blur': `${cfg.blur}px`,
+  }
 })
 </script>

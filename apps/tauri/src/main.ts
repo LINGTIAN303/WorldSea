@@ -11,9 +11,7 @@ import './styles/web-tokens-bridge.css'
 import '@worldsea/style-kit/styles.css'
 import './styles/liquid-glass-surfaces.css'
 import '@worldsea/motion-kit/presets.css'
-// 工作台背景层样式（图片层 + 暗化 + 启用时的画布透明化）
-import './styles/workspace-background.css'
-// 界面背景 v2：五目标层与主题变量映射（v1 透明化规则待清理）
+// 界面背景 v2：五目标层、透明化与主题变量映射
 import './styles/background-targets.css'
 import { applyPersistedStyle, applyPersistedBackground } from '@worldsea/style-kit'
 import { hydrateGlobalBackground, validateGlobalBackground } from './composables/useBackgroundBootstrap'
@@ -35,7 +33,7 @@ app.use(VueCodemirror, { extensions: [wsBasicSetup] })
 
 // 风格必须在挂载前落地：data-style + 四维变量，避免首帧回退到默认令牌
 applyPersistedStyle()
-// 背景同理：挂载前写入 CSS 变量与 data-workspace-bg，避免首帧无背景
+// 背景同理：挂载前写入五目标 CSS 变量与 data-ws-bg-*，避免首帧无背景
 applyPersistedBackground()
 // v2：挂载前把全局背景路径换成 asset URL 注入 store.srcs，避免首帧空档
 hydrateGlobalBackground()

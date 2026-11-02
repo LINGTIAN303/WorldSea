@@ -87,6 +87,7 @@ export function useFileSystemProject() {
   }
 
   return {
+    boundDir,
     dirName,
     isSupported,
     saving,

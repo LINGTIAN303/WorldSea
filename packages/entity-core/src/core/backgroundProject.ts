@@ -108,6 +108,18 @@ export async function deleteProjectBackground(projectDir: string): Promise<void>
   }
 }
 
+/** 删除项目内被目标引用的背景图；relativePath 先按项目路径规则校验，非法直接忽略 */
+export async function removeProjectBackgroundFile(projectDir: string, relativePath: string): Promise<void> {
+  if (!projectDir) return
+  const rel = normalizeProjectBackgroundPath(relativePath)
+  if (!rel) return
+  try {
+    await invoke('cmd_fs_delete', { path: joinInside(projectDir, rel) })
+  } catch (err) {
+    console.warn('[background] 删除项目背景文件失败:', err)
+  }
+}
+
 export async function resolveProjectBackgroundAssets(
   projectDir: string,
   refs: ProjectBackgroundRef[],

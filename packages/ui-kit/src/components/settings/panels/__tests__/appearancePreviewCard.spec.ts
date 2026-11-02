@@ -49,4 +49,15 @@ describe('AppearancePanel —— Deck 六卡分支', () => {
       w.unmount()
     }
   })
+
+  it('背景卡命中分区/窗口栏/侧栏/内容区/首页/亮色/暗色', () => {
+    setActivePinia(createPinia())
+    for (const q of ['分区', '窗口栏', '侧栏', '内容区', '首页', '亮色', '暗色']) {
+      const w = mount(AppearancePanel, { props: { searchQuery: q } })
+      const cards = w.findAll('.deck-card')
+      expect(cards[1].isVisible()).toBe(true)
+      expect(cards[0].isVisible()).toBe(false)
+      w.unmount()
+    }
+  })
 })

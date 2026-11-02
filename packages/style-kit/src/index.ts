@@ -4,12 +4,12 @@ export { applyPersistedStyle, useStyle } from './composables/useStyle'
 export type { GlassVariant } from './composables/useStyle'
 export {
   applyPersistedBackground, useBackground,
-  normalizeBackground, normalizeTargetConfig, normalizeGlobalConfig, normalizeProjectConfig, migrateV1Config,
+  normalizeTargetConfig, normalizeGlobalConfig, normalizeProjectConfig, migrateV1Config,
   BACKGROUND_KEY, BACKGROUND_V1_KEY, BACKGROUND_TARGETS, BACKGROUND_THEMES, BACKGROUND_TARGET_CAPS,
-  BACKGROUND_VARS, BACKGROUND_DEFAULTS,
+  BACKGROUND_DEFAULTS,
 } from './composables/useBackground'
 export type {
-  WorkspaceBackground, BackgroundFit, FocusStep,
+  BackgroundFit, FocusStep,
   BackgroundTarget, BackgroundTheme, BackgroundScope, BackgroundImageRef,
   BackgroundTargetConfig, BackgroundGlobalConfig, BackgroundProjectConfig,
 } from './composables/useBackground'

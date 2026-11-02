@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const load = async () => {
   vi.resetModules()
@@ -7,30 +7,37 @@ const load = async () => {
 
 const TARGETS = ['canvas', 'home', 'titlebar', 'sidebar', 'content'] as const
 const TARGET_VAR_SUFFIXES = ['image-light', 'image-dark', 'size', 'repeat', 'position', 'dim', 'blur'] as const
+const V1_ALIASES = [
+  'background', 'setImage', 'setSrc', 'clear', 'setEnabled', 'setFit',
+  'setFocus', 'setDim', 'setBlur', 'flush',
+]
 
 function resetDom() {
   const root = document.documentElement
-  root.removeAttribute('data-workspace-bg')
   for (const target of TARGETS) {
     delete root.dataset[`wsBg${target[0].toUpperCase()}${target.slice(1)}`]
     for (const suffix of TARGET_VAR_SUFFIXES) root.style.removeProperty(`--ws-bg-${target}-${suffix}`)
-  }
-  for (const name of ['--ws-bg-image', '--ws-bg-size', '--ws-bg-repeat', '--ws-bg-position', '--ws-bg-dim', '--ws-bg-blur']) {
-    root.style.removeProperty(name)
   }
 }
 
 describe('useBackground', () => {
   beforeEach(() => {
+    // 全用例假计时器：每个用例重置模块后，上一个实例的防抖写盘定时器不得落到下一个用例
+    vi.useFakeTimers()
     localStorage.clear()
     resetDom()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('默认不应用背景', async () => {
     const { applyPersistedBackground } = await load()
     applyPersistedBackground()
-    expect(document.documentElement.dataset.workspaceBg).toBeUndefined()
-    expect(document.documentElement.style.getPropertyValue('--ws-bg-image')).toBe('')
+    const root = document.documentElement
+    expect(root.dataset.wsBgCanvas).toBeUndefined()
+    expect(root.style.getPropertyValue('--ws-bg-canvas-image-light')).toBe('')
   })
 
   it('归一化：枚举回退、焦点就近、数值夹取', async () => {
@@ -47,92 +54,96 @@ describe('useBackground', () => {
     expect(b.blur).toBe(0)
   })
 
-  it('损坏 JSON 回默认值', async () => {
+  it('v1 损坏 JSON 不迁移，回默认值', async () => {
     localStorage.setItem('worldsea_workspace_background', '{oops')
-    const { applyPersistedBackground, BACKGROUND_DEFAULTS } = await load()
+    const { applyPersistedBackground, BACKGROUND_DEFAULTS, BACKGROUND_KEY } = await load()
     applyPersistedBackground()
-    expect(document.documentElement.dataset.workspaceBg).toBeUndefined()
+    expect(document.documentElement.dataset.wsBgCanvas).toBeUndefined()
     expect(BACKGROUND_DEFAULTS.targets.canvas.dim).toBe(35)
+    expect(localStorage.getItem(BACKGROUND_KEY)).toBeNull()
   })
 
-  it('setImage 启用并写变量；关闭后保留变量供预览', async () => {
+  it('setTargetImage 启用并写变量；关闭后保留变量供预览', async () => {
     const { useBackground } = await load()
     const api = useBackground()
-    api.setImage({ path: '/a.webp', src: 'asset://a.webp' })
-    expect(document.documentElement.dataset.workspaceBg).toBe('on')
-    expect(document.documentElement.style.getPropertyValue('--ws-bg-image')).toContain('asset://a.webp')
-    api.setEnabled(false)
-    expect(document.documentElement.dataset.workspaceBg).toBeUndefined()
-    expect(document.documentElement.style.getPropertyValue('--ws-bg-blur')).toBe('8px')
+    api.setTargetImage('canvas', 'light', { path: '/a.webp', src: 'asset://a.webp' }, 'global')
+    const root = document.documentElement
+    expect(root.dataset.wsBgCanvas).toBe('on')
+    expect(root.style.getPropertyValue('--ws-bg-canvas-image-light')).toContain('asset://a.webp')
+    api.updateTarget('canvas', { enabled: false }, 'global')
+    expect(root.dataset.wsBgCanvas).toBeUndefined()
+    expect(root.style.getPropertyValue('--ws-bg-canvas-blur')).toBe('8px')
   })
 
-  it('setDim 夹取并延迟持久化，flush 立即落盘', async () => {
-    vi.useFakeTimers()
+  it('暗化夹取并延迟持久化，flushGlobal 立即落盘', async () => {
     const { useBackground, BACKGROUND_KEY } = await load()
     const api = useBackground()
-    api.setDim(200)
-    expect(api.background.value.dim).toBe(80)
+    api.updateTarget('canvas', { dim: 200 }, 'global')
+    expect(api.globalConfig.value.targets.canvas.dim).toBe(80)
+    expect(api.effective.value.canvas.dim).toBe(80)
     expect(localStorage.getItem(BACKGROUND_KEY)).toBeNull()
-    api.flush()
+    api.flushGlobal()
     const saved = JSON.parse(localStorage.getItem(BACKGROUND_KEY)!)
     expect(saved.targets.canvas.dim).toBe(80)
-    vi.useRealTimers()
   })
 
-  it('fit/focus 映射到 CSS 变量', async () => {
+  it('fit/focus 映射到目标 CSS 变量', async () => {
     const { useBackground } = await load()
     const api = useBackground()
-    api.setImage({ path: '/a.webp', src: 'asset://a.webp' })
-    api.setFit('tile')
-    api.setFocus(0, 100)
+    api.setTargetImage('canvas', 'light', { path: '/a.webp', src: 'asset://a.webp' }, 'global')
+    api.updateTarget('canvas', { fit: 'tile', focusX: 0, focusY: 100 }, 'global')
     const root = document.documentElement
-    expect(root.style.getPropertyValue('--ws-bg-size')).toBe('auto')
-    expect(root.style.getPropertyValue('--ws-bg-repeat')).toBe('repeat')
-    expect(root.style.getPropertyValue('--ws-bg-position')).toBe('0% 100%')
-    api.setFit('contain')
-    expect(root.style.getPropertyValue('--ws-bg-size')).toBe('contain')
-    expect(root.style.getPropertyValue('--ws-bg-repeat')).toBe('no-repeat')
+    expect(root.style.getPropertyValue('--ws-bg-canvas-size')).toBe('auto')
+    expect(root.style.getPropertyValue('--ws-bg-canvas-repeat')).toBe('repeat')
+    expect(root.style.getPropertyValue('--ws-bg-canvas-position')).toBe('0% 100%')
+    api.updateTarget('canvas', { fit: 'contain' }, 'global')
+    expect(root.style.getPropertyValue('--ws-bg-canvas-size')).toBe('contain')
+    expect(root.style.getPropertyValue('--ws-bg-canvas-repeat')).toBe('no-repeat')
   })
 
-  it('markMissing 软缺失：保留配置、不写存储；setSrc 恢复', async () => {
+  it('markMissing 软缺失：保留配置、不写存储；setTargetSrc 恢复', async () => {
     const { useBackground, BACKGROUND_KEY } = await load()
     const api = useBackground()
-    api.setImage({ path: '/a.webp', src: 'asset://a.webp' })
+    api.setTargetImage('canvas', 'light', { path: '/a.webp', src: 'asset://a.webp' }, 'global')
     localStorage.removeItem(BACKGROUND_KEY)
-    api.markMissing()
-    expect(api.background.value.path).toBe('/a.webp')
-    expect(api.background.value.src).toBe('')
-    expect(api.background.value.enabled).toBe(true)
+    api.markMissing('canvas', 'light', 'global')
+    expect(api.globalConfig.value.targets.canvas.paths.light).toBe('/a.webp')
+    expect(api.globalSrcs.value.canvas.light).toBe('')
     expect(api.missing.value.canvas.light).toBe(true)
+    expect(api.globalMissing.value.canvas.light).toBe(true)
     expect(localStorage.getItem(BACKGROUND_KEY)).toBeNull()
-    expect(document.documentElement.dataset.workspaceBg).toBeUndefined()
-    api.setSrc('asset://a.webp')
+    expect(document.documentElement.dataset.wsBgCanvas).toBeUndefined()
+    api.setTargetSrc('canvas', 'light', 'asset://a.webp', 'global')
     expect(api.missing.value.canvas.light).toBe(false)
-    expect(document.documentElement.dataset.workspaceBg).toBe('on')
+    expect(document.documentElement.dataset.wsBgCanvas).toBe('on')
   })
 
   it('替换图片保留启用状态，首次选图自动启用', async () => {
     const { useBackground } = await load()
     const api = useBackground()
-    api.setImage({ path: '/a.webp', src: 'asset://a.webp' })
-    expect(api.background.value.enabled).toBe(true)
-    api.setEnabled(false)
-    api.setImage({ path: '/b.webp', src: 'asset://b.webp' })
-    expect(api.background.value.enabled).toBe(false)
-    api.clear()
-    api.setImage({ path: '/c.webp', src: 'asset://c.webp' })
-    expect(api.background.value.enabled).toBe(true)
+    api.setTargetImage('canvas', 'light', { path: '/a.webp', src: 'asset://a.webp' }, 'global')
+    expect(api.globalConfig.value.targets.canvas.enabled).toBe(true)
+    api.updateTarget('canvas', { enabled: false }, 'global')
+    api.setTargetImage('canvas', 'dark', { path: '/b.webp', src: 'asset://b.webp' }, 'global')
+    expect(api.globalConfig.value.targets.canvas.enabled).toBe(false)
+    api.clearTargetImage('canvas', 'light', 'global')
+    api.clearTargetImage('canvas', 'dark', 'global')
+    expect(api.globalConfig.value.targets.canvas.paths).toEqual({ light: '', dark: '' })
+    api.setTargetImage('canvas', 'light', { path: '/c.webp', src: 'asset://c.webp' }, 'global')
+    expect(api.globalConfig.value.targets.canvas.enabled).toBe(true)
   })
 
-  it('clear 清空配置、变量与属性', async () => {
+  it('清空两主题图片后移除变量与属性', async () => {
     const { useBackground } = await load()
     const api = useBackground()
-    api.setImage({ path: '/a.webp', src: 'asset://a.webp' })
-    api.clear()
-    expect(api.background.value.src).toBe('')
-    expect(api.background.value.enabled).toBe(false)
-    expect(document.documentElement.dataset.workspaceBg).toBeUndefined()
-    expect(document.documentElement.style.getPropertyValue('--ws-bg-image')).toBe('')
+    api.setTargetImage('canvas', 'light', { path: '/a.webp', src: 'asset://a.webp' }, 'global')
+    api.setTargetImage('canvas', 'dark', { path: '/b.webp', src: 'asset://b.webp' }, 'global')
+    api.clearTargetImage('canvas', 'light', 'global')
+    api.clearTargetImage('canvas', 'dark', 'global')
+    expect(api.globalConfig.value.targets.canvas.paths).toEqual({ light: '', dark: '' })
+    const root = document.documentElement
+    expect(root.style.getPropertyValue('--ws-bg-canvas-image-light')).toBe('')
+    expect(root.dataset.wsBgCanvas).toBeUndefined()
   })
 
   it('五目标默认值齐全', async () => {
@@ -154,12 +165,12 @@ describe('useBackground', () => {
     expect(c.focusY).toBe(50)
   })
 
-  it('v1 配置迁移到 canvas 亮色图', async () => {
+  it('v1 配置迁移到 canvas 亮色图并写入 v2 键', async () => {
     localStorage.setItem('worldsea_workspace_background', JSON.stringify({
       enabled: true, path: '/old.webp', src: 'asset://old.webp',
       fit: 'contain', focusX: 100, focusY: 0, dim: 12, blur: 3,
     }))
-    const { applyPersistedBackground, useBackground } = await load()
+    const { applyPersistedBackground, useBackground, BACKGROUND_KEY } = await load()
     applyPersistedBackground()
     const canvas = useBackground().globalConfig.value.targets.canvas
     expect(canvas.enabled).toBe(true)
@@ -168,6 +179,7 @@ describe('useBackground', () => {
     expect(canvas.fit).toBe('contain')
     expect(canvas.focusX).toBe(100)
     expect(canvas.dim).toBe(12)
+    expect(JSON.parse(localStorage.getItem(BACKGROUND_KEY)!).version).toBe(2)
   })
 
   it('项目目标覆盖全局，显式关闭不回退', async () => {
@@ -198,7 +210,22 @@ describe('useBackground', () => {
       },
     })
     expect(api.missing.value.canvas.light).toBe(false)
+    expect(api.projectMissing.value.canvas.light).toBe(false)
     api.setProjectConfig(null)
+    expect(api.missing.value.canvas.light).toBe(true)
+  })
+
+  it('暴露分 scope 运行时态供卡片预览', async () => {
+    const { useBackground } = await load()
+    const api = useBackground()
+    api.setTargetImage('canvas', 'light', { path: '/g.webp', src: 'asset://g.webp' }, 'global')
+    api.setTargetCustom('canvas', true)
+    api.setTargetSrcs('canvas', { light: 'asset://p.webp', dark: '' }, 'project')
+    expect(api.globalSrcs.value.canvas.light).toBe('asset://g.webp')
+    expect(api.projectSrcs.value.canvas.light).toBe('asset://p.webp')
+    api.markMissing('canvas', 'light', 'project')
+    expect(api.projectMissing.value.canvas.light).toBe(true)
+    expect(api.globalMissing.value.canvas.light).toBe(false)
     expect(api.missing.value.canvas.light).toBe(true)
   })
 
@@ -224,5 +251,11 @@ describe('useBackground', () => {
       expect(root.dataset[`wsBg${target[0].toUpperCase()}${target.slice(1)}`]).toBe('on')
       expect(root.style.getPropertyValue(`--ws-bg-${target}-image-light`)).toContain(`asset://${target}.webp`)
     }
+  })
+
+  it('不再暴露 v1 兼容别名', async () => {
+    const { useBackground } = await load()
+    const api = useBackground() as unknown as Record<string, unknown>
+    for (const key of V1_ALIASES) expect(api[key]).toBeUndefined()
   })
 })

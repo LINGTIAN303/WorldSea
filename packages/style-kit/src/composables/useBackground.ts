@@ -1,4 +1,4 @@
-/** 背景状态单例：五目标配置、全局+项目覆盖合并、根变量；v1 画布 API 暂留兼容。 */
+/** 背景状态单例：五目标配置、全局+项目覆盖合并、分范围运行时态与根变量。 */
 import { computed, ref } from 'vue'
 
 export type BackgroundTarget = 'canvas' | 'home' | 'titlebar' | 'sidebar' | 'content'
@@ -32,19 +32,6 @@ export interface BackgroundProjectConfig {
   targets: Partial<Record<BackgroundTarget, BackgroundTargetConfig>>
 }
 
-/** v1 兼容形状：旧卡与启动引导仍按此读取画布目标 */
-export interface WorkspaceBackground {
-  version: 1
-  enabled: boolean
-  path: string
-  src: string
-  fit: BackgroundFit
-  focusX: FocusStep
-  focusY: FocusStep
-  dim: number
-  blur: number
-}
-
 export const BACKGROUND_KEY = 'worldsea_background_v2'
 export const BACKGROUND_V1_KEY = 'worldsea_workspace_background'
 export const BACKGROUND_TARGETS: readonly BackgroundTarget[] = ['canvas', 'home', 'titlebar', 'sidebar', 'content']
@@ -56,10 +43,6 @@ export const BACKGROUND_TARGET_CAPS: Record<BackgroundTarget, { fit: boolean; fo
   sidebar: { fit: false, focus: false },
   content: { fit: false, focus: false },
 }
-export const BACKGROUND_VARS = [
-  '--ws-bg-image', '--ws-bg-size', '--ws-bg-repeat',
-  '--ws-bg-position', '--ws-bg-dim', '--ws-bg-blur',
-] as const
 
 const FOCUS_STEPS: FocusStep[] = [0, 50, 100]
 const FIT_VALUES: BackgroundFit[] = ['cover', 'contain', 'tile']
@@ -178,31 +161,6 @@ export function migrateV1Config(): BackgroundGlobalConfig | null {
   return config
 }
 
-/** v1 兼容：旧归一化入口，接受平铺字段并还原旧形状 */
-export function normalizeBackground(raw: unknown): WorkspaceBackground {
-  const value = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {}
-  const canvas = normalizeTargetConfig({
-    enabled: value.enabled,
-    paths: { light: value.path, dark: '' },
-    fit: value.fit,
-    focusX: value.focusX,
-    focusY: value.focusY,
-    dim: value.dim,
-    blur: value.blur,
-  }, 'canvas')
-  return {
-    version: 1,
-    enabled: canvas.enabled,
-    path: canvas.paths.light,
-    src: typeof value.src === 'string' ? value.src : '',
-    fit: canvas.fit,
-    focusX: canvas.focusX,
-    focusY: canvas.focusY,
-    dim: canvas.dim,
-    blur: canvas.blur,
-  }
-}
-
 const globalConfig = ref<BackgroundGlobalConfig>(cloneDefaults())
 const projectConfig = ref<BackgroundProjectConfig | null>(null)
 const globalSrcs = ref<SrcMap>(emptySrcs())
@@ -272,25 +230,6 @@ function datasetKey(target: BackgroundTarget): string {
   return `wsBg${target[0].toUpperCase()}${target.slice(1)}`
 }
 
-function applyLegacy(root: HTMLElement) {
-  const cfg = globalConfig.value.targets.canvas
-  const s = globalSrcs.value.canvas
-  const light = s.light || s.dark
-  const bothMissing = globalMissing.value.canvas.light && globalMissing.value.canvas.dark
-  if (light && !bothMissing) {
-    root.style.setProperty('--ws-bg-image', `url("${light}")`)
-    root.style.setProperty('--ws-bg-size', sizeValue(cfg.fit))
-    root.style.setProperty('--ws-bg-repeat', cfg.fit === 'tile' ? 'repeat' : 'no-repeat')
-    root.style.setProperty('--ws-bg-position', `${cfg.focusX}% ${cfg.focusY}%`)
-    root.style.setProperty('--ws-bg-dim', String(cfg.dim))
-    root.style.setProperty('--ws-bg-blur', `${cfg.blur}px`)
-  } else {
-    for (const name of BACKGROUND_VARS) root.style.removeProperty(name)
-  }
-  if (cfg.enabled && light && !bothMissing) root.dataset.workspaceBg = 'on'
-  else delete root.dataset.workspaceBg
-}
-
 function apply() {
   const root = document.documentElement
   for (const target of BACKGROUND_TARGETS) {
@@ -312,7 +251,6 @@ function apply() {
     if (cfg.enabled && (light || dark)) root.dataset[datasetKey(target)] = 'on'
     else delete root.dataset[datasetKey(target)]
   }
-  applyLegacy(root)
 }
 
 function targetConfigAt(scope: BackgroundScope, target: BackgroundTarget): BackgroundTargetConfig {
@@ -416,73 +354,11 @@ function setTargetCustom(target: BackgroundTarget, custom: boolean) {
   apply()
 }
 
-/** 标记运行时缺失：清该槽 src，保留持久化路径；无参调用兼容 v1（canvas/light） */
-function markMissing(
-  target: BackgroundTarget = 'canvas',
-  theme: BackgroundTheme = 'light',
-  scope: BackgroundScope = 'global',
-) {
+/** 标记运行时缺失：清该槽 src，保留持久化路径 */
+function markMissing(target: BackgroundTarget, theme: BackgroundTheme, scope: BackgroundScope) {
   writeSrc(scope, target, theme, '')
   setMissing(scope, target, theme, true)
   apply()
-}
-
-const background = computed<WorkspaceBackground>(() => {
-  const c = globalConfig.value.targets.canvas
-  const s = globalSrcs.value.canvas
-  return {
-    version: 1,
-    enabled: c.enabled,
-    path: c.paths.light,
-    src: s.light || s.dark,
-    fit: c.fit,
-    focusX: c.focusX,
-    focusY: c.focusY,
-    dim: c.dim,
-    blur: c.blur,
-  }
-})
-
-function setImage(image: BackgroundImageRef) {
-  setTargetImage('canvas', 'light', image, 'global')
-}
-
-function setSrc(src: string) {
-  setTargetSrc('canvas', 'light', src, 'global')
-  setMissing('global', 'canvas', 'light', false)
-  persistNow()
-}
-
-function clear() {
-  const targets = { ...globalConfig.value.targets }
-  targets.canvas = defaultTarget()
-  globalConfig.value = { ...globalConfig.value, targets }
-  globalSrcs.value = { ...globalSrcs.value, canvas: { light: '', dark: '' } }
-  globalMissing.value = { ...globalMissing.value, canvas: { light: false, dark: false } }
-  apply()
-  persistNow()
-}
-
-function setEnabled(on: boolean) {
-  updateTarget('canvas', { enabled: on }, 'global')
-  persistNow()
-}
-
-function setFit(fit: BackgroundFit) {
-  if (!FIT_VALUES.includes(fit)) return
-  updateTarget('canvas', { fit }, 'global')
-}
-
-function setFocus(x: FocusStep, y: FocusStep) {
-  updateTarget('canvas', { focusX: nearestFocus(x), focusY: nearestFocus(y) }, 'global')
-}
-
-function setDim(value: number) {
-  updateTarget('canvas', { dim: clamp(value, 0, 80, 35) }, 'global')
-}
-
-function setBlur(value: number) {
-  updateTarget('canvas', { blur: clamp(value, 0, 30, 8) }, 'global')
 }
 
 export function applyPersistedBackground() {
@@ -498,6 +374,10 @@ export function useBackground() {
     effective,
     srcs,
     missing,
+    globalSrcs,
+    projectSrcs,
+    globalMissing,
+    projectMissing,
     setProjectConfig,
     setTargetSrcs,
     setTargetSrc,
@@ -508,16 +388,5 @@ export function useBackground() {
     markMissing,
     apply,
     flushGlobal: persistNow,
-    // v1 兼容别名：旧卡与启动引导按画布目标消费
-    background,
-    setImage,
-    setSrc,
-    clear,
-    setEnabled,
-    setFit,
-    setFocus,
-    setDim,
-    setBlur,
-    flush: persistNow,
   }
 }

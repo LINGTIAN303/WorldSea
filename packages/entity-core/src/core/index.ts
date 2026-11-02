@@ -281,6 +281,7 @@ export {
   readProjectBackground,
   writeProjectBackground,
   deleteProjectBackground,
+  removeProjectBackgroundFile,
   resolveProjectBackgroundAssets,
   cleanupProjectBackgroundOrphans,
   exportProjectBackgrounds,

@@ -19,4 +19,10 @@ describe('设置分类', () => {
       expect(SETTINGS_CATEGORY_KEYWORDS.appearance).toContain(word)
     }
   })
+
+  it('外观分类含分区与亮暗关键词', () => {
+    for (const word of ['分区', '窗口栏', '侧栏', '内容区', '亮色', '暗色']) {
+      expect(SETTINGS_CATEGORY_KEYWORDS.appearance).toContain(word)
+    }
+  })
 })

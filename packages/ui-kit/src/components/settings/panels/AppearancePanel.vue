@@ -2,7 +2,7 @@
   <CardDeck :count="6" :flat="!!searchQuery" @change="(i) => emit('card-change', i)" ref="deckRef">
     <template #card="{ idx, cls }">
       <div class="set-card deck-card" :class="cls" :data-index="idx"
-        v-show="idx === 0 ? match('主题 theme 外观 底色 深色 浅色 跟随系统 强调色 颜色 编辑器 图谱 星图 眼睛 虹膜 iris 风格 材质 实体 形变 触感 拟态 玻璃 glass neu mist') : idx === 1 ? match('背景 图片 壁纸 背景图 wallpaper 填充 焦点 暗化 模糊') : idx === 2 ? match('高亮 highlight 脉冲 动画 淡化 扩散 透明度') : true">
+        v-show="idx === 0 ? match('主题 theme 外观 底色 深色 浅色 跟随系统 强调色 颜色 编辑器 图谱 星图 眼睛 虹膜 iris 风格 材质 实体 形变 触感 拟态 玻璃 glass neu mist') : idx === 1 ? match('背景 图片 壁纸 背景图 wallpaper 填充 焦点 暗化 模糊 分区 窗口栏 侧栏 内容区 首页 亮色 暗色') : idx === 2 ? match('高亮 highlight 脉冲 动画 淡化 扩散 透明度') : true">
         <!-- 主题（2026-09-13 收束：主题 = 底色 × 强调色 两轴，不再陈列六个预设主题卡） -->
         <template v-if="idx === 0">
           <div class="sc-head">主题</div>
