@@ -56,23 +56,28 @@ function persist(p: ThemePreference) {
   }
 }
 
-/** 应用偏好：更新 preference + 持久化 + 应用实际主题（system 时按系统检测） */
-function applyPreference(p: ThemePreference) {
+/** 应用偏好状态：更新 preference + 持久化 + 应用实际主题（system 时按系统检测） */
+function applyState(p: ThemePreference) {
   preference.value = p
   persist(p)
   apply(p === 'system' ? detectSystem() : p)
+  // 广播三态变化（设置面板底色段高亮同步）：同页面无 storage 事件，只能手动派发
+  try {
+    window.dispatchEvent(new CustomEvent('ws-theme-mode-changed', { detail: { preference: p, applied: theme.value } }))
+  } catch {
+    // 非浏览器环境忽略
+  }
+}
+
+/** 用户主动切换：应用并回写壳（壳再同步 dsh 并广播两窗） */
+function applyPreference(p: ThemePreference) {
+  applyState(p)
   // E2（2026-09-24）：新壳里主题真源在**壳侧**（`<app_data>/worldsea/prefs.json`）——变更通知壳，
   // 由壳同步 dsh 并广播两窗；无桥时（浏览器预览 / 旧壳）静默跳过，行为与此前一致
   const notifyShell = (globalThis as { __WORLDSEA_SET_THEME__?: (v: string) => Promise<unknown> })
     .__WORLDSEA_SET_THEME__
   if (typeof notifyShell === 'function') {
     void notifyShell(p).catch(e => console.error('[useTheme] 同步壳主题失败:', e))
-  }
-  // 广播三态变化（设置面板底色段高亮同步）：同页面无 storage 事件，只能手动派发
-  try {
-    window.dispatchEvent(new CustomEvent('ws-theme-mode-changed', { detail: { preference: p, applied: theme.value } }))
-  } catch {
-    // 非浏览器环境忽略
   }
 }
 
@@ -119,7 +124,8 @@ try {
   void listen<{ theme?: string }>('worldsea:theme-changed', event => {
     const next = event.payload?.theme
     if ((next === 'light' || next === 'dark' || next === 'system') && next !== loadPreference()) {
-      applyPreference(next)
+      // 壳来源只应用，不回写壳：回写会形成「壳→产品→壳」回声回路
+      applyState(next)
     }
   }).catch(() => {
     /* 事件面不可用（非 Tauri 环境）时忽略 */
