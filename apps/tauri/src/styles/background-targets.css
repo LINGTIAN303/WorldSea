@@ -55,6 +55,8 @@
   --layer-dim: var(--ws-bg-content-toolbar-dim);
   --layer-blur: var(--ws-bg-content-toolbar-blur);
   --layer-tint: transparent;
+  /* 宿主不能 overflow:hidden（会裁下拉菜单），由层自身继承圆角裁剪 */
+  border-radius: inherit;
 }
 .ws-bg-layer--content-view {
   --layer-image: var(--ws-bg-content-view-image);
