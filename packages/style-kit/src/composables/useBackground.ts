@@ -112,7 +112,12 @@ function setEnabled(on: boolean) {
   persistNow()
 }
 function setImage(image: { path: string; src: string }) {
-  state.value = { ...state.value, ...image, enabled: true }
+  const firstImage = !state.value.path
+  state.value = {
+    ...state.value,
+    ...image,
+    enabled: firstImage ? true : state.value.enabled,
+  }
   missing.value = false
   apply()
   persistNow()

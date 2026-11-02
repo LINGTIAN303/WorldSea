@@ -103,6 +103,19 @@ describe('useBackground', () => {
     expect(document.documentElement.dataset.workspaceBg).toBe('on')
   })
 
+  it('替换图片保留启用状态，首次选图自动启用', async () => {
+    const { useBackground } = await load()
+    const api = useBackground()
+    api.setImage({ path: '/a.webp', src: 'asset://a.webp' })
+    expect(api.background.value.enabled).toBe(true)
+    api.setEnabled(false)
+    api.setImage({ path: '/b.webp', src: 'asset://b.webp' })
+    expect(api.background.value.enabled).toBe(false)
+    api.clear()
+    api.setImage({ path: '/c.webp', src: 'asset://c.webp' })
+    expect(api.background.value.enabled).toBe(true)
+  })
+
   it('clear 清空配置、变量与属性', async () => {
     const { useBackground } = await load()
     const api = useBackground()
