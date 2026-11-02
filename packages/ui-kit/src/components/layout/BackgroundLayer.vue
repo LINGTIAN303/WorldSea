@@ -6,7 +6,7 @@
 </template>
 
 <script setup lang="ts">
-/** 目标背景层：五目标通用；是否显示由生效配置或指定范围的运行时态决定。 */
+/** 目标背景层：六目标通用；是否显示由生效配置或指定范围的运行时态决定。 */
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useBackground, type BackgroundTarget } from '@worldsea/style-kit'
 

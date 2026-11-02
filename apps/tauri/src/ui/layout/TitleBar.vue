@@ -4,7 +4,7 @@
        基础合并（2026-08-08）：MenuBar 左侧功能区（☰ 侧边栏切换 + 项目切换器 + 目录）上移并入窗口栏
       2026-09-30 C 批：旧「space 变体」死代码随 E7 残留清退删除（Agent 面为 dsh 窗口，不吃本组件） -->
   <div class="titlebar" :class="{ 'is-fullscreen': fullscreen }" data-tauri-drag-region>
-    <!-- 窗口栏背景层（v2 五目标之一）：绝对定位，不参与拖拽与布局 -->
+    <!-- 窗口栏背景层（v2.1 六目标之一）：绝对定位，不参与拖拽与布局 -->
     <BackgroundLayer target="titlebar" />
     <!-- 左侧：进入 Agent 空间按钮（D1-b 双窗：本页恒为工作台窗，方向固定切到 dsh 窗口；
          胶囊文案=当前空间「工作台」，tooltip=动作「进入 Agent 空间」，与 dsh 侧注入栏对称） -->

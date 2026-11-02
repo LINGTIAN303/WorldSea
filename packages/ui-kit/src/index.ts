@@ -77,7 +77,7 @@ export { default as WsAmbientLine } from './components/feedback/loading/WsAmbien
 export type { LoadingStage, LoadingStatus } from './components/feedback/loading/types'
 export { default as Sidebar } from './components/layout/Sidebar.vue'
 export { default as ViewContainer } from './components/layout/ViewContainer.vue'
-// 五目标背景层（canvas/home/titlebar/sidebar/content 共用）
+// 六目标背景层（canvas/home/titlebar/sidebar/content-toolbar/content-view 共用）
 export { default as BackgroundLayer } from './components/layout/BackgroundLayer.vue'
 export { default as ViewToolbar } from './components/layout/ViewToolbar.vue'
 export { default as ViewToolbarFilter } from './components/layout/ViewToolbarFilter.vue'
