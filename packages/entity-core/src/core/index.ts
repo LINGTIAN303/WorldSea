@@ -255,6 +255,7 @@ export {
   BACKGROUND_MAX_EDGE,
   fitLongEdge,
   backgroundFileName,
+  backgroundRelativePath,
   pickAndSaveBackground,
   removeBackgroundFile,
   resolveBackgroundSrc,
@@ -271,3 +272,22 @@ export type {
   BackgroundSaveRequest,
   BackgroundImportResult,
 } from './backgroundAsset'
+
+// 项目背景配置（.worldsea/background.json 读写、路径校验、资产解析、孤儿清理、导出/导入）
+export {
+  PROJECT_BACKGROUND_PREFIX,
+  PROJECT_BACKGROUND_CONFIG,
+  normalizeProjectBackgroundPath,
+  readProjectBackground,
+  writeProjectBackground,
+  deleteProjectBackground,
+  resolveProjectBackgroundAssets,
+  cleanupProjectBackgroundOrphans,
+  exportProjectBackgrounds,
+  importProjectBackgrounds,
+} from './backgroundProject'
+export type {
+  ProjectBackgroundRef,
+  ProjectBackgroundAssets,
+  ProjectBackgroundProgress,
+} from './backgroundProject'
