@@ -49,7 +49,7 @@ void (async () => {
     if (src) setSrc(src)
     else markMissing()
   }
-  await cleanupWorkspaceBackgroundOrphans(background.value.path ? [background.value.path] : [])
+  await cleanupWorkspaceBackgroundOrphans(() => (background.value.path ? [background.value.path] : []))
 })()
 
 // mount 后启动后端装配；App 启动链 await 同一 Promise（幂等），失败由启动错误页承接

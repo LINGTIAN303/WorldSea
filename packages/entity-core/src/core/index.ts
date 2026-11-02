@@ -258,5 +258,6 @@ export {
   pickAndSaveWorkspaceBackground,
   removeWorkspaceBackground,
   resolveWorkspaceBackgroundSrc,
+  cleanupWorkspaceBackgroundOrphans,
 } from './backgroundAsset'
 export type { BackgroundImportResult } from './backgroundAsset'

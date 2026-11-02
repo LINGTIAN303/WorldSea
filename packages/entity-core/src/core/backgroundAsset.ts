@@ -119,17 +119,22 @@ function pathKey(path: string) {
   return path.replace(/\\/g, '/').toLowerCase()
 }
 
-export async function cleanupWorkspaceBackgroundOrphans(referencedPaths: string[]): Promise<void> {
+export async function cleanupWorkspaceBackgroundOrphans(
+  referencedPaths: string[] | (() => string[]),
+): Promise<void> {
   if (!isTauri()) return
   try {
     const dir = await join(await appDataDir(), 'worldsea', 'backgrounds')
     const entries = await invoke('cmd_fs_list', { path: dir, recursive: false }) as Array<{
       name: string; path: string; isDir: boolean
     }>
-    const keep = new Set(referencedPaths.filter(Boolean).map(pathKey))
+    const keep = () => new Set(
+      (typeof referencedPaths === 'function' ? referencedPaths() : referencedPaths)
+        .filter(Boolean).map(pathKey),
+    )
     for (const entry of entries) {
       if (entry.isDir || !BACKGROUND_FILE_RE.test(entry.name)) continue
-      if (keep.has(pathKey(entry.path))) continue
+      if (keep().has(pathKey(entry.path))) continue
       try {
         await invoke('cmd_fs_delete', { path: entry.path })
       } catch (err) {
