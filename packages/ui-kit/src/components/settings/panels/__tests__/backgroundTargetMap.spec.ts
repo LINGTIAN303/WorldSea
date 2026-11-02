@@ -111,4 +111,34 @@ describe('BackgroundTargetMap', () => {
     expect(state.attributes('data-state')).toBe('follow')
     expect(w.find('.bg-canvas-card__state').attributes('data-state')).toBe('follow')
   })
+
+  it('预览跟随编辑范围：全局看全局图，项目自定义看项目图', async () => {
+    api.setTargetImage('sidebar', 'light', { path: '/g.webp', src: 'asset://g.webp' }, 'global')
+    const w = mount(BackgroundTargetMap, { props })
+    const layerStyle = () => w.find('.bg-map__region--sidebar .ws-bg-layer').attributes('style') ?? ''
+    expect(layerStyle()).toContain('asset://g.webp')
+
+    api.setProjectConfig({
+      version: 1,
+      targets: {
+        sidebar: {
+          ...defaultTargets(),
+          enabled: true,
+          paths: { light: '.worldsea/backgrounds/p.webp', dark: '' },
+        },
+      },
+    })
+    api.setTargetImage('sidebar', 'light', {
+      path: '.worldsea/backgrounds/p.webp',
+      src: 'asset://p.webp',
+    }, 'project')
+    await w.setProps({ scope: 'project' })
+    await nextTick()
+    expect(layerStyle()).toContain('asset://p.webp')
+
+    api.setProjectConfig({ version: 1, targets: {} })
+    await nextTick()
+    expect(w.find('.bg-map__region--sidebar .bg-map__state').text()).toBe('跟随')
+    expect(layerStyle()).toContain('asset://g.webp')
+  })
 })

@@ -18,7 +18,7 @@
             :disabled="disabled" :aria-pressed="selected === region.target"
             @click="emit('select', region.target)"
           >
-            <BackgroundLayer :target="region.target" scope="effective" preview />
+            <BackgroundLayer :target="region.target" :scope="previewScope(region.target)" preview />
             <span class="bg-map__name">{{ region.label }}</span>
             <span class="bg-map__state" :data-state="stateOf(region.target).key">{{ stateOf(region.target).text }}</span>
           </button>
@@ -28,7 +28,7 @@
             class="bg-map__home" :class="{ 'is-selected': selected === 'home' }" :disabled="disabled"
             :aria-pressed="selected === 'home'" @click="emit('select', 'home')"
           >
-            <BackgroundLayer target="home" scope="effective" preview />
+            <BackgroundLayer target="home" :scope="previewScope('home')" preview />
             <span class="bg-map__home-cover">项目封面<small>在编辑简介更换</small></span>
             <span class="bg-map__home-hero">项目标题 / 简介 / 操作</span>
             <span class="bg-map__home-row" aria-hidden="true"><i v-for="n in 4" :key="n"></i></span>
@@ -46,7 +46,7 @@
       class="bg-canvas-card" :class="{ 'is-selected': selected === 'canvas' }" :disabled="disabled"
       :aria-pressed="selected === 'canvas'" @click="emit('select', 'canvas')"
     >
-      <BackgroundLayer target="canvas" scope="effective" preview />
+      <BackgroundLayer target="canvas" :scope="previewScope('canvas')" preview />
       <span class="bg-canvas-card__label">大背景</span>
       <span class="bg-canvas-card__state" :data-state="stateOf('canvas').key">{{ stateOf('canvas').text }}</span>
     </button>
@@ -66,22 +66,35 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ select: [BackgroundTarget]; 'switch-map': ['workspace' | 'home'] }>()
 
-const { effective, srcs, missing, projectConfig } = useBackground()
+const {
+  globalConfig, projectConfig, globalSrcs, projectSrcs, globalMissing, projectMissing,
+} = useBackground()
 const WORKSPACE_REGIONS = BACKGROUND_WORKSPACE_TARGETS.map((target) => ({
   target,
   label: BACKGROUND_TARGET_LABELS[target],
 }))
 
+function projectTarget(target: BackgroundTarget) {
+  return props.scope === 'project' ? projectConfig.value?.targets[target] : undefined
+}
+
+/** 预览范围跟随编辑范围：项目自定义看项目图，其余看全局图 */
+function previewScope(target: BackgroundTarget): 'global' | 'project' {
+  return projectTarget(target) ? 'project' : 'global'
+}
+
 type TargetStateKey = 'follow' | 'missing' | 'unset' | 'on' | 'off'
 
 /** 区域状态口径：项目跟随 > 两主题缺图 > 无图 > 启用开关 */
 function stateOf(target: BackgroundTarget): { key: TargetStateKey; text: string } {
-  if (props.scope === 'project' && !projectConfig.value?.targets[target]) return { key: 'follow', text: '跟随' }
-  const miss = missing.value[target]
+  const custom = projectTarget(target)
+  if (props.scope === 'project' && !custom) return { key: 'follow', text: '跟随' }
+  const cfg = custom ?? globalConfig.value.targets[target]
+  const src = custom ? projectSrcs.value[target] : globalSrcs.value[target]
+  const miss = custom ? projectMissing.value[target] : globalMissing.value[target]
   if (miss.light && miss.dark) return { key: 'missing', text: '缺图' }
-  const src = srcs.value[target]
   if (!src.light && !src.dark) return { key: 'unset', text: '未设置' }
-  return effective.value[target].enabled ? { key: 'on', text: '开' } : { key: 'off', text: '关' }
+  return cfg.enabled ? { key: 'on', text: '开' } : { key: 'off', text: '关' }
 }
 </script>
 
