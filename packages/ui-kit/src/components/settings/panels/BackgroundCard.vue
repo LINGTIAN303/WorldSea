@@ -29,7 +29,7 @@
     <template v-if="scope === 'project'">
       <div class="bg-project">
         <span class="bg-project__state">{{ isProjectCustom ? '本项目自定义中' : '当前跟随全局' }}</span>
-        <button class="set-btn bg-project__btn" @click="isProjectCustom ? onFollowGlobal() : onMakeCustom()">
+        <button class="set-btn bg-project__btn" :disabled="picking !== null" @click="isProjectCustom ? onFollowGlobal() : onMakeCustom()">
           {{ isProjectCustom ? '恢复跟随全局' : '本项目自定义' }}
         </button>
       </div>
@@ -186,7 +186,8 @@ function isWorkspaceTarget(t: BackgroundTarget): boolean {
   return BACKGROUND_WORKSPACE_TARGETS.some((target) => target === t)
 }
 function onSelectTarget(t: BackgroundTarget) {
-  if (picking.value) return
+  if (picking.value || t === target.value) return
+  error.value = ''
   target.value = t
   if (isWorkspaceTarget(t)) {
     lastWorkspaceTarget.value = t
@@ -196,10 +197,12 @@ function onSelectTarget(t: BackgroundTarget) {
   }
 }
 function onSwitchMap(next: 'workspace' | 'home') {
-  if (picking.value) return
+  if (picking.value || next === map.value) return
+  error.value = ''
   map.value = next
   target.value = next === 'home' ? 'home' : lastWorkspaceTarget.value
 }
+watch(scope, () => { error.value = '' })
 
 function thumbSrc(theme: BackgroundTheme): string {
   const srcs = previewScope.value === 'project' ? projectSrcs.value : globalSrcs.value
@@ -340,7 +343,8 @@ function onScopeProject() {
 
 /** 项目自定义：继承全局参数，图片留空（复制完整目标配置再清图） */
 function onMakeCustom() {
-  if (!hasProject.value) return
+  if (!hasProject.value || picking.value) return
+  error.value = ''
   invalidateProjectLoad()
   setTargetCustom(target.value, true)
   persistProjectNow()
@@ -348,6 +352,8 @@ function onMakeCustom() {
 
 /** 恢复跟随全局：先删除项目目标引用的图片，再删目标本身并落盘 */
 function onFollowGlobal() {
+  if (picking.value) return
+  error.value = ''
   invalidateProjectLoad()
   const dir = projectDir.value
   const cfg = projectConfig.value?.targets[target.value]
@@ -407,6 +413,7 @@ async function onPick(theme: BackgroundTheme) {
 
 function onRemove(theme: BackgroundTheme) {
   if (readOnly.value) return
+  error.value = ''
   invalidateProjectLoad()
   const scopeAt = scope.value
   const targetAt = target.value
@@ -493,6 +500,7 @@ onBeforeUnmount(() => {
   margin-top: 8px;
 }
 .bg-project__state { font-size: var(--fs-sm); color: var(--text-secondary); }
+.bg-project__btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* 上下文编辑区：与映射之间用细分隔线区分「选哪里」与「调什么」 */
 .bg-editor {

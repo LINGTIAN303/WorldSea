@@ -309,6 +309,13 @@ describe('BackgroundCard', () => {
     expect(w.find('.bg-editor__head').text()).toBe('侧栏')
   })
 
+  it('点击已激活地图页签不改选中目标', async () => {
+    const w = await mountCard()
+    await canvasCard(w).trigger('click')
+    await switchMap(w, '工作台').trigger('click')
+    expect(w.find('.bg-editor__head').text()).toBe('大背景')
+  })
+
   it('大背景卡片选中 canvas，地图当前页保留但无选中区域', async () => {
     const w = await mountCard()
     await canvasCard(w).trigger('click')
@@ -338,6 +345,21 @@ describe('BackgroundCard', () => {
     expect(mapRegion(w, '侧栏').attributes('disabled')).toBeUndefined()
     expect(canvasCard(w).attributes('disabled')).toBeUndefined()
     expect(scopeButton(w, '本项目').attributes('disabled')).toBeUndefined()
+  })
+
+  it('选图期间锁定项目自定义/恢复跟随按钮', async () => {
+    let resolvePick!: (value: unknown) => void
+    core.pickAndSaveBackground.mockReturnValue(new Promise((resolve) => { resolvePick = resolve }))
+    const w = await mountCard()
+    await scopeButton(w, '本项目').trigger('click')
+    await w.find('.bg-project__btn').trigger('click')
+    await flushPromises()
+    await w.find('.bg-slot--light .bg-slot__pick').trigger('click')
+    await flushPromises()
+    expect(w.find('.bg-project__btn').attributes('disabled')).toBeDefined()
+    resolvePick(null)
+    await flushPromises()
+    expect(w.find('.bg-project__btn').attributes('disabled')).toBeUndefined()
   })
 
   it('选中工具条时提示仅随流工具条生效', async () => {
