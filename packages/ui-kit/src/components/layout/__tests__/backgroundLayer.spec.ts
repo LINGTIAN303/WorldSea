@@ -68,4 +68,27 @@ describe('BackgroundLayer', () => {
     expect((w.find('.ws-bg-layer').element as HTMLElement).style.getPropertyValue('--layer-image'))
       .toContain('asset://p.webp')
   })
+
+  it('项目范围跟随全局时隐藏，不回退生效/全局图', () => {
+    api.setTargetImage('canvas', 'light', { path: '/g.webp', src: 'asset://g.webp' }, 'global')
+    api.updateTarget('canvas', { enabled: true }, 'global')
+    // 无项目自定义目标：项目范围不得回退到生效配置（旧实现会显示全局图）
+    expect(mount(BackgroundLayer, { props: { target: 'canvas', scope: 'project', preview: true } })
+      .find('.ws-bg-layer').exists()).toBe(false)
+    expect(mount(BackgroundLayer, { props: { target: 'canvas', scope: 'project' } })
+      .find('.ws-bg-layer').exists()).toBe(false)
+    // 全局范围照常显示
+    expect(mount(BackgroundLayer, { props: { target: 'canvas', scope: 'global', preview: true } })
+      .find('.ws-bg-layer').exists()).toBe(true)
+  })
+
+  it('本项目自定义无图时全局范围预览可见、项目范围隐藏', () => {
+    api.setTargetImage('canvas', 'light', { path: '/g.webp', src: 'asset://g.webp' }, 'global')
+    api.updateTarget('canvas', { enabled: true }, 'global')
+    api.setTargetCustom('canvas', true)
+    expect(mount(BackgroundLayer, { props: { target: 'canvas', scope: 'global', preview: true } })
+      .find('.ws-bg-layer').exists()).toBe(true)
+    expect(mount(BackgroundLayer, { props: { target: 'canvas', scope: 'project', preview: true } })
+      .find('.ws-bg-layer').exists()).toBe(false)
+  })
 })

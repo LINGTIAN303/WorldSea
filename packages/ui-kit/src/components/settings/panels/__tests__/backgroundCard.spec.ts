@@ -76,6 +76,15 @@ async function mountCard() {
   return w
 }
 
+/** 打桩项目背景加载：挂载时 readProjectBackground → resolveProjectBackgroundAssets 返回给定结果 */
+function mockProjectLoad(targets: Record<string, unknown>, assets?: { srcs?: Record<string, unknown>; missing?: Record<string, unknown> }) {
+  core.readProjectBackground.mockResolvedValue({ version: 1, targets })
+  core.resolveProjectBackgroundAssets.mockResolvedValue({
+    srcs: assets?.srcs ?? {},
+    missing: assets?.missing ?? {},
+  })
+}
+
 beforeEach(() => {
   env.projectDir = 'C:/proj/worlddata'
   boundDir().value = 'C:/proj'
@@ -198,7 +207,14 @@ describe('BackgroundCard', () => {
       target: 'canvas',
       theme: 'light',
     }))
-    expect(core.writeProjectBackground).toHaveBeenCalled()
+    expect(core.writeProjectBackground).toHaveBeenLastCalledWith('C:/proj/worlddata', expect.objectContaining({
+      version: 1,
+      targets: expect.objectContaining({
+        canvas: expect.objectContaining({
+          paths: { light: '.worldsea/backgrounds/background-canvas-light-1.webp', dark: '' },
+        }),
+      }),
+    }))
   })
 
   it('项目范围跟随全局时控件只读；本项目自定义后可编辑', async () => {
@@ -275,5 +291,122 @@ describe('BackgroundCard', () => {
     expect(core.readProjectBackground).toHaveBeenCalledWith('C:/other/worlddata')
     expect(api.projectConfig.value?.targets.canvas?.enabled).toBe(true)
     expect(scopeButton(w, '本项目').attributes('disabled')).toBeUndefined()
+  })
+
+  it('在途项目加载不覆盖之后的自定义操作', async () => {
+    let resolveAssets!: (value: unknown) => void
+    core.readProjectBackground.mockResolvedValue({
+      version: 1,
+      targets: {
+        canvas: { ...defaultTargets(), enabled: true, paths: { light: '.worldsea/backgrounds/a.webp', dark: '' } },
+      },
+    })
+    core.resolveProjectBackgroundAssets.mockReturnValue(new Promise((resolve) => { resolveAssets = resolve }))
+    const w = await mountCard()
+    // 资源解析未返回时用户点「本项目自定义」：旧加载必须作废
+    await scopeButton(w, '本项目').trigger('click')
+    await w.find('.bg-project__btn').trigger('click')
+    await flushPromises()
+    resolveAssets({
+      srcs: { canvas: { light: 'asset://p/a.webp', dark: null } },
+      missing: { canvas: { light: false, dark: false } },
+    })
+    await flushPromises()
+    const cfg = api.projectConfig.value?.targets.canvas
+    expect(cfg?.paths).toEqual({ light: '', dark: '' })
+    expect(cfg?.enabled).toBe(false)
+  })
+
+  it('项目范围参数落盘使用捕获的项目目录', async () => {
+    mockProjectLoad(
+      { canvas: { ...defaultTargets(), enabled: true, paths: { light: '.worldsea/backgrounds/a.webp', dark: '' } } },
+      { srcs: { canvas: { light: 'asset://p/a.webp', dark: null } }, missing: { canvas: { light: false, dark: false } } },
+    )
+    const w = await mountCard()
+    await scopeButton(w, '本项目').trigger('click')
+    core.writeProjectBackground.mockClear()
+    // 启用开关：改完即落盘
+    await w.find('input[aria-label="启用背景"]').setValue(false)
+    expect(core.writeProjectBackground).toHaveBeenLastCalledWith('C:/proj/worlddata', expect.objectContaining({
+      targets: expect.objectContaining({ canvas: expect.objectContaining({ enabled: false }) }),
+    }))
+    core.writeProjectBackground.mockClear()
+    // 暗化：input 只调度 150ms 防抖，落盘快照带捕获的项目目录
+    const dim = w.find('input[aria-label="暗化"]')
+    ;(dim.element as HTMLInputElement).value = '52'
+    await dim.trigger('input')
+    expect(core.writeProjectBackground).not.toHaveBeenCalled()
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    expect(core.writeProjectBackground).toHaveBeenCalledTimes(1)
+    expect(core.writeProjectBackground).toHaveBeenLastCalledWith('C:/proj/worlddata', expect.objectContaining({
+      targets: expect.objectContaining({ canvas: expect.objectContaining({ dim: 52 }) }),
+    }))
+  })
+
+  it('切换项目前把旧项目挂起快照写到旧目录', async () => {
+    mockProjectLoad(
+      { canvas: { ...defaultTargets(), enabled: true, paths: { light: '.worldsea/backgrounds/a.webp', dark: '' } } },
+      { srcs: { canvas: { light: 'asset://p/a.webp', dark: null } }, missing: { canvas: { light: false, dark: false } } },
+    )
+    const w = await mountCard()
+    await scopeButton(w, '本项目').trigger('click')
+    core.writeProjectBackground.mockClear()
+    const dim = w.find('input[aria-label="暗化"]')
+    ;(dim.element as HTMLInputElement).value = '61'
+    await dim.trigger('input')
+    expect(core.writeProjectBackground).not.toHaveBeenCalled()
+    // 防抖未触发就切项目：旧快照立即写旧目录，定时器不得把旧配置写进新项目
+    core.readProjectBackground.mockResolvedValue(null)
+    env.projectDir = 'C:/other/worlddata'
+    boundDir().value = 'C:/other'
+    await flushPromises()
+    expect(core.writeProjectBackground).toHaveBeenCalledTimes(1)
+    expect(core.writeProjectBackground).toHaveBeenLastCalledWith('C:/proj/worlddata', expect.objectContaining({
+      targets: expect.objectContaining({ canvas: expect.objectContaining({ dim: 61 }) }),
+    }))
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    expect(core.writeProjectBackground).toHaveBeenCalledTimes(1)
+  })
+
+  it('项目范围替换图片删除旧相对路径文件', async () => {
+    mockProjectLoad(
+      { canvas: { ...defaultTargets(), enabled: true, paths: { light: '.worldsea/backgrounds/background-canvas-light-1.webp', dark: '' } } },
+      { srcs: { canvas: { light: 'asset://p/1.webp', dark: null } }, missing: { canvas: { light: false, dark: false } } },
+    )
+    const w = await mountCard()
+    await scopeButton(w, '本项目').trigger('click')
+    core.pickAndSaveBackground.mockResolvedValue({
+      ok: true,
+      path: 'C:/proj/worlddata/.worldsea/backgrounds/background-canvas-light-2.webp',
+      relativePath: '.worldsea/backgrounds/background-canvas-light-2.webp',
+      src: 'asset://p/2.webp',
+    })
+    await w.find('.bg-slot--light .bg-slot__pick').trigger('click')
+    await flushPromises()
+    expect(api.projectConfig.value?.targets.canvas?.paths.light)
+      .toBe('.worldsea/backgrounds/background-canvas-light-2.webp')
+    expect(core.removeProjectBackgroundFile).toHaveBeenCalledWith(
+      'C:/proj/worlddata',
+      '.worldsea/backgrounds/background-canvas-light-1.webp',
+    )
+    expect(core.writeProjectBackground).toHaveBeenLastCalledWith('C:/proj/worlddata', expect.objectContaining({
+      version: 1,
+      targets: expect.objectContaining({
+        canvas: expect.objectContaining({
+          paths: { light: '.worldsea/backgrounds/background-canvas-light-2.webp', dark: '' },
+        }),
+      }),
+    }))
+  })
+
+  it('项目范围缺失提示按项目运行时态显示', async () => {
+    mockProjectLoad(
+      { canvas: { ...defaultTargets(), enabled: true, paths: { light: '.worldsea/backgrounds/background-canvas-light-1.webp', dark: '' } } },
+      { srcs: { canvas: { light: null, dark: null } }, missing: { canvas: { light: true, dark: false } } },
+    )
+    const w = await mountCard()
+    await scopeButton(w, '本项目').trigger('click')
+    expect(w.findAll('.bg-slot--light .bg-error').length).toBe(1)
+    expect(w.findAll('.bg-slot--dark .bg-error').length).toBe(0)
   })
 })

@@ -2,13 +2,13 @@
   <div class="bg-card">
     <div class="sc-head">背景</div>
 
-    <!-- 范围 -->
+    <!-- 范围：选图期间锁住范围/目标，保证选图结果落到发起时的目标 -->
     <div class="bg-scope bg-seg-row" role="group" aria-label="背景范围">
-      <button class="bg-seg" :class="{ on: scope === 'global' }" @click="scope = 'global'">全局</button>
+      <button class="bg-seg" :class="{ on: scope === 'global' }" :disabled="picking !== null" @click="scope = 'global'">全局</button>
       <button
         class="bg-seg"
         :class="{ on: scope === 'project' }"
-        :disabled="!hasProject"
+        :disabled="!hasProject || picking !== null"
         :title="hasProject ? '仅当前项目' : '未打开项目'"
         @click="onScopeProject"
       >本项目</button>
@@ -22,6 +22,7 @@
         :key="t"
         class="bg-seg"
         :class="{ on: target === t }"
+        :disabled="picking !== null"
         @click="target = t"
       >{{ TARGET_LABELS[t] }}</button>
     </div>
@@ -128,7 +129,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   BACKGROUND_TARGETS, BACKGROUND_THEMES, BACKGROUND_TARGET_CAPS, normalizeProjectConfig, useBackground,
-  type BackgroundFit, type BackgroundTarget, type BackgroundTheme, type FocusStep,
+  type BackgroundFit, type BackgroundProjectConfig, type BackgroundTarget, type BackgroundTheme, type FocusStep,
 } from '@worldsea/style-kit'
 import {
   deleteProjectBackground, getFileStorageBackend, pickAndSaveBackground, readProjectBackground,
@@ -204,6 +205,10 @@ function missingFor(theme: BackgroundTheme): boolean {
 
 // ── 项目配置读写（本地 token 防项目切换竞态） ──
 let loadToken = 0
+/** 作废在途加载：用户操作产生新状态后，旧加载不得再回写配置/运行时态 */
+function invalidateProjectLoad() {
+  loadToken++
+}
 async function reloadProject() {
   const token = ++loadToken
   const dir = projectDir.value
@@ -239,25 +244,58 @@ async function reloadProject() {
   }
 }
 
+/** 落盘快照：调度时冻结目录与配置，定时器只写快照，避免切项目后写错文件 */
+interface ProjectSaveSnapshot { dir: string; config: BackgroundProjectConfig | null }
 let saveTimer: ReturnType<typeof setTimeout> | null = null
-/** 写入项目配置；无自定义目标时删除配置文件（项目回到跟随全局） */
-function persistProjectNow() {
-  if (saveTimer) { clearTimeout(saveTimer); saveTimer = null }
-  const dir = projectDir.value
-  if (!dir) return
+let pendingSave: ProjectSaveSnapshot | null = null
+
+/** 当前项目配置的深拷贝；无自定义目标返回 null（表示删除配置文件） */
+function projectSnapshot(): BackgroundProjectConfig | null {
   const config = projectConfig.value
-  if (config && Object.keys(config.targets).length) {
-    void writeProjectBackground(dir, config).catch((err) => {
+  if (!config || !Object.keys(config.targets).length) return null
+  return JSON.parse(JSON.stringify(config)) as BackgroundProjectConfig
+}
+
+function writeProjectSnapshot(snap: ProjectSaveSnapshot) {
+  if (snap.config) {
+    void writeProjectBackground(snap.dir, snap.config).catch((err) => {
       console.warn('[background] 保存项目背景失败:', err)
     })
   } else {
-    void deleteProjectBackground(dir)
+    void deleteProjectBackground(snap.dir)
   }
 }
+
+/** 立即落盘；未指定目录时取当前项目，先取消挂起快照以免旧快照后到覆盖 */
+function persistProjectNow(dir = projectDir.value) {
+  if (saveTimer) { clearTimeout(saveTimer); saveTimer = null }
+  pendingSave = null
+  if (!dir) return
+  writeProjectSnapshot({ dir, config: projectSnapshot() })
+}
+
+/** 150ms 防抖：调度即捕获快照，定时器触发时不再读当前项目状态 */
 function scheduleProjectSave() {
   if (saveTimer) clearTimeout(saveTimer)
-  saveTimer = setTimeout(persistProjectNow, 150)
+  const dir = projectDir.value
+  if (!dir) return
+  pendingSave = { dir, config: projectSnapshot() }
+  saveTimer = setTimeout(() => {
+    saveTimer = null
+    const snap = pendingSave
+    pendingSave = null
+    if (snap) writeProjectSnapshot(snap)
+  }, 150)
 }
+
+/** 落盘挂起快照（不读当前状态）：切项目/卸载前调用，防止旧配置写进新项目 */
+function flushPendingProjectSave() {
+  if (saveTimer) { clearTimeout(saveTimer); saveTimer = null }
+  const snap = pendingSave
+  pendingSave = null
+  if (snap) writeProjectSnapshot(snap)
+}
+
 function persistNow() {
   if (scope.value === 'project') persistProjectNow()
   else flushGlobal()
@@ -274,12 +312,14 @@ function onScopeProject() {
 /** 项目自定义：继承全局参数，图片留空（复制完整目标配置再清图） */
 function onMakeCustom() {
   if (!hasProject.value) return
+  invalidateProjectLoad()
   setTargetCustom(target.value, true)
   persistProjectNow()
 }
 
 /** 恢复跟随全局：先删除项目目标引用的图片，再删目标本身并落盘 */
 function onFollowGlobal() {
+  invalidateProjectLoad()
   const dir = projectDir.value
   const cfg = projectConfig.value?.targets[target.value]
   if (cfg && dir) {
@@ -294,14 +334,19 @@ function onFollowGlobal() {
 
 async function onPick(theme: BackgroundTheme) {
   if (readOnly.value || picking.value) return
+  invalidateProjectLoad()
+  // 捕获发起时的范围/目标/目录/旧路径：等待选图期间一律用捕获值，不读实时状态
+  const scopeAt = scope.value
+  const targetAt = target.value
+  const dirAt = projectDir.value
+  const oldPath = selected.value.paths[theme]
   picking.value = theme
   error.value = ''
   try {
-    const oldPath = selected.value.paths[theme]
     const result = await pickAndSaveBackground({
-      scope: scope.value,
-      projectDir: projectDir.value,
-      target: target.value,
+      scope: scopeAt,
+      projectDir: dirAt,
+      target: targetAt,
       theme,
     })
     if (result === null) return
@@ -309,14 +354,19 @@ async function onPick(theme: BackgroundTheme) {
       error.value = result.reason ?? '背景导入失败'
       return
     }
-    if (scope.value === 'project') {
+    if (scopeAt === 'project') {
       if (!result.relativePath) { error.value = '背景导入失败'; return }
-      setTargetImage(target.value, theme, { path: result.relativePath, src: result.src }, 'project')
-      persistProjectNow()
-      if (oldPath && oldPath !== result.relativePath) void removeProjectBackgroundFile(projectDir.value, oldPath)
+      if (dirAt !== projectDir.value) {
+        // 选图期间项目已切换：丢弃结果，并从旧项目目录清理刚写入的文件
+        void removeProjectBackgroundFile(dirAt, result.relativePath)
+        return
+      }
+      setTargetImage(targetAt, theme, { path: result.relativePath, src: result.src }, 'project')
+      persistProjectNow(dirAt)
+      if (oldPath && oldPath !== result.relativePath) void removeProjectBackgroundFile(dirAt, oldPath)
     } else {
       if (!result.path) { error.value = '背景导入失败'; return }
-      setTargetImage(target.value, theme, { path: result.path, src: result.src }, 'global')
+      setTargetImage(targetAt, theme, { path: result.path, src: result.src }, 'global')
       if (oldPath && oldPath !== result.path) void removeBackgroundFile(oldPath)
     }
   } catch (err) {
@@ -328,11 +378,15 @@ async function onPick(theme: BackgroundTheme) {
 
 function onRemove(theme: BackgroundTheme) {
   if (readOnly.value) return
+  invalidateProjectLoad()
+  const scopeAt = scope.value
+  const targetAt = target.value
+  const dirAt = projectDir.value
   const oldPath = selected.value.paths[theme]
-  clearTargetImage(target.value, theme, scope.value)
-  if (scope.value === 'project') {
-    if (oldPath) void removeProjectBackgroundFile(projectDir.value, oldPath)
-    persistProjectNow()
+  clearTargetImage(targetAt, theme, scopeAt)
+  if (scopeAt === 'project') {
+    if (oldPath) void removeProjectBackgroundFile(dirAt, oldPath)
+    persistProjectNow(dirAt)
   } else {
     if (oldPath) void removeBackgroundFile(oldPath)
     flushGlobal()
@@ -340,33 +394,42 @@ function onRemove(theme: BackgroundTheme) {
 }
 
 function onToggle(on: boolean) {
+  invalidateProjectLoad()
   updateTarget(target.value, { enabled: on }, scope.value)
   persistNow()
 }
 function onFit(event: Event) {
+  invalidateProjectLoad()
   updateTarget(target.value, { fit: (event.target as HTMLSelectElement).value as BackgroundFit }, scope.value)
   persistNow()
 }
 function onFocus(x: FocusStep, y: FocusStep) {
+  invalidateProjectLoad()
   updateTarget(target.value, { focusX: x, focusY: y }, scope.value)
   persistNow()
 }
 function onDim(event: Event) {
+  invalidateProjectLoad()
   updateTarget(target.value, { dim: Number((event.target as HTMLInputElement).value) }, scope.value)
   schedulePersist()
 }
 function onBlur(event: Event) {
+  invalidateProjectLoad()
   updateTarget(target.value, { blur: Number((event.target as HTMLInputElement).value) }, scope.value)
   schedulePersist()
 }
 
 watch(boundDir, () => {
+  // 切项目：先把旧项目的挂起快照落盘，再重读新项目，定时器不得写进新项目
+  flushPendingProjectSave()
   if (!hasProject.value && scope.value === 'project') scope.value = 'global'
   void reloadProject()
 })
 onMounted(() => { void reloadProject() })
 onBeforeUnmount(() => {
-  if (saveTimer) persistProjectNow()
+  // 卸载时只落盘挂起快照（可能属于旧项目）；当场再读当前配置可能已指向别的项目
+  invalidateProjectLoad()
+  flushPendingProjectSave()
   flushGlobal()
 })
 </script>

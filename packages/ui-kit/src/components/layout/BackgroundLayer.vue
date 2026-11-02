@@ -7,7 +7,7 @@
 
 <script setup lang="ts">
 /** 目标背景层：五目标通用；是否显示由生效配置或指定范围的运行时态决定。 */
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useBackground, type BackgroundTarget } from '@worldsea/style-kit'
 
 type PreviewScope = 'effective' | 'global' | 'project'
@@ -21,16 +21,24 @@ const { effective, srcs, missing, globalConfig, projectConfig, globalSrcs, proje
 // 非生效范围由层自己挑亮/暗图（根变量只承载生效配置），故监听 data-theme
 const dark = ref(false)
 let themeObserver: MutationObserver | null = null
-onMounted(() => {
+function syncTheme() {
   dark.value = document.documentElement.dataset.theme === 'dark'
-  themeObserver = new MutationObserver(() => {
-    dark.value = document.documentElement.dataset.theme === 'dark'
-  })
+}
+function teardownThemeObserver() {
+  themeObserver?.disconnect()
+  themeObserver = null
+}
+// 生效范围的亮暗由根变量样式表处理，只有指定范围才需要观察主题
+watch(() => props.scope, (scope) => {
+  teardownThemeObserver()
+  if (scope === 'effective') return
+  syncTheme()
+  themeObserver = new MutationObserver(syncTheme)
   themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
-})
-onBeforeUnmount(() => themeObserver?.disconnect())
+}, { immediate: true })
+onBeforeUnmount(teardownThemeObserver)
 
-/** 指定范围的配置/运行时态；项目范围无自定义目标时返回 null（隐藏） */
+/** 指定范围的配置/运行时态；项目范围无自定义目标时返回 null（隐藏，不回退生效） */
 const scoped = computed(() => {
   if (props.scope === 'global') {
     return {
@@ -48,14 +56,16 @@ const scoped = computed(() => {
 
 // 任一主题有图且并非两主题都缺失才显示；预览模式忽略启用开关（设置卡预览用）
 const visible = computed(() => {
-  if (!scoped.value) {
+  const view = scoped.value
+  if (!view) {
+    if (props.scope === 'project') return false // 项目跟随全局：层隐藏，不回退生效配置
     const cfg = effective.value[props.target]
     const src = srcs.value[props.target]
     const miss = missing.value[props.target]
     const hasSrc = !!(src.light || src.dark) && !(miss.light && miss.dark)
     return props.preview ? hasSrc : cfg.enabled && hasSrc
   }
-  const { cfg, src, miss } = scoped.value
+  const { cfg, src, miss } = view
   const hasSrc = !!(src.light || src.dark) && !(miss.light && miss.dark)
   return props.preview ? hasSrc : cfg.enabled && hasSrc
 })
