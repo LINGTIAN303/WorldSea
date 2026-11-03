@@ -159,6 +159,19 @@ export interface PipeCarrierOptions {
   /** Route dispatch of the webserver in external-carrier mode (`WebServer.dispatch`). */
   readonly dispatch: (req: IncomingMessage, res: ServerResponse) => void
   /**
+   * Open a server-sent-events response for one page path as an item stream.
+   *
+   * Exists because the shell's custom protocol answers with one buffered body
+   * (a custom-scheme responder has no streaming channel), so an SSE route can
+   * never be served through `dispatch`. A shell that owns the page installs
+   * this to carry `text/event-stream` over the pipe instead.
+   *
+   * @param path - Document-relative request path, already validated by the caller.
+   * @param signal - Aborts the response when the consumer goes away.
+   * @returns One item per SSE `data` payload, in arrival order.
+   */
+  readonly openSseStream?: (path: string, signal: AbortSignal) => Promise<AsyncIterable<string>>
+  /**
    * Direct Gateway Remote-stream opener; `uplink` carries the shell's items.
    * The shell owns the Host, so this is the in-process opener, not a socket.
    */
@@ -437,7 +450,7 @@ class PipeConnection {
     const controller = new AbortController()
     this.streams.set(frame.id, { controller })
     try {
-      const source = await this.options.openStream(frame.endpoint, frame.payload, uplink, controller.signal)
+      const source = await this.openSource(frame, uplink, controller.signal)
       for await (const value of source) {
         if (controller.signal.aborted) return
         this.send({ t: 'stream-item', id: frame.id, value })
@@ -456,6 +469,25 @@ class PipeConnection {
       this.uplinks.delete(frame.id)
       uplink.close()
     }
+  }
+
+  /**
+   * Pick the opener for one stream-open frame: an `sse:` endpoint carries a page
+   * path (see {@link PipeCarrierOptions.openSseStream}), everything else stays
+   * on the Gateway Remote opener.
+   */
+  private async openSource(
+    frame: StreamOpenFrame,
+    uplink: AsyncIterable<unknown>,
+    signal: AbortSignal,
+  ): Promise<AsyncIterable<unknown>> {
+    const SSE_ENDPOINT_PREFIX = 'sse:'
+    if (frame.endpoint.startsWith(SSE_ENDPOINT_PREFIX)) {
+      const open = this.options.openSseStream
+      if (open === undefined) throw new Error('sse stream requested but the carrier installed no openSseStream')
+      return open(frame.endpoint.slice(SSE_ENDPOINT_PREFIX.length), signal)
+    }
+    return this.options.openStream(frame.endpoint, frame.payload, uplink, signal)
   }
 
   private send(frame: OutboundFrame, binary?: Uint8Array): void {
@@ -569,6 +601,79 @@ interface SyntheticExchange {
  * @param frame - validated request frame.
  * @param body - the declared body bytes, when present.
  * @param sink - frame emitter for the response.
+/**
+ * Turn a dispatched SSE response into an item-per-`data`-payload stream.
+ *
+ * The route writes `text/event-stream` chunks through `res.write`; this sink
+ * collects them and splits on SSE frame boundaries (`\n\n`). Only `data:` lines
+ * become items: the shell forwards payload strings, and the consumer
+ * (`client-hmr`) re-parses nothing but the payload's JSON.
+ *
+ * @param url - Page path to request, e.g. `/plugins/events`.
+ * @param dispatch - The webserver's external-carrier dispatch.
+ * @param signal - Aborts the response when the consumer goes away.
+ * @returns One item per SSE `data` payload, in arrival order.
+ */
+export async function* readSseResponse(
+  url: string,
+  dispatch: (req: IncomingMessage, res: ServerResponse) => void,
+  signal: AbortSignal,
+): AsyncGenerator<string> {
+  const inbox: string[] = []
+  let ended = false
+  let failure: Error | undefined
+  let wake: (() => void) | undefined
+  const notify = (): void => { const w = wake; wake = undefined; if (w !== undefined) w() }
+
+  // Accumulates raw bytes across chunk boundaries: a frame may split anywhere.
+  let pending = ''
+  const drainFrames = (): void => {
+    for (;;) {
+      const cut = pending.indexOf('\n\n')
+      if (cut < 0) return
+      const frame = pending.slice(0, cut)
+      pending = pending.slice(cut + 2)
+      for (const line of frame.split('\n')) {
+        if (!line.startsWith('data:')) continue
+        inbox.push(line.slice('data:'.length).trimStart())
+      }
+    }
+  }
+
+  const sink: ResponseSink = {
+    head: () => {},
+    chunk: (bytes) => {
+      pending += Buffer.from(bytes).toString('utf8')
+      drainFrames()
+      notify()
+    },
+    end: () => { ended = true; notify() },
+    fail: (message) => { failure = new Error(message); notify() },
+  }
+
+  const exchange = createSyntheticExchange({ t: 'req', id: 0, method: 'GET', url, headers: { accept: 'text/event-stream' } }, undefined, sink)
+  // Abort must both stop the response and wake the parked loop: the generator is
+  // suspended on `wake` at that moment, so without notify() it stays asleep and
+  // the consumer's `for await` never returns.
+  const onAbort = (): void => { exchange.abort(); notify() }
+  signal.addEventListener('abort', onAbort, { once: true })
+  try {
+    dispatch(exchange.req, exchange.res)
+    for (;;) {
+      if (inbox.length > 0) { yield inbox.shift() as string; continue }
+      if (failure !== undefined) throw failure
+      if (ended || signal.aborted) return
+      await new Promise<void>((resolve) => { wake = resolve })
+    }
+  } finally {
+    signal.removeEventListener('abort', onAbort)
+  }
+}
+
+/**
+ * @param frame - The inbound request frame to answer.
+ * @param body - Request body bytes, when the frame carried one.
+ * @param sink - Response sink that frames the answer.
  * @returns The exchange handed to the webserver dispatch.
  */
 function createSyntheticExchange(

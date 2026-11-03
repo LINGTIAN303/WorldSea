@@ -64,8 +64,11 @@ pub(crate) fn inject_shell_scripts(
             scripts.push_str("<script>");
             scripts.push_str(STREAM_BRIDGE_SCRIPT);
             scripts.push_str("</script>");
+            scripts.push_str("<script>");
+            scripts.push_str(SSE_BRIDGE_SCRIPT);
+            scripts.push_str("</script>");
             scripts.push_str(
-                "<script>/* worldsea-shell:transport */globalThis.__DSH_TRANSPORT__ = Object.assign({}, globalThis.__DSH_TRANSPORT__, { ownsHost: true, openStream: globalThis.__WORLDSEA_STREAM__.openStream })</script>",
+                "<script>/* worldsea-shell:transport */globalThis.__DSH_TRANSPORT__ = Object.assign({}, globalThis.__DSH_TRANSPORT__, { ownsHost: true, openStream: globalThis.__WORLDSEA_STREAM__.openStream, sse: globalThis.__WORLDSEA_SSE__.sse })</script>",
             );
         }
     }
@@ -170,6 +173,8 @@ const TITLEBAR_SCRIPT: &str = include_str!("dsh_titlebar.js");
 const SPACE_VEIL_SCRIPT: &str = include_str!("dsh_space_veil.js");
 /// 流桥（管道模式随 transport 一起注入）：`__WORLDSEA_STREAM__` 的 `openStream` 钩子。
 const STREAM_BRIDGE_SCRIPT: &str = include_str!("dsh_stream_bridge.js");
+// SSE 订阅钩子（`__WORLDSEA_SSE__.sse`）：壳协议无流式通道，SSE 改走命令 + 管道流 lane
+const SSE_BRIDGE_SCRIPT: &str = include_str!("dsh_sse_bridge.js");
 /// 页内诊断（`WORLDSEA_SHELL_DIAG=1` 才注入）：console/异常/资源错误 → 壳日志。
 const DIAG_SCRIPT: &str = include_str!("dsh_diag.js");
 /// Agent 面能力伺服（常驻，可 `WORLDSEA_NO_CAPABILITY_BRIDGE=1` 关）：`agent.face.status` 等。

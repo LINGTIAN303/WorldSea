@@ -27,7 +27,7 @@ import { scrubbedParentEnv } from '@deepseek-ai/dsh-subprocess'
 import type {} from '@deepseek-ai/cordis-plugin-loader'
 import type {} from '@deepseek-ai/dsh-shell-env'
 import { parsePublicUrl } from './public-url.ts'
-import { installPipeCarrier, type PipeCarrier } from './pipe-transport.ts'
+import { installPipeCarrier, readSseResponse, type PipeCarrier } from './pipe-transport.ts'
 
 /** The Web GUI this process serves, provided by the `web-runtime` row. */
 export interface WebApp {
@@ -213,6 +213,10 @@ function installPipeMode(ctx: Context, pipePath: string): void {
       routePrefixes: () => ctx.webServer.listPrefixRoutes(),
       openStream: (endpoint, payload, uplink, signal) =>
         pipeCtx.typertGateway.wireStream.open(endpoint, payload, uplink, pipeCtx.connection.browserPeer, signal),
+      // SSE routes answer over a buffered body on the custom-scheme carrier, so a
+      // shell that owns the page carries them here instead of through dispatch.
+      openSseStream: (path, signal) =>
+        Promise.resolve(readSseResponse(path, (req, res) => { ctx.webServer.dispatch(req, res) }, signal)),
       streamFailure: error => pipeCtx.typertGateway.wireStream.failure(error),
     }).then((carrier) => {
       if (state.disposed) {

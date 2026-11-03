@@ -15,6 +15,7 @@
     "core:window:allow-start-dragging",
     "allow-shell-bridge",
     "allow-stream-bridge",
+    "allow-sse-bridge",
     "allow-capability-bridge"
   ]
 }

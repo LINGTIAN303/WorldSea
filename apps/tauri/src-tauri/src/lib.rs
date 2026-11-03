@@ -79,6 +79,8 @@ mod dsh_pipe;
 mod dsh_pipe_io;
 // 页面流桥命令（openStream 钩子 → 管道 mux 流）
 mod dsh_stream;
+// SSE 流桥命令（text/event-stream 订阅 → 管道流 lane；壳协议无流式通道，故另走命令）
+mod dsh_sse;
 // Channel 投递全序修复（拦截器：全部 Channel 消息走有序 eval 直投，弃异步 fetch 路径）
 mod channel_order;
 // 壳桥（页面可调的壳命令：外链 / 日志）——JS 侧见 dsh_shell_bridge.js
@@ -202,6 +204,9 @@ pub fn run() {
             dsh_stream::cmd_stream_send,
             dsh_stream::cmd_stream_end,
             dsh_stream::cmd_stream_cancel,
+            // SSE 流桥（text/event-stream 订阅：开 / 取消）
+            dsh_sse::cmd_sse_open,
+            dsh_sse::cmd_sse_close,
             // 文件系统命令（FileStorageBackend 数据落盘）
             fs_commands::cmd_fs_write,
             fs_commands::cmd_fs_read,
