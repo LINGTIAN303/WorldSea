@@ -15,13 +15,16 @@
 - id: ui-sidebar-browser
   disabled: false
 
-# 2) client-hmr —— 关闭 HMR 客户端行（C1-b，2026-09-24）。
-#    理由：HMR 走 `/plugins/events` 的 **SSE 长连**，而壳协议（worldsea://）的应答是缓冲体
-#    （Tauri UriSchemeResponder 无流式通道）→ 该行在壳内必然失败（boot 时一次 502 + 页面侧
-#    EventSource 反复重连）。HMR 只在「宿主重建 bundle」时有意义，打包形态的壳不需要；
-#    若将来要它，需要一条可流式的传输（C2 的 portless 通道是候选）。
+# 2) client-hmr —— **已重开**（2026-11-04，G3）。
+#    历史：C1-b（2026-09-24）曾关闭它，理由是 HMR 走 `/plugins/events` 的 SSE 长连，
+#    而壳协议（worldsea://）的应答是缓冲体（Tauri UriSchemeResponder 只收 Cow<'static,[u8]>，
+#    无流式写回通道）→ 必然 502 + EventSource 反复重连。
+#    现在缺口已补：SSE 改走 Tauri 命令 + 管道流 lane（`dsh_sse.rs` / `dsh_sse_bridge.js`），
+#    页面注入的 `__DSH_TRANSPORT__.fetch` 以 fetch 兼容形态提供原始 SSE 文本流，
+#    client-hmr 优先走该分支（读 `response.body` 管道），不再落到 EventSource。
+#    故这里放开 disabled，恢复上游默认行为。
 - id: client-hmr
-  disabled: true
+  disabled: false
 
 # 3) workspace-controller —— E1（2026-09-25）：把「首次使用默认工作区」的候选目录钉到单一可见根。
 #    该服务的 `documentsDirectory` 是「系统 Documents 的部署覆盖」；候选路径形状 = <documentsDirectory>/deepseek-harness/<leaf>。

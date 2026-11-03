@@ -4,13 +4,21 @@
    （`UriSchemeResponder::respond` 只收 `Into<Cow<'static,[u8]>>`，无流式写回通道），
    而 `text/event-stream` 要求边收边吐——故 SSE 改走 Tauri 命令 + 管道流 lane。
    宿主侧靠端点前缀 `sse:` 把该流交给 `readSseResponse`（合成 req/res → dispatch →
-   按 `data:` 分帧回推），不走 Gateway 通道。
+   按空行分帧、只取 `data:` 行回推），不走 Gateway 通道。
 
    注入位置与 stream bridge 同点（index 的 `<head>` 之后、transport 行之前）；
-   transport 行从中取 `sse` 装进 `__DSH_TRANSPORT__`（只合并不覆盖）。
+   transport 行从中取 `sse` / `fetch` 装进 `__DSH_TRANSPORT__`（只合并不覆盖）。
 
-   对接契约：`sse(path, signal) → AsyncIterable<string>`，每项是一条 SSE 事件的 `data:` 载荷。
-   消费方（client-hmr）自己解析 JSON 与按语义重试——本层不做重连。
+   两个对接面（同一底层通道）：
+
+   1. `sse(path, signal) → AsyncIterable<string>` —— 每项是一条 SSE 事件的 `data:` 载荷。
+      给「自己解析 JSON」的消费方用。
+   2. `fetch(input, init) → Promise<Response>` —— **fetch 兼容形态**，只服务 SSE 路由。
+      `response.body` 是**原始 SSE 文本的字节流**（含 `data:` 前缀与空行），
+      使 `response.body.pipeThrough(new TextDecoderStream()).pipeThrough(new EventSourceParserStream())`
+      这类标准管线可直接消费。client-hmr 优先走这条。
+
+   本层不做重连：重连语义由消费方决定（client-hmr 有自己的错误处理）。
    消费方提前退出或 signal abort → 通知壳取消，不泄漏。 */
 (function () {
   try {
@@ -110,9 +118,39 @@
       }
     }
 
+    /* fetch 兼容形态：只服务 SSE 路由。
+       `response.body` 产**原始 SSE 文本**（把每条 data 载荷重新包成 `data: <载荷>\n\n`），
+       这样标准管线 `TextDecoderStream → EventSourceParserStream` 可直接消费——
+       client-hmr 走的就是这条（它优先读 `__DSH_TRANSPORT__.fetch` 的 response.body）。
+
+       input 接受字符串或 Request（后者取 .url）；非 SSE 路径直接以 404 Response 拒绝，
+       不落回网络——本函数的存在意义就是 SSE，语义外的请求交给原生 fetch 更清楚。 */
+    function sseFetch(input, init) {
+      var url = typeof input === 'string' ? input : (input && input.url ? String(input.url) : '');
+      var signal = (init && init.signal) || (input && input.signal) || undefined;
+      /* 归一为站内相对路径：HMR 传的是 'plugins/events'（无前导斜杠），壳命令要求 '/...' */
+      var path = url.replace(/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\/[^/]*/, '');
+      if (path.charAt(0) !== '/') path = '/' + path;
+      var headers = { 'content-type': 'text/event-stream' };
+      var body = new ReadableStream({
+        async start(controller) {
+          try {
+            for await (var payload of run(path, signal)) {
+              controller.enqueue(new TextEncoder().encode('data: ' + payload + '\n\n'));
+            }
+            controller.close();
+          } catch (error) {
+            controller.error(error);
+          }
+        }
+      });
+      return Promise.resolve(new Response(body, { status: 200, headers: headers }));
+    }
+
     globalThis.__WORLDSEA_SSE__ = {
       version: 1,
-      sse: function (path, signal) { return run(path, signal); }
+      sse: function (path, signal) { return run(path, signal); },
+      fetch: sseFetch
     };
   } catch (error) { /* 桥自身失败不得影响页面；transport 行会读不到 sse，客户端据此降级 */ }
 })()

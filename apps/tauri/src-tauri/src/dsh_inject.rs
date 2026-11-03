@@ -68,7 +68,7 @@ pub(crate) fn inject_shell_scripts(
             scripts.push_str(SSE_BRIDGE_SCRIPT);
             scripts.push_str("</script>");
             scripts.push_str(
-                "<script>/* worldsea-shell:transport */globalThis.__DSH_TRANSPORT__ = Object.assign({}, globalThis.__DSH_TRANSPORT__, { ownsHost: true, openStream: globalThis.__WORLDSEA_STREAM__.openStream, sse: globalThis.__WORLDSEA_SSE__.sse })</script>",
+                "<script>/* worldsea-shell:transport */globalThis.__DSH_TRANSPORT__ = Object.assign({}, globalThis.__DSH_TRANSPORT__, { ownsHost: true, openStream: globalThis.__WORLDSEA_STREAM__.openStream, sse: globalThis.__WORLDSEA_SSE__.sse, fetch: globalThis.__WORLDSEA_SSE__.fetch })</script>",
             );
         }
     }

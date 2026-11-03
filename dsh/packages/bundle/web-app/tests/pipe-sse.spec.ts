@@ -103,11 +103,22 @@ function sseDispatch(req: IncomingMessage, res: ServerResponse): void {
       res.write('data: payload\n\n')
       res.end()
       return
+    // Mirrors the real /plugins/events route: a comment line on open, one frame,
+    // then the response stays open until the client goes away. No res.end().
+    case '/sse/hmr-like':
+      res.writeHead(200, { 'content-type': 'text/event-stream' })
+      res.write(': connected\n\n')
+      res.write(`data: ${JSON.stringify({ type: 'graph', graph: { rows: [] } })}\n\n`)
+      res.on('close', () => { closedObserver?.(req.url ?? '') })
+      return
     default:
       res.writeHead(404)
       res.end()
   }
 }
+
+/** Set by the long-lived test to observe that teardown reached the route. */
+let closedObserver: ((url: string) => void) | undefined
 
 const temporary: string[] = []
 afterEach(() => {
@@ -216,5 +227,42 @@ describe('sse stream over the pipe carrier', () => {
     } finally {
       await harness.close()
     }
+  })
+})
+
+/**
+ * The real /plugins/events route never calls `res.end()`: it writes frames and
+ * keeps the response open. `readSseResponse` is driven directly here (no pipe)
+ * because the property under test is its teardown, which the carrier-level tests
+ * cannot observe without waiting on a socket.
+ */
+describe('readSseResponse against a long-lived route', () => {
+  it('yields frames as they arrive and ends on abort, closing the route', async () => {
+    const controller = new AbortController()
+    let routeClosed = false
+    let onClosed: (() => void) | undefined
+    const closed = new Promise<void>((resolve) => { onClosed = resolve })
+    closedObserver = () => { routeClosed = true; onClosed?.() }
+
+    const received: string[] = []
+    const consume = (async () => {
+      for await (const item of readSseResponse('/sse/hmr-like', sseDispatch, controller.signal)) {
+        received.push(item)
+      }
+    })()
+
+    // Wait for the opening frame rather than a fixed sleep: the route writes it
+    // synchronously on dispatch, so polling here stays deterministic.
+    for (let i = 0; i < 100 && received.length === 0; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 5))
+    }
+    expect(received).toEqual([JSON.stringify({ type: 'graph', graph: { rows: [] } })])
+    expect(routeClosed).toBe(false)
+
+    controller.abort()
+    await consume
+    await Promise.race([closed, new Promise((resolve) => setTimeout(resolve, 500))])
+    expect(routeClosed).toBe(true)
+    closedObserver = undefined
   })
 })
