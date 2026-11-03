@@ -95,6 +95,14 @@ export interface Config {
    * over plain HTTP.
    */
   tls?: TlsConfig
+  /**
+   * External-carrier mode: bind nothing. The composing application owns a
+   * non-TCP carrier (a shell-owned IPC pipe) and feeds synthesized exchanges
+   * through {@link WebServer.dispatch}; `port` then only declares the
+   * authority URL display and trust fences are written against.
+   * @default false
+   */
+  external?: boolean
   /** Response compression for socket-backed HTTP requests. @default 'none' */
   compression?: 'none' | 'gzip'
   /** Gzip DEFLATE level from 0 through 9. @default 1 */
@@ -291,6 +299,7 @@ export class WebServer extends Service {
       certFile: z.string().required(),
       keyFile: z.string().required(),
     }).default(undefined as never),
+    external: z.boolean().default(false),
     compression: z.union([z.const('none'), z.const('gzip')]).default(DEFAULT_COMPRESSION),
     compressionLevel: z.number().step(1).min(0).max(9).default(DEFAULT_COMPRESSION_LEVEL),
     compressionThresholdBytes: z.natural().default(DEFAULT_COMPRESSION_THRESHOLD_BYTES),
@@ -419,46 +428,13 @@ export class WebServer extends Service {
 
   /** Listen; resolves once the socket is bound (rejection = FAILED fiber). */
   async [Service.init](): Promise<void> {
-    const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
-      /* v8 ignore next -- `?? '/'` arm: node:http always sets url on server
-      requests; the field is only optional on the client-side IncomingMessage type */
-      const rawPath = new URL(req.url ?? '/', 'http://x').pathname
-      const route = this.match(rawPath)
-      if (route !== undefined) {
-        await route.handler(req, res)
-        return
-      }
-      const fallback = this.fallback
-      if (fallback === undefined) {
-        res.writeHead(404)
-        res.end()
-        return
-      }
-      await fallback(req, res)
-    }
-    // Last-resort guard: handle() rejecting would otherwise be an unhandled
-    // rejection killing the process on one malformed request (bad %-escape,
-    // client dropping mid-body). Per-request failures log and answer 400 —
-    // never a process exit.
     const listener = (req: IncomingMessage, res: ServerResponse): void => {
-      const next = (): void => {
-        void handle(req, res).catch((err: unknown) => {
-          this.ctx.logger.warn(err instanceof Error ? err : new Error(String(err)))
-          if (res.headersSent) {
-            res.destroy()
-            return
-          }
-          res.writeHead(400)
-          res.end()
-        })
-      }
-      if (this.gzip === undefined) next()
-      else this.gzip(req, res, next)
+      this.serve(req, res)
     }
     const tls = this.tlsConfig
     // Disposal waits for in-flight acquisition and closes any listener it produces.
     await this.ctx.effect(async () => {
-      if (tls === undefined) {
+      if (tls === undefined || this.config.external) {
         this.server = createServer(listener)
       } else {
         const certFile = resolve(tls.certFile)
@@ -512,23 +488,34 @@ export class WebServer extends Service {
         }
       })
 
-      await new Promise<void>((resolve, reject) => {
-        this.server.once('error', reject)
-        this.server.listen(this.config.port, this.config.host, () => {
-          this.server.off('error', reject)
-          this.server.on('error', (err) => { this.ctx.logger.error(err) })
-          this.listenedPort = (this.server.address() as AddressInfo).port
-          resolve()
+      if (this.config.external) {
+        // External-carrier mode: nothing binds. The composing application owns a
+        // non-TCP carrier (an IPC pipe) and feeds synthesized exchanges through
+        // dispatch(); route registration, fences, and error semantics below the
+        // serving path stay identical. `port` declares the authority URL display
+        // and trust fences are written against, with no listener behind it.
+        this.listenedPort = this.config.port
+      } else {
+        await new Promise<void>((resolve, reject) => {
+          this.server.once('error', reject)
+          this.server.listen(this.config.port, this.config.host, () => {
+            this.server.off('error', reject)
+            this.server.on('error', (err) => { this.ctx.logger.error(err) })
+            this.listenedPort = (this.server.address() as AddressInfo).port
+            resolve()
+          })
         })
-      })
+      }
 
       // Node does not include upgraded sockets in closeAllConnections(), and a TLS
       // connection joins that table only after its handshake. The service owns both
       // kinds with the other connections, so it tracks and destroys them explicitly.
       return async () => {
-        const serverClosed = new Promise<void>((resolve) => {
-          this.server.close(() => { resolve() })
-        })
+        const serverClosed = this.server.listening
+          ? new Promise<void>((resolve) => {
+            this.server.close(() => { resolve() })
+          })
+          : Promise.resolve()
         this.server.closeAllConnections()
         const socketsClosed = [...this.upgradedSockets, ...this.tlsConnections].map(socket => new Promise<void>((resolve) => {
           socket.once('close', () => { resolve() })
@@ -537,6 +524,59 @@ export class WebServer extends Service {
         await Promise.all([serverClosed, ...socketsClosed])
       }
     }, 'webServer.listen')
+  }
+  /**
+   * Serve one request through the registered tables with the process-safety
+   * wrapper. The node:http callback and {@link dispatch} share this path, so
+   * routing, error containment, and the gzip layer behave identically. A
+   * synthesized response carries no socket, which the compression middleware
+   * already treats as identity-transfer.
+   */
+  private serve(req: IncomingMessage, res: ServerResponse): void {
+    const next = (): void => {
+      void this.route(req, res).catch((err: unknown) => {
+        this.ctx.logger.warn(err instanceof Error ? err : new Error(String(err)))
+        if (res.headersSent) {
+          res.destroy()
+          return
+        }
+        res.writeHead(400)
+        res.end()
+      })
+    }
+    if (this.gzip === undefined) next()
+    else this.gzip(req, res, next)
+  }
+
+  /** Match one request against the named tables, then the fallback seat. */
+  private async route(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    /* v8 ignore next -- `?? '/'` arm: node:http always sets url on server
+    requests; the field is only optional on the client-side IncomingMessage type */
+    const rawPath = new URL(req.url ?? '/', 'http://x').pathname
+    const route = this.match(rawPath)
+    if (route !== undefined) {
+      await route.handler(req, res)
+      return
+    }
+    const fallback = this.fallback
+    if (fallback === undefined) {
+      res.writeHead(404)
+      res.end()
+      return
+    }
+    await fallback(req, res)
+  }
+
+  /**
+   * Serve one externally carried request (external-carrier mode). The carrier
+   * builds the request/response pair — the synthesizer is the carrier's, since
+   * it decides which members exist — and calls this instead of reaching a
+   * socket; everything downstream is {@link serve}.
+   * @param req - synthesized request carrying url, method, headers, and body.
+   * @param res - synthesized response the carrier owns to completion.
+   */
+  dispatch(req: IncomingMessage, res: ServerResponse): void {
+    this.serve(req, res)
   }
 
   /** Longest-prefix-wins over the prefix table after an exact-table miss. */
