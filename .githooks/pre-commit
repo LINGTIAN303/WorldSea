@@ -1,0 +1,30 @@
+#!/bin/sh
+# 提交前门禁：架构 / fork 台账 / 样式一致性 / 文档链接（四项合计约 1.8 秒）。
+# 由 `git config core.hooksPath .githooks` 启用（仓库根有 setup 脚本）。
+# 临时绕过：SKIP_GATES=1 git commit ...（仅在明确知道原因时使用）
+
+if [ "$SKIP_GATES" = "1" ]; then
+  echo "⏭  跳过门禁（SKIP_GATES=1）"
+  exit 0
+fi
+
+ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+[ -f "$ROOT/scripts/gate.mjs" ] || exit 0
+
+# 优先用 pnpm 提供的 node；退化到系统 node
+NODE_BIN=node
+command -v node >/dev/null 2>&1 || {
+  echo "✗ 找不到 node，无法运行门禁。安装 Node 后重试，或 SKIP_GATES=1 绕过。"
+  exit 1
+}
+
+echo "▶ 运行提交前门禁…"
+"$NODE_BIN" "$ROOT/scripts/gate.mjs"
+STATUS=$?
+if [ $STATUS -ne 0 ]; then
+  echo ""
+  echo "✗ 门禁未通过，提交已中止。"
+  echo "  修好后再提交；确需绕过用：SKIP_GATES=1 git commit ..."
+  exit $STATUS
+fi
+exit 0

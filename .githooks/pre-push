@@ -1,0 +1,42 @@
+#!/bin/sh
+# 推送前门禁：pre-commit 的四项 + TypeScript 类型检查（约 60-90 秒）。
+# 类型检查放在这里而非 pre-commit，是为了不拖慢每次提交。
+# 临时绕过：SKIP_GATES=1 git push ...
+
+if [ "$SKIP_GATES" = "1" ]; then
+  echo "⏭  跳过门禁（SKIP_GATES=1）"
+  exit 0
+fi
+
+ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+[ -f "$ROOT/scripts/gate.mjs" ] || exit 0
+
+command -v node >/dev/null 2>&1 || {
+  echo "✗ 找不到 node，无法运行门禁。"
+  exit 1
+}
+
+echo "▶ 运行推送前门禁（脚本级检查）…"
+node "$ROOT/scripts/gate.mjs"
+STATUS=$?
+if [ $STATUS -ne 0 ]; then
+  echo ""
+  echo "✗ 门禁未通过，推送已中止。确需绕过用：SKIP_GATES=1 git push ..."
+  exit $STATUS
+fi
+
+echo "▶ 类型检查（vue-tsc，可能需要 1 分钟）…"
+cd "$ROOT" || exit 0
+if command -v pnpm >/dev/null 2>&1; then
+  pnpm -s typecheck:tauri
+  STATUS=$?
+else
+  echo "— 未找到 pnpm，跳过类型检查（仅脚本门禁生效）"
+  STATUS=0
+fi
+if [ $STATUS -ne 0 ]; then
+  echo ""
+  echo "✗ 类型检查未通过，推送已中止。"
+  exit $STATUS
+fi
+exit 0

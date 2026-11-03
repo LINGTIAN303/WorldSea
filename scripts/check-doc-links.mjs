@@ -19,6 +19,9 @@
  *   - 断链：相对链接解析后目标不存在
  *   - 绝对路径引用：`file:///...` 或 `/...` 开头（违反项目「禁用绝对路径」约定）
  *   - 疑似误报：形如 [说明](中文说明) 的纯文字括号，非真实链接
+ *
+ * 退出码（供 git 钩子与 CI 判定）：断链或绝对路径任一非零 → 1，否则 0。
+ * 疑似误报不影响退出码。
  */
 
 import fs from 'node:fs'
@@ -150,3 +153,7 @@ if (suspicious.length > 0) {
 }
 
 process.stdout.write(lines.join('\n') + '\n')
+
+// 退出码供 git 钩子与 CI 判定：断链或绝对路径任一非零即失败。
+// 约定与 arch:check / fork:check / style:check 一致——非零 = 不通过。
+process.exit(missing.length > 0 || absolute.length > 0 ? 1 : 0)
