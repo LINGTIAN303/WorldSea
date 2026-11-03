@@ -2,150 +2,32 @@
 
 import { getProjectManager } from './ProjectManager'
 import { useEntityStore, useRelationStore, useSettingsStore } from '../stores'
-import { getProjectSwitcherApi } from './ProjectSwitcherApi'
-import { getFilePickerApi } from './FilePickerApi'
 import { getProjectExtraProviders } from './projectExtras'
 import { getFileStorageBackend } from './StorageBackend'
-import { exportProjectIcons, importProjectIcons } from './projectIconsFS'
-import { exportProjectBackgrounds, importProjectBackgrounds } from './backgroundProject'
+import { exportProjectIcons } from './projectIconsFS'
+import { exportProjectBackgrounds } from './backgroundProject'
 import { createBatchIpc } from '@worldsea/perf-kit/io'
+import {
+  currentHomeProfilePath,
+  openDirDialog,
+  readTextFile,
+  toSafeFileName,
+  simpleChecksum,
+  toPosixPath,
+  type ExportProgressCallback,
+  type ProjectCache,
+  type ProjectManifest,
+} from './project-fs-shared'
 
-/* ════════════════════════════════════════
-   类型定义
-   ════════════════════════════════════════ */
+// 共享类型、Tauri 文件系统封装、路径/校验工具在 project-fs-shared.ts；导入链在 project-fs-import.ts
+export type {
+  ExportProgressCallback,
+  ImportProgressCallback,
+  ProjectCache,
+  ProjectManifest,
+} from './project-fs-shared'
+export { importProjectFromDir } from './project-fs-import'
 
-/** project.json 的结构 */
-export interface ProjectManifest {
-  /** 格式版本号，当前为 1 */
-  formatVersion: 1
-  /** 项目 ID（UUID） */
-  id: string
-  /** 项目名称 */
-  name: string
-  /** 项目描述 */
-  description: string
-  /** 项目创建时间 */
-  createdAt: string
-  /** 导出时间 */
-  exportedAt: string
-  /** 应用版本 */
-  appVersion?: string
-}
-
-/** .worldsea/cache.json 的结构 */
-export interface ProjectCache {
-  formatVersion: 1
-  entityCount: number
-  relationCount: number
-  checksums: Record<string, string>
-}
-
-/** 导出进度回调 */
-export type ExportProgressCallback = (
-  phase: 'entities' | 'relations' | 'settings' | 'assets',
-  current: number,
-  total: number,
-) => void
-
-/** 导入进度回调 */
-export type ImportProgressCallback = (
-  phase: 'manifest' | 'entities' | 'relations' | 'settings' | 'assets',
-  current: number,
-  total: number,
-) => void
-
-/* ════════════════════════════════════════
-   Tauri 文件系统操作封装
-   ════════════════════════════════════════ */
-
-async function getInvoke() {
-  try {
-    const { invoke } = await import('@tauri-apps/api/core')
-    return invoke
-  } catch {
-    return null
-  }
-}
-
-/** 读取文本文件 */
-async function readTextFile(path: string): Promise<string> {
-  const invoke = await getInvoke()
-  if (!invoke) throw new Error('Tauri 环境不可用，无法读取文件')
-  return invoke('cmd_fs_read', { path, encoding: 'utf-8' }) as Promise<string>
-}
-
-/** 列出目录内容 */
-async function listDir(path: string, recursive = false): Promise<Array<{
-  name: string
-  path: string
-  isDir: boolean
-  size: number
-}>> {
-  const invoke = await getInvoke()
-  if (!invoke) throw new Error('Tauri 环境不可用')
-  return invoke('cmd_fs_list', { path, recursive }) as Promise<any[]>
-}
-
-/** 打开目录选择（自绘选择器；未注册或取消均返回 null） */
-async function openDirDialog(title: string): Promise<string | null> {
-  const paths = await getFilePickerApi().pick({ mode: 'directory', title }).catch(() => null)
-  return paths?.[0] ?? null
-}
-
-/** 写入文本文件（createDirs：目标目录不存在则创建） */
-async function writeTextFile(path: string, content: string): Promise<void> {
-  const invoke = await getInvoke()
-  if (!invoke) throw new Error('Tauri 环境不可用，无法写入文件')
-  await invoke('cmd_fs_write', { path, content, createDirs: true })
-}
-
-/** 归一为正斜杠（导出/导入路径拼接口径） */
-function toPosixPath(path: string): string {
-  return path.replace(/\\/g, '/')
-}
-
-/** 当前项目实体根下的首页 profile 路径（`.worldsea/home.json`，设计 §5.3） */
-function currentHomeProfilePath(): string | null {
-  const projectDir = getFileStorageBackend()?.projectDir
-  return projectDir ? `${toPosixPath(projectDir)}/.worldsea/home.json` : null
-}
-
-/* ════════════════════════════════════════
-   辅助函数
-   ════════════════════════════════════════ */
-
-/** 将实体名称转为安全的文件名 */
-function toSafeFileName(name: string, id: string): string {
-  // 取名称的前30个字符，替换不安全字符
-  const safe = name
-    .slice(0, 30)
-    .replace(/[<>:"/\\|?*\x00-\x1f]/g, '_')
-    .replace(/\s+/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^_|_$/g, '')
-  // 追加 ID 前8位确保唯一性
-  const shortId = id.slice(0, 8)
-  return safe ? `${safe}_${shortId}.json` : `${shortId}.json`
-}
-
-/** 简单 CRC32 校验（用于 cache.json） */
-function simpleChecksum(str: string): string {
-  let hash = 0
-  for (let i = 0; i < str.length; i++) {
-    hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0
-  }
-  return (hash >>> 0).toString(16).padStart(8, '0')
-}
-
-/* ════════════════════════════════════════
-   导出
-   ════════════════════════════════════════ */
-
-/**
- * 将当前项目导出到指定目录。
- * @param dirPath 目标目录路径（如果为空则弹出目录选择对话框）；@param onProgress 进度回调
- * @returns 导出的目录路径，或 null 表示用户取消
- */
 export async function exportProjectToDir(
   dirPath?: string,
   onProgress?: ExportProgressCallback,
@@ -274,137 +156,3 @@ export async function exportProjectToDir(
    导入
    ════════════════════════════════════════ */
 
-/**
- * 从指定目录导入项目。
- * @param dirPath 源目录路径（如果为空则弹出目录选择对话框）；@param onProgress 进度回调
- * @returns 导入结果信息，或 null 表示用户取消
- */
-export async function importProjectFromDir(
-  dirPath?: string,
-  onProgress?: ImportProgressCallback,
-): Promise<{ projectName: string; entityCount: number; relationCount: number } | null> {
-  // 1. 选择目录
-  const sourceDir = dirPath || await openDirDialog('选择项目导入目录')
-  if (!sourceDir) return null
-
-  // 2. 读取 project.json
-  const manifestText = await readTextFile(`${sourceDir}/project.json`)
-  const manifest: ProjectManifest = JSON.parse(manifestText)
-  onProgress?.('manifest', 1, 1)
-
-  // 3. 创建新项目
-  const pm = getProjectManager()
-  const newProject = await pm.createProject(manifest.name, manifest.description)
-
-  // 4. 切换到新项目
-  const switcherApi = getProjectSwitcherApi()
-  if (!switcherApi) {
-    throw new Error('项目切换服务未注册：请先调用 registerProjectSwitcherApi')
-  }
-  const switched = await switcherApi.switchProject(newProject.id)
-  if (!switched) throw new Error('切换到导入项目失败，已中止导入')
-
-  // 5. 导入实体（批量收集后一次性写入 DB）
-  const entitiesDir = `${sourceDir}/entities`
-  const entityTypes = await listDir(entitiesDir)
-  let entityCount = 0
-  let entityTotal = 0
-
-  // 先统计总数
-  for (const typeDir of entityTypes) {
-    if (!typeDir.isDir) continue
-    const files = await listDir(typeDir.path)
-    entityTotal += files.filter(f => f.name.endsWith('.json')).length
-  }
-
-  // 收集所有实体
-  const allEntities: any[] = []
-  for (const typeDir of entityTypes) {
-    if (!typeDir.isDir) continue
-    const files = await listDir(typeDir.path)
-    for (const file of files) {
-      if (!file.name.endsWith('.json')) continue
-      const content = await readTextFile(file.path)
-      allEntities.push(JSON.parse(content))
-      entityCount++
-      onProgress?.('entities', entityCount, entityTotal)
-    }
-  }
-
-  // 批量写入 DB + 刷新内存状态
-  const entityStore = useEntityStore()
-  await entityStore.importBatch(allEntities)
-  onProgress?.('entities', entityTotal, entityTotal)
-
-  // 6. 导入关系（批量）
-  let relationCount = 0
-  try {
-    const relationsText = await readTextFile(`${sourceDir}/relations/_index.json`)
-    const relations = JSON.parse(relationsText)
-    const relationStore = useRelationStore()
-    await relationStore.importBatch(relations)
-    relationCount = relations.length
-  } catch {
-    // 关系文件可能不存在
-  }
-  onProgress?.('relations', 1, 1)
-
-  // 7. 导入芽设置
-  try {
-    const pluginsText = await readTextFile(`${sourceDir}/settings/plugins.json`)
-    const pluginsConfig = JSON.parse(pluginsText)
-    const settingsStore = useSettingsStore()
-    for (const p of pluginsConfig) {
-      if (p.active) {
-        settingsStore.toggleSprout(p.id)
-      }
-    }
-  } catch {
-    // 设置文件可能不存在
-  }
-  onProgress?.('settings', 1, 1)
-
-  // 7b. 芽注册的项目级附加文件（文件缺失不阻断导入）
-  for (const provider of getProjectExtraProviders()) {
-    try {
-      const content = await readTextFile(`${sourceDir}/${provider.path}`)
-      await provider.importFile(content)
-    } catch {
-      // 附加文件可能不存在
-    }
-  }
-
-  // 7c. 自定义图标与项目图标覆盖（可选分区；缺失即跳过）
-  try {
-    await importProjectIcons(sourceDir, (done, total) => onProgress?.('assets', done, total))
-  } catch (err) {
-    console.warn('[ProjectFS] 自定义图标导入失败（不影响主体）:', err)
-  }
-
-  // 7d. 项目背景图片与配置（缺失文件槽位置空；失败不阻断主体）
-  try {
-    const backgroundTargetDir = getFileStorageBackend()?.projectDir
-    await importProjectBackgrounds(toPosixPath(sourceDir), toPosixPath(backgroundTargetDir ?? ''), (done, total) => onProgress?.('assets', done, total))
-  } catch (err) {
-    console.warn('[ProjectFS] 项目背景导入失败（不影响主体）:', err)
-  }
-
-  // 8. 导入首页 profile（可选文件：缺失即跳过；写入新项目实体根的 `.worldsea/`）
-  const homeTargetPath = currentHomeProfilePath()
-  if (homeTargetPath) {
-    try {
-      const homeText = await readTextFile(`${toPosixPath(sourceDir)}/.worldsea/home.json`)
-      await writeTextFile(homeTargetPath, homeText)
-      // 切换项目早于本步写入，已挂载的首页资料 store 首轮可能读到空资料——广播让消费方重读
-      if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('ws-home-profile-changed'))
-    } catch {
-      // 源目录无 home.json 或新项目目录未就绪：跳过，不影响导入主体
-    }
-  }
-
-  return {
-    projectName: manifest.name,
-    entityCount,
-    relationCount,
-  }
-}

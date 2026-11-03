@@ -1,60 +1,49 @@
 /** 背景状态单例：六目标配置、全局+项目覆盖合并、分范围运行时态与根变量。 */
 import { computed, ref } from 'vue'
+import { normalizeGlobalConfig, normalizeProjectConfig, normalizeTargetConfig } from './background-normalize'
+import type {
+  BackgroundFit,
+  BackgroundGlobalConfig,
+  BackgroundImageRef,
+  BackgroundProjectConfig,
+  BackgroundScope,
+  BackgroundTarget,
+  BackgroundTargetConfig,
+  BackgroundTheme,
+  FocusStep,
+} from './background-types'
+import {
+  BACKGROUND_KEY,
+  BACKGROUND_TARGETS,
+  BACKGROUND_TARGET_CAPS,
+  BACKGROUND_THEMES,
+  BACKGROUND_V1_KEY,
+} from './background-types'
 
-export type BackgroundTarget =
-  | 'canvas'
-  | 'home'
-  | 'titlebar'
-  | 'sidebar'
-  | 'content-toolbar'
-  | 'content-view'
-export type BackgroundTheme = 'light' | 'dark'
-export type BackgroundScope = 'global' | 'project'
-export type BackgroundFit = 'cover' | 'contain' | 'tile'
-export type FocusStep = 0 | 50 | 100
-
-export interface BackgroundImageRef {
-  path: string
-  src: string
+// 类型与配置常量定义在 background-types.ts（与 background-normalize.ts 共用），此处原样转出
+export type {
+  BackgroundFit,
+  BackgroundGlobalConfig,
+  BackgroundImageRef,
+  BackgroundProjectConfig,
+  BackgroundScope,
+  BackgroundTarget,
+  BackgroundTargetConfig,
+  BackgroundTheme,
+  FocusStep,
 }
-
-export interface BackgroundTargetConfig {
-  enabled: boolean
-  paths: { light: string; dark: string }
-  fit: BackgroundFit
-  focusX: FocusStep
-  focusY: FocusStep
-  dim: number
-  blur: number
+export {
+  BACKGROUND_KEY,
+  BACKGROUND_TARGETS,
+  BACKGROUND_TARGET_CAPS,
+  BACKGROUND_THEMES,
+  BACKGROUND_V1_KEY,
 }
-
-export interface BackgroundGlobalConfig {
-  version: 2
-  targets: Record<BackgroundTarget, BackgroundTargetConfig>
+export {
+  normalizeGlobalConfig,
+  normalizeProjectConfig,
+  normalizeTargetConfig,
 }
-
-export interface BackgroundProjectConfig {
-  version: 1
-  targets: Partial<Record<BackgroundTarget, BackgroundTargetConfig>>
-}
-
-export const BACKGROUND_KEY = 'worldsea_background_v2'
-export const BACKGROUND_V1_KEY = 'worldsea_workspace_background'
-export const BACKGROUND_TARGETS: readonly BackgroundTarget[] = [
-  'canvas', 'home', 'titlebar', 'sidebar', 'content-toolbar', 'content-view',
-]
-export const BACKGROUND_THEMES: readonly BackgroundTheme[] = ['light', 'dark']
-export const BACKGROUND_TARGET_CAPS: Record<BackgroundTarget, { fit: boolean; focus: boolean }> = {
-  canvas: { fit: true, focus: true },
-  home: { fit: true, focus: true },
-  titlebar: { fit: false, focus: false },
-  sidebar: { fit: false, focus: false },
-  'content-toolbar': { fit: false, focus: false },
-  'content-view': { fit: false, focus: false },
-}
-
-const FOCUS_STEPS: FocusStep[] = [0, 50, 100]
-const FIT_VALUES: BackgroundFit[] = ['cover', 'contain', 'tile']
 const TARGET_VAR_SUFFIXES = ['image-light', 'image-dark', 'size', 'repeat', 'position', 'dim', 'blur'] as const
 
 type ThemeSrcs = { light: string; dark: string }
@@ -87,75 +76,6 @@ export const BACKGROUND_DEFAULTS: BackgroundGlobalConfig = { version: 2, targets
 
 function cloneDefaults(): BackgroundGlobalConfig {
   return { version: 2, targets: emptyTargets() }
-}
-
-function nearestFocus(value: unknown): FocusStep {
-  const n = typeof value === 'number' && Number.isFinite(value) ? value : 50
-  return FOCUS_STEPS.reduce((best, step) => Math.abs(step - n) < Math.abs(best - n) ? step : best, 50)
-}
-
-function clamp(value: unknown, min: number, max: number, fallback: number): number {
-  const n = typeof value === 'number' && Number.isFinite(value) ? value : fallback
-  return Math.min(max, Math.max(min, Math.round(n)))
-}
-
-/** 单目标归一化：分区目标强制 cover/居中；paths 只接受字符串 light/dark */
-export function normalizeTargetConfig(raw: unknown, target: BackgroundTarget): BackgroundTargetConfig {
-  const value = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {}
-  const paths = value.paths && typeof value.paths === 'object' ? value.paths as Record<string, unknown> : {}
-  const caps = BACKGROUND_TARGET_CAPS[target]
-  const fit = typeof value.fit === 'string' && FIT_VALUES.includes(value.fit as BackgroundFit)
-    ? value.fit as BackgroundFit
-    : 'cover'
-  return {
-    enabled: value.enabled === true,
-    paths: {
-      light: typeof paths.light === 'string' ? paths.light : '',
-      dark: typeof paths.dark === 'string' ? paths.dark : '',
-    },
-    fit: caps.fit ? fit : 'cover',
-    focusX: caps.focus ? nearestFocus(value.focusX) : 50,
-    focusY: caps.focus ? nearestFocus(value.focusY) : 50,
-    dim: clamp(value.dim, 0, 80, 35),
-    blur: clamp(value.blur, 0, 30, 8),
-  }
-}
-
-/** 旧 content 键：新 content-view 缺失时作为迁移输入；不复制到 content-toolbar */
-function legacyContent(raw: Record<string, unknown>): unknown {
-  return raw.content
-}
-
-/** 目标条目：新 key 优先，缺失时 content-view 回落旧 content */
-function targetEntry(targetsRaw: Record<string, unknown>, target: BackgroundTarget): unknown {
-  return targetsRaw[target] ?? (target === 'content-view' ? legacyContent(targetsRaw) : undefined)
-}
-
-/** 全局配置归一化：六个目标逐个归一化，缺失目标用默认值 */
-export function normalizeGlobalConfig(raw: unknown): BackgroundGlobalConfig {
-  const value = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {}
-  const targetsRaw = value.targets && typeof value.targets === 'object' ? value.targets as Record<string, unknown> : {}
-  const targets = {} as Record<BackgroundTarget, BackgroundTargetConfig>
-  for (const target of BACKGROUND_TARGETS) {
-    targets[target] = normalizeTargetConfig(targetEntry(targetsRaw, target), target)
-  }
-  return { version: 2, targets }
-}
-
-/** 项目配置归一化：只保留已知目标；无有效目标返回 null */
-export function normalizeProjectConfig(raw: unknown): BackgroundProjectConfig | null {
-  const value = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {}
-  if (!value.targets || typeof value.targets !== 'object') return null
-  const targetsRaw = value.targets as Record<string, unknown>
-  const targets: Partial<Record<BackgroundTarget, BackgroundTargetConfig>> = {}
-  let count = 0
-  for (const target of BACKGROUND_TARGETS) {
-    const entry = targetEntry(targetsRaw, target)
-    if (!entry || typeof entry !== 'object') continue
-    targets[target] = normalizeTargetConfig(entry, target)
-    count++
-  }
-  return count ? { version: 1, targets } : null
 }
 
 function storage(): Storage | null {

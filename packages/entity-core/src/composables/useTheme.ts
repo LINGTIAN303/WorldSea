@@ -1,126 +1,48 @@
 import { ref, computed } from 'vue'
 import { quantizeAnchor } from './accentColor'
 import { ACCENT_PRESETS, DEFAULT_ACCENT_ID, accentCssBlock, type AccentPreset } from './accentPresets'
+import {
+  STORAGE_KEY,
+  CUSTOM_ACCENT_KEY,
+  SAVED_ACCENTS_KEY,
+  CUSTOM_ACCENT_ID,
+  SAVED_ACCENTS_LIMIT,
+  loadCustomThemes,
+  saveCustomThemes,
+  loadUserOverrides,
+  saveUserOverrides,
+  loadComponentOverrides,
+  saveComponentOverrides,
+  loadSavedAccents,
+  migrateTheme,
+  initialThemeId,
+  initialCustomAccent,
+  ls,
+  type ThemeDefinition,
+} from './theme-storage'
 
 // 预设清单 / 类型 / 注入模板在 accentPresets.ts（纯模块：启动页独立构建入口无响应式层，需与此共用单一真源）；此处转发保持既有导出不变
 export { ACCENT_PRESETS, DEFAULT_ACCENT_ID } from './accentPresets'
 export type { AccentPreset } from './accentPresets'
-
-export interface ThemeDefinition {
-  name: string
-  id: string
-  author: string
-  version: string
-  /** 收束后（2026-09-13）导出自定义主题不再携带 mode（明暗已独立于主题风味） */
-  mode?: 'dark' | 'light'
-  tokens: Record<string, string>
-  darkTokens?: Record<string, string>
-  overrides?: Record<string, string>
-  customCSS?: string
-}
+// 存储层（键位/迁移/读写）在 theme-storage.ts，此处转发保持既有导出不变
+export { CUSTOM_ACCENT_ID }
+export { SAVED_ACCENTS_LIMIT }
+export type { ThemeDefinition }
 
 // ── 主题模型（2026-09-13 收束）：主题 = 底色 × 强调色 两轴 ──
 // 底色（light/dark/system）：App 壳三态唯一控制（apps/tauri/src/components/ui/useTheme.ts → data-theme）。
 // 强调色：本模块六色预设 ACCENT_PRESETS——浅色锚点手工定（过 AA 白字线），深色主值 / 渐变末端类比色 / accent 面文字由 OKLCH 算法派生；
 // 其余派生令牌（hover/soft/soft-border/ring）用 color-mix 随主值自动跟随。
-// 原六预设主题（aurora-abyss/light/forge-ember/ink-scroll/crystal-prism/cosmic）的 mode+accent 语义由两轴组合承接（旧 id 经 THEME_ID_MIGRATIONS 迁移）。
 // 风格包（纹理/图标/动效）已随 theme-kit 退役删除——2026-09-13 取证：--texture-*、data-interaction-mode 等在仓库内零消费点，从未真实生效。
-const STORAGE_KEY = 'worldsea-theme'
-const CUSTOM_THEMES_KEY = 'worldsea-custom-themes'
-const OVERRIDES_KEY = 'worldsea-theme-overrides'
-/** 自定义强调色：currentThemeId 记 'custom'，量化后的锚点色存此键 */
-const CUSTOM_ACCENT_KEY = 'worldsea-accent-custom'
-export const CUSTOM_ACCENT_ID = 'custom'
-/** 我的强调色：用户收藏的自定义锚点列表（量化后 hex），上限 12 个挤掉最早 */
-const SAVED_ACCENTS_KEY = 'worldsea-accent-saved'
-export const SAVED_ACCENTS_LIMIT = 12
 
-/** 旧预设主题 id → 强调色 id（localStorage 迁移；含更早的 cyberpunk/parchment；极光紫/宇宙紫随 2026-10-24 色板重排并入靛蓝） */
-const THEME_ID_MIGRATIONS: Record<string, string> = {
-  'aurora-abyss': 'indigo',
-  'aurora': 'indigo',
-  'cosmic': 'indigo',
-  'light': 'indigo',
-  'forge-ember': 'ember',
-  'ink-scroll': 'ink',
-  'crystal-prism': 'prism',
-  'cyberpunk': 'indigo',
-  'parchment': 'ink',
-}
-
-// SSR/Node 守卫：CLI/测试环境无 localStorage，使用 noop 实现
-const hasLocalStorage = typeof localStorage !== 'undefined'
-const localStorageShim = {
-  getItem: (_k: string) => null,
-  setItem: (_k: string, _v: string) => {},
-}
-const ls = hasLocalStorage ? localStorage : (localStorageShim as Storage)
-
-function migrateTheme(id: string): string {
-  const migrated = THEME_ID_MIGRATIONS[id]
-  if (migrated) {
-    ls.setItem(STORAGE_KEY, migrated)
-  }
-  return migrated || id
-}
-
-const currentThemeId = ref(migrateTheme(ls.getItem(STORAGE_KEY) || DEFAULT_ACCENT_ID))
+const currentThemeId = ref(initialThemeId())
 /** 自定义强调色锚点（已合规化；'custom' 轴激活时的主值来源） */
-const customAccentColor = ref<string | null>(hasLocalStorage ? ls.getItem(CUSTOM_ACCENT_KEY) : null)
+const customAccentColor = ref<string | null>(initialCustomAccent())
 /** 我的强调色：收藏的自定义锚点（量化后 hex） */
 const savedAccents = ref<string[]>(loadSavedAccents())
 const customThemes = ref<ThemeDefinition[]>(loadCustomThemes())
 const userOverrides = ref<Record<string, string>>(loadUserOverrides())
 const componentOverrides = ref<Record<string, Record<string, string>>>(loadComponentOverrides())
-
-function loadCustomThemes(): ThemeDefinition[] {
-  try {
-    const raw = ls.getItem(CUSTOM_THEMES_KEY)
-    return raw ? JSON.parse(raw) : []
-  } catch {
-    return []
-  }
-}
-
-function saveCustomThemes(themes: ThemeDefinition[]) {
-  ls.setItem(CUSTOM_THEMES_KEY, JSON.stringify(themes))
-}
-
-function loadUserOverrides(): Record<string, string> {
-  try {
-    const raw = ls.getItem(OVERRIDES_KEY)
-    return raw ? JSON.parse(raw) : {}
-  } catch {
-    return {}
-  }
-}
-
-function saveUserOverrides(overrides: Record<string, string>) {
-  ls.setItem(OVERRIDES_KEY, JSON.stringify(overrides))
-}
-
-function loadComponentOverrides(): Record<string, Record<string, string>> {
-  try {
-    const raw = ls.getItem('worldsea-component-overrides')
-    return raw ? JSON.parse(raw) : {}
-  } catch {
-    return {}
-  }
-}
-
-function loadSavedAccents(): string[] {
-  try {
-    const raw = ls.getItem(SAVED_ACCENTS_KEY)
-    const arr = raw ? JSON.parse(raw) : []
-    return Array.isArray(arr) ? arr.filter((x): x is string => typeof x === 'string').slice(0, SAVED_ACCENTS_LIMIT) : []
-  } catch {
-    return []
-  }
-}
-
-function saveComponentOverrides(overrides: Record<string, Record<string, string>>) {
-  ls.setItem('worldsea-component-overrides', JSON.stringify(overrides))
-}
 
 function applyTokens(tokens: Record<string, string>) {
   const root = document.documentElement

@@ -22,64 +22,22 @@
             </button>
           </div>
 
-          <!-- 导航行：后退 / 前进 / 上级 / 可编辑路径 / 刷新 -->
-          <div class="fp-nav">
-            <button class="fp-icon-btn" title="后退" :disabled="historyIndex <= 0" @click="goBack">
-              <WsIcon name="arrow-left" size="sm" />
-            </button>
-            <button class="fp-icon-btn" title="前进" :disabled="historyIndex >= history.length - 1" @click="goForward">
-              <WsIcon name="arrow-right" size="sm" />
-            </button>
-            <button class="fp-icon-btn" title="上一级" :disabled="!canGoUp" @click="goUp">
-              <WsIcon name="chevron-up" size="sm" />
-            </button>
-            <input
-              v-model="pathDraft"
-              class="fp-path"
-              spellcheck="false"
-              aria-label="当前路径（可直接编辑后回车跳转）"
-              @keydown.enter.prevent="commitPathDraft"
-              @keydown.esc.prevent="resetPathDraft"
-            />
-            <button class="fp-icon-btn" title="刷新" @click="reload">
-              <WsIcon name="refresh" size="sm" />
-            </button>
-          </div>
-
-          <!-- 搜索行：当前目录内按名称过滤（不递归；切换目录自动清空）+ 视图切换 -->
-          <div class="fp-search-row">
-            <div class="fp-search-wrap">
-              <WsIcon name="search" size="xs" class="fp-search-icon" />
-              <input
-                v-model="query"
-                class="fp-search"
-                type="search"
-                spellcheck="false"
-                placeholder="在当前文件夹中搜索名称"
-                aria-label="在当前文件夹中搜索"
-              />
-              <button v-if="query" class="fp-search-clear" title="清除搜索" @click="query = ''">
-                <WsIcon name="close" size="xs" />
-              </button>
-            </div>
-            <!-- 视图切换：详细信息列表 / 缩略图网格（aria-pressed 标注当前态） -->
-            <div class="fp-view-toggle" role="group" aria-label="视图模式">
-              <button
-                class="fp-view-btn"
-                :class="{ on: viewMode === 'list' }"
-                :aria-pressed="viewMode === 'list'"
-                title="详细信息视图"
-                @click="setViewMode('list')"
-              ><WsIcon name="list" size="xs" /></button>
-              <button
-                class="fp-view-btn"
-                :class="{ on: viewMode === 'grid' }"
-                :aria-pressed="viewMode === 'grid'"
-                title="缩略图网格视图"
-                @click="setViewMode('grid')"
-              ><WsIcon name="grid" size="xs" /></button>
-            </div>
-          </div>
+          <!-- 导航行 + 搜索行 + 视图切换（渲染在 FilePickerNav） -->
+          <FilePickerNav
+            v-model:path-draft="pathDraft"
+            v-model:query="query"
+            :history-index="historyIndex"
+            :history-length="history.length"
+            :can-go-up="canGoUp"
+            :view-mode="viewMode"
+            @back="goBack"
+            @forward="goForward"
+            @up="goUp"
+            @reload="reload"
+            @commit-path="commitPathDraft"
+            @reset-path="resetPathDraft"
+            @set-view-mode="setViewMode"
+          />
 
           <div class="fp-body">
             <!-- 左轨：最近访问 / 快捷位置 / 盘符（渲染在 FilePickerRail） -->
@@ -145,42 +103,20 @@
                     @scroll="onListScroll"
                     @keydown="onListKeydown"
                   >
-                    <!-- 列表视图：绝对定位行， spacer 撑出总高 -->
-                    <div v-if="viewMode === 'list'" class="fp-list-spacer" :style="{ height: `${visibleEntries.length * rowHeight}px` }">
-                      <div
-                        v-for="row in rows"
-                        :key="row.entry.path"
-                        :id="`fp-item-${row.index}`"
-                        class="fp-row"
-                        :class="{ dir: row.entry.isDir, on: selected.has(row.entry.path), dim: !!row.limit, focus: focusIndex === row.index }"
-                        :style="{ top: `${row.index * rowHeight}px` }"
-                        role="option"
-                        :aria-selected="selected.has(row.entry.path)"
-                        :aria-disabled="row.limit ? 'true' : undefined"
-                        :title="row.limit ? row.limit : row.entry.path"
-                        @click="onRowClick(row, { shift: $event.shiftKey })"
-                        @dblclick="onRowDblClick(row)"
-                        @mouseenter="onRowHover(row, $event)"
-                        @mouseleave="onRowLeave"
-                      >
-                        <span class="fp-row-icon">
-                          <WsIcon v-if="row.entry.isDir" name="folder" size="xs" />
-                          <img
-                            v-else-if="canThumbnail(row.entry)"
-                            class="fp-thumb"
-                            :src="thumbUrl(row.entry.path)"
-                            :alt="''"
-                            loading="lazy"
-                            decoding="async"
-                          />
-                          <FileIcon v-else :name="row.entry.name" />
-                        </span>
-                        <span class="fp-row-name">{{ row.entry.name }}</span>
-                        <span class="fp-row-time">{{ formatModified(row.entry.modified) }}</span>
-                        <span class="fp-row-type">{{ typeLabelOf(row.entry) }}</span>
-                        <span class="fp-row-size">{{ row.entry.isDir ? '' : formatBytes(row.entry.size) }}</span>
-                      </div>
-                    </div>
+                    <!-- 列表视图：绝对定位行， spacer 撑出总高（渲染在 FilePickerList） -->
+                    <FilePickerList
+                      v-if="viewMode === 'list'"
+                      :rows="rows"
+                      :selected="selected"
+                      :focus-index="focusIndex"
+                      :row-height="rowHeight"
+                      :total-height="visibleEntries.length * rowHeight"
+                      :format-bytes="formatBytes"
+                      @row-click="(row, e) => onRowClick(row, { shift: e.shiftKey })"
+                      @row-dblclick="onRowDblClick"
+                      @row-hover="onRowHover"
+                      @row-leave="onRowLeave"
+                    />
 
                     <!-- 网格视图：按「格子行」虚拟化，每行 cols 个格子（渲染在 FilePickerGrid） -->
                     <FilePickerGrid
@@ -240,8 +176,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { convertFileSrc } from '@tauri-apps/api/core'
-import { FileIcon, TuiButton, WsIcon, WsSkeleton } from '@worldsea/ui-kit'
+import { TuiButton, WsIcon, WsSkeleton } from '@worldsea/ui-kit'
 import { useResizable } from '@worldsea/ui-kit/composables/useResizable'
 import { useFocusTrap } from '@/composables/useFocusTrap'
 import { activePick, settlePick } from '@/composables/filePickerApi'
@@ -250,10 +185,12 @@ import { useFilePickerPreview } from '@/composables/useFilePickerPreview'
 import { useFilePickerKeys } from '@/composables/useFilePickerKeys'
 import FilePickerGrid from './FilePickerGrid.vue'
 import type { GridCell } from './FilePickerGrid.vue'
+import FilePickerList from './FilePickerList.vue'
+import FilePickerNav from './FilePickerNav.vue'
 import FilePickerRail from './FilePickerRail.vue'
 import FilePickerCrumbs from './FilePickerCrumbs.vue'
 import {
-  canThumbnail, formatModified, normalizePath, overLimitReason, typeLabelOf,
+  overLimitReason,
   type FsEntry,
 } from './filePickerModel'
 
@@ -299,14 +236,6 @@ const gridCells = computed<GridCell[][]>(() => {
   }
   return out
 })
-
-/**
- * 缩略图 URL（asset 协议）。只在渲染可见行时调用，虚拟滚动已把范围收窄到可视区；
- * 浏览器侧再叠加 loading="lazy" 与 decoding="async" 兜住快速滚动。
- */
-function thumbUrl(path: string): string {
-  return convertFileSrc(normalizePath(path))
-}
 
 /* ── 悬停大图预览（逻辑在 useFilePickerPreview） ── */
 const { preview, onRowHover: hoverRow, onRowLeave, reset: previewReset } = useFilePickerPreview()
