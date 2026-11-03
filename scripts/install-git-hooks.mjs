@@ -20,7 +20,7 @@ const REPO = path.resolve(HERE, '..')
 const HOOKS_DIR = '.githooks'
 
 function git(args, opts = {}) {
-  return execFileSync('git', args, { cwd: REPO, encoding: 'utf8', ...opts }).trim()
+  return execFileSync('git', args, { cwd: REPO, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...opts }).trim()
 }
 
 function currentHooksPath() {
@@ -54,18 +54,19 @@ if (args.includes('--remove')) {
   process.exit(0)
 }
 
-// 前置检查：必须在 git 仓库内
+// 前置检查：必须在 git 仓库内。作为 `prepare` 生命周期脚本时会在 CI / 源码包里执行，
+// 那种场景下没有 .git 是正常的，故只提示不失败（否则会中断 pnpm install）。
 try {
   git(['rev-parse', '--git-dir'])
 } catch {
-  console.error('✗ 当前目录不是 git 仓库')
-  process.exit(1)
+  console.log('— 当前目录不是 git 仓库，跳过钩子安装')
+  process.exit(0)
 }
 
 const hooksAbs = path.join(REPO, HOOKS_DIR)
 if (!existsSync(hooksAbs)) {
-  console.error(`✗ 找不到钩子目录 ${HOOKS_DIR}/`)
-  process.exit(1)
+  console.log(`— 找不到钩子目录 ${HOOKS_DIR}/，跳过`)
+  process.exit(0)
 }
 
 // 钩子文件需可执行位（Windows 上 git 自己处理，Unix 上必须有）

@@ -1,8 +1,10 @@
 name: CI
 
+# 触发面：只在 main 上跑的话，长期开发分支（如 feat/*）的提交永远得不到校验——
+# 本仓实际就是在 feat/ui-parallel 上开发，所以 push 用通配覆盖全部分支。
 on:
   push:
-    branches: [main]
+    branches: ['**']
   pull_request:
     branches: [main]
 
@@ -10,6 +12,31 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  # ════════════════════════════════════════════════════════════════
+  # 仓库门禁：架构 / fork 台账 / 样式一致性 / 文档链接
+  # 与本地 .githooks/pre-commit 跑同一套（scripts/gate.mjs），
+  # 保证「本地过了 = CI 也过」，不会出现两套口径。
+  # ════════════════════════════════════════════════════════════════
+  gates:
+    name: Repo Gates (arch / fork / style / docs)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # fork:check 要 `git diff <基线提交>`，浅克隆取不到历史
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Repo gates
+        run: pnpm gate
+
   # ════════════════════════════════════════════════════════════════
   # WASM 引擎（worldsea-core）：检查 + 测试
   # ════════════════════════════════════════════════════════════════
