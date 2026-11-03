@@ -28,6 +28,9 @@ pub(crate) struct ProxyCfg {
     /// 壳解析后的 DSH_HOME（= spawn 时注入宿主 env 的同值）——页面常量 `__WORLDSEA_DSH_HOME__`，
     /// console「插件数据面」在未覆盖时据此显示缺省生效值。
     pub dsh_home: Option<String>,
+    /// 宿主 hello 上报的前缀路由表（运行期快照）。与 `ALLOWED_PREFIXES` 取并集判定；
+    /// 空 = 旧宿主或未上报（回落静态底集，等价改造前行为）。
+    pub route_prefixes: Vec<String>,
 }
 
 /// 上游传输面（两种形态产出同构的「状态 / 头 / 体」）。
@@ -40,6 +43,14 @@ pub(crate) enum Upstream {
 
 use crate::dsh_inject::{inject_shell_scripts, TransportInject};
 
+// 闸门件在 `dsh_gate.rs`（放行集合与判定），本文件只留「一次请求怎么转发」。
+// 再导出供测试与 `workspace_dist` 复用同一口径（`path_allowed` 仅测试用，按 cfg 收窄）。
+pub(crate) use crate::dsh_gate::{
+    has_traversal, method_allowed, needs_no_store, path_verdict, PathVerdict,
+};
+#[cfg(test)]
+pub(crate) use crate::dsh_gate::path_allowed;
+
 /// 一次上游响应（体已在壳内缓冲——协议应答本身是缓冲体）。
 struct UpstreamAnswer {
     status: u16,
@@ -48,31 +59,6 @@ struct UpstreamAnswer {
     /// `text/event-stream`（壳协议不支持流式透传，调用方显式降级）。
     sse: bool,
 }
-
-/// 允许的方法：协议面只服务页面自用（读 + RPC 的 POST 写）。其余一律 405。
-const ALLOWED_METHODS: [&str; 3] = ["GET", "HEAD", "POST"];
-
-/// 路径白名单前缀（`/` 与 `/index.html` 另按精确匹配放行）。清单**枚举自 dsh 源码**的全部注册路由 + dist 根内文件：
-/// - `webServer.register`：`/plugins`（前缀，模块包 + `/plugins/events` HMR 事件）、`/open-in-app/apps`（精确）、
-///   `/open-in-app/icon`（前缀）、`/oauth/callback`（账户 OAuth 回调）；`connection.fetch.register`：`/api/file`（落在 `/api` 下）；
-/// - `frontend-static` 兜底座：dist 根的 `assets/`、`favicon*.svg`、`manifest.webmanifest`、`preview*`、index。
-/// 新增宿主路由时的动作：加进本表 + 补 `allowlist_covers_enumerated_host_routes` 用例；漏掉会在壳日志留 `404（路径白名单外）` 行，可用 `WORLDSEA_BRIDGE_OPEN=1` 先放行排查。
-/// 第三方插件命名空间不在此表：见下方 `PLUGIN_PREFIXES`。
-const ALLOWED_PREFIXES: [&str; 8] = [
-    "/assets/",
-    "/plugins/",
-    "/api/",
-    "/favicon",
-    "/manifest.webmanifest",
-    "/preview",
-    "/open-in-app/",
-    "/oauth/callback",
-];
-
-/// 第三方插件路由前缀：插件用 `webServer.register` 挂在自己的命名空间下，宿主源码里无静态清单可枚举——逐条登记。
-/// 未登记的插件命名空间仍按白名单外 404；漏登记时插件注入的脚本会触发页面 watchdog 错误页（dsh-whale-widget 即此）。
-/// 新增插件路由：补一条 + 补 `allowlist_covers_enumerated_host_routes` 用例。
-const PLUGIN_PREFIXES: [&str; 2] = ["/dsh-whale/", "/dsh-bili/"];
 
 /// 不转发给页面的响应头：`set-cookie` 会把宿主凭据塞进页面 cookie jar（壳自己持有即可），
 /// 其余是 hop-by-hop / 编码类头（转发体已由壳侧解码为明文）。
@@ -102,34 +88,6 @@ const PASSABLE_REQUEST_HEADERS: [&str; 5] = [
 /// 工作台页（`/workspace`）同口径复用——两处 index 的安全头单点定义在本文。
 pub(crate) const CSP_INDEX: &str = "object-src 'none'; base-uri 'self'; form-action 'none'";
 
-/// 路径是否在白名单内（`open` = 逃生口放行全部）。
-pub(crate) fn path_allowed(path_only: &str, open: bool) -> bool {
-    if open {
-        return true;
-    }
-    if path_only == "/" || path_only == "/index.html" {
-        return true;
-    }
-    ALLOWED_PREFIXES
-        .iter()
-        .chain(PLUGIN_PREFIXES.iter())
-        .any(|prefix| path_only.starts_with(prefix))
-}
-
-/// 路径是否含越界段（`.` / `..`；percent 编码形态由宿主侧 URL 归一化负责，壳这里挡明文）。
-pub(crate) fn has_traversal(path_only: &str) -> bool {
-    path_only.split('/').any(|segment| segment == "." || segment == "..")
-}
-
-/// 需要强制 no-store 的路径：index（含每进程注入）与 /plugins/*（按启动修订命名）。
-pub(crate) fn needs_no_store(path_only: &str) -> bool {
-    path_only == "/" || path_only == "/index.html" || path_only.starts_with("/plugins/")
-}
-
-/// 方法是否允许。
-pub(crate) fn method_allowed(method: &str) -> bool {
-    ALLOWED_METHODS.contains(&method)
-}
 
 /// 转发一次请求：闸门 → 取上游（管道/TCP 同构）→ index 注入 → 响应回写。
 pub(crate) fn proxy(cfg: &ProxyCfg, request: &http::Request<Vec<u8>>) -> http::Response<Vec<u8>> {
@@ -178,10 +136,18 @@ pub(crate) fn proxy(cfg: &ProxyCfg, request: &http::Request<Vec<u8>>) -> http::R
             return failure_response(404, is_index, "资源被测试钩子拒绝", deny);
         }
     }
-    if !path_allowed(&path_only, cfg.open_paths) {
-        eprintln!("[DSH-SHELL] bridge: {method} {path_and_query} → 404（路径白名单外；WORLDSEA_BRIDGE_OPEN=1 可放行）");
-        return failure_response(404, is_index, "路径不在壳白名单内", &path_only);
-    }
+    // 未命中放行集合 → 试探转发：宿主可能确有路由（插件热装后、或旧宿主未上报）。
+    // 理由是这层闸门挡的是「页面被 XSS 后借道」，而插件代码本就跑在宿主进程内——
+    // 精确清单挡不住宿主内任何代码，只会误杀合法的漏登记请求。
+    let probing = match path_verdict(&path_only, cfg.open_paths, &cfg.route_prefixes) {
+        PathVerdict::Static | PathVerdict::Runtime => false,
+        PathVerdict::Unknown => {
+            eprintln!(
+                "[DSH-SHELL] bridge: {method} {path_and_query} → 试探转发（不在静态白名单/宿主上报表内，按现状定结局）"
+            );
+            true
+        }
+    };
 
     // ── 转发（透传白名单制的请求头；页面的 origin/凭据语义一律不带）────────────
     let pass_headers: Vec<(String, String)> = request
@@ -203,6 +169,14 @@ pub(crate) fn proxy(cfg: &ProxyCfg, request: &http::Request<Vec<u8>>) -> http::R
         }
     };
     let status = answer.status;
+    // 试探转发落到 404 = 宿主确实没有这条路由。此时给出**可辨认**的标记，让插件能区分
+    // 「壳拦下了」与「接口真的不存在」——本次排查曾因两者都表现为空态而耗费大量时间。
+    if probing && status == 404 {
+        eprintln!(
+            "[DSH-SHELL] bridge: {method} {path_and_query} → 404（试探转发后宿主无此路由；若为插件 API，检查插件是否已启用）"
+        );
+        return blocked_response(is_index, &path_only);
+    }
     // 壳协议的应答是**缓冲体**（Tauri `UriSchemeResponder` 无流式通道）→ SSE 类长连响应无法透传。
     // 明确降级并落档（典型：HMR 的 `/plugins/events`；壳侧已在 `apps/tauri/dsh-overlay.yml` 关掉 client-hmr）。
     if answer.sse {
@@ -344,6 +318,25 @@ fn fetch_upstream(
             Ok(UpstreamAnswer { status: response.status, headers: response.headers, body: response.body, sse })
         }
     }
+}
+
+/// 被壳闸门挡下/宿主无路由时的**可辨认** 404。
+/// API 面（`/api/` 前缀请求或页面显式要 JSON）给结构化 JSON，让插件能区分
+/// 「被壳拦了」与「接口不存在」；其余仍给极简文本（不污染资源语义）。
+pub(crate) fn blocked_response(wants_html: bool, path_only: &str) -> http::Response<Vec<u8>> {
+    if wants_html {
+        return failure_response(404, true, "资源不在壳白名单内", path_only);
+    }
+    let body = format!(
+        "{{\"ok\":false,\"code\":\"SHELL_PATH_BLOCKED\",\"path\":{}}}",
+        serde_json::Value::String(path_only.to_string())
+    );
+    http::Response::builder()
+        .status(404)
+        .header("content-type", "application/json; charset=utf-8")
+        .header("cache-control", "no-store")
+        .body(body.into_bytes())
+        .expect("blocked response")
 }
 
 /// 入口级失败响应：index 给 HTML 错误页（可辨认、非白屏），其余给极简文本（不污染资源语义）。

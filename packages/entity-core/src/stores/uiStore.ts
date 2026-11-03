@@ -235,11 +235,11 @@ export const useUIStore = defineStore('ui', () => {
   /* ── 启动状态（Splash Screen 生命周期）── */
   const bootState = ref<'booting' | 'ready' | 'error'>('booting')
   /** 真实启动阶段：Splash 只负责展示，不再自行模拟进度 */
-  const bootStage = ref<'backend' | 'project' | 'shell' | 'bridge' | 'ready' | 'error'>('backend')
+  const bootStage = ref<'backend' | 'project' | 'shell' | 'bridge' | 'agent' | 'ready' | 'error'>('backend')
   /** 启动失败时的错误信息（仅 bootState === 'error' 时有值） */
   const bootError = ref<{ failedModules: Array<{ id: string; name: string; error: string }>; skippedModules: Array<{ id: string; reason: string }> } | null>(null)
 
-  function setBootStage(stage: 'backend' | 'project' | 'shell' | 'bridge' | 'ready' | 'error') {
+  function setBootStage(stage: 'backend' | 'project' | 'shell' | 'bridge' | 'agent' | 'ready' | 'error') {
     bootStage.value = stage
   }
 

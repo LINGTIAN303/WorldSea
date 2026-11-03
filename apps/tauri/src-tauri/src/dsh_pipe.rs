@@ -30,6 +30,15 @@ const HELLO_TIMEOUT: Duration = Duration::from_secs(5);
 /// 拨号重试节奏（宿主可能仍在绑定管道；就绪行已过，通常一次即中）。
 const DIAL_RETRY_INTERVAL: Duration = Duration::from_millis(250);
 
+/// hello 握手结果：协议版本 + 宿主自报的前缀路由表（旧宿主不带该字段则为空）。
+#[derive(Debug, Clone, Default)]
+pub struct HelloInfo {
+    pub version: u64,
+    /// 宿主 webserver 当前注册的前缀路由（如 `/api`、`/plugins`、插件命名空间）。
+    /// 壳侧路径闸门据此判定「宿主是否真的会路由这条路径」。
+    pub route_prefixes: Vec<String>,
+}
+
 /// 一条一元上游响应（体已在壳内缓冲——协议应答本身是缓冲体）。
 #[derive(Debug)]
 pub struct PipeResponse {
@@ -65,6 +74,8 @@ pub(crate) struct Inner {
     next_id: AtomicU32,
     /// hello 校验通过后为真；连接断掉即复位（后续请求显式报错，不静默挂起）。
     pub(crate) alive: AtomicBool,
+    /// hello 带来的宿主前缀路由表（路径闸门的运行期依据；空 = 旧宿主或未握手）。
+    pub(crate) route_prefixes: Mutex<Vec<String>>,
 }
 
 /// 管道客户端（可克隆共享；内部读写线程随最后一个句柄回收）。
@@ -132,8 +143,9 @@ impl PipeClient {
             streams: Mutex::new(HashMap::new()),
             next_id: AtomicU32::new(1),
             alive: AtomicBool::new(false),
+            route_prefixes: Mutex::new(Vec::new()),
         });
-        let (hello_tx, hello_rx) = mpsc::channel::<Result<u64, String>>();
+        let (hello_tx, hello_rx) = mpsc::channel::<Result<HelloInfo, String>>();
         {
             let inner = inner.clone();
             std::thread::spawn(move || crate::dsh_pipe_io::reader_loop(&mut reader, inner, hello_tx));
@@ -153,8 +165,9 @@ impl PipeClient {
             streams: Mutex::new(HashMap::new()),
             next_id: AtomicU32::new(1),
             alive: AtomicBool::new(false),
+            route_prefixes: Mutex::new(Vec::new()),
         });
-        let (hello_tx, hello_rx) = mpsc::channel::<Result<u64, String>>();
+        let (hello_tx, hello_rx) = mpsc::channel::<Result<HelloInfo, String>>();
         {
             let inner = inner.clone();
             std::thread::spawn(move || crate::dsh_pipe_io::pipe_io_loop(&mut file, inner, frame_rx, hello_tx));
@@ -162,10 +175,13 @@ impl PipeClient {
         Self::await_hello(&inner, hello_rx)
     }
 
-    fn await_hello(inner: &Arc<Inner>, hello_rx: Receiver<Result<u64, String>>) -> Result<Self, String> {
+    fn await_hello(inner: &Arc<Inner>, hello_rx: Receiver<Result<HelloInfo, String>>) -> Result<Self, String> {
         match hello_rx.recv_timeout(HELLO_TIMEOUT) {
-            Ok(Ok(version)) if version == PIPE_PROTOCOL_VERSION => Ok(Self { inner: inner.clone() }),
-            Ok(Ok(version)) => Err(format!("管道协议版本不符：宿主 {version}，本壳 {PIPE_PROTOCOL_VERSION}")),
+            Ok(Ok(info)) if info.version == PIPE_PROTOCOL_VERSION => {
+                *inner.route_prefixes.lock().unwrap() = info.route_prefixes;
+                Ok(Self { inner: inner.clone() })
+            }
+            Ok(Ok(info)) => Err(format!("管道协议版本不符：宿主 {}，本壳 {PIPE_PROTOCOL_VERSION}", info.version)),
             Ok(Err(error)) => Err(error),
             Err(_) => Err(format!("等待管道 hello 超时（{}s）", HELLO_TIMEOUT.as_secs())),
         }
@@ -174,6 +190,12 @@ impl PipeClient {
     /// 是否仍在服务（hello 过、连接未断）。
     pub fn is_alive(&self) -> bool {
         self.inner.alive.load(Ordering::SeqCst)
+    }
+
+    /// 宿主自报的前缀路由表（hello 时快照；旧宿主或未握手则为空）。
+    /// 路径闸门用它判定「宿主是否真的会路由这条路径」，从而不必在壳内维护手工清单。
+    pub fn route_prefixes(&self) -> Vec<String> {
+        self.inner.route_prefixes.lock().unwrap().clone()
     }
 
     /// 测试专用：以既有双向流构造（哑通道），走完整 hello 握手。

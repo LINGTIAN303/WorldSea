@@ -160,7 +160,7 @@ interface Harness {
 }
 
 /** Start one carrier whose dispatch and stream opener are observable fakes. */
-async function startHarness(): Promise<Harness> {
+async function startHarness(routePrefixes?: () => readonly string[]): Promise<Harness> {
   const path = pipePath()
   const streams: StreamCall[] = []
   const requests: Array<{ method: string; url: string; body: string }> = []
@@ -230,6 +230,7 @@ async function startHarness(): Promise<Harness> {
       })()
     },
     streamFailure: error => ({ code: 'gateway/protocol', message: String(error), details: {} }),
+    ...(routePrefixes === undefined ? {} : { routePrefixes }),
     log: () => {},
   }
   const carrier = await installPipeCarrier(options)
@@ -248,6 +249,7 @@ describe('pipe transport: framing and unary requests', () => {
     const harness = await startHarness()
     const client = await connectClient(harness.path)
     const hello = await client.nextJson()
+    // No routePrefixes reader supplied: the member is absent, not an empty list.
     expect(hello).toEqual({ t: 'hello', version: PIPE_TRANSPORT_VERSION, carrier: 'worldsea-pipe' })
 
     client.sendJson({ t: 'req', id: 7, method: 'GET', url: '/echo?x=1', headers: { host: '127.0.0.1' } })
@@ -260,6 +262,21 @@ describe('pipe transport: framing and unary requests', () => {
     expect(body.kind).toBe(KIND_BINARY)
     expect(body.payload.readUInt32BE(0)).toBe(7)
     expect(body.payload.subarray(4).toString('utf8')).toBe('echo:GET:/echo?x=1:')
+  })
+
+  it('carries the live prefix routes in the greeting, re-read per connection', async () => {
+    // Stands in for the shell's path gate: it gates on what the host answers,
+    // so a route a plugin registers while the server runs must appear on the
+    // next connection without restarting the carrier.
+    let table = ['/api']
+    const harness = await startHarness(() => table)
+    const first = await connectClient(harness.path)
+    expect((await first.nextJson())['routePrefixes']).toEqual(['/api'])
+    first.close()
+
+    table = ['/api', '/some-plugin/api']
+    const second = await connectClient(harness.path)
+    expect((await second.nextJson())['routePrefixes']).toEqual(['/api', '/some-plugin/api'])
   })
 
   it('carries a request body in the declared binary frame', async () => {

@@ -148,6 +148,43 @@ async function withBootTimeout<T>(task: Promise<T>, label: string, ms = 30_000):
  * backend → project → shell → bridge → ready；任何关键步骤失败进入 BootErrorScreen。
  * 系统桥是非关键步骤，失败只记录，不阻塞进入工作台。
  */
+/**
+ * 等 Agent 面（dsh）就绪——产品域是默认落地，用户随时会切到 Agent 空间；
+ * dsh 仍在 spawn/就绪链上时切过去只会看到占位页，故启动页等它一起。
+ * 三道出口（任一即返回，绝不把用户锁在启动页）：
+ *  1. dsh 就绪 → 正常放行；
+ *  2. dsh 启动失败 → 立即放行（失败有专门的错误页与通知，不在启动页等）；
+ *  3. 封顶超时（15s，远小于壳侧 READY_TIMEOUT 90s）→ 放行，dsh 慢启动不阻塞使用。
+ * 命令不存在（浏览器预览 / 旧壳）→ 静默当就绪。轮询而非事件：一处实现、无需清理监听器。
+ */
+const DSH_READY_TIMEOUT_MS = 15_000
+const DSH_READY_POLL_MS = 150
+
+async function waitForDshReady(): Promise<void> {
+  const deadline = Date.now() + DSH_READY_TIMEOUT_MS
+  for (;;) {
+    try {
+      const state = await invoke<string>('cmd_dsh_ready_state')
+      if (state === 'ready' || state === 'failed') return
+    } catch (err) {
+      // 命令缺失（浏览器预览 / 旧壳）→ 不等，等价改造前行为。
+      // 但**必须留痕**：ACL 漏登记与「命令不存在」在页面上表现相同，静默会掩盖配置缺陷。
+      console.warn('[App] cmd_dsh_ready_state 不可用 → 不等 Agent 面:', err)
+      return
+    }
+    if (Date.now() >= deadline) {
+      console.warn(`[App] 等待 dsh 就绪超时（${DSH_READY_TIMEOUT_MS}ms）→ 先进首页，Agent 空间稍后可用`)
+      return
+    }
+    await new Promise(resolve => setTimeout(resolve, DSH_READY_POLL_MS))
+  }
+}
+
+/**
+ * 产品域启动链。
+ * 顺序契约：本地四阶段（core/project/interface/bridge）→ **等 dsh 就绪** → markReady（启动页据此离场）。
+ * 本地阶段与 dsh 是两条并行链（dsh 在壳的后台线程里 spawn），此处汇合点即启动页的结束点。
+ */
 async function runBoot(): Promise<void> {
   try {
     uiStore.setBootStage('backend')
@@ -170,6 +207,10 @@ async function runBoot(): Promise<void> {
       console.warn('[App] 系统桥初始化失败（不阻塞启动）:', err)
     }
 
+    // 等 Agent 面就绪再收起启动页——否则用户切过去看到的是未加载完的 dsh 界面
+    uiStore.setBootStage('agent')
+    await waitForDshReady()
+
     uiStore.markReady()
   } catch (err) {
     console.error('[App] 启动失败:', err)
@@ -183,8 +224,13 @@ async function runBoot(): Promise<void> {
 
 onMounted(() => {
   // 启动首绘门回报（workspace_window.rs）：启动预建的工作台窗由此显示——窗口出现即已是启动页，
-  // 全程无空白帧。仅预建路径持门；主窗/浏览器预览等无门场景为 no-op，命令缺失（旧壳）静默。
-  invoke('cmd_workspace_first_paint').catch(() => {})
+  // 全程无空白帧。仅预建路径持门；主窗/浏览器预览等无门场景为 no-op（命令返回成功但无事发生）。
+  // ★ 失败必须留痕：ACL 漏登记时 Tauri 直接拒命令，若静默吞掉，窗口只能靠壳侧 8s 兜底超时才显示
+  //   （表现为「启动页看不到」），且排查时毫无线索——2026-11-04 实测踩到（命令未登记
+  //   worldsea-product.toml，被 catch 吞了一个多月）。
+  invoke('cmd_workspace_first_paint').catch(err => {
+    console.warn('[App] 首绘门回报失败（窗口将等壳侧兜底超时才显示）:', err)
+  })
   // 全局 Tooltip 接管：摘除全站原生 title，统一为自定义浮层（2026-09-06 方案A）
   enableGlobalTooltips()
   // 全局拦截浏览器原生右键菜单（2026-09-06 桌面应用惯例）：事件仍正常传播，
@@ -234,6 +280,16 @@ html, body, #app {
   height: 100%;
   margin: 0;
   overflow: hidden;
+}
+
+/* 页面根底色：任何浮层（启动页/遮罩）失效时，至少是主题底色而不是透出窗口后的桌面/下层界面。
+   var() 拼出无效值时整条声明回退 initial，故这里用不含 var 的硬值兜在 :root 上，
+   再由主题规则覆盖——两层保险（见 docs/plans/2026-11-04-启动页跟随dsh就绪批计划.md §八）。 */
+html {
+  background-color: #111113;
+}
+html[data-theme='light'] {
+  background-color: #fafaf9;
 }
 
 /* 跳过导航链接：默认移出屏幕，聚焦时滑入可见（WCAG 2.4.1） */

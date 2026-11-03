@@ -30,11 +30,11 @@ struct FrameDispatch {
     inner: Arc<Inner>,
     expects: HashMap<u32, Expect>,
     buffer: Vec<u8>,
-    hello_tx: Option<Sender<Result<u64, String>>>,
+    hello_tx: Option<Sender<Result<crate::dsh_pipe::HelloInfo, String>>>,
 }
 
 impl FrameDispatch {
-    fn new(inner: Arc<Inner>, hello_tx: Sender<Result<u64, String>>) -> Self {
+    fn new(inner: Arc<Inner>, hello_tx: Sender<Result<crate::dsh_pipe::HelloInfo, String>>) -> Self {
         Self { inner, expects: HashMap::new(), buffer: Vec::new(), hello_tx: Some(hello_tx) }
     }
 
@@ -87,7 +87,7 @@ impl FrameDispatch {
 
 /// 读循环（套接字形态：独立读线程；写线程独立，无句柄串行化问题）。
 #[cfg(any(unix, test))]
-pub(crate) fn reader_loop(reader: &mut dyn Read, inner: Arc<Inner>, hello_tx: Sender<Result<u64, String>>) {
+pub(crate) fn reader_loop(reader: &mut dyn Read, inner: Arc<Inner>, hello_tx: Sender<Result<crate::dsh_pipe::HelloInfo, String>>) {
     let mut io = FrameDispatch::new(inner, hello_tx);
     let mut chunk = vec![0u8; 64 * 1024];
     loop {
@@ -116,7 +116,7 @@ pub(crate) fn pipe_io_loop(
     file: &mut std::fs::File,
     inner: Arc<Inner>,
     frames: Receiver<Vec<u8>>,
-    hello_tx: Sender<Result<u64, String>>,
+    hello_tx: Sender<Result<crate::dsh_pipe::HelloInfo, String>>,
 ) {
     use std::os::windows::io::AsRawHandle;
     let handle = file.as_raw_handle();
@@ -197,7 +197,7 @@ fn dispatch(
     payload: Vec<u8>,
     inner: &Arc<Inner>,
     expects: &mut HashMap<u32, Expect>,
-    hello_tx: &mut Option<Sender<Result<u64, String>>>,
+    hello_tx: &mut Option<Sender<Result<crate::dsh_pipe::HelloInfo, String>>>,
 ) -> bool {
     if kind == KIND_BINARY {
         if payload.len() < 4 {
@@ -233,9 +233,15 @@ fn dispatch(
         match frame_type {
             "hello" => {
                 let version = value.get("version").and_then(Value::as_u64).unwrap_or(0);
+                // 旧宿主不带该字段 → 空表（闸门回落到静态底集，等价改造前行为）
+                let route_prefixes = value
+                    .get("routePrefixes")
+                    .and_then(Value::as_array)
+                    .map(|items| items.iter().filter_map(Value::as_str).map(str::to_string).collect())
+                    .unwrap_or_default();
                 inner.alive.store(true, Ordering::SeqCst);
                 if let Some(tx) = hello_tx.take() {
-                    let _ = tx.send(Ok(version));
+                    let _ = tx.send(Ok(crate::dsh_pipe::HelloInfo { version, route_prefixes }));
                 }
                 true
             }

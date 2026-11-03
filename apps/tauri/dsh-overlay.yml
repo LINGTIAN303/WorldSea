@@ -30,3 +30,21 @@
 - id: workspace-controller
   config:
     documentsDirectory: !!js process.env.WORLDSEA_WORKSPACE
+
+# 4) experimental-inspector —— 补 clientOrigins（2026-11-03）。
+#    症状：页面控制台每次重载刷一条 `ws://127.0.0.1:<port>/ingest` 403（WebSocket handshake 失败）。
+#    根因：inspector 的 ingest 握手只接受 loopback origin
+#      （packages/experimental/inspector/src/worker/bridge/endpoint.ts 的 authorizedClient：
+#       `localhost` / `127.0.0.1` / `[::1]`），而壳页面的 origin 是 **`http://worldsea.localhost`**
+#      （wry 自定义协议 workaround 形态，见 docs/details/注释/tauri/dsh-bridge.md〔自定义协议落形〕）
+#      → 不在白名单，直接 403。
+#    官方 Electron 桌面端的页面 origin 就是 `http://127.0.0.1:<port>`，天然命中白名单，故上游无此问题；
+#    这是「壳换掉载体后 origin 变了」的集成缺口，不是 inspector 的缺陷。
+#    `clientOrigins` 是 inspector 官方提供的配置项（README「`/ingest` 额外接受的精确浏览器 origin」）。
+#    注意：patch 的 config **整体替换**（见 app-boot/config-schema/document.ts：A patch config replaces
+#    the whole config），故必须把 inspector-profile 原有的 `captureFetch: true` 一并写回。
+- id: experimental-inspector
+  config:
+    captureFetch: true
+    clientOrigins:
+      - http://worldsea.localhost

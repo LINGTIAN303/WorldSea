@@ -6,9 +6,8 @@
   配色全部复用项目 CSS 变量，跟随主题切换
 
   生命周期：
-    1. mount 时移除 index.html 里的 #ws-splash-static 静态占位
-    2. 启动 Canvas 引擎
-    3. watch uiStore.bootState === 'ready' 后淡出 600ms；App.vue 的 splashVisible 保留 750ms 再卸载
+    1. 启动 Canvas 引擎
+    2. watch uiStore.bootState === 'ready' 后淡出 600ms；App.vue 的 splashVisible 保留 750ms 再卸载
 -->
 <template>
   <div class="ws-splash" :class="{ 'ws-splash--leaving': leaving }">
@@ -101,6 +100,7 @@ const BOOT_STAGES = [
   { key: 'project', short: '项目', full: '恢复项目' },
   { key: 'shell', short: '界面', full: '装配界面' },
   { key: 'bridge', short: '桥接', full: '系统桥接' },
+  { key: 'agent', short: '内核', full: '等待 Agent 内核' },
 ] as const
 
 const activeIndex = computed(() => {
@@ -132,12 +132,6 @@ function stageLeft(i: number): number {
   return (i / Math.max(1, BOOT_STAGES.length - 1)) * 100
 }
 
-// 移除 index.html 静态 splash
-function removeStaticSplash() {
-  const el = document.getElementById('ws-splash-static')
-  if (el) el.remove()
-}
-
 // 鼠标光标跟随
 function setupCursor() {
   cursorMoveHandler = (e: MouseEvent) => {
@@ -150,7 +144,6 @@ function setupCursor() {
 }
 
 onMounted(() => {
-  removeStaticSplash()
   setupCursor()
 
   if (constellationRef.value && interactionRef.value) {

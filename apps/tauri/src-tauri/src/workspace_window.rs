@@ -6,9 +6,11 @@
 //   显示 + 聚焦 → 来源窗隐藏：观感等同同窗切换；
 // - 关闭键 = 隐藏到托盘（两窗同语义，见 lib.rs 的 CloseRequested 分支）；新窗挂壳级导航/新窗栅栏（策略与 dsh 窗一致）。
 
-use tauri::{Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri::{Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
 use crate::dsh_bridge::APP_URL;
+// 几何快照/平移/启动自检在 workspace_geometry.rs（本文件只管切换时序与可见性裁决）
+use crate::workspace_geometry::{apply_geometry, snapshot};
 
 /// 工作台窗口标签（ACL capability 的 `windows` 项按此绑定；见 capabilities/workspace.json）。
 pub const LABEL: &str = "workspace";
@@ -159,117 +161,6 @@ fn state_pair(main: &WebviewWindow, workspace: &WebviewWindow) -> String {
     format!("main({}) workspace({})", one(main), one(workspace))
 }
 
-/// 窗口几何快照。
-/// ★ **尺寸取 `inner_size`**（2026-09-24 走查实测）：Tauri 的 `Window::set_size` 落到
-/// `tauri-runtime-wry` 的 `SetSize → window.set_inner_size(…)`，写的是 **inner**；若读 `outer_size`
-/// 再写，每轮切换都会按边框/阴影厚度**自增放大**（走查现象：逐次向右下角变大）。
-/// 位置取 `outer_position`（与 `set_position` 同口径，成对）。
-struct WindowGeometry {
-    position: Option<PhysicalPosition<i32>>,
-    size: Option<PhysicalSize<u32>>,
-    maximized: bool,
-    /// 快照时窗口处于最小化：此时 position/size 是平台占位值（Windows ≈ -32000 / 标题栏尺寸），
-    /// **不可转移**给目标窗。
-    minimized: bool,
-    /// 快照时窗口处于全屏：几何=屏幕尺寸，**不参与转移**（见 `geometry_transfer_skipped`）。
-    fullscreen: bool,
-}
-
-fn snapshot(window: &WebviewWindow) -> WindowGeometry {
-    WindowGeometry {
-        position: window.outer_position().ok(),
-        size: window.inner_size().ok(),
-        maximized: window.is_maximized().unwrap_or(false),
-        minimized: window.is_minimized().unwrap_or(false),
-        fullscreen: window.is_fullscreen().unwrap_or(false),
-    }
-}
-
-/// 几何转移跳过判据（纯函数，单测锁定）：最小化来源（占位几何不可转移）与**全屏窗**——
-/// 来源全屏（几何=屏幕尺寸，写过去只是摊成假全屏）或目标全屏（对全屏窗 `set_position`/`set_size`
-/// 会把全屏顶掉/成怪态）都不写。全屏态**不随切换转移**：每窗各自保有（切回时仍是全屏）。
-fn geometry_transfer_skipped(source_minimized: bool, source_fullscreen: bool, target_fullscreen: bool) -> bool {
-    source_minimized || source_fullscreen || target_fullscreen
-}
-
-/// 几何平移判据（纯函数：单测锁定「最大化只平移最大化」——2026-09-24 走查修复的核心规则）。
-/// 返回 `(是否把最大化平移给目标窗, 是否需先把目标窗还原)`。
-fn geometry_plan(source_maximized: bool, target_maximized: bool) -> (bool, bool) {
-    if source_maximized {
-        // 最大化态几何无意义；对最大化窗写几何会把它顶掉 → 只平移最大化（已最大化则不重复调）
-        (true, false)
-    } else {
-        (false, target_maximized)
-    }
-}
-
-/// 几何平移：**最大化态只平移最大化**——最大化下几何无意义，对最大化窗 `set_size`/`set_position`
-/// 会把它顶掉（走查现象：最大化被取消并放大）；非最大化态先还原目标窗（可能停在最大化）再落几何。
-/// ★ **最小化来源不转移几何**：最小化窗的 position/size 是平台占位值（位置 ≈ -32000、尺寸 ≈ 标题栏
-/// 大小）——转移会把目标窗变成「不可见窗」且被窗口状态插件持久化（实证：主窗变 159×27 @ -25600,-25600
-/// → 应用此后「打开即不可见」）。★ **全屏窗不参与转移**：全屏态是窗口自己的状态，不随切换转移（判据见 `geometry_transfer_skipped`）。
-fn apply_geometry(target: &WebviewWindow, geometry: &WindowGeometry) {
-    if geometry_transfer_skipped(geometry.minimized, geometry.fullscreen, target.is_fullscreen().unwrap_or(false)) {
-        return;
-    }
-    let target_maximized = target.is_maximized().unwrap_or(false);
-    let (transfer_maximize, unmaximize_first) = geometry_plan(geometry.maximized, target_maximized);
-    if transfer_maximize {
-        if !target_maximized {
-            let _ = target.maximize();
-        }
-        return;
-    }
-    if unmaximize_first {
-        let _ = target.unmaximize();
-    }
-    if let Some(position) = geometry.position {
-        let _ = target.set_position(position);
-    }
-    if let Some(size) = geometry.size {
-        let _ = target.set_size(size);
-    }
-}
-
-impl WindowGeometry {
-    /// 日志/自检口径：**连续切换应打印同一组数值**（走查与回归自检都看这行）。
-    fn describe(&self) -> String {
-        let position = self.position.map(|p| format!("{},{}", p.x, p.y)).unwrap_or_else(|| "?,?".to_string());
-        let size = self.size.map(|s| format!("{}x{}", s.width, s.height)).unwrap_or_else(|| "?x?".to_string());
-        format!(
-            "{size}@{position}{}{}",
-            if self.maximized { " max" } else { "" },
-            if self.fullscreen { " 全屏" } else { "" }
-        )
-    }
-}
-
-/// 还原几何是否可用（纯函数，供单测）：位置离屏（平台最小化占位 ≈ -32000）或尺寸小于下限 → 不可用。
-fn restored_geometry_is_usable(position: Option<(i32, i32)>, size: Option<(u32, u32)>) -> bool {
-    const OFFSCREEN: i32 = -10_000;
-    const MIN_W: u32 = 320;
-    const MIN_H: u32 = 240;
-    match (position, size) {
-        (Some((x, y)), Some((w, h))) => x > OFFSCREEN && y > OFFSCREEN && w >= MIN_W && h >= MIN_H,
-        // 读不到几何（平台异常）→ 视为可用，不动
-        _ => true,
-    }
-}
-
-/// 启动自检（2026-09-27 走查修复）：窗口状态插件会把「退出时最小化」的窗口按占位几何保存/还原，
-/// 下次启动 → 应用「打开即不可见」（走查实证：主窗 159×27 @ -25600,-25600）。主窗就位后调用一次；
-/// 不可用时复位为默认尺寸并居中（随后的正常退出会覆盖掉坏状态）。
-pub(crate) fn sanitize_restored_geometry(window: &WebviewWindow) {
-    let position = window.outer_position().ok().map(|p| (p.x, p.y));
-    let size = window.inner_size().ok().map(|s| (s.width, s.height));
-    if restored_geometry_is_usable(position, size) {
-        return;
-    }
-    eprintln!("[DSH-SHELL] window: 还原几何不可用（{position:?} / {size:?}）→ 复位 1280×800 并居中");
-    let _ = window.set_size(PhysicalSize::new(1280u32, 800u32));
-    let _ = window.center();
-}
-
 /// 主窗启动可见性裁决（产品域为默认落地后的口径）：
 /// 两形态都**预建工作台窗（隐藏）**——页面由磁盘伺服即刻可载，载入即眼睛启动页；
 /// 主窗（Agent 空间）保持隐藏，后台吃 dsh 就绪链（spawn/导航与可见性解耦，见 dsh_shell.rs）。
@@ -280,6 +171,16 @@ pub(crate) fn sanitize_restored_geometry(window: &WebviewWindow) {
 /// 与 `cmd_shell_space_switch` 必须 async 同理；setup 期直呼有自锁前科）。
 pub(crate) fn startup_visibility(app: &tauri::AppHandle) {
     let autostart = std::env::args().any(|arg| arg == "--autostart");
+    // ★ 显式隐藏主窗——**不能依赖 `tauri.conf.json` 的 `visible: false`**。
+    // 背景（实测）：`tauri-plugin-window-state` 的默认 StateFlags 是 `all()`（含 VISIBLE），
+    // 它在 `on_window_ready` 里按存档执行 `should_show = state.visible` → 上次退出时主窗可见
+    // （存档 `.window-state.json` 里 `main.visible = true`）就把主窗恢复成可见，
+    // **覆盖配置文件里的 false**。而本函数此前只是「不调用 show」，从没主动 hide →
+    // 启动即两窗同现（工作台按首绘门显示 + 主窗被插件恢复）。
+    // 时序安全：插件在窗口就绪事件里恢复，早于 setup 里的本函数，故此处 hide 生效。
+    if let Some(main) = app.get_webview_window("main") {
+        let _ = main.hide();
+    }
     let app = app.clone();
     std::thread::spawn(move || {
         if let Err(e) = create(&app) {
@@ -387,6 +288,10 @@ fn create(app: &tauri::AppHandle) -> Result<WebviewWindow, String> {
         .visible(false)
         .build()
         .map_err(|e| format!("创建工作台窗口失败：{e}"))?;
+    // ★ 同上：`.visible(false)` 只是**建窗时**的初值，`tauri-plugin-window-state` 会在
+    // `on_window_ready` 里按存档再恢复一次可见性（默认 StateFlags 含 VISIBLE），
+    // 存档若为 `visible: true` 就会把工作台窗直接顶出来。建窗后显式再隐藏一次兜住。
+    let _ = workspace.hide();
     #[cfg(windows)]
     crate::nav_fence::install(&workspace);
     // 工作台窗同款：禁 DWM 过渡 + 不透明底色（切换「整屏闪烁」修复的一半，见 window_transitions.rs）

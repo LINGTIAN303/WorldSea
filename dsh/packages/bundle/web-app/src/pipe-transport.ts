@@ -82,6 +82,11 @@ interface HelloFrame {
   readonly t: 'hello'
   readonly version: number
   readonly carrier: 'worldsea-pipe'
+  /**
+   * Prefix routes this peer's dispatch answers. Absent when the composing
+   * application supplies none; an empty array states the table is empty.
+   */
+  readonly routePrefixes?: readonly string[]
 }
 
 interface ResponseFrame {
@@ -165,6 +170,14 @@ export interface PipeCarrierOptions {
   ) => Promise<AsyncIterable<unknown>>
   /** Convert a stream failure to the stable Client-facing fields. */
   readonly streamFailure: (error: unknown) => { readonly code: string; readonly message: string; readonly details: object }
+  /**
+   * Prefix routes the dispatch answers, read when each connection greets.
+   * A function rather than an array because plugins register routes while the
+   * server runs: a shell reconnecting after such a change must see the table
+   * as it is then, not as it was when the carrier was installed.
+   * @returns the live prefix paths.
+   */
+  readonly routePrefixes?: () => readonly string[]
   /** Diagnostics sink; defaults to the console. */
   readonly log?: (message: string) => void
 }
@@ -266,7 +279,17 @@ class PipeConnection {
     this.socket.on('data', (chunk: Buffer) => { this.consume(chunk) })
     this.socket.on('error', (error: Error) => { this.log(`pipe-transport: connection error: ${error.message}`) })
     this.socket.on('close', () => { this.teardown() })
-    this.send({ t: 'hello', version: PIPE_TRANSPORT_VERSION, carrier: 'worldsea-pipe' })
+    this.send(this.helloFrame())
+  }
+
+  /** The greeting, carrying the dispatch's live prefix routes when supplied. */
+  private helloFrame(): HelloFrame {
+    const prefixes = this.options.routePrefixes?.()
+    // Omit the member entirely when the composition supplies no reader: an
+    // explicit empty array would claim the table is empty.
+    return prefixes === undefined
+      ? { t: 'hello', version: PIPE_TRANSPORT_VERSION, carrier: 'worldsea-pipe' }
+      : { t: 'hello', version: PIPE_TRANSPORT_VERSION, carrier: 'worldsea-pipe', routePrefixes: prefixes }
   }
 
   /** Tear down every in-flight lane; the shell reconnects or reports failure. */

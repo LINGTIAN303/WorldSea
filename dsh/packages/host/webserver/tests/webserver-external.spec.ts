@@ -158,6 +158,30 @@ describe('webserver: external-carrier mode', () => {
     expect((await dispatched(server, '/boom')).status).toBe(400)
   })
 
+  it('lists the live prefix table, including routes registered after the read', async () => {
+    const ctx = await loadExternal(await freePort())
+    const server = ctx.webServer
+    expect(server.listPrefixRoutes()).toEqual([])
+    const disposePlugin = server.register({
+      kind: 'prefix',
+      path: '/some-plugin/api',
+      handler: (_req, res) => { res.writeHead(200); res.end('ok') },
+    })
+    const disposeBuiltin = server.register({
+      kind: 'prefix',
+      path: '/api',
+      handler: (_req, res) => { res.writeHead(200); res.end('ok') },
+    })
+    // Exact routes are a different table: this accessor is the prefix seat only.
+    server.register({ kind: 'exact', path: '/exact-only', handler: (_req, res) => { res.writeHead(200); res.end('ok') } })
+    expect(server.listPrefixRoutes()).toEqual(['/some-plugin/api', '/api'])
+    // Disposal is what a plugin unload does; the reader must observe it.
+    disposePlugin()
+    expect(server.listPrefixRoutes()).toEqual(['/api'])
+    disposeBuiltin()
+    expect(server.listPrefixRoutes()).toEqual([])
+  })
+
   it('disposes cleanly while nothing was ever bound', async () => {
     const ctx = await loadExternal(await freePort())
     await ctx.fiber.dispose()

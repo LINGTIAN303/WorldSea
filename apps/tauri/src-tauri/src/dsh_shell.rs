@@ -315,11 +315,15 @@ pub fn install(app: &tauri::AppHandle, window: Option<&WebviewWindow>) {
                 Some(&dsh_home),
             );
             app_handle.manage(DshProcess::new(child));
+            // 桥已装配 = dsh 页面可加载：通知产品域启动页可以放行了（见 dsh_ready.rs）
+            crate::dsh_ready::mark_ready();
             watch_child(app_handle.clone());
         }
         Err(e) => {
             tracing::error!("dsh shell: {e}");
             eprintln!("[DSH-SHELL] 启动失败：{e}");
+            // 启动页据此提前放行（不把用户锁在启动页等一个起不来的 dsh）
+            crate::dsh_ready::mark_failed();
             if let Some(window) = &window {
                 show_error(window, "dsh 未能启动", &e);
             }

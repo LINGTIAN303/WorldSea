@@ -4,7 +4,7 @@
 
 use tauri::Manager;
 
-use crate::{app_prefs, data_root, dsh_shell, entity_commands, menu, nav_fence, secure_store, theme_icon, tray, window_transitions, workspace_window, worldsea_manual};
+use crate::{app_prefs, data_root, dsh_shell, entity_commands, menu, nav_fence, secure_store, theme_icon, tray, window_transitions, workspace_geometry, workspace_window, worldsea_manual};
 
 /// 启动装配（lib.rs `.setup` 链的实体）。
 pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
@@ -29,7 +29,7 @@ pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
     // 几何自检——窗口状态插件会把「退出时最小化」的窗口按占位几何还原，
     // 使应用「打开即不可见」；主窗就位后校验一次，不可用则复位默认并居中。
     if let Some(window) = app.get_webview_window("main") {
-        workspace_window::sanitize_restored_geometry(&window);
+        workspace_geometry::sanitize_restored_geometry(&window);
         menu::restore_zoom(&window); // 缩放档位恢复
         worldsea_manual::ensure_for_app(app.handle()); // 说明书幂等生成
     }

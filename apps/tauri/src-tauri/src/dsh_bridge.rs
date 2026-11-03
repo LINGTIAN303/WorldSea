@@ -116,6 +116,8 @@ pub fn prepare(
                 open_paths,
                 workspace_notice,
                 dsh_home,
+                // 路径闸门的运行期依据：宿主 hello 自报的前缀表
+                route_prefixes: client.route_prefixes(),
             };
             let summary = format!("mode=pipe pipe={path} 页面={APP_URL}（零 TCP；token 只留在壳内）");
             Ok(DshBridge { cfg, summary, pipe: Some(client), _relay: None })
@@ -146,6 +148,8 @@ pub fn prepare(
                 open_paths,
                 workspace_notice,
                 dsh_home,
+                // legacy 对照口（已冻结）：无 hello 上报通道，闸门回落到静态底集
+                route_prefixes: Vec::new(),
             };
             let summary = format!(
                 "mode=tcp host=127.0.0.1:{host_port} relay_port={} 页面={APP_URL}（token 只留在壳内）",

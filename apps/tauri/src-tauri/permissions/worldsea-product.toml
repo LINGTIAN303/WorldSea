@@ -52,4 +52,10 @@ commands.allow = [
     "cmd_put_entity", "cmd_put_file", "cmd_put_relation", "cmd_run_diagnostics",
     "cmd_dsh_workspace_list", "cmd_tray_page_ready", "cmd_tray_set_recent_projects", "cmd_update_entity", "cmd_update_file",
     "cmd_update_relation", "cmd_validate_entities", "cmd_validate_entity", "cmd_validate_pack",
+    # 启动首绘门（2026-11-04 补登）：工作台页 App.vue 的 onMounted 调用，回报首帧 → 壳显示预建窗。
+    # **此前从未登记**（0685eb8 加命令时漏了 ACL）→ invoke 一直被拒、被 `.catch()` 静默吞掉 →
+    # 窗口只能靠 workspace_window.rs 的 8s 兜底超时才显示，表现为「启动页看不到/一闪而过」。
+    # cmd_dsh_ready_state：启动页等 Agent 面就绪（见 docs/plans/2026-11-04-启动页跟随dsh就绪批计划.md）。
+    # 两条均为产物可达命令（grep 已核）。
+    "cmd_workspace_first_paint", "cmd_dsh_ready_state",
 ]

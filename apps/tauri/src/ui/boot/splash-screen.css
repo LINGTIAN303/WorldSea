@@ -2,13 +2,34 @@
   position: fixed;
   inset: 0;
   z-index: 9999;
-  background:
+  /* 不透明底色用**硬值**（不引用主题变量）：加载遮罩的最后保险必须无条件成立。
+     实测机制：var() 在计算值阶段替换——
+       · 变量**未定义** → 用 var() 的 fallback（能救）；
+       · 变量**有定义但拼出无效值** → 整个属性回退 initial（**fallback 救不了**）；
+         若与渐变同处一条 background shorthand，连底部不透明层一起作废 → 启动页透明、
+         透出未加载完的首页（2026-11-04 走查症状）。
+     故底色独立、且不依赖变量；浅色主题见下方成对规则。 */
+  background-color: #111113;
+  background-image:
     radial-gradient(ellipse 60% 50% at 22% 28%, color-mix(in srgb, var(--color-primary, #7C3AED) 10%, transparent) 0%, transparent 60%),
     radial-gradient(ellipse 45% 50% at 78% 55%, color-mix(in srgb, var(--color-accent, #0891B2) 7%, transparent) 0%, transparent 60%),
     linear-gradient(135deg, var(--color-bg-base, #0D0D0D) 0%, var(--color-bg-surface, #1C1917) 50%, var(--color-bg-base, #17140F) 100%);
   overflow: hidden;
   cursor: none;
   transition: opacity 0.6s ease;
+}
+
+/* 浅色主题硬值底色（与上面成对；同样不依赖变量） */
+html[data-theme='light'] .ws-splash {
+  background-color: #fafaf9;
+}
+
+/* 极端兜底：环境不支持 color-mix 时整条 background-image 会作废，
+   此时只剩上面的纯色——观感略朴素但**绝不透明**，属可接受降级。 */
+@supports not (color: color-mix(in srgb, red 50%, blue)) {
+  .ws-splash {
+    background-image: linear-gradient(135deg, #0D0D0D 0%, #1C1917 50%, #17140F 100%);
+  }
 }
 
 .ws-splash--leaving {

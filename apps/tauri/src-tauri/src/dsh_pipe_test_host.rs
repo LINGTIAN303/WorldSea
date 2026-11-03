@@ -53,6 +53,15 @@ pub(crate) fn spawn_with_hello(
     respond: Arc<dyn Fn(&SeenRequest) -> Reply + Send + Sync>,
     hello_version: u64,
 ) -> FakeHost {
+    spawn_with_greeting(respond, hello_version, None)
+}
+
+/// 同 [`spawn_with_hello`]，并指定 hello 的 `routePrefixes`（`None` = 不带该字段，模拟旧宿主）。
+pub(crate) fn spawn_with_greeting(
+    respond: Arc<dyn Fn(&SeenRequest) -> Reply + Send + Sync>,
+    hello_version: u64,
+    route_prefixes: Option<Vec<String>>,
+) -> FakeHost {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let addr = listener.local_addr().unwrap();
     let client_side = TcpStream::connect(addr).unwrap();
@@ -64,7 +73,7 @@ pub(crate) fn spawn_with_hello(
     let seen_thread = seen.clone();
     let events_thread = events.clone();
     std::thread::spawn(move || {
-        serve(reader_side, host_side, respond, seen_thread, events_thread, hello_version);
+        serve(reader_side, host_side, respond, seen_thread, events_thread, hello_version, route_prefixes);
     });
     let reader = Box::new(client_side.try_clone().unwrap());
     let writer = Box::new(client_side);
@@ -78,10 +87,16 @@ fn serve(
     seen: Arc<Mutex<Vec<SeenRequest>>>,
     events: Arc<Mutex<Vec<String>>>,
     hello_version: u64,
+    route_prefixes: Option<Vec<String>>,
 ) {
     let mut reader = BufReader::new(reader_side);
     let mut writer = host_side;
-    write_json(&mut writer, &json!({ "t": "hello", "version": hello_version, "carrier": "worldsea-pipe" }));
+    // 不带 routePrefixes 时整字段省略——模拟改造前的旧宿主，验证壳侧向后兼容
+    let mut hello = json!({ "t": "hello", "version": hello_version, "carrier": "worldsea-pipe" });
+    if let Some(prefixes) = route_prefixes {
+        hello["routePrefixes"] = json!(prefixes);
+    }
+    write_json(&mut writer, &hello);
     let mut held: Option<(u32, SeenRequest)> = None;
     loop {
         let Some((kind, payload)) = read_frame(&mut reader) else { return };

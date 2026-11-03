@@ -35,6 +35,30 @@ struct FakeHostHandles {
 }
 
 #[test]
+fn hello_carries_route_prefixes_for_the_path_gate() {
+    // 宿主自报前缀表 → 客户端保存 → 闸门可读。这是插件命名空间免手工登记的通道。
+    let host = test_host::spawn_with_greeting(
+        Arc::new(|_request| text_reply("ok")),
+        1,
+        Some(vec!["/api".to_string(), "/plugins".to_string(), "/some-plugin/api".to_string()]),
+    );
+    let client = PipeClient::over_streams_for_tests(host.reader, host.writer).expect("客户端握手应成功");
+    assert_eq!(client.route_prefixes(), vec!["/api", "/plugins", "/some-plugin/api"]);
+}
+
+#[test]
+fn hello_without_route_prefixes_stays_compatible() {
+    // 旧宿主不带该字段：握手必须照常成功，快照为空（闸门回落静态底集 = 改造前行为）。
+    // 兼容性红线：壳对未知**帧类型**是 fail-closed 断链，故本批只用 hello 的**可选字段**，不新增帧类型。
+    let host = test_host::spawn_with_greeting(Arc::new(|_request| text_reply("ok")), 1, None);
+    let client = PipeClient::over_streams_for_tests(host.reader, host.writer).expect("旧宿主形态也必须握手成功");
+    assert!(client.route_prefixes().is_empty());
+    // 握手后请求照常可用
+    let response = client.request("GET", "/api/health", &[], None).unwrap();
+    assert_eq!(response.status, 200);
+}
+
+#[test]
 fn greets_hello_and_performs_a_unary_request() {
     let (handles, client) = connected(Arc::new(|_request| text_reply("pong")));
     let response = client.request("GET", "/assets/x.js", &[("cookie".to_string(), "c=1".to_string())], None).unwrap();

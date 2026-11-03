@@ -41,14 +41,20 @@ mod dsh_error;
 mod dsh_bootstrap;
 // `worldsea` 协议层代理宿主（UI origin 与传输面分离）+ 303 cookie 交换
 mod dsh_bridge;
-// 协议转发核心（路径/方法闸门、缓存策略、失败降级）
+// 路径闸门（放行集合、判定与拒绝响应；静态底集 ∪ 宿主上报的运行期快照）
+mod dsh_gate;
+// 协议转发核心（缓存策略、头过滤、失败降级）
 mod dsh_proxy;
 // index 注入脚本装配（传输面三态 + 安全网 + 壳桥 + 诊断）
 mod dsh_inject;
 // 工作台静态伺服（壳协议 `/workspace` 前缀；产物运行时读盘、不嵌二进制）
 mod workspace_dist;
-// 工作台窗口（懒创建 + 与 Agent 空间互斥切换 + 几何同步）
+// 工作台窗口（懒创建 + 与 Agent 空间互斥切换 + 可见性裁决）
 mod workspace_window;
+// 工作台窗几何（快照 / 平移 / 启动自检；从 workspace_window.rs 拆出控制单文件规模）
+mod workspace_geometry;
+// dsh 就绪态（产品域启动页据此等 Agent 面可加载；见 dsh_ready.rs 头注）
+mod dsh_ready;
 
 mod window_transitions;
 // 应用级偏好真源（主题）——壳持有，两窗读写，dsh 经设置通道对齐
@@ -171,6 +177,8 @@ pub fn run() {
             workspace_window::cmd_shell_space_switch,
             // 启动首绘门（工作台页首帧回报 → 显示预建窗，启动无空白帧）
             workspace_window::cmd_workspace_first_paint,
+            // dsh 就绪态查询（产品域启动页等 Agent 面可加载后再结束，见 dsh_ready.rs）
+            dsh_ready::cmd_dsh_ready_state,
             // 应用级偏好（主题真源：读写 + 同步 dsh + 广播两窗）
             app_prefs::cmd_theme_get,
             app_prefs::cmd_theme_set,

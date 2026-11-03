@@ -208,6 +208,9 @@ function installPipeMode(ctx: Context, pipePath: string): void {
     void installPipeCarrier({
       path: pipePath,
       dispatch: (req, res) => { ctx.webServer.dispatch(req, res) },
+      // Read per connection: plugins register routes while the server runs, so
+      // a shell that reconnects must see the routes as they are at that moment.
+      routePrefixes: () => ctx.webServer.listPrefixRoutes(),
       openStream: (endpoint, payload, uplink, signal) =>
         pipeCtx.typertGateway.wireStream.open(endpoint, payload, uplink, pipeCtx.connection.browserPeer, signal),
       streamFailure: error => pipeCtx.typertGateway.wireStream.failure(error),

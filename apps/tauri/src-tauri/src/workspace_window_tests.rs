@@ -142,25 +142,6 @@ fn capability_bridge_is_shared_by_both_windows_and_gated_by_a_falsification_swit
 }
 
 #[test]
-fn geometry_plan_transfers_maximize_and_never_writes_geometry_over_it() {
-    // 源最大化 → 目标只跟最大化（且已是最大化时不重复调），无论如何都不写几何（写=顶掉最大化）
-    assert_eq!(geometry_plan(true, false), (true, false));
-    assert_eq!(geometry_plan(true, true), (true, false));
-    // 源未最大化 → 目标若停在最大化，先还原再落几何
-    assert_eq!(geometry_plan(false, true), (false, true));
-    assert_eq!(geometry_plan(false, false), (false, false));
-}
-
-#[test]
-fn geometry_snapshot_carries_minimized_and_apply_skips_it() {
-    // 走查缺陷（2026-09-27）：最小化来源的占位几何（Windows ≈ -32000 / 标题栏尺寸）不得转移给
-    // 目标窗——否则目标窗「打开即不可见」并被窗口状态插件持久化。锁源码约定（删掉守卫即报红）。
-    let source = read_text("src/workspace_window.rs");
-    assert!(source.contains("minimized: window.is_minimized()"), "快照须记录最小化态");
-    assert!(source.contains("geometry_transfer_skipped("), "apply_geometry 须经几何转移跳过判据");
-}
-
-#[test]
 fn space_switch_is_serialized_and_main_thread_safe() {
     // 切换经互斥串行（async 命令并发时 show/hide 交错 → 双窗/双隐，实测复现）；
     // 主线程调用方（托盘 / CloseRequested）只投递后台线程——主线程等锁会与窗口操作的消息泵互锁。
@@ -177,33 +158,19 @@ fn space_switch_is_serialized_and_main_thread_safe() {
 }
 
 #[test]
-fn geometry_transfer_is_skipped_for_fullscreen_windows() {
-    // 全屏窗不参与几何转移——来源全屏（几何=屏尺寸，写过去只是摊成假全屏）；
-    // 目标全屏（对全屏窗 set_position/set_size 会把全屏顶掉/成怪态）。与最小化共用一个纯判据。
-    assert!(geometry_transfer_skipped(true, false, false), "最小化来源不转移");
-    assert!(geometry_transfer_skipped(false, true, false), "来源全屏不转移");
-    assert!(geometry_transfer_skipped(false, false, true), "目标全屏不写几何");
-    assert!(geometry_transfer_skipped(false, true, true));
-    assert!(!geometry_transfer_skipped(false, false, false));
+fn startup_hides_main_window_explicitly() {
+    // 双窗同现缺陷回归（2026-11-03 走查）：`tauri-plugin-window-state` 默认 StateFlags 含 VISIBLE，
+    // 会在 on_window_ready 按存档恢复主窗可见性（存档 `main.visible = true` → 直接 show），
+    // **覆盖 tauri.conf.json 的 `visible: false`**。故启动裁决必须**显式 hide** 主窗，
+    // 不能只靠「不调用 show」。删掉这行即报红。
     let source = read_text("src/workspace_window.rs");
-    assert!(source.contains("fullscreen: window.is_fullscreen()"), "快照须记录全屏态");
-}
-
-#[test]
-fn restored_geometry_sanity_rules() {
-    // 启动自检判据：正常几何可用；最小化/离屏占位与过小尺寸判不可用；读不到则不动。
-    assert!(restored_geometry_is_usable(Some((343, 69)), Some((1280, 800))));
-    assert!(!restored_geometry_is_usable(Some((-32000, -32000)), Some((181, 24))), "最小化占位几何必须判不可用");
-    assert!(!restored_geometry_is_usable(Some((-25600, -25600)), Some((159, 27))));
-    assert!(!restored_geometry_is_usable(Some((343, 69)), Some((100, 24))), "尺寸过小不可用");
-    assert!(restored_geometry_is_usable(None, None), "读不到几何 → 不动");
-}
-
-#[test]
-fn geometry_size_reads_inner_to_match_set_size() {
-    // 走查缺陷回归（逐次放大）的判据：写口径是 inner（tauri-runtime-wry: SetSize → set_inner_size），
-    // 故快照必须读 `inner_size`；本测锁源码约定（读改回 outer 即报红）
-    let source = read_text("src/workspace_window.rs");
-    assert!(source.contains("size: window.inner_size().ok()"), "几何快照必须读 inner_size");
-    assert!(!source.contains("outer_size()"), "不得再读 outer_size（与 set_size 口径不一致 → 逐次放大）");
+    assert!(
+        source.contains("main.hide()"),
+        "启动裁决须显式隐藏主窗（防窗口状态插件按存档恢复可见性）"
+    );
+    // 工作台窗同理：建窗的 `.visible(false)` 只是初值，插件会再恢复一次 → 建窗后补 hide 兜住
+    assert!(
+        source.contains("let _ = workspace.hide();"),
+        "建窗后须显式隐藏工作台窗（插件会按存档再恢复一次可见性）"
+    );
 }

@@ -382,6 +382,17 @@ export class WebServer extends Service {
   }
 
   /**
+   * The currently registered prefix routes, in registration order. A carrier
+   * that gates paths outside this process (a native shell proxying a page)
+   * reads this to learn which namespaces this server actually answers, so it
+   * need not keep a hand-written copy of a set that plugins change at runtime.
+   * @returns every registered prefix path, live at call time.
+   */
+  listPrefixRoutes(): string[] {
+    return [...this.prefixes.keys()]
+  }
+
+  /**
    * Register an exact-path HTTP upgrade route. Duplicate paths throw because
    * one socket can have only one protocol owner.
    * @param route - pathname and handler owning negotiation plus socket use.

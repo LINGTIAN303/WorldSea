@@ -130,6 +130,7 @@ fn cfg(host_port: u16) -> ProxyCfg {
         open_paths: false,
         workspace_notice: None,
         dsh_home: None,
+        route_prefixes: Vec::new(),
     }
 }
 
@@ -155,6 +156,8 @@ fn pipe_cfg(
             open_paths: false,
             workspace_notice: None,
             dsh_home: None,
+            // 从真实 hello 握手取快照——「宿主上报 → 客户端保存 → 闸门判定」整条链路由此受测
+            route_prefixes: client.route_prefixes(),
         },
         handles,
         client,
@@ -270,17 +273,83 @@ fn plugin_bundle_forced_no_store() {
 }
 
 #[test]
-fn unknown_prefix_rejected_by_allowlist_without_forwarding() {
+fn unknown_prefix_probes_upstream_and_reports_blocked_api() {
+    // 行为变更（G1）：未命中放行集合不再无条件 404，而是试探转发——
+    // 宿主可能确有路由（插件热装后、或旧宿主未上报前缀表）。闸门挡的是「页面被 XSS 后借道」，
+    // 而插件代码本就跑在宿主进程内，精确清单挡不住宿主内任何代码，只会误杀漏登记的合法请求。
     let (port, seen) = fake_upstream();
     let response = proxy(&cfg(port), &req("GET", "/etc/passwd"));
     assert_eq!(response.status().as_u16(), 404);
-    assert!(seen.lock().unwrap().is_empty(), "白名单外路径不得转发到宿主");
-    // 同名路径在逃生口下会转发
-    let mut open = cfg(port);
-    open.open_paths = true;
-    let response = proxy(&open, &req("GET", "/etc/passwd"));
-    assert_eq!(response.status().as_u16(), 404); // 宿主自己的 404
-    assert_eq!(seen.lock().unwrap().len(), 1, "逃生口应放行到宿主");
+    assert_eq!(seen.lock().unwrap().len(), 1, "未知前缀应试探转发一次");
+    // 宿主也没有该路由 → 给可辨认的 JSON 标记，而非让插件误以为「接口不存在」
+    assert_eq!(header(&response, "content-type").as_deref(), Some("application/json; charset=utf-8"));
+    assert!(body_text(&response).contains("SHELL_PATH_BLOCKED"), "{}", body_text(&response));
+    // 宿主确有该路由时（插件热装场景），试探转发直接成功
+    let (port2, seen2) = fake_upstream();
+    let mut runtime = cfg(port2);
+    runtime.route_prefixes = vec!["/dsh-agents-visualization/".to_string()];
+    let response = proxy(&runtime, &req("GET", "/dsh-agents-visualization/api/state"));
+    assert_eq!(seen2.lock().unwrap().len(), 1, "上报表内的路径必须转发");
+    // 假上游只认它认识的路径，故这里断言的是「转发发生了」以及请求行形态
+    assert!(seen2.lock().unwrap()[0].contains("/dsh-agents-visualization/"), "{}", seen2.lock().unwrap()[0]);
+    assert_ne!(response.status().as_u16(), 0);
+}
+
+#[test]
+fn runtime_snapshot_admits_plugin_namespace() {
+    // 运行期快照命中 → 直接转发（不再经过试探分支）；断言转发发生即达成语义
+    let (port, seen) = fake_upstream();
+    let mut dynamic = cfg(port);
+    dynamic.route_prefixes = vec!["/some-plugin/".to_string()];
+    proxy(&dynamic, &req("GET", "/some-plugin/api/status"));
+    assert_eq!(seen.lock().unwrap().len(), 1, "快照内路径必须转发到宿主");
+    assert!(seen.lock().unwrap()[0].contains("/some-plugin/api/status"), "{}", seen.lock().unwrap()[0]);
+
+    // 对照：同一路径在空快照下走试探转发，同样会到宿主一次
+    let (port2, seen2) = fake_upstream();
+    proxy(&cfg(port2), &req("GET", "/some-plugin/api/status"));
+    assert_eq!(seen2.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn static_gates_still_win_on_unknown_paths() {
+    // 放宽白名单**不得**松动既有闸门：越界 403 / 越权 405 在「未命中放行集合」时仍优先判定
+    let (port, seen) = fake_upstream();
+    let response = proxy(&cfg(port), &req("GET", "/unknown/../secret"));
+    assert_eq!(response.status().as_u16(), 403);
+    assert!(seen.lock().unwrap().is_empty(), "越界判定必须先于试探转发");
+
+    let (port2, seen2) = fake_upstream();
+    let response = proxy(&cfg(port2), &req("DELETE", "/totally-unknown"));
+    assert_eq!(response.status().as_u16(), 405);
+    assert!(seen2.lock().unwrap().is_empty(), "方法判定必须先于试探转发");
+}
+
+#[test]
+fn blocked_index_falls_back_to_html_error_page() {
+    // index 入口被拦时仍要给 HTML 错误页（可辨认、不白屏），不能给 JSON——
+    // 浏览器不会把 JSON 渲染成页面，那等于白屏。
+    let (port, seen) = fake_upstream();
+    // index 恒在静态白名单内，用 deny_path 钩子把它逼进拒绝分支
+    let mut denied = cfg(port);
+    denied.deny_path = Some("/".to_string());
+    let response = proxy(&denied, &req("GET", "/"));
+    assert_eq!(response.status().as_u16(), 404);
+    assert_eq!(header(&response, "content-type").as_deref(), Some("text/html; charset=utf-8"));
+    assert!(seen.lock().unwrap().is_empty(), "deny 钩子须在转发前拦下");
+}
+
+#[test]
+fn blocked_response_shape_is_machine_readable() {
+    let json = blocked_response(false, "/some-plugin/api/state");
+    assert_eq!(json.status().as_u16(), 404);
+    assert_eq!(json.headers().get("content-type").unwrap(), "application/json; charset=utf-8");
+    assert_eq!(json.headers().get("cache-control").unwrap(), "no-store");
+    let body = String::from_utf8(json.into_body()).unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(&body).expect("必须是合法 JSON");
+    assert_eq!(parsed["ok"], serde_json::json!(false));
+    assert_eq!(parsed["code"], "SHELL_PATH_BLOCKED");
+    assert_eq!(parsed["path"], "/some-plugin/api/state");
 }
 
 #[test]
@@ -486,29 +555,46 @@ fn allowlist_covers_enumerated_host_routes() {
         "/index.html",
         "/",
     ] {
-        assert!(path_allowed(path, false), "白名单缺路由：{path}");
+        assert!(path_allowed(path, false, &[]), "白名单缺路由：{path}");
     }
     // 反面：不在枚举清单里的路径不得放行
-    assert!(!path_allowed("/open-in-app-old/apps", false));
-    assert!(!path_allowed("/desktop-smoke", false));
-    assert!(!path_allowed("/dsh-evil/widget.js", false));
-    // 第三方插件命名空间（PLUGIN_PREFIXES）：注入脚本 + 插件自带 API 必须放行（漏登记 = 页面 watchdog 错误页）
+    assert!(!path_allowed("/open-in-app-old/apps", false, &[]));
+    assert!(!path_allowed("/desktop-smoke", false, &[]));
+    assert!(!path_allowed("/dsh-evil/widget.js", false, &[]));
+    // 第三方插件命名空间的**静态兜底底集**：上报缺失时这两项仍须放行
     for path in ["/dsh-whale/widget.js", "/dsh-whale/balance", "/dsh-bili/api/status", "/dsh-bili/api/settings"] {
-        assert!(path_allowed(path, false), "白名单缺插件路由：{path}");
+        assert!(path_allowed(path, false, &[]), "白名单缺插件路由：{path}");
     }
 }
 
 #[test]
+fn runtime_snapshot_extends_but_never_weakens_the_gate() {
+    // 本批最重要的回归保护：快照只能**扩大**放行面，不能把任意路径变成「已放行」。
+    let snapshot = vec!["/some-plugin/".to_string()];
+    // 快照内的路径放行
+    assert!(path_allowed("/some-plugin/api/state", false, &snapshot));
+    assert_eq!(path_verdict("/some-plugin/api/state", false, &snapshot), PathVerdict::Runtime);
+    // 快照外的路径仍是 Unknown（→ 试探转发），绝不是 Static
+    assert_eq!(path_verdict("/dsh-evil/widget.js", false, &snapshot), PathVerdict::Unknown);
+    assert!(!path_allowed("/dsh-evil/widget.js", false, &snapshot));
+    // 越界/越权判定不受快照影响（在 path_verdict 之前判定，见 proxy()）
+    assert!(has_traversal("/some-plugin/../secret"));
+    // 空快照 = 改造前行为：只看静态底集
+    assert_eq!(path_verdict("/api/x", false, &[]), PathVerdict::Static);
+    assert_eq!(path_verdict("/some-plugin/api/state", false, &[]), PathVerdict::Unknown);
+}
+
+#[test]
 fn guard_helpers_are_pure_and_total() {
-    assert!(path_allowed("/", false));
-    assert!(path_allowed("/index.html", false));
-    assert!(path_allowed("/assets/x.js", false));
-    assert!(path_allowed("/plugins/x/client.js", false));
-    assert!(path_allowed("/api/session/create", false));
-    assert!(path_allowed("/anything", true));
-    assert!(!path_allowed("/etc/passwd", false));
-    assert!(path_allowed("/preview.html", false));
-    assert!(path_allowed("/preview/index.html", false));
+    assert!(path_allowed("/", false, &[]));
+    assert!(path_allowed("/index.html", false, &[]));
+    assert!(path_allowed("/assets/x.js", false, &[]));
+    assert!(path_allowed("/plugins/x/client.js", false, &[]));
+    assert!(path_allowed("/api/session/create", false, &[]));
+    assert!(path_allowed("/anything", true, &[]));
+    assert!(!path_allowed("/etc/passwd", false, &[]));
+    assert!(path_allowed("/preview.html", false, &[]));
+    assert!(path_allowed("/preview/index.html", false, &[]));
 
     assert!(has_traversal("/a/../b"));
     assert!(has_traversal("/./a"));
