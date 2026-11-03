@@ -118,20 +118,42 @@
       }
     }
 
-    /* fetch 兼容形态：只服务 SSE 路由。
-       `response.body` 产**原始 SSE 文本**（把每条 data 载荷重新包成 `data: <载荷>\n\n`），
-       这样标准管线 `TextDecoderStream → EventSourceParserStream` 可直接消费——
-       client-hmr 走的就是这条（它优先读 `__DSH_TRANSPORT__.fetch` 的 response.body）。
+    /* fetch 兼容形态：**只接管 SSE 请求，其余一律交回原生 fetch**。
 
-       input 接受字符串或 Request（后者取 .url）；非 SSE 路径直接以 404 Response 拒绝，
-       不落回网络——本函数的存在意义就是 SSE，语义外的请求交给原生 fetch 更清楚。 */
+       为什么必须分流：`__DSH_TRANSPORT__.fetch` 在 dsh 客户端里的类型是 `RpcFetch`
+       （见 client/connection 的 `ClientTransportHooks.fetch`），它是**所有一元 RPC 的
+       通用请求钩子**——网关方法调用、插件清单、预设列表、市场状态全走它。
+       若本函数无条件接管，那些请求会被当成 SSE 去开流，页面立刻大面积 `Failed to fetch`。
+       （这正是一次真实回归：无条件接管导致模型/插件/预设/市场全部加载失败。）
+
+       判定依据是请求头 `accept` 含 `text/event-stream`——SSE 的语义标志，
+       也是 client-hmr 显式传的（`headers: { accept: 'text/event-stream' }`）。
+       其余请求原样转给原生 fetch，行为与未注入本桥时完全一致。
+
+       命中 SSE 时：`response.body` 产**原始 SSE 文本**（把每条 data 载荷重新包成
+       `data: <载荷>\n\n`），使 `TextDecoderStream → EventSourceParserStream`
+       这条标准管线可直接消费。 */
     function sseFetch(input, init) {
+      var headers = (init && init.headers) || {};
+      var accept = '';
+      /* Headers 实例用 get()；普通对象按 key 找（大小写不敏感） */
+      if (headers && typeof headers.get === 'function') {
+        accept = String(headers.get('accept') || '');
+      } else {
+        for (var key in headers) {
+          if (String(key).toLowerCase() === 'accept') { accept = String(headers[key] || ''); break; }
+        }
+      }
+      if (accept.indexOf('text/event-stream') < 0) {
+        /* 非 SSE：交回页面原生 fetch（不是本桥的职责面） */
+        return globalThis.fetch(input, init);
+      }
+
       var url = typeof input === 'string' ? input : (input && input.url ? String(input.url) : '');
       var signal = (init && init.signal) || (input && input.signal) || undefined;
       /* 归一为站内相对路径：HMR 传的是 'plugins/events'（无前导斜杠），壳命令要求 '/...' */
       var path = url.replace(/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\/[^/]*/, '');
       if (path.charAt(0) !== '/') path = '/' + path;
-      var headers = { 'content-type': 'text/event-stream' };
       var body = new ReadableStream({
         async start(controller) {
           try {
@@ -144,7 +166,10 @@
           }
         }
       });
-      return Promise.resolve(new Response(body, { status: 200, headers: headers }));
+      return Promise.resolve(new Response(body, {
+        status: 200,
+        headers: { 'content-type': 'text/event-stream' }
+      }));
     }
 
     globalThis.__WORLDSEA_SSE__ = {
