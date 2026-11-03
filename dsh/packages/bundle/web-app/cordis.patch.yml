@@ -175,9 +175,7 @@
     # by the web-runtime row below through the fallback seat. Routing and
     # browser-facing asset paths do not depend on the advertised URL, which the
     # web-runtime row owns; Connection reads trust authorities from webStartup.
-    # This row rejects wildcard binds. With `--ipc-pipe` the carrier binds
-    # nothing: the web-runtime row starts the pipe carrier and feeds synthesized
-    # exchanges through the webserver's external mode.
+    # This row rejects wildcard binds.
     - id: webserver
       name: '@deepseek-ai/dsh-host-webserver'
       inject: [webStartup]
@@ -185,7 +183,6 @@
         host: !!js ctx.webStartup.host ?? '127.0.0.1'
         port: !!js ctx.webStartup.port ?? 3080
         tls: !!js ctx.webStartup.tls
-        external: !!js ctx.webStartup.ipcPipe !== undefined
         compression: gzip
         compressionLevel: 1
         compressionThresholdBytes: 1024
@@ -205,7 +202,6 @@
         printUrl: true
         publicUrl: !!js ctx.webStartup.publicUrl
         surfaceContext: true
-        ipcPipe: !!js ctx.webStartup.ipcPipe
 
     # Model context for an agent that inspects or extends the harness serving
     # this GUI: value-free prompt sections plus the current checkout and GUI
@@ -426,6 +422,11 @@
     # sessions created later. Absent a roster it renders nothing.
     - id: ui-agent-preset
       name: '@deepseek-ai/dsh-client-ui-agent-preset'
+
+    # Region-local More menus: pin or unpin plugin launchers and start a
+    # plugin draft.
+    - id: entry-customization
+      name: '@deepseek-ai/dsh-client-ui-entry-customization'
 
     - id: ui-settings-session-log
       name: '@deepseek-ai/dsh-client-ui-settings-session-log'

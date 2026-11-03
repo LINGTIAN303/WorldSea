@@ -18,9 +18,6 @@
       "path": "../../../vendor/loader"
     },
     {
-      "path": "../../api/gateway/tsconfig.host.json"
-    },
-    {
       "path": "../../boot/app-boot"
     },
     {

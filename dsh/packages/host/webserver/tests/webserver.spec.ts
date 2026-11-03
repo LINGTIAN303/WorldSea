@@ -314,7 +314,6 @@ describe('real Loader composition', () => {
     expect(HttpServer.Config({ host: '127.0.0.1', port: 0 })).toEqual({
       host: '127.0.0.1',
       port: 0,
-      external: false,
       compression: 'none',
       compressionLevel: 1,
       compressionThresholdBytes: 1024,
@@ -576,7 +575,6 @@ describe('real Loader composition', () => {
       host: '127.0.0.1',
       port: 0,
       tls,
-      external: false,
       compression: 'none',
       compressionLevel: 1,
       compressionThresholdBytes: 1024,
