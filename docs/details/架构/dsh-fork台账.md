@@ -5,11 +5,14 @@
 
 ## 一、基线
 
-基线提交：`962c6f6`
+基线提交：`a71b4ba`
 
-对应上游：tag `dsh-v0.2.1-rc.2`（上游提交 `687f282e8625c6b8d11ff58211a90524be2e4317` 的干净树；换树记录见该提交信息）。
-**前次基线**：`096a48c`（tag `dsh-v0.2.0-rc.2`，上游 `639ed015…`）——追版记录见 [F5 批计划](../../plans/已完成/2026-10-17-F5-追版dsh-0.2.1-rc.2批计划.md)。
+对应上游：tag `dsh-v0.2.1-rc.5`（上游提交 `b830ec950faba0a46dda564be3e2d854afed94f1` 的干净树；换树记录见该提交信息）。
+**前次基线**：`962c6f6`（tag `dsh-v0.2.1-rc.2`，上游 `687f282e…`）——追版记录见 [F6 批计划](../../plans/2026-11-03-F6-追版dsh-0.2.1-rc.5批计划.md)。
+**更早基线**：`096a48c`（tag `dsh-v0.2.0-rc.2`，上游 `639ed015…`）——追版记录见 [F5 批计划](../../plans/已完成/2026-10-17-F5-追版dsh-0.2.1-rc.2批计划.md)。
 **更早基线**：`0c6f8b2`（tag `dsh-v0.2.0-rc.1`，上游 `4878cdab…`）——追版记录见 [F2 批计划](../../plans/已完成/2026-09-29-F2-追版0.2.0-rc.1批计划.md)；`cde62e7`（tag `dsh-v0.1.7-rc.2`，上游 `477b4f42…`）——见 [F1 批计划](../../plans/已完成/2026-09-24-F1-追版rc2批计划.md)。
+
+**追版重放（2026-11-03，0.2.1-rc.2 → 0.2.1-rc.5）**：上游 delta **676 路径**（改 610 / 增 56 / 删 3 / 重命名 7），扣除版本号 343、快照 71、测试 81、文档与笔记 33、配置 74 后**实质源码仅 71 文件 / 2,906 行**，约为 F5 的 1/13。**我方 11 处改动只与 2 个文件重叠**（上游 `cordis.patch.yml` 在 `ui-agent-preset` 之后新增 `entry-customization` 一行、`web-app/package.json` 新增 `dsh-client-ui-entry-customization` 依赖边）；`git apply --3way` **10 处全部干净应用**（3 处走直接应用；零冲突标记），`cordis.patch.yml` 的 `external`+`ipcPipe` 与上游 `entry-customization` 三处共存，`package.json` 的 `dsh-api-gateway` 与 `dsh-client-ui-entry-customization` 两条依赖边共存。**命脉接缝逐条零改动**：`bundle/web-app/src/{index,startup,pipe-transport}.ts`（就绪行 / `--ipc-pipe` 旗标族 / 帧编解码）· `host/webserver/src/index.ts`（`external`/`dispatch`）· `client/web/src/boot.ts` · `client/connection/src` · `api/gateway/src` · `apps/cli/src` · `apps/desktop/src/preload-windows.ts`。**C6 窗口栏面零改动**：`ui-layout/AppFrame.module.css` 与 `ui-primitives/overlay-top-margin.ts` 均未动，`html[data-windows-titlebar]` / `--dsh-windows-titlebar-height` / `--dsh-frame-overlay-top` 令牌与 E9 捞回键所需的 `button[aria-keyshortcuts]` + `.toggle` + `position:fixed` 特征全部仍在位。**上游面零变动**：`vendor/`（cordis 仍 4.0.5，我方自 vendor 副本无需重同步）· `OPTIONAL_BUNDLES` 逐字相同 · `bundle/base/cordis.patch.yml` 字节相同 · `node engines` 不变 · `webServer.register` 调用点数 14=14（壳白名单无需增补）。**换树新增注意**：上游 rc.5 有 13 个 symlink（`CLAUDE.md` ×3、`.agents/notes/implemented/CLAUDE.md`、`.agents/skills/agent-experience/SKILL.md`、`apps/cli/tests/profiles/acp/cordis.yml`、`snapshots/{acp,sdk,session}` 下 7 个 expected 文件）——本仓 `core.symlinks=false`，按既有口径**物化为实体文件**（`git update-index --cacheinfo 100644`），换树后零 T 类型变更。另：我方 `.claude/skills` 40 个实体副本与上游 `.agents/skills` 逐字节一致，无需同步。详见 [F6 批计划](../../plans/2026-11-03-F6-追版dsh-0.2.1-rc.5批计划.md)。
 
 **追版重放（2026-10-18，0.2.0-rc.2 → 0.2.1-rc.2）**：上游 delta **9,058 路径**（改 4,399 / 增 3,426 / 删 1,233），39 个命脉接缝被改，我方 11 处改动 **8 处重叠**。`git apply --3way` **4 文件 / 19 处冲突**：`bundle/web-app/src/startup.ts`（6，新增 `--public-url`/TLS 旗标族与 `--ipc-pipe` 合并）、`bundle/web-app/src/index.ts`（5，上游 `WebApp`/`publicUrl`/就绪行新结构与 pipe carrier 合并）、`host/webserver/src/index.ts`（5，上游 TLS/地址谓词重构与 `external`/`dispatch` 合并，保留 unbound dispose 保护）、`bundle/web-app/cordis.patch.yml`（3，`tls`+`external` 双键、`publicUrl`+`ipcPipe`，保留上游 `harness-dev-context` 行）。`package.json` / `tsconfig.json` / `webserver.spec.ts` 自动合并干净；3 个新增文件无冲突。**非冲突适配**：`TypertGatewayWireStream.open` 的 `peer` 变必填 → 管道改用 `connection.browserPeer`；`trustedHosts` 迁到连接层直接读 `webStartup`（web-app Config 删除该项）；`webServer.port` 保留上游 `number | undefined`，external 模式在 init 写入 `listenedPort`（读到声明端口）。锁文件按既有纪律重放。
 
