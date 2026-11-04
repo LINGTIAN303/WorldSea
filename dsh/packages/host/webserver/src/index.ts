@@ -101,11 +101,18 @@ export interface WebResourceRoute {
   path: string
   /** Answers HTTP GET and HEAD requests and in-process reads. */
   resource: WebResource
+}
+
+/** Narrow a named route to the resource form. */
+function isResourceRoute(route: WebRoute | WebResourceRoute): route is WebResourceRoute {
+  return 'resource' in route
+}
+
 /** One route table row: the registration plus who registered it. */
 interface WebRouteEntry {
-  readonly route: WebRoute
+  readonly route: WebRoute | WebResourceRoute
   /** Registering plugin's fiber name; absent when registered outside a plugin. */
-  readonly plugin?: string
+  readonly plugin?: string | undefined
 }
 
 /**
@@ -525,7 +532,8 @@ export class WebServer extends Service {
     // name is what a crash report needs; matching it to a `moduleName` happens
     // in the reader, which owns the profile inventory.
     const plugin = callerPluginName(this.ctx)
-    table.set(route.path, plugin === undefined ? { route } : { route, plugin })
+    const entry: WebRouteEntry = plugin === undefined ? { route } : { route, plugin }
+    table.set(route.path, entry)
     return () => { table.delete(route.path) }
   }
 
@@ -755,7 +763,12 @@ export class WebServer extends Service {
     this.activityHistory.push(entry)
     if (this.activityHistory.length > ACTIVITY_HISTORY) this.activityHistory.shift()
     if (matched !== undefined) {
-      await matched.route.handler(req, res)
+      const route = matched.route
+      if (isResourceRoute(route)) {
+        await this.serveResource(req, res, new URL(req.url ?? '/', 'http://x'), route.resource)
+      } else {
+        await route.handler(req, res)
+      }
       return
     }
     const fallback = this.fallback
@@ -764,7 +777,8 @@ export class WebServer extends Service {
       res.end()
       return
     }
-    await fallback(req, res)
+    if (typeof fallback === 'function') await fallback(req, res)
+    else await this.serveResource(req, res, new URL(req.url ?? '/', 'http://x'), fallback.resource)
   }
 
   /**
@@ -803,7 +817,7 @@ export class WebServer extends Service {
    * {@link readResource}: the matched named route, otherwise the fallback.
    */
   private responderFor(pathname: string): WebRoute | WebResourceRoute | WebRoute['handler'] | Pick<WebResourceRoute, 'resource'> | undefined {
-    return this.match(pathname) ?? this.fallback
+    return this.match(pathname)?.route ?? this.fallback
   }
 
   /** Longest-prefix-wins over the prefix table after an exact-table miss. */
