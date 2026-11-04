@@ -17,7 +17,6 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   installPipeCarrier,
-  PIPE_TRANSPORT_VERSION,
   readSseResponse,
   type PipeCarrier,
   type PipeCarrierOptions,
@@ -138,12 +137,14 @@ interface Harness {
   close(): Promise<void>
 }
 
-async function start(overrides: Partial<PipeCarrierOptions> = {}): Promise<Harness> {
+async function start(overrides: Partial<PipeCarrierOptions> = {}, omitSseOpener = false): Promise<Harness> {
   const path = newPipePath()
+  // `exactOptionalPropertyTypes` forbids `openSseStream: undefined`, so the
+  // missing-opener case omits the member instead of nulling it.
   const carrier: PipeCarrier = await installPipeCarrier({
     path,
     dispatch: sseDispatch,
-    openSseStream: (url, signal) => Promise.resolve(readSseResponse(url, sseDispatch, signal)),
+    ...omitSseOpener ? {} : { openSseStream: (url: string, signal: AbortSignal) => Promise.resolve(readSseResponse(url, sseDispatch, signal)) },
     // SSE endpoints must never reach this opener; the assertion lives in the routing test.
     openStream: () => { throw new Error('gateway opener used for an sse endpoint') },
     streamFailure: (error) => ({ code: 'test', message: String(error), details: {} }),
@@ -218,7 +219,7 @@ describe('sse stream over the pipe carrier', () => {
   })
 
   it('fails the stream when the carrier installed no sse opener', async () => {
-    const harness = await start({ openSseStream: undefined })
+    const harness = await start({}, true)
     try {
       await harness.open('sse:/sse/three')
       const { terminal } = await harness.reader.drain()
