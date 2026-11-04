@@ -91,6 +91,17 @@ pub fn external_bundles(bridge: &DshBridge) -> Result<Vec<ExternalBundle>, Strin
         .collect())
 }
 
+/// 供菜单用的外部插件清单（按包名排序，便于用户扫读）。
+///
+/// 桥未装配或宿主暂不可达时返回空列表——菜单据此显示「当前不可用」，
+/// 不把技术错误糊到用户脸上。
+pub fn external_bundles_for_menu(app: &tauri::AppHandle) -> Vec<ExternalBundle> {
+    let Some(bridge) = app.try_state::<DshBridge>() else { return Vec::new() };
+    let mut bundles = external_bundles(&bridge).unwrap_or_default();
+    bundles.sort_by(|a, b| a.name.cmp(&b.name));
+    bundles
+}
+
 /// 把崩溃线索里的插件名匹配到某个外部 bundle。
 ///
 /// 线索给的是**运行期 fiber 名**（如 `wallpaper-engine`），与包名
@@ -149,7 +160,7 @@ pub enum Remediation {
 
 impl Remediation {
     /// 动作名（用于日志与通知文案）。
-    fn label(self) -> &'static str {
+    pub(crate) fn label(self) -> &'static str {
         match self {
             Remediation::Disable => "停用",
             Remediation::Remove => "卸载",
@@ -160,7 +171,7 @@ impl Remediation {
     ///
     /// 判据是**可逆性**：停用只是让它不再加载，再启用即可复原；卸载会把包从 profile
     /// 真的移除（pnpm remove），恢复要重新安装。只有后者值得打断用户一次。
-    fn needs_confirmation(self) -> bool {
+    pub(crate) fn needs_confirmation(self) -> bool {
         matches!(self, Remediation::Remove)
     }
 }
@@ -169,130 +180,6 @@ impl Remediation {
 ///
 /// 步骤：取线索 → 定位包 →（卸载时先二次确认）→ 处置 → 发通知 → 重启。
 ///
-/// **任何一步失败都不能静默**：用户点了一个「止血」动作却没效果，比没有这个按钮更糟。
-/// 失败路径一律经系统通知 + 应用日志双写，并明确说明失败在哪一步。
-pub fn remediate_suspect_and_restart(app: &tauri::AppHandle, action: Remediation) {
-    let app = app.clone();
-    std::thread::spawn(move || {
-        // 先解析出「要对谁做什么」，卸载还要据此向用户确认
-        let target = match resolve_target(&app) {
-            Ok(target) => target,
-            Err(error) => {
-                eprintln!("[DSH-SHELL] {}未能开始：{error}", action.label());
-                notify(&app, &format!("WorldSea：{}失败", action.label()), &error);
-                return;
-            }
-        };
-        // 不可逆的动作先确认（当前只有卸载）；可逆的停用不加摩擦。
-        if action.needs_confirmation() && !confirm_removal(&app, &target.bundle.name) {
-            println!("[DSH-SHELL] 用户取消了卸载「{}」", target.bundle.name);
-            notify(&app, "WorldSea：已取消", &format!("未卸载「{}」。", target.bundle.name));
-            return;
-        }
-        match run_remediation(&app, action, &target) {
-            Ok(summary) => {
-                println!("[DSH-SHELL] {summary}；即将重启");
-                notify(&app, "WorldSea：已处置疑似问题插件", &format!("{summary}\n正在重启 Agent 内核…"));
-                crate::dsh_restart::request_manual_restart(&app);
-            }
-            Err(error) => {
-                eprintln!("[DSH-SHELL] {}失败：{error}", action.label());
-                notify(&app, &format!("WorldSea：{}失败", action.label()), &error);
-            }
-        }
-    });
-}
-
-/// 本次处置的目标：崩溃线索命中的外部 bundle。
-///
-/// 不保留整条 `Suspect`：处置只需要包名，缓存其余字段会让「谁在用哪个字段」变模糊。
-struct Target {
-    bundle: ExternalBundle,
-}
-
-/// 取崩溃线索并在外部 bundle 里定位它。
-///
-/// 定位不到就直接报错——那通常意味着线索指向官方内置插件（按约定不触碰），
-/// 或该插件已被停用/卸载。
-fn resolve_target(app: &tauri::AppHandle) -> Result<Target, String> {
-    let suspect = app
-        .try_state::<crate::dsh_crash_attribution::DshCrashAttribution>()
-        .and_then(|state| state.current())
-        .ok_or_else(|| "当前没有崩溃线索，无法确定要处置哪个插件。".to_string())?;
-    let bridge = app
-        .try_state::<crate::dsh_bridge::DshBridge>()
-        .ok_or_else(|| "壳桥未装配，无法调用宿主插件管理接口。".to_string())?;
-    let bundles = external_bundles(&bridge).map_err(|e| format!("读取插件清单失败：{e}"))?;
-    let bundle = bundle_of(&bundles, &suspect.plugin)
-        .cloned()
-        .ok_or_else(|| {
-            format!(
-                "在外部插件里找不到「{}」（它可能是官方内置插件，或已经停用/卸载）。\n按约定不触碰官方内置插件。",
-                suspect.plugin
-            )
-        })?;
-    Ok(Target { bundle })
-}
-
-/// 卸载前的原生二次确认。
-/// @returns 用户点了确认才为 true；对话框本身失败时按「不删」处理（宁可不动）。
-fn confirm_removal(app: &tauri::AppHandle, name: &str) -> bool {
-    use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
-    let (tx, rx) = std::sync::mpsc::channel();
-    app.dialog()
-        .message(format!(
-            "将从当前 profile 移除插件包：\n\n{name}\n\n这会真的卸载（pnpm remove），之后需要重新安装才能恢复。\n若只想让它不再加载，请改用「停用」。"
-        ))
-        .title("确认卸载插件？")
-        .kind(MessageDialogKind::Warning)
-        .buttons(MessageDialogButtons::OkCancelCustom("卸载".to_string(), "取消".to_string()))
-        .show(move |confirmed| {
-            let _ = tx.send(confirmed);
-        });
-    match rx.recv_timeout(CONFIRM_TIMEOUT) {
-        Ok(confirmed) => confirmed,
-        // 超时或通道断开：没拿到明确的「是」，就当用户没同意
-        Err(_) => {
-            eprintln!("[DSH-SHELL] 卸载确认框未返回结果（超时），按取消处理");
-            false
-        }
-    }
-}
-
-/// 等确认框回应的上限。对话框是原生模态，用户不点就一直开着；此处只防它永不回调。
-const CONFIRM_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(300);
-
-/// 实际执行处置（目标已解析、卸载已确认），返回人类可读的摘要。
-fn run_remediation(app: &tauri::AppHandle, action: Remediation, target: &Target) -> Result<String, String> {
-    let bridge = app
-        .try_state::<crate::dsh_bridge::DshBridge>()
-        .ok_or_else(|| "壳桥未装配，无法调用宿主插件管理接口。".to_string())?;
-    let bundle = &target.bundle;
-    match action {
-        Remediation::Disable => {
-            disable_bundle(&bridge, &bundle.name)?;
-            Ok(format!("已停用外部插件「{}」（重启后不会再加载）。", bundle.name))
-        }
-        Remediation::Remove => {
-            if !bundle.removable {
-                return Err(format!(
-                    "「{}」当前不可移除（宿主报告 removable=false，通常是官方保护或仍在使用中）。\n可改用「停用」——同样能让它不再加载。",
-                    bundle.name
-                ));
-            }
-            remove_bundle(&bridge, &bundle.name)?;
-            Ok(format!("已卸载外部插件「{}」（包已从 profile 移除）。", bundle.name))
-        }
-    }
-}
-
-/// 系统通知（失败不阻断流程，只记日志）。
-fn notify(app: &tauri::AppHandle, title: &str, body: &str) {
-    use tauri_plugin_notification::NotificationExt;
-    if let Err(e) = app.notification().builder().title(title).body(body).show() {
-        eprintln!("[DSH-SHELL] 处置流程通知发送失败：{e}");
-    }
-}
 
 #[cfg(test)]
 mod tests {

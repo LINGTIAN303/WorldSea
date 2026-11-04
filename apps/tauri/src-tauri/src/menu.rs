@@ -23,6 +23,13 @@ const ID_FIX_WORKSPACE: &str = "worldsea.fix-workspace";
 const ID_DISABLE_SUSPECT: &str = "worldsea.disable-suspect";
 /// 卸载疑似问题插件后重启：破坏性更强（包被移除），与停用并列交给用户选。
 const ID_REMOVE_SUSPECT: &str = "worldsea.remove-suspect";
+/// 「外部插件」子菜单容器（内容在每次弹出前按当前清单重建）。
+const ID_EXTERNAL_PLUGINS: &str = "worldsea.external-plugins";
+/// 动态项 id 前缀：`worldsea.plugin.<停用|卸载>.<包名>`。
+///
+/// 静态 `match` 分支无法枚举运行时才存在的包名，故这些项在 `handle` 里按前缀解析，
+/// 而不是逐个登记常量。
+const ID_PLUGIN_ACTION_PREFIX: &str = "worldsea.plugin.";
 /// 通知自检——系统通知端到端验证（两窗 ACL 均放行 cmd_notify 但长期零生产者；
 /// 菜单给一个随时可触发的验证口，生产者〔Agent 长任务提醒〕后续经事件通道接入）。
 const ID_NOTIFY_TEST: &str = "worldsea.notify-test";
@@ -59,10 +66,62 @@ pub fn cmd_shell_popup_menu(
     y: f64,
 ) -> Result<(), String> {
     refresh_suspect_items(&app);
+    rebuild_external_plugins(&app);
     let menu = &app.state::<PopupMenu>().0;
     window
         .popup_menu_at(menu, tauri::LogicalPosition::new(x, y))
         .map_err(|e| format!("弹出菜单失败：{e}"))
+}
+
+/// 按当前真实清单重建「外部插件」子菜单。
+///
+/// **在弹出前重建而非启动时一次建好**：插件是运行期可变的（用户可能在另一个窗口
+/// 装了/卸了插件），缓存一份只会让菜单说旧话。代价是每次弹菜单要调一次宿主 API
+/// （本地管道，毫秒级），换来的是「菜单里列的就是此刻真在的」。
+///
+/// 每个插件一个二级子菜单，内含「停用」「卸载」两项——停用可逆、卸载不可逆，
+/// 故后者在点击后才弹确认框（见 `dsh_plugin_control::Remediation`）。
+fn rebuild_external_plugins(app: &AppHandle) {
+    use tauri::menu::{MenuItemBuilder, SubmenuBuilder};
+    let Some(popup) = app.try_state::<PopupMenu>() else { return };
+    // 找到「外部插件」容器：它是「视图」子菜单里带该 id 的那一项
+    let Some(host) = popup.0.get(ID_EXTERNAL_PLUGINS) else { return };
+    let Some(host) = host.as_submenu() else { return };
+    // 先清空旧内容（含首次的占位项）
+    while let Ok(Some(_)) = host.remove_at(0) {}
+
+    let bundles = crate::dsh_plugin_control::external_bundles_for_menu(app);
+    if bundles.is_empty() {
+        let note = MenuItemBuilder::with_id("worldsea.external-plugins.empty", "（当前没有外部插件）")
+            .enabled(false)
+            .build(app);
+        if let Ok(note) = note {
+            let _ = host.append(&note);
+        }
+        return;
+    }
+    for bundle in bundles {
+        let action_id = |verb: &str| format!("{ID_PLUGIN_ACTION_PREFIX}{verb}.{}", bundle.name);
+        // 已停用的插件标出来：用户能看出「它此刻没在跑」，避免误以为已生效却没效果
+        let title = if bundle.enabled {
+            bundle.name.clone()
+        } else {
+            format!("{}（已停用）", bundle.name)
+        };
+        let built = (|| -> tauri::Result<()> {
+            let disable = MenuItemBuilder::with_id(action_id("disable"), "停用后重启")
+                .enabled(bundle.enabled)
+                .build(app)?;
+            let remove = MenuItemBuilder::with_id(action_id("remove"), "卸载后重启")
+                .enabled(bundle.removable)
+                .build(app)?;
+            let entry = SubmenuBuilder::new(app, title).item(&disable).item(&remove).build()?;
+            host.append(&entry)
+        })();
+        if let Err(e) = built {
+            eprintln!("[DSH-SHELL] 菜单：外部插件项构建失败（{}）：{e}", bundle.name);
+        }
+    }
 }
 
 /// 弹出前按当前崩溃线索刷新两个处置项（停用 / 卸载）。
@@ -116,6 +175,14 @@ fn build(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
         .item(&MenuItemBuilder::with_id(ID_DISABLE_SUSPECT, "停用疑似问题插件后重启").enabled(false).build(app)?)
         .item(&MenuItemBuilder::with_id(ID_REMOVE_SUSPECT, "卸载疑似问题插件后重启").enabled(false).build(app)?)
         .separator()
+        // 崩溃线索之外的手动入口：内容是动态的，见 rebuild_external_plugins
+        .item(
+            &SubmenuBuilder::new(app, "外部插件")
+                .id(ID_EXTERNAL_PLUGINS)
+                .item(&MenuItemBuilder::with_id("worldsea.external-plugins.placeholder", "（加载中…）").enabled(false).build(app)?)
+                .build()?,
+        )
+        .separator()
         .item(&MenuItemBuilder::with_id(ID_ZOOM_IN, "放大").build(app)?)
         .item(&MenuItemBuilder::with_id(ID_ZOOM_OUT, "缩小").build(app)?)
         .item(&MenuItemBuilder::with_id(ID_ZOOM_RESET, "实际大小").build(app)?)
@@ -154,11 +221,18 @@ fn handle(app: &AppHandle, id: &str) {
         }
         ID_DISABLE_SUSPECT => {
             // 止血动作：先停掉疑似插件，再重启。用户显式发起，不占自动重试配额。
-            crate::dsh_plugin_control::remediate_suspect_and_restart(app, crate::dsh_plugin_control::Remediation::Disable);
+            crate::dsh_plugin_remedy::remediate_suspect_and_restart(app, crate::dsh_plugin_control::Remediation::Disable);
         }
         ID_REMOVE_SUSPECT => {
             // 更彻底：停用后连包一起移除。破坏性动作，仅在用户显式点击时执行。
-            crate::dsh_plugin_control::remediate_suspect_and_restart(app, crate::dsh_plugin_control::Remediation::Remove);
+            crate::dsh_plugin_remedy::remediate_suspect_and_restart(app, crate::dsh_plugin_control::Remediation::Remove);
+        }
+        other if other.starts_with(ID_PLUGIN_ACTION_PREFIX) => {
+            // 「外部插件」子菜单的动态项：`worldsea.plugin.<动词>.<包名>`。
+            // 包名可能含点（`@scope/name`），故只按**第一个**点切分动词与包名。
+            if let Some((action, name)) = parse_plugin_action(other) {
+                crate::dsh_plugin_remedy::remediate_named_and_restart(app, name, action);
+            }
         }
         ID_ZOOM_IN | ID_ZOOM_OUT | ID_ZOOM_RESET => {
             let label = window.label().to_string();
@@ -222,6 +296,26 @@ fn handle(app: &AppHandle, id: &str) {
     }
 }
 
+/// 解析「外部插件」动态项的 id：`worldsea.plugin.<动词>.<包名>`。
+///
+/// 包名可能自带点与斜杠（`@scope/name`、`dsh-plugin-x`），故只按**第一个**点
+/// 切出动词，其余整体是包名。
+/// @returns 动词对应的处置方式与包名；id 形态不符或动词未知时返回 `None`。
+fn parse_plugin_action(id: &str) -> Option<(crate::dsh_plugin_control::Remediation, &str)> {
+    use crate::dsh_plugin_control::Remediation;
+    let rest = id.strip_prefix(ID_PLUGIN_ACTION_PREFIX)?;
+    let (verb, name) = rest.split_once('.')?;
+    if name.is_empty() {
+        return None;
+    }
+    let action = match verb {
+        "disable" => Remediation::Disable,
+        "remove" => Remediation::Remove,
+        _ => return None,
+    };
+    Some((action, name))
+}
+
 /// 动作目标窗：**焦点窗优先**，无焦点窗回落 main。
 fn target_window(app: &AppHandle) -> Option<tauri::WebviewWindow> {
     app.webview_windows()
@@ -268,3 +362,7 @@ const OPEN_SETTINGS_JS: &str = r#"(function () {
 fn sync_fullscreen_js(on: bool) -> String {
     format!("window.dispatchEvent(new CustomEvent('worldsea:fullscreen', {{ detail: {on} }}))")
 }
+
+#[path = "menu_tests.rs"]
+#[cfg(test)]
+mod tests;

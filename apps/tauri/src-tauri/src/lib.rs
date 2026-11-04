@@ -39,8 +39,10 @@ mod dsh_shell;
 mod dsh_restart;
 /// 崩溃归因：从宿主 stderr 认出「疑似问题插件」（消费宿主 `last route:` 行）。
 mod dsh_crash_attribution;
-/// 外部插件的停用（经宿主 pluginManager Remote；只动外部插件，按家族整组停）。
+/// 外部插件的停用与卸载（经宿主 pluginManager Remote；只动外部插件，按 bundle 粒度）。
 mod dsh_plugin_control;
+/// 插件处置流程编排（确认/通知/重启；从 `dsh_plugin_control` 拆出，守 400 行红线）。
+mod dsh_plugin_remedy;
 /// 页面导航与就绪等待（从 `dsh_bridge` 拆出，守 400 行红线）。
 mod dsh_nav;
 
