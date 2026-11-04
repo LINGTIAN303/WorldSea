@@ -701,9 +701,33 @@ function createSyntheticExchange(
   let finished = false
   let destroyed = false
   const listeners = new Map<string, Set<() => void>>()
+  /** `once` registrations wrapped to unregister themselves before running. */
+  const onceWrappers = new Map<string, Map<() => void, () => void>>()
 
   const emit = (event: string): void => {
     for (const callback of [...(listeners.get(event) ?? [])]) callback()
+  }
+
+  /**
+   * Node's `Readable.pipe()` binds to the destination through `on`/`once` and
+   * unbinds through `removeListener`. The synthetic response is not an
+   * EventEmitter, so every one of those members has to exist or a plugin that
+   * pipes a stream into it crashes the Host: `dest.removeListener is not a
+   * function`. `removeListener`/`off` must accept `undefined` because Node
+   * calls them with whatever its own `once` wrapper held.
+   * @param event - event name the listener registered for.
+   * @param callback - listener to drop; a missing one is a no-op.
+   * @returns the synthetic response, so Node's chaining stays valid.
+   */
+  function remove(this: unknown, event: string, callback: (() => void) | undefined): unknown {
+    if (callback === undefined) return res
+    listeners.get(event)?.delete(callback)
+    const wrapped = onceWrappers.get(event)?.get(callback)
+    if (wrapped !== undefined) {
+      listeners.get(event)?.delete(wrapped)
+      onceWrappers.get(event)?.delete(callback)
+    }
+    return res
   }
 
   const res: Record<string, unknown> = {
@@ -728,6 +752,10 @@ function createSyntheticExchange(
       headers[name.toLowerCase()] = String(value)
       return res
     },
+    getHeader: (name: string): string | undefined => headers[name.toLowerCase()],
+    getHeaders: (): Record<string, string> => ({ ...headers }),
+    hasHeader: (name: string): boolean => headers[name.toLowerCase()] !== undefined,
+    removeHeader: (name: string): void => { delete headers[name.toLowerCase()] },
     write: (chunk: string | Uint8Array): boolean => {
       if (finished || destroyed) return false
       if (!streaming) {
@@ -768,12 +796,41 @@ function createSyntheticExchange(
       listeners.set(event, set)
       return res
     },
-    off: (event: string, callback: () => void): unknown => {
-      listeners.get(event)?.delete(callback)
+    once: (event: string, callback: () => void): unknown => {
+      const wrapped = (): void => {
+        remove(event, callback)
+        callback()
+      }
+      const set = listeners.get(event) ?? new Set<() => void>()
+      set.add(wrapped)
+      listeners.set(event, set)
+      const wrappers = onceWrappers.get(event) ?? new Map<() => void, () => void>()
+      wrappers.set(callback, wrapped)
+      onceWrappers.set(event, wrappers)
       return res
     },
+    removeListener: remove,
+    off: remove,
+    removeAllListeners: (event?: string): unknown => {
+      if (event === undefined) {
+        listeners.clear()
+        onceWrappers.clear()
+      } else {
+        listeners.delete(event)
+        onceWrappers.delete(event)
+      }
+      return res
+    },
+    // `Readable.unpipe()` emits `unpipe` on the destination, and `pipe()` emits
+    // `pipe`; both are ordinary EventEmitter dispatches over the same listener
+    // table, so `emit` is the public form of the internal `emit` closure.
+    emit,
+    listenerCount: (event: string): number => listeners.get(event)?.size ?? 0,
+    // `pipe()` reads this to decide whether to pause the source. The synthetic
+    // response never reports backpressure: the carrier writes straight to the
+    // socket and always accepts the chunk.
+    writableNeedDrain: false,
   }
-  res['once'] = res['on']
 
   return {
     req: req as unknown as IncomingMessage,

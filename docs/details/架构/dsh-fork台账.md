@@ -51,6 +51,7 @@ dsh/packages/host/webserver/tests/webserver.spec.ts | 改 | C2-a：配置解析�
 dsh/packages/host/webserver/tests/webserver-external.spec.ts | 新 | C2-a：外部模式用例——不 bind + 声明端口可被他人绑定 + `dispatch` 服务注册路由/回退座/400 错误包含 + 未 bind 下 dispose 不挂 | 上游无
 dsh/packages/bundle/web-app/tests/pipe-transport.spec.ts | 新 | C2-a：管道载体用例 11 条（hello / 一元 GET+POST 体 / 流式响应 head+chunk+end / res-err / 流 item+uplink+end / 失败映射 / abort / 四类协议违规 fail-closed）；客户端侧为独立实现以免同源套套逻辑 | 上游无
 dsh/packages/bundle/web-app/tests/pipe-sse.spec.ts | 新 | G2：SSE 流 lane 用例 6 条（跨块拆帧拼接 / 注释与 event 行被忽略 / 无 data 路由产出零帧 / `sse:` 前缀分流到 SSE 读取器 / 未装 `openSseStream` 时流错误且原因点名 / 长连只 write 不 end 时 abort 收尾并触发路由 close）；同样走真实管道 + 独立客户端编解码 | 上游无
+dsh/packages/bundle/web-app/tests/pipe-response-contract.spec.ts | 新 | G4：合成响应的 pipe 目的地契约用例 2 条（路由把真 Readable pipe 进 res 后请求以 res-end 正常收尾且 body 完整 / 连续两次请求都不崩、pipe 的 close 与 finish 监听不泄漏）；真实管道 + 真 `Readable.pipe`，覆盖「插件 `stream.pipe(res)` 触发 `dest.removeListener is not a function` 使宿主崩溃」的回归 | 上游无
 ```
 
 > **曾登记已撤（2026-10-07）**：`client/ui-commands` 的 `commandUi.face()` 挂载点（contract / service / 测试 3 文件）曾为 `/entity` 指令行样式引入并登记——**同日改判纯插件形态后整体撤出**（客户端贡献位 `commandUi.register` 原生支持图标/中文名/短提示呈现，呈现面无需动 dsh；行为链路改走壳 IPC，见 console 插件 README）。上游对照结论留档：上游非内建指令行固定渲染「注册名 + catalog 描述」（`builtinRowFace` 仅覆盖 6 个写死 definitionId），无第三方呈现面机制；若将来 WorldSea 需要「宿主指令 + 客户端呈现」，此撤撤销记录即是现成设计稿。
