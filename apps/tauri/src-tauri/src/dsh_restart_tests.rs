@@ -30,6 +30,26 @@ fn exited_child(code: i32) -> Child {
         .expect("spawn test child")
 }
 
+/// 造一个「会一直跑」的子进程：模拟半死状态的宿主（进程在，但桥断了）。
+fn long_running_child() -> Child {
+    let mut command = if cfg!(windows) {
+        // ping 本机做无副作用的等待；-n 30 够测试跑完，结束后 kill 收尾
+        let mut c = Command::new("cmd");
+        c.arg("/c").arg("ping -n 30 127.0.0.1 >nul");
+        c
+    } else {
+        let mut c = Command::new("sh");
+        c.arg("-c").arg("sleep 30");
+        c
+    };
+    command
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("spawn long-running test child")
+}
+
 /// 等到子进程真的退出（`exit_status` 依赖 `try_wait`，spawn 后需给它一点时间）。
 fn wait_exited(process: &DshProcess) -> Option<Option<std::process::ExitStatus>> {
     for _ in 0..200 {
@@ -112,15 +132,33 @@ fn backoff_is_monotonically_increasing() {
 }
 
 #[test]
-fn replace_swaps_the_handle_and_clears_the_shutdown_flag() {
-    // 重启链的关键动作：换上新句柄后守护必须看到「新进程在运行」，而不是旧的退出态
+fn reap_then_adopt_swaps_the_handle_and_keeps_the_watchdog_alive() {
+    // 重启链的新顺序：先 reap（收旧）再 adopt（装新）。两者必须分开——
+    // reap 不能置 shutting_down（那是 kill() 的语义，会让心跳守护永久静默，
+    // 新宿主之后再崩就没人接）。
     let process = DshProcess::new(exited_child(0));
     let _ = wait_exited(&process);
     assert!(process.exit_status().is_some(), "旧句柄应报已退出");
 
-    process.replace(exited_child(0));
-    // 刚换上的新进程可能已经跑完了（cmd /c exit 很快），但只要不报「关停中」即可
-    assert!(!process.shutting_down.load(Ordering::Relaxed), "replace 必须清掉关停标志");
+    process.reap_for_restart();
+    assert!(!process.shutting_down.load(Ordering::Relaxed), "reap 不得让守护静默");
+    assert!(process.exit_status().is_some(), "reap 后无句柄，守护看到的是已退出");
+
+    process.adopt(exited_child(0));
+    // 刚装上的新进程可能已经跑完了（cmd /c exit 很快），但只要不报「关停中」即可
+    assert!(!process.shutting_down.load(Ordering::Relaxed), "adopt 必须清掉关停标志");
+    process.kill();
+}
+
+#[test]
+fn reap_kills_a_still_running_host_before_restart() {
+    // 半死状态：宿主进程还活着但桥断了。手动重启时它必须被真的收掉，
+    // 否则两个宿主会短暂共用同一个 DSH_HOME 的 storages 目录。
+    let process = DshProcess::new(long_running_child());
+    assert!(process.exit_status().is_none(), "新起的子进程应在运行");
+    process.reap_for_restart();
+    // 收掉后句柄为空，守护看到的就是「已退出」
+    assert!(process.exit_status().is_some(), "reap 后旧进程必须已不在运行");
     process.kill();
 }
 

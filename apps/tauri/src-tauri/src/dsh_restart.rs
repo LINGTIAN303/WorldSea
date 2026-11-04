@@ -61,10 +61,17 @@ pub fn request_manual_restart(app: &tauri::AppHandle) {
     });
 }
 
-/// 跑完整条重启链：退避 → spawn → 等就绪 → 换桥 + 换句柄。
+/// 跑完整条重启链：杀旧 → 退避 → spawn → 等就绪 → 换桥 + 换句柄。
 ///
-/// 每次尝试都重新解析安装位置与管道路径——宿主崩溃后旧管道已失效，
-/// 且新路径天然不与旧路径冲突（`generate_pipe_path` 带时间戳）。
+/// 每次尝试都先确保旧宿主已死，再 spawn 新的。**顺序是刻意的**：两个宿主能同时跑在
+/// 同一 DSH_HOME 上（实测互不报错），但它们共享 `storages/`（会话、插件数据）——
+/// 重叠存活期间若有并发写就有损坏风险。窗口期虽短，但没有理由留着。
+///
+/// 「旧宿主已死」不等于「没事可做」：手动重启时宿主可能还活着（半死状态——桥断了但
+/// 进程在），这条链同样要先把那个进程收掉。
+///
+/// 每次尝试都重新解析安装位置与管道路径——旧管道已失效，且新路径天然不与旧路径冲突
+/// （`generate_pipe_path` 带时间戳）。
 /// @returns 成功时的尝试序号（1 起），全部失败时返回最后一次错误。
 fn restart_host(app: &tauri::AppHandle) -> Result<u32, String> {
     let mut last = String::new();
@@ -73,9 +80,13 @@ fn restart_host(app: &tauri::AppHandle) -> Result<u32, String> {
         eprintln!("[DSH-SHELL] 第 {attempt}/{MAX_RESTARTS} 次重启：等待 {}ms", backoff.as_millis());
         show_restarting(app, attempt);
         std::thread::sleep(backoff);
+        // spawn 之前先收掉旧宿主（含「半死但还活着」的情形），避免两个进程共用 storages
+        if let Some(state) = app.try_state::<DshProcess>() {
+            state.reap_for_restart();
+        }
         match spawn_and_wait_ready(app) {
             Ok((child, url, pipe_path, workspace_notice, dsh_home)) => {
-                // 先换桥（页面转发立刻指向新宿主），再换句柄（守护看到新进程）
+                // 先换桥（页面转发立刻指向新宿主），再挂句柄（守护看到新进程）
                 crate::dsh_bridge::attach(
                     app,
                     app.get_webview_window("main").as_ref(),
@@ -85,7 +96,7 @@ fn restart_host(app: &tauri::AppHandle) -> Result<u32, String> {
                     Some(&dsh_home),
                 );
                 if let Some(state) = app.try_state::<DshProcess>() {
-                    state.replace(child);
+                    state.adopt(child);
                 }
                 // 新宿主已就绪：旧归因只对已死的那个宿主成立，留着会误导下一次故障排查
                 if let Some(attribution) = app.try_state::<crate::dsh_crash_attribution::DshCrashAttribution>() {
@@ -231,17 +242,29 @@ impl DshProcess {
         }
     }
 
-    /// 重启用：换上新句柄并清掉关停标志。
+    /// 重启前收掉旧宿主：kill + wait，并把句柄清空。
     ///
-    /// 心跳守护与重启链都走同一把锁，故替换是原子的：守护要么看到旧句柄的
-    /// 退出态、要么看到新句柄的运行态，不会把「刚换上的新进程」误判成已退出。
-    pub fn replace(&self, child: Child) {
+    /// **不是 `kill()`**：那条路会置 `shutting_down`，让心跳守护永久静默（它是给
+    /// 「壳要退出了」用的）。重启时必须保持守护活跃，否则新宿主起来后再崩就没人接。
+    ///
+    /// 宿主可能还活着（半死状态：桥断了但进程在），故这里无条件收；已退出的句柄
+    /// kill 是空操作，不会误伤。
+    pub(crate) fn reap_for_restart(&self) {
         if let Ok(mut guard) = self.child.lock() {
-            // 旧句柄若还在（理论上已退出），先回收避免僵尸
             if let Some(mut old) = guard.take() {
+                eprintln!("[DSH-SHELL] 重启前收掉旧宿主（pid={}）", old.id());
                 let _ = old.kill();
                 let _ = old.wait();
             }
+        }
+    }
+
+    /// 重启后接管新句柄：装上并确保关停标志是清着的。
+    ///
+    /// 心跳守护与重启链都走同一把锁，故接管是原子的：守护要么看到「无句柄」、
+    /// 要么看到新句柄的运行态，不会把刚换上的新进程误判成已退出。
+    pub(crate) fn adopt(&self, child: Child) {
+        if let Ok(mut guard) = self.child.lock() {
             *guard = Some(child);
         }
         self.shutting_down.store(false, Ordering::Relaxed);
