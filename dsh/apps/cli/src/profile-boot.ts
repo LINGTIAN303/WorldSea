@@ -35,6 +35,7 @@ import { PROFILE_TEMPLATES } from '@deepseek-ai/dsh-official-bundles'
 import { resolveDshHome } from '@deepseek-ai/dsh-home-paths'
 import { installProxyFromEnvironment } from '@deepseek-ai/dsh-http-proxy'
 import { DSH_LAUNCH_ENVIRONMENT_KEY, type LaunchEnvironmentSnapshot } from '@deepseek-ai/dsh-launch-environment'
+import type { WebRouteActivity } from '@deepseek-ai/dsh-host-webserver'
 import { provideCmdline, type AppReady } from '@deepseek-ai/dsh-cmdline'
 import { createProcessShutdown, type ProcessShutdown } from './process-shutdown.ts'
 
@@ -313,8 +314,11 @@ export async function runProfile(options: RunProfileOptions): Promise<{ ctx: Con
       // what was being served when the process died. One line per dispatch, oldest
       // first: the last is the crash instant, earlier ones show whether a burst on
       // one route preceded it. Absent when no webserver row is mounted (headless).
-      const recent = app.current?.get('webServer')?.recentActivity() ?? []
-      return recent.map((live: { kind: string; path: string; method: string; url: string; plugin?: string }) => {
+      // `get` resolves the service store by name; importing the row type above
+      // gives the call its declared WebServer | undefined result.
+      const webServer = app.current?.get('webServer')
+      const recent = webServer?.recentActivity() ?? []
+      return recent.map((live: WebRouteActivity) => {
         const route = `${live.kind} route ${live.path || '(fallback)'}`
         // The plugin name is what a supervisor needs to disable the offender; the
         // route alone only says which path prefix was live.

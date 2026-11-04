@@ -18,7 +18,7 @@ import { join } from 'node:path'
 import { once } from 'node:events'
 import { Readable } from 'node:stream'
 import { afterEach, describe, expect, it } from 'vitest'
-import { installPipeCarrier, type PipeCarrier, type PipeCarrierOptions } from '../src/pipe-transport.ts'
+import { installPipeCarrier, type PipeCarrier } from '../src/pipe-transport.ts'
 
 const KIND_JSON = 0x4a
 const KIND_BINARY = 0x42
@@ -115,9 +115,9 @@ async function start(dispatch: (req: unknown, res: unknown) => void): Promise<{ 
   const path = newPipePath()
   const carrier = await installPipeCarrier({
     path,
-    dispatch: dispatch as unknown as PipeCarrierOptions['dispatch'],
+    dispatch,
     openStream: () => { throw new Error('gateway opener must not run for a unary request') },
-    streamFailure: (error) => ({ code: 'test', message: String(error), details: {} }),
+    streamFailure: error => ({ code: 'test', message: String(error), details: {} }),
     log: () => {},
   })
   const socket = connect(path)

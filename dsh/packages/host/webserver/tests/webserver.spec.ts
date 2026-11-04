@@ -24,7 +24,8 @@ import Loader from '@deepseek-ai/cordis-plugin-loader'
 import Include from '@deepseek-ai/cordis-plugin-include'
 import type { PeerScope } from '@deepseek-ai/dsh-typert-protocol'
 import HttpServer, {
-  ACTIVITY_HISTORY, bindUrlHost, isLoopbackHost, normalizeBindAddress, renderIndexInjections, type TlsConfig, type WebResource, type WebRoute,
+  ACTIVITY_HISTORY, bindUrlHost, isLoopbackHost, normalizeBindAddress, renderIndexInjections,
+  type TlsConfig, type WebResource, type WebRoute,
 } from '../src/index.ts'
 import { materializeTlsFixture, type TlsFixture } from './tls-fixture.ts'
 

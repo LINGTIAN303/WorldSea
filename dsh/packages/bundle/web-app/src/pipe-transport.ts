@@ -620,7 +620,9 @@ export async function* readSseResponse(
   signal: AbortSignal,
 ): AsyncGenerator<string> {
   const inbox: string[] = []
-  let ended = false
+  // Boxed: the `end` callback below assigns it from outside this generator body,
+  // which control-flow analysis cannot see, so a plain `let` reads as constant false.
+  const state = { ended: false }
   let failure: Error | undefined
   let wake: (() => void) | undefined
   const notify = (): void => { const w = wake; wake = undefined; if (w !== undefined) w() }
@@ -647,7 +649,7 @@ export async function* readSseResponse(
       drainFrames()
       notify()
     },
-    end: () => { ended = true; notify() },
+    end: () => { state.ended = true; notify() },
     fail: (message) => { failure = new Error(message); notify() },
   }
 
@@ -662,7 +664,7 @@ export async function* readSseResponse(
     for (;;) {
       if (inbox.length > 0) { yield inbox.shift() as string; continue }
       if (failure !== undefined) throw failure
-      if (ended || signal.aborted) return
+      if (state.ended || signal.aborted) return
       await new Promise<void>((resolve) => { wake = resolve })
     }
   } finally {
@@ -755,7 +757,7 @@ function createSyntheticExchange(
     getHeader: (name: string): string | undefined => headers[name.toLowerCase()],
     getHeaders: (): Record<string, string> => ({ ...headers }),
     hasHeader: (name: string): boolean => headers[name.toLowerCase()] !== undefined,
-    removeHeader: (name: string): void => { delete headers[name.toLowerCase()] },
+    removeHeader: (name: string): void => { Reflect.deleteProperty(headers, name.toLowerCase()) },
     write: (chunk: string | Uint8Array): boolean => {
       if (finished || destroyed) return false
       if (!streaming) {

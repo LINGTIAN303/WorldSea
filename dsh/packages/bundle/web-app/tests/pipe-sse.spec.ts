@@ -144,10 +144,12 @@ async function start(overrides: Partial<PipeCarrierOptions> = {}, omitSseOpener 
   const carrier: PipeCarrier = await installPipeCarrier({
     path,
     dispatch: sseDispatch,
-    ...omitSseOpener ? {} : { openSseStream: (url: string, signal: AbortSignal) => Promise.resolve(readSseResponse(url, sseDispatch, signal)) },
+    ...omitSseOpener
+      ? {}
+      : { openSseStream: (url: string, signal: AbortSignal) => Promise.resolve(readSseResponse(url, sseDispatch, signal)) },
     // SSE endpoints must never reach this opener; the assertion lives in the routing test.
     openStream: () => { throw new Error('gateway opener used for an sse endpoint') },
-    streamFailure: (error) => ({ code: 'test', message: String(error), details: {} }),
+    streamFailure: error => ({ code: 'test', message: String(error), details: {} }),
     log: () => {},
     ...overrides,
   })
@@ -255,14 +257,14 @@ describe('readSseResponse against a long-lived route', () => {
     // Wait for the opening frame rather than a fixed sleep: the route writes it
     // synchronously on dispatch, so polling here stays deterministic.
     for (let i = 0; i < 100 && received.length === 0; i++) {
-      await new Promise((resolve) => setTimeout(resolve, 5))
+      await new Promise(resolve => setTimeout(resolve, 5))
     }
     expect(received).toEqual([JSON.stringify({ type: 'graph', graph: { rows: [] } })])
     expect(routeClosed).toBe(false)
 
     controller.abort()
     await consume
-    await Promise.race([closed, new Promise((resolve) => setTimeout(resolve, 500))])
+    await Promise.race([closed, new Promise(resolve => setTimeout(resolve, 500))])
     expect(routeClosed).toBe(true)
     closedObserver = undefined
   })

@@ -123,8 +123,8 @@ interface WebRouteEntry {
  * (no plugin owns the route, so naming it would mislead a crash report).
  */
 function callerPluginName(ctx: Context): string | undefined {
-  const name = ctx.fiber?.name
-  return name === undefined || name === '' || name === 'root' ? undefined : name
+  const name = ctx.fiber.name
+  return name === '' || name === 'root' ? undefined : name
 }
 
 /** One exact-path HTTP upgrade registration. */
