@@ -171,7 +171,9 @@
     # by the web-runtime row below through the fallback seat. Routing and
     # browser-facing asset paths do not depend on the advertised URL, which the
     # web-runtime row owns; Connection reads trust authorities from webStartup.
-    # This row rejects wildcard binds.
+    # This row rejects wildcard binds. With `--ipc-pipe` the carrier binds
+    # nothing: the web-runtime row starts the pipe carrier and feeds synthesized
+    # exchanges through the webserver's external mode.
     - id: webserver
       name: '@deepseek-ai/dsh-host-webserver'
       inject: [webStartup]
@@ -179,6 +181,7 @@
         host: !!js ctx.webStartup.host ?? '127.0.0.1'
         port: !!js ctx.webStartup.port ?? 3080
         tls: !!js ctx.webStartup.tls
+        external: !!js ctx.webStartup.ipcPipe !== undefined
         compression: gzip
         compressionLevel: 1
         compressionThresholdBytes: 1024
@@ -198,6 +201,7 @@
         printUrl: true
         publicUrl: !!js ctx.webStartup.publicUrl
         surfaceContext: true
+        ipcPipe: !!js ctx.webStartup.ipcPipe
 
     # Model context for an agent that inspects or extends the harness serving
     # this GUI: value-free prompt sections plus the current checkout and GUI

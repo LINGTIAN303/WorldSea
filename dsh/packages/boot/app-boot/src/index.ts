@@ -803,8 +803,25 @@ export interface FailLoudProcess {
   exit(code: number): void
 }
 
-// An activation rejection already folded into the boot diagnostic can also
-// reach the process rejection handler. Keep exact reasons visible through the
+/**
+ * Reports which route was live when the process died. The fatal handler runs
+ * after the failing call site is gone, so a plugin route that throws leaves no
+ * other record of its namespace; the composing application supplies this by
+ * reading the webserver's last dispatch.
+ * @returns the last dispatched route and request, or undefined when unknown.
+ */
+/**
+ * Supplier of the request activity that was live when the process died.
+ *
+ * Returns one diagnostic line per retained dispatch, oldest first. The last
+ * entry is the one being served at the crash; earlier entries show whether the
+ * failure followed a burst on one route or a single coincidental request.
+ * Returning an empty array (or throwing) means "no activity evidence".
+ */
+export type FailLoudActivity = () => readonly string[]
+
+// Loader rc.5 derives and drops a rejected promise after a fiber fails. Keep
+// exact reasons already folded into the boot diagnostic visible through the
 // next process rejection checkpoint so the process guard can coalesce them.
 const assembledActivationRejections = new Map<unknown, number>()
 
@@ -874,12 +891,16 @@ export const FAIL_LOUD_RELEASE_TIMEOUT_MS = 2_000
  * @param release - optional teardown awaited before exit, used by a
  *   terminal-owning surface to restore the terminal. Its own failure is
  *   swallowed because the pending fatal exit already owns the outcome.
+ * @param activity - optional supplier of the route that was live at the crash,
+ *   appended to the diagnostic so a shell supervisor can name the plugin whose
+ *   route was being served instead of guessing from the error alone.
  * @returns the uninstaller that removes both handlers.
  */
 export function installFailLoud(
   binName: string,
   proc: FailLoudProcess = process,
   release?: () => Promise<void> | void,
+  activity?: FailLoudActivity,
 ): () => void {
   let exiting = false
   const report = (err: unknown, label: string): void => {
@@ -889,6 +910,13 @@ export function installFailLoud(
     if (exiting) return
     exiting = true
     proc.stderr.write(`${binName}: ${label}: ${inspect(err, { depth: 4, maxArrayLength: 50 })}\n`)
+    // Written as its own lines so a reader can grep them without parsing the
+    // inspect dump above. A supplier that throws must not hide the real cause.
+    try {
+      for (const live of activity?.() ?? []) {
+        proc.stderr.write(`${binName}: last route: ${live}\n`)
+      }
+    } catch { /* evidence only: never let it replace the failure being reported */ }
     if (release === undefined) {
       proc.exit(1)
       return
