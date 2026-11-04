@@ -123,3 +123,24 @@ fn replace_swaps_the_handle_and_clears_the_shutdown_flag() {
     assert!(!process.shutting_down.load(Ordering::Relaxed), "replace 必须清掉关停标志");
     process.kill();
 }
+
+#[test]
+fn error_page_is_served_over_the_shell_scheme_with_a_titlebar() {
+    // 真机缺陷的回归锁：错误页曾是 data: URL，不在 Tauri 的 is_local_url 白名单，
+    // 页面既拿不到 __TAURI_INTERNALS__，也没有窗口栏脚本 → 「⋯」菜单不存在，
+    // 用户无法用「视图 → 重新启动 Agent 内核」恢复。
+    let response = crate::dsh_error::error_page_response("title=Agent%20%E5%B7%B4&detail=detail");
+    assert_eq!(response.status(), 200);
+    assert_eq!(
+        response.headers().get("content-type").and_then(|v| v.to_str().ok()),
+        Some("text/html; charset=utf-8"),
+    );
+    let html = String::from_utf8_lossy(response.body()).into_owned();
+    // 窗口栏脚本必须被注入，否则「⋯」菜单无从出现
+    if !(html.contains("worldsea-shell:titlebar") || html.contains("__WORLDSEA_TITLEBAR__")) {
+        let tail = html.len().saturating_sub(500);
+        panic!("错误页未注入窗口栏。HTML 尾部：{}", &html[tail..]);
+    }
+    // 标题经 query 还原（中文需正确解码）
+    assert!(html.contains("Agent 巴"), "标题应从 query 解码后进入页面：{html:.200}");
+}

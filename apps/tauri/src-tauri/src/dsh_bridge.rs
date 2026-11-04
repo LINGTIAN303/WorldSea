@@ -355,6 +355,12 @@ pub fn handle_request<R: Runtime>(
     request: http::Request<Vec<u8>>,
     responder: UriSchemeResponder,
 ) {
+    // 壳自有错误页走本协议伺服，**先于桥判定**——宿主未就绪时正是要用它。
+    // 走 data: URL 的话页面不在 is_local_url 白名单，拿不到 IPC 与窗口栏（真机实测）。
+    if request.uri().path() == crate::dsh_error::SHELL_ERROR_PATH {
+        responder.respond(crate::dsh_error::error_page_response(request.uri().query().unwrap_or("")));
+        return;
+    }
     let app = ctx.app_handle().clone();
     std::thread::spawn(move || {
         let response = match app.try_state::<DshBridge>() {

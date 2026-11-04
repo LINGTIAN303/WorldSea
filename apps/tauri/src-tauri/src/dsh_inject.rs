@@ -122,6 +122,32 @@ pub(crate) fn inject_shell_scripts(
     }
 }
 
+/// **壳错误页**（壳协议 `/shell-error`）的注入。只装三件：主题常量、窗口栏、安全网。
+///
+/// **窗口栏是关键**：错误页没有窗口栏就没有「⋯」菜单，用户无法用
+/// 「视图 → 重新启动 Agent 内核」恢复（真机走查实测过 data: URL 的错误页）。
+/// 不注入传输桥 / 壳桥 / dsh 常量：那时宿主不在，这些要么无意义要么会报错。
+pub(crate) fn inject_error_page_scripts(html: &str, titlebar: bool) -> String {
+    let mut scripts = format!(
+        "<script>/* worldsea-shell:theme */globalThis.__WORLDSEA_THEME__ = \"{}\";\
+globalThis.__WORLDSEA_DARK__ = {}</script>",
+        crate::app_prefs::preference_now(),
+        crate::app_prefs::dark_now()
+    );
+    if titlebar {
+        scripts.push_str("<script>");
+        scripts.push_str(TITLEBAR_SCRIPT);
+        scripts.push_str("</script>");
+    }
+    scripts.push_str("<script>");
+    scripts.push_str(WATCHDOG_SCRIPT);
+    scripts.push_str("</script>");
+    match find_head_end(html) {
+        Some(at) => format!("{}{}{}", &html[..at], scripts, &html[at..]),
+        None => format!("{scripts}{html}"),
+    }
+}
+
 /// **工作台页**（壳协议 `/workspace` 前缀，产物由 `workspace_dist` 伺服）的 index 注入。只装两件：
 /// ① 「不白屏」安全网——挂载点 `#app`（旧前端口径，与 dsh 页的 `#root` 不同）：先置 `__WORLDSEA_BOOT_ROOT__` 再注入同一份 watchdog 脚本（默认值 'root' 保 dsh 行为不变）；
 /// ② 空间切换桥（`__WORLDSEA_SPACE_SWITCH__`）——旧前端 TitleBar 的「Agent 空间⇄工作台」控件据此走壳命令（双窗互斥）；无该全局时旧前端回退页内切换（浏览器预览/旧壳）。

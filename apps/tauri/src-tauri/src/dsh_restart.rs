@@ -111,21 +111,17 @@ fn show_restarting(app: &tauri::AppHandle, attempt: u32) {
     crate::workspace_window::request_space_switch(app, "space");
 }
 
-/// 自动重试耗尽：停在错误页并给出可点的「重新启动」入口。
+/// 自动重试耗尽：停在错误页，靠窗口栏「⋯」菜单里的「视图 → 重新启动 Agent 内核」恢复。
 fn show_manual_restart(app: &tauri::AppHandle, reason: &str) {
     if let Some(window) = app.get_webview_window("main") {
-        // 页面只放指引文字：错误页是 data: URL，拿不到 __TAURI_INTERNALS__（不在
-        // Tauri 的 is_local_url 白名单内），按钮会静默失效。真正入口是原生菜单项。
-        let html = crate::app_prefs::error_page_html_with_restart(
+        // 错误页走壳协议（`worldsea://…/shell-error`）而非 data: URL：
+        // 后者不在 Tauri 的 is_local_url 白名单，页面拿不到 IPC 与窗口栏，
+        // 于是「⋯」菜单根本不存在（真机走查实测）。协议页才会被注入窗口栏。
+        crate::dsh_error::show_error(
+            &window,
             "Agent 内核已停止运行",
             &format!("自动重启 {MAX_RESTARTS} 次均失败，已停手以免反复崩溃。\n最后一次错误：{reason}\n\n（日志见应用日志与 DSH_HOME 下的 startup 诊断报告。）"),
         );
-        let url = format!("data:text/html;charset=utf-8,{}", crate::dsh_error::percent_encode_pub(&html));
-        if let Ok(parsed) = url.parse::<tauri::Url>() {
-            if let Err(e) = window.navigate(parsed) {
-                tracing::error!("dsh shell: 错误页导航失败：{e}");
-            }
-        }
     }
     crate::workspace_window::request_space_switch(app, "space");
 }
