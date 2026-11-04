@@ -152,7 +152,36 @@ fn sample_suspect() -> crate::dsh_crash_attribution::Suspect {
         method: "GET".to_string(),
         url: "/wallpaper-engine/media/x".to_string(),
         route: "prefix route /wallpaper-engine".to_string(),
+        trail: vec![
+            "dsh-plugin-wallpaper-engine".to_string(),
+            "dsh-plugin-wallpaper-engine".to_string(),
+            "client-connection".to_string(),
+            "dsh-plugin-wallpaper-engine".to_string(),
+        ],
     }
+}
+
+#[test]
+fn stop_page_shows_the_plugin_trail_when_it_has_something_to_say() {
+    // 轨迹的价值在于「崩溃前换过插件」——那才说明这次可能不是随手撞上的。
+    let detail = manual_restart_detail("spawn timeout", Some(&sample_suspect()));
+    assert!(
+        detail.contains("崩溃前依次服务过：dsh-plugin-wallpaper-engine → client-connection → dsh-plugin-wallpaper-engine"),
+        "应展示压缩后的轨迹：{detail}",
+    );
+}
+
+#[test]
+fn stop_page_omits_the_trail_when_one_plugin_served_everything() {
+    // 全是同一个插件时，把名字再列一遍只是撑长正文，没有判断价值。
+    let suspect = crate::dsh_crash_attribution::Suspect {
+        plugin: "solo".into(), method: "GET".into(), url: "/solo".into(),
+        route: "prefix route /solo".into(),
+        trail: vec!["solo".into(), "solo".into(), "solo".into()],
+    };
+    let detail = manual_restart_detail("spawn timeout", Some(&suspect));
+    assert!(!detail.contains("崩溃前依次服务过"), "单插件轨迹不该出现：{detail}");
+    assert!(detail.contains("崩溃时正在服务的插件：solo"), "但主体线索仍要在：{detail}");
 }
 
 #[test]

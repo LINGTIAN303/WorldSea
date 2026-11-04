@@ -309,17 +309,19 @@ export async function runProfile(options: RunProfileOptions): Promise<{ ctx: Con
     installFailLoud(NAME, process, async () => {
       await app.current?.fiber.dispose()
     }, () => {
-      // The webserver outlives the failing request, so its last dispatch names
-      // the plugin that was being served when the process died. Absent when no
-      // webserver row is mounted (headless surfaces).
-      const live = app.current?.get('webServer')?.lastActivity()
-      if (live === undefined) return undefined
-      const route = `${live.kind} route ${live.path || '(fallback)'}`
-      // The plugin name is what a supervisor needs to disable the offender; the
-      // route alone only says which path prefix was live.
-      return live.plugin === undefined
-        ? `${live.method} ${live.url} → ${route}`
-        : `${live.method} ${live.url} → ${route} → plugin ${live.plugin}`
+      // The webserver outlives the failing request, so its recent dispatches show
+      // what was being served when the process died. One line per dispatch, oldest
+      // first: the last is the crash instant, earlier ones show whether a burst on
+      // one route preceded it. Absent when no webserver row is mounted (headless).
+      const recent = app.current?.get('webServer')?.recentActivity() ?? []
+      return recent.map((live: { kind: string; path: string; method: string; url: string; plugin?: string }) => {
+        const route = `${live.kind} route ${live.path || '(fallback)'}`
+        // The plugin name is what a supervisor needs to disable the offender; the
+        // route alone only says which path prefix was live.
+        return live.plugin === undefined
+          ? `${live.method} ${live.url} → ${route}`
+          : `${live.method} ${live.url} → ${route} → plugin ${live.plugin}`
+      })
     })
 
     const rootConfig = join(composed.profile.dir, PROFILE_ROOT_FILENAME)

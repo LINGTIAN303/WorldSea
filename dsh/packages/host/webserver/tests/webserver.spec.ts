@@ -22,7 +22,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context, FiberState } from '@deepseek-ai/cordis'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
 import Include from '@deepseek-ai/cordis-plugin-include'
-import HttpServer, { bindUrlHost, isLoopbackHost, normalizeBindAddress, renderIndexInjections, type TlsConfig } from '../src/index.ts'
+import HttpServer, { ACTIVITY_HISTORY, bindUrlHost, isLoopbackHost, normalizeBindAddress, renderIndexInjections, type TlsConfig } from '../src/index.ts'
 import { materializeTlsFixture, type TlsFixture } from './tls-fixture.ts'
 
 /** One-shot barrier for disposal overlapping a pending PEM read. */
@@ -870,5 +870,34 @@ describe('real Loader composition', () => {
     const live = server.lastActivity()
     expect(live?.path).toBe('/no-owner')
     expect(live?.plugin).toBeUndefined()
+  })
+
+  it('keeps a bounded ring of recent dispatches, oldest first', { timeout: 60_000 }, async () => {
+    // A crash report reads the ring, not just the last instant: the live request
+    // can be unrelated traffic that merely overlapped the failure. The ring has
+    // to stay bounded so the fatal diagnostic cannot become a request log.
+    const loaded = await loadComposition()
+    const server = loaded.webServer
+    expect(server.recentActivity()).toEqual([])
+    server.register({
+      kind: 'prefix',
+      path: '/ring',
+      handler: (_req, res) => { res.writeHead(200); res.end('ok') },
+    })
+    const total = ACTIVITY_HISTORY + 3
+    for (let index = 0; index < total; index += 1) {
+      await fetch(`http://127.0.0.1:${String(server.port)}/ring/${String(index)}`)
+    }
+    const ring = server.recentActivity()
+    expect(ring).toHaveLength(ACTIVITY_HISTORY)
+    // Oldest-first: the retained window ends on the newest dispatch.
+    expect(ring.at(-1)?.url).toBe(`/ring/${String(total - 1)}`)
+    expect(ring[0]?.url).toBe(`/ring/${String(total - ACTIVITY_HISTORY)}`)
+    // `at` is monotonic, so a reader can order entries without wall-clock time.
+    for (let index = 1; index < ring.length; index += 1) {
+      expect(ring[index]!.at).toBeGreaterThan(ring[index - 1]!.at)
+    }
+    // The single-point accessor still answers the same instant as the ring tail.
+    expect(server.lastActivity()?.url).toBe(ring.at(-1)?.url)
   })
 })

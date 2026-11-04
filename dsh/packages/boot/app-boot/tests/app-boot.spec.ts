@@ -543,10 +543,38 @@ describe('installFailLoud', () => {
     // A shell supervisor reads this line after the process dies; it must be
     // greppable on its own and carry the plugin name the webserver recorded.
     const proc = fakeProc()
-    installFailLoud(NAME, proc, undefined, () => 'GET /wallpaper-engine/media/x → prefix route /wallpaper-engine → plugin wallpaper-engine')
+    installFailLoud(NAME, proc, undefined, () => ['GET /wallpaper-engine/media/x → prefix route /wallpaper-engine → plugin wallpaper-engine'])
     proc.exception(new Error('plugin died'))
     expect(proc.written).toHaveLength(2)
     expect(proc.written[1]).toBe(`${NAME}: last route: GET /wallpaper-engine/media/x → prefix route /wallpaper-engine → plugin wallpaper-engine\n`)
+  })
+
+  it('writes one line per retained dispatch, oldest first', () => {
+    // The ring shows the sequence leading up to the crash: a burst on one route
+    // reads differently from a single coincidental request.
+    const proc = fakeProc()
+    installFailLoud(NAME, proc, undefined, () => [
+      'GET /a/1 → prefix route /a → plugin plugin-a',
+      'GET /a/2 → prefix route /a → plugin plugin-a',
+      'GET /b/1 → prefix route /b → plugin plugin-b',
+    ])
+    proc.exception(new Error('boom'))
+    expect(proc.written).toHaveLength(4)
+    expect(proc.written[1]).toContain('GET /a/1')
+    expect(proc.written[2]).toContain('GET /a/2')
+    // The last retained line is the crash instant — the only one a reader can
+    // pair with the failure itself.
+    expect(proc.written[3]).toContain('GET /b/1')
+    expect(proc.written[3]).toContain('plugin plugin-b')
+  })
+
+  it('writes nothing when the supplier reports no activity', () => {
+    // Headless surfaces mount no webserver row; an empty ring must add no line.
+    const proc = fakeProc()
+    installFailLoud(NAME, proc, undefined, () => [])
+    proc.exception(new Error('boom'))
+    expect(proc.written).toHaveLength(1)
+    expect(proc.written[0]).toContain('boom')
   })
 
   it('keeps a throwing activity supplier from replacing the failure being reported', () => {

@@ -144,12 +144,21 @@ pub(crate) fn manual_restart_detail(reason: &str, suspect: Option<&crate::dsh_cr
     let Some(suspect) = suspect else {
         return format!("自动重启 {MAX_RESTARTS} 次均失败，已停手以免反复崩溃。\n最后一次错误：{reason}\n\n（日志见应用日志与 DSH_HOME 下的 startup 诊断报告。）")
     };
+    // 轨迹只在「崩溃前确实还服务过别的插件」时才有信息量；全是同一个插件时
+    // 重复一遍名字只会把正文撑长，判断价值为零。
+    let trail = suspect.plugin_trail();
+    let trail_line = if trail.len() > 1 {
+        format!("\n崩溃前依次服务过：{}", trail.join(" → "))
+    } else {
+        String::new()
+    };
     format!(
-        "自动重启 {MAX_RESTARTS} 次均失败，已停手以免反复崩溃。\n最后一次错误：{reason}\n\n崩溃时正在服务的插件：{name}\n请求：{method} {url}（{route}）\n\n若确认问题由它引起，可从窗口栏「⋯」菜单选择「视图 → 停用疑似问题插件后重启」。\n（该线索只说明崩溃那一刻谁在服务，不一定是崩溃原因。）",
+        "自动重启 {MAX_RESTARTS} 次均失败，已停手以免反复崩溃。\n最后一次错误：{reason}\n\n崩溃时正在服务的插件：{name}\n请求：{method} {url}（{route}）{trail_line}\n\n若确认问题由它引起，可从窗口栏「⋯」菜单选择「视图 → 停用疑似问题插件后重启」。\n（该线索只说明崩溃那一刻谁在服务，不一定是崩溃原因。）",
         name = suspect.plugin,
         method = suspect.method,
         url = suspect.url,
         route = suspect.route,
+        trail_line = trail_line,
     )
 }
 

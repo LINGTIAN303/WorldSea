@@ -815,7 +815,15 @@ export interface FailLoudProcess {
  * reading the webserver's last dispatch.
  * @returns the last dispatched route and request, or undefined when unknown.
  */
-export type FailLoudActivity = () => string | undefined
+/**
+ * Supplier of the request activity that was live when the process died.
+ *
+ * Returns one diagnostic line per retained dispatch, oldest first. The last
+ * entry is the one being served at the crash; earlier entries show whether the
+ * failure followed a burst on one route or a single coincidental request.
+ * Returning an empty array (or throwing) means "no activity evidence".
+ */
+export type FailLoudActivity = () => readonly string[]
 
 // Loader rc.5 derives and drops a rejected promise after a fiber fails. Keep
 // exact reasons already folded into the boot diagnostic visible through the
@@ -907,11 +915,12 @@ export function installFailLoud(
     if (exiting) return
     exiting = true
     proc.stderr.write(`${binName}: ${label}: ${inspect(err, { depth: 4, maxArrayLength: 50 })}\n`)
-    // Written as its own line so a reader can grep it without parsing the
+    // Written as its own lines so a reader can grep them without parsing the
     // inspect dump above. A supplier that throws must not hide the real cause.
     try {
-      const live = activity?.()
-      if (live !== undefined) proc.stderr.write(`${binName}: last route: ${live}\n`)
+      for (const live of activity?.() ?? []) {
+        proc.stderr.write(`${binName}: last route: ${live}\n`)
+      }
     } catch { /* evidence only: never let it replace the failure being reported */ }
     if (release === undefined) {
       proc.exit(1)

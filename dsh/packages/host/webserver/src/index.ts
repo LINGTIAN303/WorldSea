@@ -43,6 +43,15 @@ declare module '@deepseek-ai/cordis' {
 /** Route match kind: 'exact' matches the pathname verbatim; 'prefix' p matches p and p/<anything>. */
 export type WebRouteKind = 'exact' | 'prefix'
 
+/**
+ * How many recent dispatches the activity ring keeps.
+ *
+ * Sized so a crash report can show a short burst — a plugin looping on one route —
+ * without turning the fatal diagnostic into a request log. Five covers
+ * "open → poll → poll → the one that died" without dominating stderr.
+ */
+export const ACTIVITY_HISTORY = 5
+
 /** The route a request just reached, kept as crash evidence rather than a live log. */
 export interface WebRouteActivity {
   /** Registration path that matched, so a crash report can name the plugin's namespace. */
@@ -358,6 +367,15 @@ export class WebServer extends Service {
   private activity: WebRouteActivity | undefined
   private activitySeq = 0
   /**
+   * Ring of recent dispatches, oldest first, capped at {@link ACTIVITY_HISTORY}.
+   *
+   * {@link activity} alone answers "what was live at the instant of death", which
+   * can be an unrelated request that merely happened to be in flight. The ring
+   * shows the sequence leading up to it, so a reader can tell a plugin hammering
+   * one route from a single coincidental request.
+   */
+  private readonly activityHistory: WebRouteActivity[] = []
+  /**
    * Raw connections of a TLS listener, held until they close. A TLS connection
    * joins closeAllConnections()'s table only once its handshake completes, so a
    * socket still handshaking — or one whose peer never sends a ClientHello —
@@ -620,7 +638,7 @@ export class WebServer extends Service {
     const matched = this.match(rawPath)
     // Recorded before the handler runs: a handler that throws leaves the
     // route as the only surviving evidence of which plugin was live.
-    this.activity = {
+    const entry: WebRouteActivity = {
       path: matched?.route.path ?? '',
       ...matched?.plugin === undefined ? {} : { plugin: matched.plugin },
       kind: matched?.route.kind ?? 'exact',
@@ -628,6 +646,9 @@ export class WebServer extends Service {
       url: rawPath,
       at: ++this.activitySeq,
     }
+    this.activity = entry
+    this.activityHistory.push(entry)
+    if (this.activityHistory.length > ACTIVITY_HISTORY) this.activityHistory.shift()
     if (matched !== undefined) {
       await matched.route.handler(req, res)
       return
@@ -647,6 +668,17 @@ export class WebServer extends Service {
    */
   lastActivity(): WebRouteActivity | undefined {
     return this.activity
+  }
+
+  /**
+   * Recent dispatches, oldest first, at most {@link ACTIVITY_HISTORY} of them.
+   *
+   * A crash report reads this to show the sequence rather than one instant: the
+   * last request can be unrelated traffic that merely overlapped the failure.
+   * @returns the retained dispatches; empty before any request.
+   */
+  recentActivity(): readonly WebRouteActivity[] {
+    return this.activityHistory
   }
 
   /**

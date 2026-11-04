@@ -20,6 +20,12 @@ use std::sync::Mutex;
 
 use tauri::Manager;
 
+/// 宿主一次崩溃最多写多少行 `last route:`（与宿主侧 `ACTIVITY_HISTORY` 对齐）。
+///
+/// 用途不只是展示：`observe_line` 靠它判定「上一轮是否已经收满，这一条属于下次崩溃」。
+/// 两边若不同步，线索会跨轮混在一起——宿主改大这个值时这里必须跟着改。
+const ACTIVITY_TRAIL_LIMIT: usize = 5;
+
 /// 一次崩溃时正在服务的插件。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Suspect {
@@ -31,12 +37,31 @@ pub struct Suspect {
     pub url: String,
     /// 命中的路由种类与注册路径（如 `prefix route /wallpaper-engine`）。
     pub route: String,
+    /// 崩溃前宿主依次服务过的插件名（按时间先后，含本次）。
+    ///
+    /// 宿主保留最近几条路由，这里取每条的插件名。看不出差异时不主张什么——
+    /// 它的价值在于「是被同一个插件密集刷，还是夹在一堆无关请求里」这一点。
+    pub trail: Vec<String>,
 }
 
 impl Suspect {
-    /// 一行人类可读描述，用于错误页正文与应用日志。
+    /// 一行人类可读描述，用于应用日志。
     pub fn summary(&self) -> String {
         format!("{} {}（路由 {}）", self.plugin, self.url, self.route)
+    }
+
+    /// 崩溃前依次服务过的插件名（含本次，按时间先后，已去重相邻重复）。
+    ///
+    /// 宿主只保留最近几条路由（`ACTIVITY_HISTORY`）；这里把它们的插件名摊平，
+    /// 让用户看出「是某个插件在密集刷同一路由」还是「一堆不相干的请求里夹了这一次」。
+    pub fn plugin_trail(&self) -> Vec<String> {
+        let mut out: Vec<String> = Vec::new();
+        for step in &self.trail {
+            if out.last() != Some(step) {
+                out.push(step.clone());
+            }
+        }
+        out
     }
 }
 
@@ -50,10 +75,21 @@ pub struct DshCrashAttribution {
 }
 
 impl DshCrashAttribution {
-    /// 记下一次归因（覆盖旧的：用户看到的总应是最近这次崩溃的原因）。
-    pub fn record(&self, suspect: Suspect) {
+    /// 记一次崩溃的完整线索（每次崩溃开头调用：清掉上一轮的残留）。
+    pub fn begin(&self, suspect: Suspect) {
         if let Ok(mut guard) = self.suspect.lock() {
             *guard = Some(suspect);
+        }
+    }
+
+    /// 追加一条同一次崩溃内更早的路由（宿主按「旧→新」输出，故先到的其实是更早的）。
+    ///
+    /// 只在已有记录时追加；没有主体记录就说明这行不属于一次已知崩溃，忽略。
+    pub fn push_trail(&self, plugin: &str) {
+        if let Ok(mut guard) = self.suspect.lock() {
+            if let Some(suspect) = guard.as_mut() {
+                suspect.trail.push(plugin.to_string());
+            }
         }
     }
 
@@ -93,17 +129,26 @@ pub fn parse_last_route(line: &str) -> Option<Suspect> {
         method: method.trim().to_string(),
         url: url.trim().to_string(),
         route: route.trim().to_string(),
+        trail: vec![plugin.to_string()],
     })
 }
 
-/// 把宿主 stderr 的一行喂进来：若是 `last route:` 行则记归因。
+/// 宿主一次崩溃会连续写多行 `last route:`（旧→新，最后一行是崩溃瞬间）。
 ///
-/// 在 stderr 读取线程里调用（见 `dsh_shell::spawn_and_wait_ready`）。
+/// 这里按到达顺序累积：**第一条开新记录**（`begin`），后续追加进同一条的 `trail`。
+/// 判定「这是新一轮的第一条」靠 `ACTIVITY_TRAIL_LIMIT`：宿主最多写这么多行，
+/// 收满即说明上一轮结束；再来的必然是下一次崩溃的首条。
+/// 若宿主某轮少于上限（例如中途又被重启打断），`clear()` 也会把它归零。
 pub fn observe_line(app: &tauri::AppHandle, line: &str) {
     let Some(suspect) = parse_last_route(line) else { return };
-    println!("[DSH-SHELL] 归因：宿主崩溃时正在服务插件 {}", suspect.summary());
-    if let Some(state) = app.try_state::<DshCrashAttribution>() {
-        state.record(suspect);
+    let Some(state) = app.try_state::<DshCrashAttribution>() else { return };
+    let existing_len = state.current().map_or(0, |existing| existing.trail.len());
+    let starts_new = existing_len == 0 || existing_len >= ACTIVITY_TRAIL_LIMIT;
+    if starts_new {
+        println!("[DSH-SHELL] 崩溃线索：宿主崩溃时正在服务插件 {}", suspect.summary());
+        state.begin(suspect);
+    } else {
+        state.push_trail(&suspect.plugin);
     }
 }
 
@@ -163,17 +208,44 @@ mod tests {
 
     #[test]
     fn attribution_is_replaceable_and_clearable() {
-        // 归因属于「最近一次崩溃」：新崩溃覆盖旧的，宿主重新就绪后清空。
+        // 线索属于「最近一次崩溃」：新崩溃覆盖旧的，宿主重新就绪后清空。
         let state = DshCrashAttribution::default();
         assert_eq!(state.current(), None);
-        state.record(Suspect {
-            plugin: "a".into(), method: "GET".into(), url: "/a".into(), route: "prefix route /a".into(),
+        state.begin(Suspect {
+            plugin: "a".into(), method: "GET".into(), url: "/a".into(),
+            route: "prefix route /a".into(), trail: vec!["a".into()],
         });
-        state.record(Suspect {
-            plugin: "b".into(), method: "GET".into(), url: "/b".into(), route: "prefix route /b".into(),
+        state.begin(Suspect {
+            plugin: "b".into(), method: "GET".into(), url: "/b".into(),
+            route: "prefix route /b".into(), trail: vec!["b".into()],
         });
         assert_eq!(state.current().map(|s| s.plugin), Some("b".into()));
         state.clear();
+        assert_eq!(state.current(), None);
+    }
+
+    #[test]
+    fn trail_accumulates_in_arrival_order_and_dedupes_neighbours() {
+        // 宿主按「旧→新」写多行；`plugin_trail` 保留先后关系，但把连写的同一插件合成一项，
+        // 这样「某插件密集刷同一路由」读起来就是一段，而不是五个同样的名字。
+        let state = DshCrashAttribution::default();
+        state.begin(Suspect {
+            plugin: "a".into(), method: "GET".into(), url: "/a".into(),
+            route: "prefix route /a".into(), trail: vec!["a".into()],
+        });
+        for name in ["a", "a", "b", "a"] {
+            state.push_trail(name);
+        }
+        let suspect = state.current().expect("应有记录");
+        assert_eq!(suspect.plugin, "a", "主体仍是首条的插件");
+        assert_eq!(suspect.plugin_trail(), vec!["a", "b", "a"], "相邻重复应合并");
+    }
+
+    #[test]
+    fn pushing_a_trail_without_a_subject_is_ignored() {
+        // 没有主体记录时追加是无意义的：那行不属于任何一次已知崩溃。
+        let state = DshCrashAttribution::default();
+        state.push_trail("ghost");
         assert_eq!(state.current(), None);
     }
 }
