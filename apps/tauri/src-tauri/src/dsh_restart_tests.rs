@@ -144,3 +144,82 @@ fn error_page_is_served_over_the_shell_scheme_with_a_titlebar() {
     // 标题经 query 还原（中文需正确解码）
     assert!(html.contains("Agent 巴"), "标题应从 query 解码后进入页面：{html:.200}");
 }
+
+/// 造一条归因（测试用；字段顺序与宿主实产行一致）。
+fn sample_suspect() -> crate::dsh_crash_attribution::Suspect {
+    crate::dsh_crash_attribution::Suspect {
+        plugin: "dsh-plugin-wallpaper-engine".to_string(),
+        method: "GET".to_string(),
+        url: "/wallpaper-engine/media/x".to_string(),
+        route: "prefix route /wallpaper-engine".to_string(),
+    }
+}
+
+#[test]
+fn stop_page_does_not_claim_the_plugin_caused_the_crash() {
+    // 设计线：`last route` 只说明崩溃那一刻谁在服务，不主张因果。
+    // 实测反例——插件自行抛错时该行记的却是恰好在服务的无关官方插件。
+    let detail = manual_restart_detail("spawn timeout", Some(&sample_suspect()));
+    assert!(!detail.contains("疑似问题插件："), "不得把线索说成嫌疑：{detail}");
+    assert!(detail.contains("不一定是崩溃原因"), "须明确保留这一前提：{detail}");
+    // 但仍要给出可执行路径，否则用户只知道线索不知道能做什么
+    assert!(detail.contains("停用疑似问题插件后重启"), "须指出菜单入口：{detail}");
+}
+
+#[test]
+fn stop_page_names_the_suspect_plugin_when_attribution_exists() {
+    // 本批的可见产出：用户要看得到「崩溃时谁在服务」，而不是笼统的「反复崩溃」。
+    let detail = manual_restart_detail("spawn timeout", Some(&sample_suspect()));
+    assert!(detail.contains("崩溃时正在服务的插件：dsh-plugin-wallpaper-engine"), "正文须点名崩溃时在服务的插件：{detail}");
+    assert!(detail.contains("GET /wallpaper-engine/media/x"), "正文须带崩溃时在服务的请求：{detail}");
+    assert!(detail.contains("prefix route /wallpaper-engine"), "正文须带命中路由：{detail}");
+    // 原有信息一条都不能丢
+    assert!(detail.contains("最后一次错误：spawn timeout"), "失败原因不能因为点名而丢失：{detail}");
+}
+
+#[test]
+fn stop_page_keeps_the_old_wording_without_attribution() {
+    // 崩在启动期或后台任务时没有归因：绝不能臆造插件名（那样会把用户引去停用无辜插件）。
+    let detail = manual_restart_detail("spawn timeout", None);
+    assert!(!detail.contains("崩溃时正在服务的插件"), "无证据时不得出现「崩溃时正在服务的插件」：{detail}");
+    assert!(detail.contains("最后一次错误：spawn timeout"), "无归因时仍须报失败原因：{detail}");
+}
+
+#[test]
+fn suspect_plugin_reaches_the_rendered_error_page() {
+    // 链的最后一环：文案 → query → 协议页 HTML。少任何一环，用户都看不到插件名。
+    let detail = manual_restart_detail("spawn timeout", Some(&sample_suspect()));
+    let query = format!(
+        "title={}&detail={}",
+        crate::dsh_error::percent_encode_pub("Agent 内核已停止运行"),
+        crate::dsh_error::percent_encode_pub(&detail),
+    );
+    let response = crate::dsh_error::error_page_response(&query);
+    let html = String::from_utf8_lossy(response.body()).into_owned();
+    // <pre> 承载多行正文：插件名必须真的落进 HTML，而不是被编码/截断/吞掉
+    assert!(
+        html.contains("崩溃时正在服务的插件：dsh-plugin-wallpaper-engine"),
+        "插件名未出现在错误页 HTML：{}",
+        &html[html.len().saturating_sub(400)..],
+    );
+    assert!(html.contains("white-space:pre-wrap"), "多行正文需要 pre-wrap 才能换行显示");
+}
+
+#[test]
+fn a_real_host_stderr_line_ends_up_on_the_error_page() {
+    // 全链贯通：宿主真实产出的 stderr 行 → 壳解析 → 归因 → 错误页 HTML。
+    // 这是「壳侧归因逻辑链无误」的机器可验证形态，不依赖 WebView 或真实崩溃。
+    let line = "dsh: last route: GET /e2e-crash/api/self → prefix route /e2e-crash/api → plugin e2e-crash-plugin";
+    let suspect = crate::dsh_crash_attribution::parse_last_route(line)
+        .expect("真实宿主行必须能被壳解析");
+    let detail = manual_restart_detail("dsh 在打印就绪 URL 前退出", Some(&suspect));
+    let query = format!(
+        "title={}&detail={}",
+        crate::dsh_error::percent_encode_pub("Agent 内核已停止运行"),
+        crate::dsh_error::percent_encode_pub(&detail),
+    );
+    let html = String::from_utf8_lossy(crate::dsh_error::error_page_response(&query).body()).into_owned();
+    assert!(html.contains("崩溃时正在服务的插件：e2e-crash-plugin"), "插件名未贯通到页面");
+    assert!(html.contains("GET /e2e-crash/api/self"), "崩溃时在服务的请求未贯通到页面");
+    assert!(html.contains("dsh 在打印就绪 URL 前退出"), "失败原因未贯通到页面");
+}

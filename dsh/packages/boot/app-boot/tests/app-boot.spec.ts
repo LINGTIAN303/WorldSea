@@ -539,6 +539,27 @@ describe('installFailLoud', () => {
     expect(proc.exits).toEqual([1])
   })
 
+  it('appends the live route as its own line so a supervisor can name the plugin', () => {
+    // A shell supervisor reads this line after the process dies; it must be
+    // greppable on its own and carry the plugin name the webserver recorded.
+    const proc = fakeProc()
+    installFailLoud(NAME, proc, undefined, () => 'GET /wallpaper-engine/media/x → prefix route /wallpaper-engine → plugin wallpaper-engine')
+    proc.exception(new Error('plugin died'))
+    expect(proc.written).toHaveLength(2)
+    expect(proc.written[1]).toBe(`${NAME}: last route: GET /wallpaper-engine/media/x → prefix route /wallpaper-engine → plugin wallpaper-engine\n`)
+  })
+
+  it('keeps a throwing activity supplier from replacing the failure being reported', () => {
+    // Evidence only: a supplier that throws must never hide the real cause.
+    const proc = fakeProc()
+    installFailLoud(NAME, proc, undefined, () => { throw new Error('supplier exploded') })
+    proc.exception(new Error('the real cause'))
+    expect(proc.written).toHaveLength(1)
+    expect(proc.written[0]).toContain('the real cause')
+    expect(proc.written[0]).not.toContain('supplier exploded')
+    expect(proc.exits).toEqual([1])
+  })
+
   it('awaits the release hook for an uncaught exception as it does for a rejection', async () => {
     const proc = fakeProc()
     let released = false

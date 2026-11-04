@@ -235,9 +235,13 @@ pub fn spawn_and_wait_ready(
         });
     }
     if let Some(stderr) = child.stderr.take() {
+        let app = app.clone();
         std::thread::spawn(move || {
             for line in BufReader::new(stderr).lines().map_while(Result::ok) {
                 eprintln!("[DSH-SHELL] dsh(stderr): {line}");
+                // 崩溃归因：宿主致命诊断里的 `last route:` 行指名了当时在服务的插件。
+                // 只有命中的那一行会被记录，其余诊断行一律忽略。
+                crate::dsh_crash_attribution::observe_line(&app, &line);
             }
         });
     }

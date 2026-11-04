@@ -87,6 +87,10 @@ fn restart_host(app: &tauri::AppHandle) -> Result<u32, String> {
                 if let Some(state) = app.try_state::<DshProcess>() {
                     state.replace(child);
                 }
+                // 新宿主已就绪：旧归因只对已死的那个宿主成立，留着会误导下一次故障排查
+                if let Some(attribution) = app.try_state::<crate::dsh_crash_attribution::DshCrashAttribution>() {
+                    attribution.clear();
+                }
                 crate::dsh_ready::mark_ready();
                 return Ok(attempt);
             }
@@ -113,17 +117,40 @@ fn show_restarting(app: &tauri::AppHandle, attempt: u32) {
 
 /// 自动重试耗尽：停在错误页，靠窗口栏「⋯」菜单里的「视图 → 重新启动 Agent 内核」恢复。
 fn show_manual_restart(app: &tauri::AppHandle, reason: &str) {
+    let suspect = app
+        .try_state::<crate::dsh_crash_attribution::DshCrashAttribution>()
+        .and_then(|state| state.current());
+    let detail = manual_restart_detail(reason, suspect.as_ref());
     if let Some(window) = app.get_webview_window("main") {
         // 错误页走壳协议（`worldsea://…/shell-error`）而非 data: URL：
         // 后者不在 Tauri 的 is_local_url 白名单，页面拿不到 IPC 与窗口栏，
         // 于是「⋯」菜单根本不存在（真机走查实测）。协议页才会被注入窗口栏。
-        crate::dsh_error::show_error(
-            &window,
-            "Agent 内核已停止运行",
-            &format!("自动重启 {MAX_RESTARTS} 次均失败，已停手以免反复崩溃。\n最后一次错误：{reason}\n\n（日志见应用日志与 DSH_HOME 下的 startup 诊断报告。）"),
-        );
+        crate::dsh_error::show_error(&window, "Agent 内核已停止运行", &detail);
     }
     crate::workspace_window::request_space_switch(app, "space");
+}
+
+/// 停手态错误页的正文。
+///
+/// 有线索就把「崩溃时正在服务哪个插件」写出来——用户据此判断该停谁；没有线索
+/// （崩在启动期或后台任务）就保持原文案，**绝不臆造一个插件名**。
+///
+/// 措辞刻意用「崩溃时正在服务」而非「疑似元凶」：`last route` 只说明崩溃那一刻
+/// 谁在服务，不主张因果（实测过插件自行抛错、而该行记着无关的官方插件的情形）。
+/// @param reason - 最后一次重启失败的原因。
+/// @param suspect - 崩溃时的服务线索；`None` 表示宿主没留下可指名的证据。
+/// @returns 错误页正文（多行，由 `<pre>` 渲染）。
+pub(crate) fn manual_restart_detail(reason: &str, suspect: Option<&crate::dsh_crash_attribution::Suspect>) -> String {
+    let Some(suspect) = suspect else {
+        return format!("自动重启 {MAX_RESTARTS} 次均失败，已停手以免反复崩溃。\n最后一次错误：{reason}\n\n（日志见应用日志与 DSH_HOME 下的 startup 诊断报告。）")
+    };
+    format!(
+        "自动重启 {MAX_RESTARTS} 次均失败，已停手以免反复崩溃。\n最后一次错误：{reason}\n\n崩溃时正在服务的插件：{name}\n请求：{method} {url}（{route}）\n\n若确认问题由它引起，可从窗口栏「⋯」菜单选择「视图 → 停用疑似问题插件后重启」。\n（该线索只说明崩溃那一刻谁在服务，不一定是崩溃原因。）",
+        name = suspect.plugin,
+        method = suspect.method,
+        url = suspect.url,
+        route = suspect.route,
+    )
 }
 
 /// 系统通知 + 停止守护（正常退出与重试耗尽共用）。

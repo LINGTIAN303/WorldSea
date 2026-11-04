@@ -37,6 +37,10 @@ mod system;
 mod dsh_shell;
 /// 宿主崩溃自愈的重启链（从 `dsh_shell` 拆出，守 400 行红线）。
 mod dsh_restart;
+/// 崩溃归因：从宿主 stderr 认出「疑似问题插件」（消费宿主 `last route:` 行）。
+mod dsh_crash_attribution;
+/// 外部插件的停用（经宿主 pluginManager Remote；只动外部插件，按家族整组停）。
+mod dsh_plugin_control;
 /// 页面导航与就绪等待（从 `dsh_bridge` 拆出，守 400 行红线）。
 mod dsh_nav;
 
@@ -150,6 +154,8 @@ pub fn run() {
         ))
         // 托盘动态状态（前端命令回写）
         .manage(Mutex::new(tray::TrayState::default()))
+        // 崩溃归因（宿主 stderr 的 `last route:` 行 → 疑似问题插件；错误页消费）
+        .manage(dsh_crash_attribution::DshCrashAttribution::default())
         // Channel 投递全序修复——Tauri 默认对 ≥8KB 的 JSON 走异步 fetch，
         // 与 <8KB 的同步 eval 相混时不保序（真机取证：长会话快照被流式小帧超车 → 前端冻结）。
         // 反证开关 WORLDSEA_NO_CHANNEL_ORDER_FIX=1 → 交回默认双路径（确定性复现应再红）。

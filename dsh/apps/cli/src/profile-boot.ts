@@ -310,10 +310,16 @@ export async function runProfile(options: RunProfileOptions): Promise<{ ctx: Con
       await app.current?.fiber.dispose()
     }, () => {
       // The webserver outlives the failing request, so its last dispatch names
-      // the namespace that was being served when the process died. Absent when
-      // no webserver row is mounted (headless surfaces).
+      // the plugin that was being served when the process died. Absent when no
+      // webserver row is mounted (headless surfaces).
       const live = app.current?.get('webServer')?.lastActivity()
-      return live === undefined ? undefined : `${live.method} ${live.url} → ${live.kind} route ${live.path || '(fallback)'}`
+      if (live === undefined) return undefined
+      const route = `${live.kind} route ${live.path || '(fallback)'}`
+      // The plugin name is what a supervisor needs to disable the offender; the
+      // route alone only says which path prefix was live.
+      return live.plugin === undefined
+        ? `${live.method} ${live.url} → ${route}`
+        : `${live.method} ${live.url} → ${route} → plugin ${live.plugin}`
     })
 
     const rootConfig = join(composed.profile.dir, PROFILE_ROOT_FILENAME)

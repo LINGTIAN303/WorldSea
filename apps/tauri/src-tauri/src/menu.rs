@@ -18,6 +18,9 @@ const ID_FULLSCREEN: &str = "worldsea.fullscreen";
 const ID_SETTINGS: &str = "worldsea.settings";
 /// 一键修复工作区权限（与页面横幅同一命令；点击即执行，结果走系统通知）。
 const ID_FIX_WORKSPACE: &str = "worldsea.fix-workspace";
+/// 停用疑似问题插件后重启：崩溃归因指名了外部插件时才有意义。
+/// 与「重新启动 Agent 内核」并列——那是硬重启（问题插件还在），这是止血（先停掉再重启）。
+const ID_DISABLE_SUSPECT: &str = "worldsea.disable-suspect";
 /// 通知自检——系统通知端到端验证（两窗 ACL 均放行 cmd_notify 但长期零生产者；
 /// 菜单给一个随时可触发的验证口，生产者〔Agent 长任务提醒〕后续经事件通道接入）。
 const ID_NOTIFY_TEST: &str = "worldsea.notify-test";
@@ -53,10 +56,32 @@ pub fn cmd_shell_popup_menu(
     x: f64,
     y: f64,
 ) -> Result<(), String> {
+    refresh_suspect_item(&app);
     let menu = &app.state::<PopupMenu>().0;
     window
         .popup_menu_at(menu, tauri::LogicalPosition::new(x, y))
         .map_err(|e| format!("弹出菜单失败：{e}"))
+}
+
+/// 弹出前按当前崩溃归因刷新「停用疑似问题插件后重启」一项。
+///
+/// 菜单是启动时一次性构建的，而归因只在崩溃后才出现；不刷新的话这一项要么一直灰着
+/// （明明有归因却点不了），要么一直亮着（没有归因时点了没反应）。文案同时带出插件名，
+/// 用户不用回想错误页写的是谁。
+fn refresh_suspect_item(app: &AppHandle) {
+    let Some(menu) = app.try_state::<PopupMenu>() else { return };
+    let Some(item) = menu.0.get(ID_DISABLE_SUSPECT) else { return };
+    let Some(item) = item.as_menuitem() else { return };
+    let suspect = app
+        .try_state::<crate::dsh_crash_attribution::DshCrashAttribution>()
+        .and_then(|state| state.current());
+    let (label, enabled) = match &suspect {
+        Some(suspect) => (format!("停用「{}」后重启（崩溃时它在服务）", suspect.plugin), true),
+        None => ("停用疑似问题插件后重启（当前无崩溃线索）".to_string(), false),
+    };
+    // 刷新失败不阻断菜单弹出：文案旧一点也比重不出菜单好
+    let _ = item.set_text(label);
+    let _ = item.set_enabled(enabled);
 }
 
 fn build(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
@@ -83,6 +108,8 @@ fn build(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
     let view = SubmenuBuilder::new(app, "视图")
         .item(&MenuItemBuilder::with_id(ID_RELOAD, "重新加载").build(app)?)
         .item(&MenuItemBuilder::with_id(ID_RESTART_AGENT, "重新启动 Agent 内核").build(app)?)
+        // 文案在 mount 时可能是空的（尚无归因），弹出前由 refresh_suspect_item 刷新
+        .item(&MenuItemBuilder::with_id(ID_DISABLE_SUSPECT, "停用疑似问题插件后重启").enabled(false).build(app)?)
         .separator()
         .item(&MenuItemBuilder::with_id(ID_ZOOM_IN, "放大").build(app)?)
         .item(&MenuItemBuilder::with_id(ID_ZOOM_OUT, "缩小").build(app)?)
@@ -119,6 +146,10 @@ fn handle(app: &AppHandle, id: &str) {
             // 用户显式发起，故不占用自动重试配额。
             eprintln!("[DSH-SHELL] 菜单：重新启动 Agent 内核");
             crate::dsh_restart::request_manual_restart(app);
+        }
+        ID_DISABLE_SUSPECT => {
+            // 止血动作：先停掉疑似插件，再重启。用户显式发起，不占自动重试配额。
+            crate::dsh_plugin_control::disable_suspect_and_restart(app);
         }
         ID_ZOOM_IN | ID_ZOOM_OUT | ID_ZOOM_RESET => {
             let label = window.label().to_string();

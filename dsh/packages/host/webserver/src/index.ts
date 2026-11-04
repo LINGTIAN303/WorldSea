@@ -47,6 +47,13 @@ export type WebRouteKind = 'exact' | 'prefix'
 export interface WebRouteActivity {
   /** Registration path that matched, so a crash report can name the plugin's namespace. */
   readonly path: string
+  /**
+   * Plugin that registered the matched route, read from the registering
+   * fiber's name at registration time. A supervisor names this instead of
+   * guessing which plugin owns the path prefix. Absent for the fallback seat
+   * and for routes registered outside a plugin fiber.
+   */
+  readonly plugin?: string
   /** Match kind of the entry that answered. */
   readonly kind: WebRouteKind
   /** Request method and pathname of the last dispatch. */
@@ -64,6 +71,25 @@ export interface WebRoute {
   path: string
   /** Owns the full response lifecycle (may hold the response open, e.g. SSE). */
   handler: (req: IncomingMessage, res: ServerResponse) => void | Promise<void>
+}
+
+/** One route table row: the registration plus who registered it. */
+interface WebRouteEntry {
+  readonly route: WebRoute
+  /** Registering plugin's fiber name; absent when registered outside a plugin. */
+  readonly plugin?: string
+}
+
+/**
+ * Name of the plugin whose fiber is running, inherited from the nearest named
+ * ancestor.
+ * @param ctx - the registering context, rebound to the caller by cordis.
+ * @returns the plugin name, or undefined when the root fiber is the registrant
+ * (no plugin owns the route, so naming it would mislead a crash report).
+ */
+function callerPluginName(ctx: Context): string | undefined {
+  const name = ctx.fiber?.name
+  return name === undefined || name === '' || name === 'root' ? undefined : name
 }
 
 /** One exact-path HTTP upgrade registration. */
@@ -319,8 +345,8 @@ export class WebServer extends Service {
     compressionThresholdBytes: z.natural().default(DEFAULT_COMPRESSION_THRESHOLD_BYTES),
   })
 
-  private readonly exact = new Map<string, WebRoute>()
-  private readonly prefixes = new Map<string, WebRoute>()
+  private readonly exact = new Map<string, WebRouteEntry>()
+  private readonly prefixes = new Map<string, WebRouteEntry>()
   private readonly upgrades = new Map<string, WebUpgradeRoute>()
   private readonly upgradedSockets = new Set<Duplex>()
   /**
@@ -399,7 +425,12 @@ export class WebServer extends Service {
     if (table.has(route.path)) {
       throw new Error(`webserver: duplicate ${route.kind} route "${route.path}"`)
     }
-    table.set(route.path, route)
+    // Read the registering fiber's name here, while `this.ctx` still resolves to
+    // the caller (cordis rebinds it through the caller's shadow context). The
+    // name is what a crash report needs; matching it to a `moduleName` happens
+    // in the reader, which owns the profile inventory.
+    const plugin = callerPluginName(this.ctx)
+    table.set(route.path, plugin === undefined ? { route } : { route, plugin })
     return () => { table.delete(route.path) }
   }
 
@@ -586,18 +617,19 @@ export class WebServer extends Service {
     /* v8 ignore next -- `?? '/'` arm: node:http always sets url on server
     requests; the field is only optional on the client-side IncomingMessage type */
     const rawPath = new URL(req.url ?? '/', 'http://x').pathname
-    const route = this.match(rawPath)
+    const matched = this.match(rawPath)
     // Recorded before the handler runs: a handler that throws leaves the
     // route as the only surviving evidence of which plugin was live.
     this.activity = {
-      path: route?.path ?? '',
-      kind: route?.kind ?? 'exact',
+      path: matched?.route.path ?? '',
+      ...matched?.plugin === undefined ? {} : { plugin: matched.plugin },
+      kind: matched?.route.kind ?? 'exact',
       method: req.method ?? '',
       url: rawPath,
       at: ++this.activitySeq,
     }
-    if (route !== undefined) {
-      await route.handler(req, res)
+    if (matched !== undefined) {
+      await matched.route.handler(req, res)
       return
     }
     const fallback = this.fallback
@@ -630,13 +662,13 @@ export class WebServer extends Service {
   }
 
   /** Longest-prefix-wins over the prefix table after an exact-table miss. */
-  private match(pathname: string): WebRoute | undefined {
+  private match(pathname: string): WebRouteEntry | undefined {
     const exact = this.exact.get(pathname)
     if (exact !== undefined) return exact
-    let best: WebRoute | undefined
-    for (const [prefix, route] of this.prefixes) {
+    let best: WebRouteEntry | undefined
+    for (const [prefix, entry] of this.prefixes) {
       if (pathname !== prefix && !pathname.startsWith(`${prefix}/`)) continue
-      if (best === undefined || prefix.length > best.path.length) best = route
+      if (best === undefined || prefix.length > best.route.path.length) best = entry
     }
     return best
   }

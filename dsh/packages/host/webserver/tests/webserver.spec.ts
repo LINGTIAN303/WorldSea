@@ -16,6 +16,7 @@ import { connect, createServer as createTcpServer, type AddressInfo } from 'node
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import type { Duplex } from 'node:stream'
+import type { IncomingMessage, ServerResponse } from 'node:http'
 import { pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context, FiberState } from '@deepseek-ai/cordis'
@@ -89,6 +90,7 @@ async function loadComposition(
   gzip = false,
   host = '127.0.0.1',
   tls?: Partial<TlsConfig> | null,
+  extra?: { readonly rows: readonly string[]; readonly modules: ReadonlyMap<string, unknown> },
 ): Promise<Context> {
   const root = await mkdtemp(join(tmpdir(), 'dsh-webserver-loader-'))
   const configPath = join(root, 'cordis.yml')
@@ -113,6 +115,7 @@ async function loadComposition(
         '    compressionThresholdBytes: 16',
       ]
       : []),
+    ...extra?.rows ?? [],
     '',
   ].join('\n'))
 
@@ -123,6 +126,7 @@ async function loadComposition(
   context.loader.builtins.include = Include
   const modules = new Map<string, unknown>([
     ['@deepseek-ai/dsh-host-webserver', HttpServer],
+    ...extra?.modules ?? [],
   ])
   context.loader.internal = {
     version: 'v2',
@@ -814,5 +818,57 @@ describe('real Loader composition', () => {
     const missing = server.lastActivity()
     expect(missing?.path).toBe('')
     expect(missing?.url).toBe('/nowhere')
+  })
+
+  it('names the plugin that registered the live route, so a supervisor can disable it', { timeout: 60_000 }, async () => {
+    // The route path alone cannot identify the offender when a plugin's prefix
+    // and its package name differ. The registering fiber's name is read at
+    // registration time, while cordis still rebinds `ctx` to the caller, so the
+    // recorded name is the plugin's and not the webserver's.
+    const loaded = await loadComposition(0, false, '127.0.0.1', undefined, {
+      rows: ["- name: 'probe-plugin'"],
+      modules: new Map<string, unknown>([
+        ['probe-plugin', {
+          name: 'probe-plugin',
+          inject: ['webServer'],
+          apply: (ctx: Context) => {
+            ctx.effect(() => ctx.webServer.register({
+              kind: 'prefix',
+              path: '/probe-plugin/api',
+              handler: (_req: IncomingMessage, res: ServerResponse) => {
+                res.writeHead(200, { 'content-type': 'text/plain' })
+                res.end('plugin')
+              },
+            }))
+          },
+        }],
+      ]),
+    })
+    const server = loaded.webServer
+    const answered = await fetch(`http://127.0.0.1:${String(server.port)}/probe-plugin/api/deep`)
+    expect(answered.status).toBe(200)
+    const live = server.lastActivity()
+    expect(live?.plugin).toBe('probe-plugin')
+    expect(live?.path).toBe('/probe-plugin/api')
+    expect(live?.kind).toBe('prefix')
+    // The requested path stays separate from the registration path, so a reader
+    // can report both the namespace and the resource that was being served.
+    expect(live?.url).toBe('/probe-plugin/api/deep')
+  })
+
+  it('omits the plugin name for a route registered outside any plugin', { timeout: 60_000 }, async () => {
+    // Root-registered routes have no owning plugin; naming the root fiber would
+    // mislead a supervisor into offering to disable something that is not one.
+    const loaded = await loadComposition()
+    const server = loaded.webServer
+    server.register({
+      kind: 'exact',
+      path: '/no-owner',
+      handler: (_req, res) => { res.writeHead(200); res.end('ok') },
+    })
+    await fetch(`http://127.0.0.1:${String(server.port)}/no-owner`)
+    const live = server.lastActivity()
+    expect(live?.path).toBe('/no-owner')
+    expect(live?.plugin).toBeUndefined()
   })
 })
