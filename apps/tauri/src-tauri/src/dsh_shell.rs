@@ -8,9 +8,8 @@ use std::io::{BufRead, BufReader};
 use std::net::TcpListener;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::Ordering;
 use std::sync::mpsc;
-use std::sync::Mutex;
 use std::time::Duration;
 
 use tauri::{Manager, WebviewWindow};
@@ -18,45 +17,11 @@ use tauri::{Manager, WebviewWindow};
 use crate::dsh_error::show_error;
 use crate::dsh_workspace::{announce_workspace, resolve_workspace, strip_verbatim_prefix};
 
+/// 子进程句柄由重启模块拥有；本模块只用它（守护轮询 + 换句柄）。
+pub(crate) use crate::dsh_restart::DshProcess;
+
 /// 就绪等待上限（冷启动 + profile 首启都在这条路径上）
 const READY_TIMEOUT: Duration = Duration::from_secs(90);
-
-/// dsh 子进程句柄：退出时回收；供心跳守护查询存活态。
-pub struct DshProcess {
-    child: Mutex<Option<Child>>,
-    shutting_down: AtomicBool,
-}
-
-impl DshProcess {
-    pub fn new(child: Child) -> Self {
-        Self { child: Mutex::new(Some(child)), shutting_down: AtomicBool::new(false) }
-    }
-
-    /// 退出回收：置关停标志（心跳守护静默）→ kill + wait（防孤儿进程）。
-    pub fn kill(&self) {
-        self.shutting_down.store(true, Ordering::Relaxed);
-        if let Ok(mut guard) = self.child.lock() {
-            if let Some(mut child) = guard.take() {
-                let _ = child.kill();
-                let _ = child.wait();
-            }
-        }
-    }
-
-    /// 子进程是否已退出（守护线程轮询用；无句柄视为已退出）。
-    fn has_exited(&self) -> bool {
-        if self.shutting_down.load(Ordering::Relaxed) {
-            return false;
-        }
-        match self.child.lock() {
-            Ok(mut guard) => match guard.as_mut() {
-                Some(child) => !matches!(child.try_wait(), Ok(None)),
-                None => true,
-            },
-            Err(_) => false,
-        }
-    }
-}
 
 /// 取一个空闲的 loopback 端口（绑定 :0 后释放）——**仅用于 legacy TCP 模式**；
 /// 管道模式下该端口只是「声明 authority」（URL 打印与 cookie 绑定用），无人监听。
@@ -345,7 +310,13 @@ pub fn navigate_to_dsh(window: &WebviewWindow, url: &str) {
     }
 }
 
-/// 子进程心跳守护：运行中退出 → 导航到可辨认错误页（首期不加自动重启，保留证据）。
+
+/// 子进程心跳守护：运行中退出 → 判定退出码 → 交给重启链（见 `dsh_restart`）。
+///
+/// 三条判定（见 [`DshProcess::exit_status`]）：
+/// - 仍在运行 → 继续轮询
+/// - 退出码 0（正常收尾 / SIGTERM）→ **不重启**，维持原有错误页
+/// - 其他退出码 → 走重启链；重试耗尽后停在错误页等用户手动重来
 pub fn watch_child(app: tauri::AppHandle) {
     std::thread::spawn(move || loop {
         std::thread::sleep(Duration::from_millis(500));
@@ -354,33 +325,18 @@ pub fn watch_child(app: tauri::AppHandle) {
         if state.shutting_down.load(Ordering::Relaxed) {
             return;
         }
-        if state.has_exited() {
-            tracing::error!("dsh shell: dsh 子进程已退出（未随应用关停）");
-            eprintln!("[DSH-SHELL] dsh 子进程已退出（未随应用关停）");
-            // 附一条系统通知——窗口可能被收进托盘，错误页在屏幕上看不见（通知失败不影响主流程）
-            {
-                use tauri_plugin_notification::NotificationExt;
-                if let Err(e) = app
-                    .notification()
-                    .builder()
-                    .title("WorldSea")
-                    .body("Agent 内核（dsh）已退出，界面已停止更新。请重启应用恢复。")
-                    .show()
-                {
-                    eprintln!("[DSH-SHELL] 退出通知发送失败：{e}");
-                }
-            }
-            if let Some(window) = app.get_webview_window("main") {
-                show_error(
-                    &window,
-                    "dsh 已退出",
-                    "与 Agent 内核的连接已中断。请退出应用后重新启动以恢复。\n（详细日志见应用日志与 DSH_HOME 下的 startup 诊断报告。）",
-                );
-            }
-            // 错误页打在主窗（Agent 空间）——当前若停在工作台（主窗隐藏）则切过去让错误页可见
-            crate::workspace_window::request_space_switch(&app, "space");
+        let Some(status) = state.exit_status() else { continue };
+        // 正常收尾（退出码 0）不重启：那是用户或系统主动关停，重启只会惹麻烦
+        let clean = status.map(|s| s.success()).unwrap_or(false);
+        tracing::error!("dsh shell: dsh 子进程已退出（clean={clean}）");
+        eprintln!("[DSH-SHELL] dsh 子进程已退出（clean={clean}）");
+        if clean {
+            crate::dsh_restart::notify_and_stop(&app, "Agent 内核（dsh）已正常退出。");
+            return;
+        }
+        drop(state);
+        if crate::dsh_restart::recover(&app).is_err() {
             return;
         }
     });
 }
-

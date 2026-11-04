@@ -308,6 +308,12 @@ export async function runProfile(options: RunProfileOptions): Promise<{ ctx: Con
     process.on('SIGINT', () => { interrupt(130) })
     installFailLoud(NAME, process, async () => {
       await app.current?.fiber.dispose()
+    }, () => {
+      // The webserver outlives the failing request, so its last dispatch names
+      // the namespace that was being served when the process died. Absent when
+      // no webserver row is mounted (headless surfaces).
+      const live = app.current?.get('webServer')?.lastActivity()
+      return live === undefined ? undefined : `${live.method} ${live.url} → ${live.kind} route ${live.path || '(fallback)'}`
     })
 
     const rootConfig = join(composed.profile.dir, PROFILE_ROOT_FILENAME)

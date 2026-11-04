@@ -30,6 +30,14 @@ pub(crate) fn mark_failed() {
     let _ = STATE.compare_exchange(STATE_PENDING, STATE_FAILED, Ordering::SeqCst, Ordering::SeqCst);
 }
 
+/// 重启期回到 pending（**仅供重启链调用**）。
+///
+/// 这是状态机唯一允许回退的入口：宿主崩溃后壳要重新 spawn，期间 dsh 页面确实不可用，
+/// 产品域启动页应重新等待。只从 `READY` 回退——启动期的 pending / failed 语义不受影响。
+pub(crate) fn mark_pending() {
+    let _ = STATE.compare_exchange(STATE_READY, STATE_PENDING, Ordering::SeqCst, Ordering::SeqCst);
+}
+
 /// 当前就绪态（`cmd_dsh_ready_state` 与内部判定共用）。
 pub(crate) fn state() -> u8 {
     STATE.load(Ordering::SeqCst)

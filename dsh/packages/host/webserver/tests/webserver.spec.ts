@@ -766,4 +766,53 @@ describe('real Loader composition', () => {
     expect(fiber?.state).toBe(FiberState.FAILED)
     await expect(fiber?.await()).rejects.toThrow('EADDRINUSE')
   })
+
+  it('records the route that answered the latest dispatch, for crash evidence', { timeout: 60_000 }, async () => {
+    // A plugin route that throws leaves no other record of which namespace was
+    // live; the fatal handler runs after the failing call site is gone. The
+    // webserver keeps the last dispatch so a supervisor can name the plugin.
+    const loaded = await loadComposition()
+    const server = loaded.webServer
+    expect(server.lastActivity()).toBeUndefined()
+
+    server.register({
+      kind: 'exact',
+      path: '/probe',
+      handler: (_req, res) => {
+        res.writeHead(200, { 'content-type': 'text/plain' })
+        res.end('ok')
+      },
+    })
+    const before = await fetch(`http://127.0.0.1:${String(server.port)}/probe`)
+    expect(before.status).toBe(200)
+    const exact = server.lastActivity()
+    expect(exact?.path).toBe('/probe')
+    expect(exact?.kind).toBe('exact')
+    expect(exact?.url).toBe('/probe')
+    expect(exact?.method).toBe('GET')
+
+    // A prefix route reports its own registration path, not the requested one:
+    // that is what names the plugin namespace rather than the resource.
+    server.register({
+      kind: 'prefix',
+      path: '/ns',
+      handler: (_req, res) => {
+        res.writeHead(200, { 'content-type': 'text/plain' })
+        res.end('ns')
+      },
+    })
+    const prefixed = await fetch(`http://127.0.0.1:${String(server.port)}/ns/deep/path`)
+    expect(prefixed.status).toBe(200)
+    const prefix = server.lastActivity()
+    expect(prefix?.path).toBe('/ns')
+    expect(prefix?.kind).toBe('prefix')
+    expect(prefix?.url).toBe('/ns/deep/path')
+
+    // An unmatched request keeps the empty path so a reader can tell the
+    // fallback seat answered instead of inventing a route.
+    await fetch(`http://127.0.0.1:${String(server.port)}/nowhere`)
+    const missing = server.lastActivity()
+    expect(missing?.path).toBe('')
+    expect(missing?.url).toBe('/nowhere')
+  })
 })

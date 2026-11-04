@@ -43,6 +43,20 @@ declare module '@deepseek-ai/cordis' {
 /** Route match kind: 'exact' matches the pathname verbatim; 'prefix' p matches p and p/<anything>. */
 export type WebRouteKind = 'exact' | 'prefix'
 
+/** The route a request just reached, kept as crash evidence rather than a live log. */
+export interface WebRouteActivity {
+  /** Registration path that matched, so a crash report can name the plugin's namespace. */
+  readonly path: string
+  /** Match kind of the entry that answered. */
+  readonly kind: WebRouteKind
+  /** Request method and pathname of the last dispatch. */
+  readonly method: string
+  /** Pathname as requested, before route matching. */
+  readonly url: string
+  /** Monotonic dispatch counter; a repeated route still advances it. */
+  readonly at: number
+}
+
 /** One named route registration. */
 export interface WebRoute {
   kind: WebRouteKind
@@ -310,6 +324,14 @@ export class WebServer extends Service {
   private readonly upgrades = new Map<string, WebUpgradeRoute>()
   private readonly upgradedSockets = new Set<Duplex>()
   /**
+   * Last dispatched request and the route that answered it. Kept only so a
+   * crash handler can report which plugin namespace was live when the process
+   * died: a plugin route that throws leaves no other record, and the failing
+   * call site is gone by the time the fatal handler runs.
+   */
+  private activity: WebRouteActivity | undefined
+  private activitySeq = 0
+  /**
    * Raw connections of a TLS listener, held until they close. A TLS connection
    * joins closeAllConnections()'s table only once its handshake completes, so a
    * socket still handshaking — or one whose peer never sends a ClientHello —
@@ -565,6 +587,15 @@ export class WebServer extends Service {
     requests; the field is only optional on the client-side IncomingMessage type */
     const rawPath = new URL(req.url ?? '/', 'http://x').pathname
     const route = this.match(rawPath)
+    // Recorded before the handler runs: a handler that throws leaves the
+    // route as the only surviving evidence of which plugin was live.
+    this.activity = {
+      path: route?.path ?? '',
+      kind: route?.kind ?? 'exact',
+      method: req.method ?? '',
+      url: rawPath,
+      at: ++this.activitySeq,
+    }
     if (route !== undefined) {
       await route.handler(req, res)
       return
@@ -576,6 +607,14 @@ export class WebServer extends Service {
       return
     }
     await fallback(req, res)
+  }
+
+  /**
+   * The route that answered the most recent dispatch.
+   * @returns the last matched route and request, or undefined before any request.
+   */
+  lastActivity(): WebRouteActivity | undefined {
+    return this.activity
   }
 
   /**

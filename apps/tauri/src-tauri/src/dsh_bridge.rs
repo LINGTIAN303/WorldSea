@@ -4,7 +4,7 @@
 // - 转发 `/api` 按 Electron 桌面版同构：删掉页面的 origin/cookie/sec-fetch-*，补壳侧凭据（带 303 换来的 `dsh-auth-*` cookie）；
 // - 〔自定义协议落形〕wry 在 Windows 走 workaround：`worldsea://localhost/…` ⇄ `http://worldsea.localhost/…`（authority 必须 localhost）。
 
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
 use tauri::{Manager, Runtime, UriSchemeContext, UriSchemeResponder, WebviewWindow};
@@ -17,8 +17,8 @@ use crate::dsh_relay::WsRelay;
 /// 页面导航目标（Windows workaround 形态；macOS/Linux 对应 `worldsea://localhost/`）。
 pub const APP_URL: &str = "http://worldsea.localhost/";
 
-/// 桥状态：转发开关（含传输面）+ 管道客户端（流桥命令使用）+ legacy 的 WS 中转（保持回收语义）。
-pub struct DshBridge {
+/// 一次装配的桥状态：转发开关（含传输面）+ 管道客户端（流桥命令使用）+ legacy 的 WS 中转（保持回收语义）。
+pub(crate) struct BridgeInner {
     cfg: ProxyCfg,
     summary: String,
     pipe: Option<Arc<PipeClient>>,
@@ -26,30 +26,98 @@ pub struct DshBridge {
     _relay: Option<WsRelay>,
 }
 
+impl BridgeInner {
+    /// 桥已卸下时的占位装配：转发一律失败，调用方据此回退直连。
+    fn unavailable() -> Self {
+        Self {
+            cfg: ProxyCfg {
+                upstream: Upstream::Tcp { port: 0, cookie: String::new(), client: reqwest::blocking::Client::new() },
+                transport: TransportInject::None,
+                inject_shell_bridge: false,
+                titlebar: false,
+                diag: false,
+                capabilities: false,
+                deny_path: None,
+                open_paths: false,
+                workspace_notice: None,
+                dsh_home: None,
+                route_prefixes: Vec::new(),
+            },
+            summary: "桥未装配".to_string(),
+            pipe: None,
+            _relay: None,
+        }
+    }
+}
+
+/// 桥状态外壳：**可热替换**。
+///
+/// 宿主崩溃重启后必须换成新的 `BridgeInner`（新管道路径、新 cookie、新 token），
+/// 但 Tauri 的 `app.manage` 对同一类型二次注册会 panic（"state for type ... is
+/// already being managed"）。故托管给 Tauri 的是这个外壳，重启只替换里面的
+/// `RwLock` 内容。读写比极高（每请求一次读、重启一次写），锁开销可忽略。
+pub struct DshBridge {
+    inner: RwLock<Option<BridgeInner>>,
+}
+
 impl DshBridge {
-    /// 诊断摘要（管道模式报路径；legacy 报宿主端口与中继端口；token 只留在壳内）。
-    pub fn describe(&self) -> String {
-        self.summary.clone()
+    /// 用一次装配结果造桥。
+    pub fn new(inner: BridgeInner) -> Self {
+        Self { inner: RwLock::new(Some(inner)) }
     }
 
-    /// 管道客户端（流桥命令用）；非管道模式为 None。
+    /// 重启时替换装配结果（旧值 drop 即回收 WS 中继）。
+    pub fn replace(&self, inner: BridgeInner) {
+        if let Ok(mut guard) = self.inner.write() {
+            *guard = Some(inner);
+        }
+    }
+
+    /// 取出内部装配（供 `attach` 在已有外壳时热替换用）。
+    fn into_inner(self) -> BridgeInner {
+        match self.inner.into_inner() {
+            Ok(Some(inner)) => inner,
+            // 桥已被卸下：交一个不可用的空装配，调用方随即回退直连
+            _ => BridgeInner::unavailable(),
+        }
+    }
+
+    /// 诊断摘要（管道模式报路径；legacy 报宿主端口与中继端口；token 只留在壳内）。
+    pub fn describe(&self) -> String {
+        self.with(|b| b.summary.clone()).unwrap_or_else(|| "桥未装配".to_string())
+    }
+
+    /// 管道客户端（流桥命令用）；非管道模式或桥已卸下时为 None。
     pub fn pipe(&self) -> Option<Arc<PipeClient>> {
-        self.pipe.clone()
+        self.with(|b| b.pipe.clone()).flatten()
     }
 
     /// 壳自身经管道调 dsh 的 API（与页面同链路：自动带 cookie、Host 由管道客户端合成）。
     /// 用途 = 「壳代表自己」的调用（如主题真源同步）；legacy TCP 模式返回错误，调用方降级即可。
     pub fn call_api(&self, method: &str, path: &str, body: Option<Vec<u8>>) -> Result<(u16, String), String> {
-        let Upstream::Pipe { client, cookie } = &self.cfg.upstream else {
-            return Err("legacy（WORLDSEA_TCP_HOST=1）模式：壳内 API 调用暂不支持".to_string());
-        };
-        let headers = vec![
-            ("cookie".to_string(), cookie.clone()),
-            ("content-type".to_string(), "application/json".to_string()),
-            ("accept-encoding".to_string(), "identity".to_string()),
-        ];
-        let response = client.request(method, path, &headers, body.as_deref())?;
-        Ok((response.status, String::from_utf8_lossy(&response.body).to_string()))
+        self.with(|inner| {
+            let Upstream::Pipe { client, cookie } = &inner.cfg.upstream else {
+                return Err("legacy（WORLDSEA_TCP_HOST=1）模式：壳内 API 调用暂不支持".to_string());
+            };
+            let headers = vec![
+                ("cookie".to_string(), cookie.clone()),
+                ("content-type".to_string(), "application/json".to_string()),
+                ("accept-encoding".to_string(), "identity".to_string()),
+            ];
+            let response = client.request(method, path, &headers, body.as_deref())?;
+            Ok((response.status, String::from_utf8_lossy(&response.body).to_string()))
+        })
+        .unwrap_or_else(|| Err("桥未装配".to_string()))
+    }
+
+    /// 转发配置（协议层代理用）。
+    pub fn with_cfg<T>(&self, f: impl FnOnce(&ProxyCfg) -> T) -> Option<T> {
+        self.with(|b| f(&b.cfg))
+    }
+
+    /// 读当前装配并应用 `f`；锁中毒或桥已卸下时返回 None（调用方按「桥不可用」降级，不 panic）。
+    fn with<T>(&self, f: impl FnOnce(&BridgeInner) -> T) -> Option<T> {
+        self.inner.read().ok().and_then(|guard| guard.as_ref().map(f))
     }
 }
 
@@ -120,7 +188,7 @@ pub fn prepare(
                 route_prefixes: client.route_prefixes(),
             };
             let summary = format!("mode=pipe pipe={path} 页面={APP_URL}（零 TCP；token 只留在壳内）");
-            Ok(DshBridge { cfg, summary, pipe: Some(client), _relay: None })
+            Ok(DshBridge { inner: RwLock::new(Some(BridgeInner { cfg, summary, pipe: Some(client), _relay: None })) })
         }
         None => {
             let host_port = parse_port(ready_url)?;
@@ -155,7 +223,7 @@ pub fn prepare(
                 "mode=tcp host=127.0.0.1:{host_port} relay_port={} 页面={APP_URL}（token 只留在壳内）",
                 relay.port()
             );
-            Ok(DshBridge { cfg, summary, pipe: None, _relay: Some(relay) })
+            Ok(DshBridge { inner: RwLock::new(Some(BridgeInner { cfg, summary, pipe: None, _relay: Some(relay) })) })
         }
     }
 }
@@ -249,11 +317,19 @@ pub fn attach(
         match prepare(ready_url, pipe_path, workspace_notice, dsh_home) {
             Ok(bridge) => {
                 println!("[DSH-SHELL] bridge ready: {}", bridge.describe());
-                app.manage(bridge);
+                // 首次装配托管新外壳；重启时已有外壳，只替换内部状态
+                // （`app.manage` 对同类型二次注册会 panic）。
+                let inner = bridge.into_inner();
+                if let Some(existing) = app.try_state::<DshBridge>() {
+                    existing.replace(inner);
+                    println!("[DSH-SHELL] bridge: 已热替换装配（重启路径）");
+                } else {
+                    app.manage(DshBridge::new(inner));
+                }
                 // 主题真源与 dsh 对齐（首次反向读做种子；已有真源则以真源为准写回 dsh）
                 crate::app_prefs_dsh::init_after_bridge(app);
                 if let Some(window) = window {
-                    navigate_to_app(window);
+                    crate::dsh_nav::navigate_to_app(window);
                 }
                 true
             }
@@ -269,87 +345,8 @@ pub fn attach(
         }
         return;
     }
-    schedule_reload_if_requested(window);
-    schedule_eval_if_requested(window);
-}
-
-/// 诊断钩子：`WORLDSEA_EVAL_AFTER_READY=<js>` → 页面就绪后注入执行一次（排查用；结果建议经壳桥
-/// `__WORLDSEA_SHELL__.report(...)` 落到壳日志）。与 `WORLDSEA_RELOAD_AFTER` 共用「等页面就绪」。
-fn schedule_eval_if_requested(window: Option<&WebviewWindow>) {
-    let Ok(script) = std::env::var("WORLDSEA_EVAL_AFTER_READY") else { return };
-    if script.trim().is_empty() {
-        return;
-    }
-    let Some(window) = window.cloned() else { return };
-    println!("[DSH-SHELL] WORLDSEA_EVAL_AFTER_READY：页面就绪后注入诊断脚本（{} 字节）", script.len());
-    std::thread::spawn(move || {
-        if !wait_for_app_page(&window) {
-            return;
-        }
-        std::thread::sleep(Duration::from_millis(500));
-        if let Err(e) = window.eval(script) {
-            eprintln!("[DSH-SHELL] 诊断脚本注入失败：{e}");
-        }
-    });
-}
-
-/// 等页面真正落到壳协议页，返回是否就绪。
-/// setup 期间主线程忙、`navigate` 是排队的——任何「页面就绪后」的动作都必须先过这道闸。
-fn wait_for_app_page(window: &WebviewWindow) -> bool {
-    let deadline = std::time::Instant::now() + Duration::from_secs(180);
-    loop {
-        std::thread::sleep(Duration::from_millis(500));
-        if let Ok(url) = window.url() {
-            if url.as_str().starts_with(APP_URL) {
-                // 顺带留档页面真实 URL（验收项：token 不出现在 WebView 可见 URL）
-                println!("[DSH-SHELL] 页面就绪：{}", url.as_str());
-                return true;
-            }
-        }
-        if std::time::Instant::now() > deadline {
-            eprintln!("[DSH-SHELL] 等待页面就绪超时（未到 {APP_URL}）");
-            return false;
-        }
-    }
-}
-
-/// 测试/核查钩子：`WORLDSEA_RELOAD_AFTER=<秒>` → 页面就绪后再等 <秒> 做一次 reload
-/// （验「刷新/二次导航稳定」：index 与注入重新取、WS 重连、无残留状态）。
-fn schedule_reload_if_requested(window: Option<&WebviewWindow>) {
-    let Ok(seconds) = std::env::var("WORLDSEA_RELOAD_AFTER").unwrap_or_default().parse::<u64>() else {
-        return;
-    };
-    let Some(window) = window.cloned() else { return };
-    println!("[DSH-SHELL] WORLDSEA_RELOAD_AFTER={seconds}s：等到页面就绪后再做一次二次导航（刷新稳定性核查）");
-    std::thread::spawn(move || {
-        if !wait_for_app_page(&window) {
-            return;
-        }
-        std::thread::sleep(Duration::from_secs(seconds));
-        println!("[DSH-SHELL] 触发二次导航（window.reload）");
-        if let Err(e) = window.reload() {
-            eprintln!("[DSH-SHELL] 二次导航失败：{e}");
-        }
-    });
-}
-
-/// 把窗口导航到壳协议页面（UI origin = `worldsea://localhost` / 其 Windows workaround 形态）。
-pub fn navigate_to_app(window: &WebviewWindow) {
-    // 启动页（splash，`apps/tauri/splash/` 构建产物）就绪淡出——先触发兜底页的淡出钩子
-    // `__wsSplash.ready()`（→ bootState='ready' → 600ms 追平旧版观感），再导航替换整页；
-    // 钩子不存在（错误页 / 旧兜底页）时静默跳过，代价仅多等 700ms。
-    let _ = window.eval(
-        "(function(){try{if(window.__wsSplash&&typeof window.__wsSplash.ready==='function'){window.__wsSplash.ready()}}catch(e){}})()",
-    );
-    std::thread::sleep(std::time::Duration::from_millis(700));
-    match APP_URL.parse::<tauri::Url>() {
-        Ok(parsed) => {
-            if let Err(e) = window.navigate(parsed) {
-                crate::dsh_error::show_error(window, "无法加载 dsh 界面", &format!("窗口导航失败：{e}"));
-            }
-        }
-        Err(e) => crate::dsh_error::show_error(window, "无法加载 dsh 界面", &format!("URL 解析失败：{e}")),
-    }
+    crate::dsh_nav::schedule_reload_if_requested(window);
+    crate::dsh_nav::schedule_eval_if_requested(window);
 }
 
 /// 协议处理器入口：转后台线程做阻塞转发（responder 可在任意线程应答）。
@@ -361,7 +358,10 @@ pub fn handle_request<R: Runtime>(
     let app = ctx.app_handle().clone();
     std::thread::spawn(move || {
         let response = match app.try_state::<DshBridge>() {
-            Some(bridge) => proxy(&bridge.cfg, &request),
+            Some(bridge) => match bridge.with_cfg(|cfg| proxy(cfg, &request)) {
+                Some(response) => response,
+                None => failure_response(503, true, "Agent 内核尚未就绪", "壳协议桥未装配完成，请稍后重试。"),
+            },
             None => failure_response(503, true, "Agent 内核尚未就绪", "壳协议桥未装配完成，请稍后重试。"),
         };
         responder.respond(response);

@@ -90,6 +90,13 @@ fn page_colors() -> (&'static str, &'static str, &'static str) {
     }
 }
 
+/// 页面色板 + 强调色（按钮描边用；跟随真源亮暗，不引入第三套硬编码）。
+fn page_colors_with_accent() -> (&'static str, &'static str, &'static str, &'static str) {
+    let (bg, fg, muted) = page_colors();
+    let accent = if dark_now() { "#7dd3fc" } else { "#0369a1" };
+    (bg, fg, muted, accent)
+}
+
 /// 壳自有 HTML（错误页 / 失败态）模板：两处调用点（协议层 `failure_response`、导航层 `show_error`）共用，
 /// 色板随真源取亮暗两套（此前是**第三套硬编码深色**，浅色主题下很扎眼）。
 pub(crate) fn error_page_html(title: &str, detail: &str) -> String {
@@ -99,6 +106,28 @@ pub(crate) fn error_page_html(title: &str, detail: &str) -> String {
 <body style=\"margin:0;padding:32px;font-family:'Segoe UI','Microsoft YaHei',system-ui;background:{bg};color:{fg}\">\
 <h1 style=\"font-size:18px;margin:0 0 12px\">{}</h1>\
 <pre style=\"white-space:pre-wrap;word-break:break-word;color:{muted};font-size:13px;line-height:1.6\">{}</pre>\
+</body></html>",
+        escape_html(title),
+        escape_html(detail)
+    )
+}
+
+/// 带「重新启动 Agent 内核」指引的错误页。
+///
+/// 用于自动重启耗尽后的停手态。**不放页面按钮**：错误页是 `data:` URL，
+/// 不在 Tauri 的 `is_local_url` 白名单内（`webview/mod.rs::is_local_url`），
+/// 页面拿不到 `__TAURI_INTERNALS__`，任何 invoke 都会失败。
+/// 真正的入口是原生菜单项「视图 → 重新启动 Agent 内核」（走 `on_menu_event`，不依赖 IPC）。
+pub(crate) fn error_page_html_with_restart(title: &str, detail: &str) -> String {
+    let (bg, fg, muted, accent) = page_colors_with_accent();
+    format!(
+        "<!doctype html><html lang=\"zh-CN\"><head><meta charset=\"utf-8\"><title>WorldSea</title></head>\
+<body style=\"margin:0;padding:32px;font-family:'Segoe UI','Microsoft YaHei',system-ui;background:{bg};color:{fg}\">\
+<h1 style=\"font-size:18px;margin:0 0 12px\">{}</h1>\
+<pre style=\"white-space:pre-wrap;word-break:break-word;color:{muted};font-size:13px;line-height:1.6\">{}</pre>\
+<div style=\"margin-top:20px;padding:12px 16px;border-left:3px solid {accent};color:{fg};font-size:13px;line-height:1.7\">\
+要重试，请打开窗口栏「⋯」菜单，选择 <strong>视图 → 重新启动 Agent 内核</strong>。\
+</div>\
 </body></html>",
         escape_html(title),
         escape_html(detail)

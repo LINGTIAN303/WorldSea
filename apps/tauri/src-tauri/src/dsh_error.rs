@@ -7,7 +7,7 @@ use tauri::WebviewWindow;
 /// 可辨认失败态：把窗口导航到内联错误页（不静默白屏）。
 pub fn show_error(window: &WebviewWindow, title: &str, detail: &str) {
     let html = crate::app_prefs::error_page_html(title, detail);
-    let url = format!("data:text/html;charset=utf-8,{}", percent_encode(&html));
+    let url = format!("data:text/html;charset=utf-8,{}", percent_encode_pub(&html));
     match url.parse::<tauri::Url>() {
         Ok(parsed) => {
             if let Err(e) = window.navigate(parsed) {
@@ -19,7 +19,7 @@ pub fn show_error(window: &WebviewWindow, title: &str, detail: &str) {
 }
 
 /// data URL 的最小百分号编码（保留 URL 中无需转义的可见 ASCII）。
-fn percent_encode(s: &str) -> String {
+pub(crate) fn percent_encode_pub(s: &str) -> String {
     let mut out = String::with_capacity(s.len() * 2);
     for b in s.as_bytes() {
         match b {

@@ -35,6 +35,10 @@ mod system;
 
 // 壳接入：spawn dsh host + 就绪探测 + 主窗口导航到 dsh 界面 + 退出回收
 mod dsh_shell;
+/// 宿主崩溃自愈的重启链（从 `dsh_shell` 拆出，守 400 行红线）。
+mod dsh_restart;
+/// 页面导航与就绪等待（从 `dsh_bridge` 拆出，守 400 行红线）。
+mod dsh_nav;
 
 mod dsh_error;
 // dsh-home profile 首启装配（双产品域插件幂等合并进 web profile；生产实体在随包运行时）

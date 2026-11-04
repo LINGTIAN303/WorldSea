@@ -808,6 +808,15 @@ export interface FailLoudProcess {
   exit(code: number): void
 }
 
+/**
+ * Reports which route was live when the process died. The fatal handler runs
+ * after the failing call site is gone, so a plugin route that throws leaves no
+ * other record of its namespace; the composing application supplies this by
+ * reading the webserver's last dispatch.
+ * @returns the last dispatched route and request, or undefined when unknown.
+ */
+export type FailLoudActivity = () => string | undefined
+
 // Loader rc.5 derives and drops a rejected promise after a fiber fails. Keep
 // exact reasons already folded into the boot diagnostic visible through the
 // next process rejection checkpoint so the process guard can coalesce them.
@@ -879,12 +888,16 @@ export const FAIL_LOUD_RELEASE_TIMEOUT_MS = 2_000
  * @param release - optional teardown awaited before exit, used by a
  *   terminal-owning surface to restore the terminal. Its own failure is
  *   swallowed because the pending fatal exit already owns the outcome.
+ * @param activity - optional supplier of the route that was live at the crash,
+ *   appended to the diagnostic so a shell supervisor can name the plugin whose
+ *   route was being served instead of guessing from the error alone.
  * @returns the uninstaller that removes both handlers.
  */
 export function installFailLoud(
   binName: string,
   proc: FailLoudProcess = process,
   release?: () => Promise<void> | void,
+  activity?: FailLoudActivity,
 ): () => void {
   let exiting = false
   const report = (err: unknown, label: string): void => {
@@ -894,6 +907,12 @@ export function installFailLoud(
     if (exiting) return
     exiting = true
     proc.stderr.write(`${binName}: ${label}: ${inspect(err, { depth: 4, maxArrayLength: 50 })}\n`)
+    // Written as its own line so a reader can grep it without parsing the
+    // inspect dump above. A supplier that throws must not hide the real cause.
+    try {
+      const live = activity?.()
+      if (live !== undefined) proc.stderr.write(`${binName}: last route: ${live}\n`)
+    } catch { /* evidence only: never let it replace the failure being reported */ }
     if (release === undefined) {
       proc.exit(1)
       return

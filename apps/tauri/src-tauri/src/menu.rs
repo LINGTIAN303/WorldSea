@@ -8,6 +8,9 @@ use tauri::menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuild
 use tauri::{AppHandle, Manager};
 
 const ID_RELOAD: &str = "worldsea.reload";
+/// 宿主崩溃自愈的手动入口：自动重试耗尽后用户从菜单重来。
+/// 走原生菜单事件而非页面按钮——错误页是 `data:` URL，拿不到 `__TAURI_INTERNALS__`。
+const ID_RESTART_AGENT: &str = "worldsea.restart-agent";
 const ID_ZOOM_IN: &str = "worldsea.zoom-in";
 const ID_ZOOM_OUT: &str = "worldsea.zoom-out";
 const ID_ZOOM_RESET: &str = "worldsea.zoom-reset";
@@ -79,6 +82,7 @@ fn build(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
     // 与 `Ctrl+Shift+W`（`tauri-plugin-global-shortcut`，OS 层）；编辑族用 muda 预定义项，标准键由 WebView2 自行处理。
     let view = SubmenuBuilder::new(app, "视图")
         .item(&MenuItemBuilder::with_id(ID_RELOAD, "重新加载").build(app)?)
+        .item(&MenuItemBuilder::with_id(ID_RESTART_AGENT, "重新启动 Agent 内核").build(app)?)
         .separator()
         .item(&MenuItemBuilder::with_id(ID_ZOOM_IN, "放大").build(app)?)
         .item(&MenuItemBuilder::with_id(ID_ZOOM_OUT, "缩小").build(app)?)
@@ -109,6 +113,12 @@ fn handle(app: &AppHandle, id: &str) {
             if let Err(e) = window.reload() {
                 eprintln!("[DSH-SHELL] 菜单：重新加载失败：{e}");
             }
+        }
+        ID_RESTART_AGENT => {
+            // 与页面按钮同一动作，但走原生事件：错误页（data: URL）无 IPC 可用。
+            // 用户显式发起，故不占用自动重试配额。
+            eprintln!("[DSH-SHELL] 菜单：重新启动 Agent 内核");
+            crate::dsh_restart::request_manual_restart(app);
         }
         ID_ZOOM_IN | ID_ZOOM_OUT | ID_ZOOM_RESET => {
             let label = window.label().to_string();
