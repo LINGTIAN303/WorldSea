@@ -24,6 +24,7 @@ const REPO = path.resolve(HERE, '..')
 const CHECKS = [
   { name: '架构检查（模块登记/文件规模/Rust 依赖/TS 环/TS 边）', script: 'scripts/architecture/check.mjs' },
   { name: 'dsh fork 台账一致性', script: 'scripts/check-dsh-fork-ledger.mjs', needsGit: true },
+  { name: 'dsh 产物新鲜度与版本注入', script: 'scripts/check-dsh-artifacts.mjs' },
   { name: '样式一致性（裸色值/阴影/滤镜计数）', script: 'scripts/style-conformance/check.mjs' },
   { name: '文档相对链接与绝对路径', script: 'scripts/check-doc-links.mjs' },
 ]

@@ -26,6 +26,7 @@
     "style:check": "node scripts/style-conformance/check.mjs",
     "arch:context": "node scripts/architecture/context.mjs",
     "fork:check": "node scripts/check-dsh-fork-ledger.mjs",
+    "artifacts:check": "node scripts/check-dsh-artifacts.mjs",
     "build": "pnpm --filter @worldsea/tauri tauri:build",
     "tauri:dev": "pnpm --filter @worldsea/tauri tauri:dev",
     "tauri:build": "pnpm --filter @worldsea/tauri tauri:build",

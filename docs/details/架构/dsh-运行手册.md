@@ -83,6 +83,25 @@ DSH_HOME="D:/WorldSea/.独立项/b0-home" node apps/cli/lib/bin.js web --no-open
 
 > 排查「Rust 侧写不达宿主」的手动探针：`.workbuddy/c2b-manual-host.mjs`（起带正确管道路径的宿主并写探针文件）、`.workbuddy/c2b-pipe-probe.mjs`（Node 原生管道客户端）、`cargo test -- --ignored --nocapture probe_live_pipe_exchange`（Rust 客户端对活管道）。三者都在 `.workbuddy/`（gitignored）。
 
+### 账号登录的回调口（H1，2026-11-05，必读）
+
+DeepSeek 账号登录走 PKCE：Platform 授权完成后把**系统浏览器** 302 回 `<callbackOrigin>/oauth/callback?code=…&state=…`。上游只接受「loopback HTTP + 显式端口」的 callback origin（`deepseek-account-platform/src/protocol.ts` 的 `loginOrigin()`），而壳页面 origin 是 `http://worldsea.localhost`（无端口）→ **直接当回调基址会被拒，连 `auth_init` 都发不出去**。壳因此自起一个回调口：
+
+| 项 | 事实 |
+|---|---|
+| 落点 | `dsh_oauth.rs`：`TcpListener::bind("127.0.0.1:0")`，**常驻**（随桥装配；宿主重启换装配后转发目标自动跟随） |
+| 服务面 | **仅 `GET /oauth/callback`**（可带 query）；其余路径 404、其余方法 405，且都不触达上游——它不是通用代理 |
+| 转发 | 经壳当前上游（管道默认 / legacy TCP）打给宿主自己的 `/oauth/callback` 路由；**不带 cookie**（该路由按上游语义只校验 state + PKCE，不要求 RPC 鉴权） |
+| 超时 | 该路由单独放宽到 **120s**：宿主 handler 要等授权码兑换与授权提交完成才回包（`PipeClient::request_with_timeout`；其余一元请求仍是 60s） |
+| 回包 | 宿主 302 的 `location` **原样透传**（浏览器据此走到 Platform 完成页）；宿主 204 换成本地可读页「授权已完成，可关闭此页」；转发失败给 502 + 可辨认提示，不挂死 |
+| 页面侧 | `__DSH_TRANSPORT__.oauthCallbackOrigin`（与传输钩子同一「只合并不覆盖」口径注入）；dsh 客户端优先读它，缺失才回落原逻辑 |
+| 登录窗 | 壳桥把 `window.open('about:blank')` 交回一个**桩**（`location.replace` → 系统浏览器外开），否则 dsh 的「预开窗再导航」整段跳过（表现为点了没反应） |
+| 启动日志 | `[DSH-SHELL] oauth: listening 127.0.0.1:<port>/oauth/callback（仅此一条路径）`；每跳一行 `oauth: /oauth/callback → <状态> location=…` |
+
+> **与 C2「零 TCP 监听」口径的关系**：这是**唯一被显式接受的例外**——宿主仍零监听，监听在壳内且只服务上述一条路径。netstat 验收时按 PID 区分进程即可（宿主 PID 仍应为空）。
+>
+> **健康检查**：`curl "http://127.0.0.1:<port>/oauth/callback?code=x&state=y"` 应得宿主回包（正常为 400/410，取决于是否在登录期间）——**挂死或连接被拒**说明回调口没起或转发目标未填。旧宿主未就绪时该请求会得 502「登录回调没能送达宿主」。
+
 ### Channel 投递全序（F4，2026-09-30，务必先读）
 
 **机制（真机取证）**：Tauri `Channel` 对 JSON 载荷有**两条投递路径**——<8192B 走同步 `webview.eval`（有序），≥8192B 走异步 `plugin:__TAURI_CHANNEL__|fetch`（`invoke(...).then(runCallback)`）。两者混用时**不保序**：长会话 follow 的开局快照实测 ~420–630KB，会被紧随其后的 ~240B 流式小帧**超车**。而 dsh 客户端流协议要求**全序**（assistant 帧 revision 连续、持久事件 seq 连续）：乱序 → 客户端判定 carrier 故障 → 拆流重启；重启若发生在**回合进行中**，新快照与实时帧再次竞态 → 重试耗尽 → 会话事件流终止（页面报 `历史加载失败：session assistant stream skipped revision 1`）→ **前端流式渲染冻结**（后台照常跑；切会话/刷新重取才「接上」——即用户报告的「流式卡住」）。
@@ -129,6 +148,7 @@ DSH_HOME="D:/WorldSea/.独立项/b0-home" node apps/cli/lib/bin.js web --no-open
 | `WORLDSEA_FRAMED=1` | **回退原生边框（C6）**：运行时 `set_decorations(true)` 且**不注入窗口栏**；缺省 = 无边框 + 窗口栏（旧 `WORLDSEA_FRAMELESS` 已按此语义反转移除） |
 | `WORLDSEA_NO_TITLEBAR=1` | 反证用（C6）：不注入窗口栏（无边框下页面顶格、无拖拽——显式缺省，非静默） |
 | `WORLDSEA_NO_CHANNEL_ORDER_FIX=1` | **反证用（F4）**：不装 Channel 全序拦截器（交回 Tauri 默认双路径）——「流式进行中刷新页面」的确定性复现应再红 |
+| `WORLDSEA_NO_OAUTH_CALLBACK=1` | **反证用（H1）**：不起账号登录的 loopback 回调口（登录应以可辨认错误失败，其余面照常） |
 
 > 日志面：宿主的 stdout 现以 **`[DSH-HOST]`** 前缀直出壳日志（管道载体/协议违规行都在那里）；壳的流命令留 `[DSH-SHELL] stream: open id=… endpoint=…` / `cancel id=…` 行——验收「流真的经管道」看这行。
 
@@ -136,7 +156,7 @@ DSH_HOME="D:/WorldSea/.独立项/b0-home" node apps/cli/lib/bin.js web --no-open
 
 **协议面的闸门与白名单（C1-b）**：壳在转发前先判「方法白名单（GET/HEAD/POST）/ 越界段（`.` `..` → 403）/ 路径白名单」，宿主随后仍按自己的语义再判一次。白名单**枚举自 dsh 源码**（`webServer.register`、`connection.fetch.register` 的调用点 + dist 根文件），新增宿主路由时要同步：改 `dsh_proxy.rs` 的 `ALLOWED_PREFIXES` + 补 `allowlist_covers_enumerated_host_routes` 用例。漏掉的路径会在壳日志留 `404（路径白名单外）`。
 
-**HMR 已关闭**：`client-hmr` 的 `/plugins/events` 是 SSE 长连，而壳协议（Tauri `UriSchemeResponder`）只能回缓冲体 → 该行在壳内必然失效。已在 `apps/tauri/dsh-overlay.yml` 禁用；代理对任何 `text/event-stream` 响应显式 502 + 落档。若将来要 HMR，需要一条可流式的传输（C2 的 portless 通道是候选）。
+**HMR 已重开（G3，2026-11-04）**：`client-hmr` 的 `/plugins/events` 是 SSE 长连，而壳协议（Tauri `UriSchemeResponder`）只能回缓冲体——C1-b 因此曾把它关掉。**缺口现已补**：SSE 改走「Tauri 命令 + 管道流 lane」（`dsh_sse.rs` / `dsh_sse_bridge.js`），页面注入的 `__DSH_TRANSPORT__.fetch` 以 fetch 兼容形态提供原始 SSE 文本流，`client-hmr` 优先走该分支（读 `response.body`），不再落到 `EventSource`。`apps/tauri/dsh-overlay.yml` 已放开 `disabled: false`（见其第 2 条注释）。壳协议本身对 `text/event-stream` 仍显式 502 + 落档（那是给**未走 SSE 命令通道**的响应的兜底）。
 
 **dsh profile 装配面与可选 bundle（G3 查实，2026-09-29）**：
 
