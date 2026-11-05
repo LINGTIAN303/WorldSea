@@ -19,7 +19,16 @@ export function unregisterViewFor(pluginId: string, viewId: string): boolean {
   return pluginAPI.withPluginScope(pluginId, () => pluginAPI.unregisterView(viewId))
 }
 
-/** 插件清理函数登记表（拆树时逐个执行；cordis `effect` 在本版本不保证 disposal 触发，故自持）。 */
+/**
+ * 插件清理函数登记表（拆树时逐个执行）——**迁移期兼容路径**。
+ *
+ * 正常路径已改为 `ctx.effect`（注册与撤销都在 fiber 上，卸载 LIFO 自动回卷，作者不会「忘登记」）。
+ * 本表只在 `createPluginApi(id)` **未传 ctx** 时兜底（测试与旧调用方），
+ * 以及插件自己显式 `registerPluginCleanup` 时使用。
+ *
+ * 早先此处注有「cordis `effect` 在本版本不保证 disposal 触发」——那是 4.0.4 时代的判断，
+ * 4.1.0 实测六项能力全正常（见 docs/misc/cordis调研-2026-11-05/effect-falsification.md）。
+ */
 const cleanups = new Map<string, Array<() => void>>()
 
 export function registerPluginCleanup(pluginId: string, run: () => void): void {

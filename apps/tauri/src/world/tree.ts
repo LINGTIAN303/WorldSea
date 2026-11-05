@@ -23,9 +23,10 @@ import { collectExternalPlugins, externalDomain } from './external'
 import { collectWorldPlugins, type LoadReport } from './loader'
 import type { WorldPlugin } from './manifest'
 import { runPluginCleanups } from './registry'
+import { createWorldServices, WORLD_SERVICE_NAMES } from './services'
 
-/** 本树提供的服务（`requires` 预检的**权威名单**；新增服务 = 这里登记 + 下面 provide）。 */
-export const WORLD_SERVICES: readonly string[] = ['world.info']
+/** 本树提供的服务（`requires` 预检的**权威名单**；定义在 `./services.ts`，此处仅再导出）。 */
+export const WORLD_SERVICES: readonly string[] = WORLD_SERVICE_NAMES
 
 export interface WorldTreeState {
   started: boolean
@@ -110,7 +111,8 @@ function loadPlugin(plugin: WorldPlugin): void {
     {
       name: id,
       inject: plugin.manifest.requires ?? [],
-      apply: (inner) => plugin.apply(inner, createPluginApi(id)),
+      // 传 inner ctx：插件的注册走 `ctx.effect`（卸载 LIFO 自动回卷），见 api.ts 的 tracked()。
+      apply: (inner) => plugin.apply(inner, createPluginApi(id, inner)),
     },
     { manifest: plugin.manifest },
   )
@@ -165,13 +167,10 @@ export async function startWorldTree(options?: StartOptions): Promise<WorldTreeH
   try {
     const context = new Context()
     ctx = context
-    drops.push(
-      context.provide('world.info', {
-        name: 'WorldSea',
-        tree: 'world',
-        mode: 'browser',
-      }),
-    )
+    // 服务目录（阶段 2-B）：info + 实体/关系/schema/项目/视图，供插件 `ctx.get(...)` 使用。
+    for (const [name, value] of Object.entries(createWorldServices())) {
+      drops.push(context.provide(name, value))
+    }
     const { accepted, report } = options?.plugins
       ? {
           accepted: options.plugins,
@@ -347,7 +346,7 @@ export function externalPluginStates(): ExternalPluginState[] {
 /** 管理界面展示用相对路径（worlddata 根以下）。 */
 const EXTERNAL_DIR_DISPLAY = 'worlddata/.worldsea/plugins'
 
-/** 拆树（幂等）：插件清理 → 拆 fiber → 撤服务。 */
+/** 拆树（幂等）：插件清理 → 拆 fiber → 撤服务 → 拆 root。 */
 export function disposeWorldTree(): void {
   for (const id of [...fibers.keys()]) runPluginCleanups(id)
   pluginAPI.clearOverlays()
@@ -366,6 +365,11 @@ export function disposeWorldTree(): void {
       console.error('[world-tree] 撤服务抛错（已隔离）：', error)
     }
   }
+  // 拆 root：回收直接挂在 root 上的 effect（服务初始化、全局监听等）。
+  // 与 fiber.dispose 同口径不 await（保持同步签名）；幂等，但缺了它 root 级 effect 会跨「拆树—重起」泄漏。
+  void ctx?.fiber.dispose().catch((error: unknown) => {
+    console.error('[world-tree] 拆 root 抛错（已隔离）：', error)
+  })
   ctx = null
   available.clear()
   externalIds.clear()

@@ -11,6 +11,11 @@ declare module '@deepseek-ai/cordis' {
     dispose(): unknown
   }
 
+  /** root fiber：`dispose()` 拆整棵树（回收 root 级 effect、服务与全部子插件）。 */
+  export interface CordisRootFiberLike {
+    dispose(): Promise<void>
+  }
+
   export interface CordisPlugin {
     name: string
     /** 依赖的服务名（服务就绪后才会 apply；缺失则挂起） */
@@ -26,6 +31,8 @@ declare module '@deepseek-ai/cordis' {
     get(name: string, strict?: boolean): unknown
     effect(execute: () => () => void, label?: string): unknown
     on(name: string, listener: (...args: unknown[]) => void): unknown
+    /** root fiber：`dispose()` 拆整棵树（4.1.0 实测：root effect / 服务 / 子插件全部回收）。 */
+    fiber: CordisRootFiberLike
     stop?(): void
   }
 
