@@ -28,7 +28,7 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用此包
 
-Desktop 与普通 Web 客户端都挂载侧边栏账号菜单、账号设置、模型引导中的登录步骤，并订阅账号状态。Desktop 主进程在系统浏览器中打开授权页面。普通 Web 客户端（以缺少 Desktop preload 桥接识别）以 `login_source` web 发起登录，并以自身 origin 作为回调 origin；它在点击登录时预先打开一个标签页，本次尝试获得授权 URL 后带上相同的 `theme` 参数导航该标签页，并在失败、过期或取消时关闭它；弹窗被拦截时仍可使用复制链接。内嵌 Platform 页面、Desktop 引导和原生设备信息读取器仅在 Desktop 中提供，因此 Web 中的 Platform 链接在新标签页打开。
+Desktop 与普通 Web 客户端都挂载侧边栏账号菜单、账号设置、模型引导中的登录步骤，并订阅账号状态。Desktop 主进程在系统浏览器中打开授权页面。普通 Web 客户端（以缺少 Desktop preload 桥接识别）以 `login_source` web 发起登录，并以自身 origin 作为回调 origin；它在点击登录时预先打开一个标签页，本次尝试获得授权 URL 后带上相同的 `theme` 参数导航该标签页，并在失败、过期或取消时关闭它；弹窗被拦截时仍可使用复制链接。持有自身页面载体的壳可提供 `__DSH_TRANSPORT__.oauthCallbackOrigin`：该 origin 会取代计算出的回调 origin（两种客户端均适用），因为由非回环 HTTP origin 伺服的页面无法自行接收 Platform 跳转。内嵌 Platform 页面、Desktop 引导和原生设备信息读取器仅在 Desktop 中提供，因此 Web 中的 Platform 链接在新标签页打开。
 
 侧边栏和账号设置以正圆图片显示账号头像，直径分别为 24px 和 32px。两处共享一次浏览器图片加载，URL 缺失、加载中或加载失败时使用账号图标兜底。渲染图片失败时更新共享结果，两处一起恢复为图标，并保留重试机会；已被替换的图片加载尝试上报的失败会被忽略。每次进入设置，或从设置及余额不足提示打开的充值页面返回时，都会重试一次失败的图片，即使 URL 未变化；加载中和已成功的图片会复用，成功后两处一起展示。头像 URL 变化时开始新加载；账号状态替换、退出登录和插件卸载会丢弃旧头像及其回调。折叠侧边栏将头像居中放置在 36 × 36 px 的按钮内。登录前侧边栏入口改为紧凑的「更多」行，以三点图标开头，内容和内缩的悬停底色与导航行对齐。展开态按钮采用 border-box 尺寸：已登录行含 6px 内边距共高 44px，未登录的「更多」行高 32px。已登录入口保留 24px 头像及 8px 标签间距，并由自身根节点承担左右各 2px 外边距；该内缩不会水平移动设置外壳中相邻的状态指示器。
 
@@ -105,7 +105,7 @@ Desktop preload 标记在账号凭证已存储后启用引导。进度属于本�
 
 - 通知文案按客户端读取时的界面语言由服务端本地化。切换语言本身不会重新读取未通知赠金，因此已在屏幕上的通知会沿用服务端先前语言下发的文案，直到用户手动刷新或登录生命周期重新开始。
 
-- Web 登录要求页面 origin 为回环 HTTP（`localhost`、`127.0.0.1` 或 `[::1]`），因为 Host 只接受这些回调 origin。经 `--trusted-host` 或 HTTPS 反向代理访问的 Web UI 仍显示登录入口，但发起登录会进入通用的失败重试状态；这类部署应改为添加 API Key。
+- Web 登录要求页面 origin 为回环 HTTP（`localhost`、`127.0.0.1` 或 `[::1]`），因为 Host 只接受这些回调 origin。提供 `__DSH_TRANSPORT__.oauthCallbackOrigin` 的壳可为其它 origin 上的页面满足该要求。经 `--trusted-host` 或 HTTPS 反向代理访问、且没有此类壳的 Web UI 仍显示登录入口，但发起登录会进入通用的失败重试状态；这类部署应改为添加 API Key。
 
 - Platform 视图的弹窗会把文档内其它子节点设为 inert，其中包括 Desktop 拥有的顶栏菜单 host，因此 Application 和 Edit 菜单保持可见，但在视图关闭前无法操作。放行该 host 需要 Desktop 侧提供 inert 契约。
 

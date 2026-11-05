@@ -246,12 +246,14 @@ export function apply(ctx: Context): void {
     async start() {
       publish({ ...snapshot, loginVisible: true, loginFailed: false })
       const transport = (globalThis as typeof globalThis & {
-        __DSH_TRANSPORT__?: { streamBaseUrl?: string }
+        __DSH_TRANSPORT__?: { streamBaseUrl?: string; oauthCallbackOrigin?: string }
       }).__DSH_TRANSPORT__
       const request = async () => {
-        const result = await ctx.remote.account.startSignIn(client(),
-          desktop && transport?.streamBaseUrl !== undefined ? new URL(transport.streamBaseUrl).origin : window.location.origin,
-          desktop ? 'desktop' : 'web')
+        // A shell that cannot serve its page from a loopback HTTP origin supplies the callback
+        // origin it does serve; the Host accepts only an explicit-port loopback redirect.
+        const callbackOrigin = transport?.oauthCallbackOrigin
+          ?? (desktop && transport?.streamBaseUrl !== undefined ? new URL(transport.streamBaseUrl).origin : window.location.origin)
+        const result = await ctx.remote.account.startSignIn(client(), callbackOrigin, desktop ? 'desktop' : 'web')
         if (!result.ok) throw new Error('account start failed')
         return result.value
       }

@@ -351,6 +351,28 @@ for (const desktop of [false, true]) it(`uses the browser or Desktop login carri
   await expect(actions.signOut()).rejects.toBe(failure.error)
 }, 60_000)
 
+it('uses the shell-supplied callback origin for a page served outside a loopback origin', async ({ start, mock }) => {
+  // A shell whose page origin the Host cannot use as a redirect target supplies its own listener.
+  const c = await start()
+  vi.stubGlobal('__DSH_TRANSPORT__', { oauthCallbackOrigin: 'http://127.0.0.1:50231' })
+  const actions = operations(c)
+  mock.remote.account.startSignIn.mockResolvedValue(ok(view))
+  await actions.start()
+  expect(mock.remote.account.startSignIn).toHaveBeenCalledWith(
+    expect.objectContaining({ locale: 'en' }), 'http://127.0.0.1:50231', 'web')
+}, 60_000)
+
+it('prefers the shell callback origin over the Desktop stream origin', async ({ start, mock }) => {
+  vi.stubGlobal('dshDesktop', {})
+  const c = await start()
+  vi.stubGlobal('__DSH_TRANSPORT__', { streamBaseUrl: 'http://localhost:9876/stream', oauthCallbackOrigin: 'http://127.0.0.1:50231' })
+  const actions = operations(c)
+  mock.remote.account.startSignIn.mockResolvedValue(ok(view))
+  await actions.start()
+  expect(mock.remote.account.startSignIn).toHaveBeenCalledWith(
+    expect.objectContaining({ locale: 'en' }), 'http://127.0.0.1:50231', 'desktop')
+}, 60_000)
+
 it('navigates the preopened browser tab to the themed authorization page', async ({ start, mock }) => {
   const replace = vi.fn()
   const popup: Pick<Window, 'closed' | 'close' | 'opener'> & { location: Pick<Location, 'replace'> } = { closed: false, close: vi.fn(), opener: window, location: { replace } }
