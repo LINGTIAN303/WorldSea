@@ -83,6 +83,8 @@ mod product_briefing;
 mod font_scan;
 // mux WebSocket 凭据中转（改写握手首部后双向透传；仅 legacy 对照模式使用）
 mod dsh_relay;
+// 账号登录的浏览器回调口（loopback 监听 → 经上游转发宿主的 /oauth/callback → 302 透传给浏览器）
+mod dsh_oauth;
 // 管道传输客户端（宿主管道载体的壳侧对端：帧编解码 + 请求多路复用 + 流 lane）
 mod dsh_pipe;
 // 管道帧解析/派发与两条 I-O 循环（套接字双线程 / Windows 单线程轮询）

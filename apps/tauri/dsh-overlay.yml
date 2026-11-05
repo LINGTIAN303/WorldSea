@@ -51,3 +51,19 @@
     captureFetch: true
     clientOrigins:
       - http://worldsea.localhost
+
+# 5) session-log-deepseek —— 关掉会话日志上传（R3 隐私默认值，2026-11-05）。
+#    上游默认 `enabled: true`：走官方 DeepSeek 模型 API 时，会把规范会话日志作为 `dsh_session_log`
+#    请求字段增量上传。本仓的产品口径是「本机内容不外发」，故在装配层显式关闭并留证。
+#    注意：patch 的 config **整体替换**（同第 4 条），故 `maxBytes` 必须一并写回默认值。
+- id: session-log-deepseek
+  config:
+    enabled: false
+    maxBytes: 8388608
+
+# 6) session-telemetry-otel —— 关掉会话遥测导出（R3 隐私默认值，2026-11-05）。
+#    上游默认 `mode: FEEDBACK_ONLY`（只在用户显式反馈时放行前缀），exporter 指向官方 collector。
+#    本仓不参与该反馈通道，故整行停用；配置项无法停用一行（见 base 行注），只能落 `disabled`。
+#    开关：删掉本条即恢复上游默认（排查或将来接反馈面时用）。
+- id: session-telemetry-otel
+  disabled: true

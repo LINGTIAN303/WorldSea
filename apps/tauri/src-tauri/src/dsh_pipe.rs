@@ -216,6 +216,19 @@ impl PipeClient {
         headers: &[(String, String)],
         body: Option<&[u8]>,
     ) -> Result<PipeResponse, String> {
+        self.request_with_timeout(method, path_and_query, headers, body, REQUEST_TIMEOUT)
+    }
+
+    /// 同 [`PipeClient::request`]，但由调用方给等待上限。
+    /// 用于「宿主侧 handler 本身要等外部往返」的路由（典型：账号登录回调要等授权码兑换完成才回包）。
+    pub fn request_with_timeout(
+        &self,
+        method: &str,
+        path_and_query: &str,
+        headers: &[(String, String)],
+        body: Option<&[u8]>,
+        timeout: Duration,
+    ) -> Result<PipeResponse, String> {
         if !self.is_alive() {
             return Err("管道未就绪或已断开".to_string());
         }
@@ -247,13 +260,13 @@ impl PipeClient {
             self.inner.pending.lock().unwrap().remove(&id);
             return Err(error);
         }
-        match receiver.recv_timeout(REQUEST_TIMEOUT) {
+        match receiver.recv_timeout(timeout) {
             Ok(result) => result,
             Err(RecvTimeoutError::Timeout) => {
                 self.inner.pending.lock().unwrap().remove(&id);
                 Err(format!(
                     "上游请求超时（{method} {path_and_query}，{}s）",
-                    REQUEST_TIMEOUT.as_secs()
+                    timeout.as_secs()
                 ))
             }
             Err(RecvTimeoutError::Disconnected) => Err("管道读端已收尾".to_string()),

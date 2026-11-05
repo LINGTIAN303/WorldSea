@@ -180,7 +180,8 @@ fn handle_conn(
 }
 
 /// 读一个 HTTP 首部（含结尾空行）；EOF 或超限返回空。
-fn read_head(reader: &mut impl BufRead) -> std::io::Result<Vec<u8>> {
+/// crate 内共享：账号回调口（`dsh_oauth`）用同一份解析，避免两套首部读取各自演化。
+pub(crate) fn read_head(reader: &mut impl BufRead) -> std::io::Result<Vec<u8>> {
     let mut head = Vec::new();
     let mut line = Vec::new();
     loop {
@@ -199,7 +200,7 @@ fn read_head(reader: &mut impl BufRead) -> std::io::Result<Vec<u8>> {
 }
 
 /// 请求行 → (方法, 路径含查询, 版本)；格式不符返回 None。
-fn parse_request_line(head_text: &str) -> Option<(&str, &str, &str)> {
+pub(crate) fn parse_request_line(head_text: &str) -> Option<(&str, &str, &str)> {
     let line = head_text.lines().next()?;
     let mut parts = line.split_whitespace();
     let method = parts.next()?;

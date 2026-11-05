@@ -24,28 +24,19 @@ pub(crate) struct BridgeInner {
     pipe: Option<Arc<PipeClient>>,
     /// legacy 模式下的 WS 中转（随状态 drop 回收）；管道模式为 None。
     _relay: Option<WsRelay>,
+    /// 账号登录回调口（随状态 drop 停监听；反证开关关闭时为 None）。
+    _oauth: Option<crate::dsh_oauth::OauthCallback>,
 }
 
 impl BridgeInner {
     /// 桥已卸下时的占位装配：转发一律失败，调用方据此回退直连。
     fn unavailable() -> Self {
         Self {
-            cfg: ProxyCfg {
-                upstream: Upstream::Tcp { port: 0, cookie: String::new(), client: reqwest::blocking::Client::new() },
-                transport: TransportInject::None,
-                inject_shell_bridge: false,
-                titlebar: false,
-                diag: false,
-                capabilities: false,
-                deny_path: None,
-                open_paths: false,
-                workspace_notice: None,
-                dsh_home: None,
-                route_prefixes: Vec::new(),
-            },
+            cfg: ProxyCfg::off(),
             summary: "桥未装配".to_string(),
             pipe: None,
             _relay: None,
+            _oauth: None,
         }
     }
 }
@@ -168,11 +159,15 @@ pub fn prepare(
         println!("[DSH-SHELL] bridge: 路径白名单已按 WORLDSEA_BRIDGE_OPEN 关闭（逃生口）");
     }
 
+    // 账号登录回调口：先起监听拿到基址（注入面要用），转发目标随后随传输面填（见 `dsh_oauth`）。
+    let (oauth, oauth_callback_origin, oauth_target) = crate::dsh_oauth::install();
+
     match pipe_path {
         Some(path) => {
             let client = Arc::new(PipeClient::connect_retry(path, Duration::from_secs(15))?);
             let cookie = exchange_cookie_pipe(&client, ready_url)?;
             let transport = if inject_transport { TransportInject::OpenStream } else { TransportInject::None };
+            crate::dsh_oauth::point_at(&oauth_target, crate::dsh_oauth::OauthTarget::Pipe(client.clone()));
             let cfg = ProxyCfg {
                 upstream: Upstream::Pipe { client: client.clone(), cookie },
                 transport,
@@ -186,9 +181,16 @@ pub fn prepare(
                 dsh_home,
                 // 路径闸门的运行期依据：宿主 hello 自报的前缀表
                 route_prefixes: client.route_prefixes(),
+                oauth_callback_origin,
             };
             let summary = format!("mode=pipe pipe={path} 页面={APP_URL}（零 TCP；token 只留在壳内）");
-            Ok(DshBridge { inner: RwLock::new(Some(BridgeInner { cfg, summary, pipe: Some(client), _relay: None })) })
+            Ok(DshBridge { inner: RwLock::new(Some(BridgeInner {
+                cfg,
+                summary,
+                pipe: Some(client),
+                _relay: None,
+                _oauth: oauth,
+            })) })
         }
         None => {
             let host_port = parse_port(ready_url)?;
@@ -205,6 +207,11 @@ pub fn prepare(
             } else {
                 TransportInject::None
             };
+            // 回调转发目标（legacy 形态）——`reqwest::blocking::Client` 可克隆，共享连接池
+            crate::dsh_oauth::point_at(
+                &oauth_target,
+                crate::dsh_oauth::OauthTarget::Tcp { port: host_port, client: client.clone() },
+            );
             let cfg = ProxyCfg {
                 upstream: Upstream::Tcp { port: host_port, cookie, client },
                 transport,
@@ -218,12 +225,19 @@ pub fn prepare(
                 dsh_home,
                 // legacy 对照口（已冻结）：无 hello 上报通道，闸门回落到静态底集
                 route_prefixes: Vec::new(),
+                oauth_callback_origin,
             };
             let summary = format!(
                 "mode=tcp host=127.0.0.1:{host_port} relay_port={} 页面={APP_URL}（token 只留在壳内）",
                 relay.port()
             );
-            Ok(DshBridge { inner: RwLock::new(Some(BridgeInner { cfg, summary, pipe: None, _relay: Some(relay) })) })
+            Ok(DshBridge { inner: RwLock::new(Some(BridgeInner {
+                cfg,
+                summary,
+                pipe: None,
+                _relay: Some(relay),
+                _oauth: oauth,
+            })) })
         }
     }
 }

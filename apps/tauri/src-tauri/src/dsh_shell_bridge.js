@@ -57,7 +57,36 @@
     };
     document.addEventListener('click', guardLink, true);
     document.addEventListener('auxclick', guardLink, true);
+    /* 预开窗桩（about:blank 专属）：dsh 的账号登录先开一个空标签页拿到句柄，等授权 URL 到位后
+       对其 `location.replace(...)` 导航。壳里标签页由系统浏览器托管，页面侧拿不到真句柄；返回 null 会让
+       那次导航整段跳过（表现为「登录点了没有反应，只能手工复制链接」）。故这里交一个桩：`location.replace`
+       即交给系统浏览器外开，`close` 为无操作，`closed` 恒 false（调用方在成功/失败时会顺手关窗）。
+       只认 about:blank —— 带真实地址的 window.open 仍走下面的外开且返回 null，不放大逃逸面。 */
+    var preopenedShell = function () {
+      var handle = {
+        closed: false,
+        opener: null,
+        location: {
+          replace: function (target) {
+            var href = null;
+            try { href = new URL(String(target), location.href).href } catch (error) { href = null }
+            if (href !== null) {
+              openExternal(href);
+              report('login popup → 系统浏览器：' + href);
+            } else {
+              report('已拦截登录窗导航：' + String(target));
+            }
+          },
+        },
+        close: function () { report('登录窗已结束（系统浏览器侧由用户关闭）') },
+        focus: function () {},
+      };
+      return handle;
+    };
     globalThis.open = function (url) {
+      // `about:blank`（忽略大小写与前后空白）＝ 预开窗语义，见上方 preopenedShell 注释
+      var raw = String(url === undefined || url === null ? '' : url).trim().toLowerCase();
+      if (raw === 'about:blank' || raw === '') return preopenedShell();
       var destination = null;
       try {
         destination = new URL(String(url), location.href);

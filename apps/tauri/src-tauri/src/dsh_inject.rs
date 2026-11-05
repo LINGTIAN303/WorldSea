@@ -35,6 +35,8 @@ pub(crate) fn inject_shell_scripts(
     capabilities: bool,
     notice: Option<&str>,
     dsh_home: Option<&str>,
+    // 账号登录回调基址（`None` = 回调口未起/已按反证开关关闭 → 不写该键，客户端回落原逻辑）
+    callback_origin: Option<&str>,
 ) -> String {
     let mut scripts = String::new();
     // 壳自有面（安全网 / 横幅 / 窗口栏退化值）按主题真源取亮暗——先于它们注入；
@@ -70,6 +72,17 @@ pub(crate) fn inject_shell_scripts(
             scripts.push_str(
                 "<script>/* worldsea-shell:transport */globalThis.__DSH_TRANSPORT__ = Object.assign({}, globalThis.__DSH_TRANSPORT__, { ownsHost: true, openStream: globalThis.__WORLDSEA_STREAM__.openStream, sse: globalThis.__WORLDSEA_SSE__.sse, fetch: globalThis.__WORLDSEA_SSE__.fetch })</script>",
             );
+        }
+    }
+    // 账号登录回调基址：dsh 客户端据此把 Platform 的 redirect_uri 指到壳起的 loopback 口
+    // （页面 origin `worldsea.localhost` 不在上游的 loopback 白名单内，不能自己当回调基址）。
+    // 独立于传输三态：legacy 对照形态同样需要它（回调口两边都在）。
+    if let Some(origin) = callback_origin {
+        match serde_json::to_string(origin) {
+            Ok(json) => scripts.push_str(&format!(
+                "<script>/* worldsea-shell:oauth-callback */globalThis.__DSH_TRANSPORT__ = Object.assign({{}}, globalThis.__DSH_TRANSPORT__, {{ oauthCallbackOrigin: {json} }})</script>"
+            )),
+            Err(error) => eprintln!("[DSH-SHELL] 回调基址序列化失败：{error}"),
         }
     }
     scripts.push_str("<script>");

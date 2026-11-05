@@ -114,11 +114,35 @@ describe('壳桥：外链守卫', () => {
     const sameOrigin = (globalThis as unknown as { open: (url: string) => unknown }).open(`${location.origin}/preview`)
     expect(sameOrigin).toBeNull()
     expect(externalCalls(local)).toHaveLength(1)
-    // 非 http(s)/mailto：只拒绝 + 落档，不外开
-    const blocked = (globalThis as unknown as { open: (url: string) => unknown }).open('about:blank')
+    // 非 http(s)/mailto：只拒绝 + 落档，不外开（about:blank 例外见下一条用例）
+    const blocked = (globalThis as unknown as { open: (url: string) => unknown }).open('about:blank#frag')
     expect(blocked).toBeNull()
     expect(externalCalls(local)).toHaveLength(1)
     expect(reportMessages(local).some(message => message.includes('已拦截 window.open'))).toBe(true)
+  })
+
+  it('window.open("about:blank") 交回预开窗桩：登录的「先开窗再导航」依赖它', () => {
+    const local = boot()
+    const handle = (globalThis as unknown as { open: (url: string) => unknown }).open('about:blank') as {
+      closed: boolean
+      location: { replace: (url: string) => void }
+    }
+    // 返回可用的桩而不是 null —— 否则 dsh 的 BrowserLogin 拿不到句柄，授权页永不打开
+    expect(handle).not.toBeNull()
+    expect(handle.closed).toBe(false)
+    expect(externalCalls(local)).toHaveLength(0)
+    // 桩的导航把授权页交给系统浏览器（与其它外开同一条命令），且不开应用内新窗
+    handle.location.replace('https://platform.deepseek.com/dsh/authorize?x=1')
+    expect(externalCalls(local)).toHaveLength(1)
+    expect(externalCalls(local)[0]?.args.url).toBe('https://platform.deepseek.com/dsh/authorize?x=1')
+  })
+
+  it('只有 about:blank / 空参走预开窗语义（逃逸面不放大）', () => {
+    boot()
+    const noArg = (globalThis as unknown as { open: () => unknown }).open()
+    expect(noArg).not.toBeNull()
+    const addressed = (globalThis as unknown as { open: (url: string) => unknown }).open('https://example.com/x')
+    expect(addressed).toBeNull()
   })
 
   it('mailto 交系统处理；file: 等其它协议只拦截不外开', () => {

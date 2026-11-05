@@ -131,6 +131,7 @@ fn cfg(host_port: u16) -> ProxyCfg {
         workspace_notice: None,
         dsh_home: None,
         route_prefixes: Vec::new(),
+        oauth_callback_origin: None,
     }
 }
 
@@ -158,6 +159,7 @@ fn pipe_cfg(
             dsh_home: None,
             // 从真实 hello 握手取快照——「宿主上报 → 客户端保存 → 闸门判定」整条链路由此受测
             route_prefixes: client.route_prefixes(),
+            oauth_callback_origin: None,
         },
         handles,
         client,
@@ -252,6 +254,27 @@ fn index_carries_dsh_home_only_when_provided() {
     assert!(text.contains("worldsea-shell:dsh-home"), "缺 DSH_HOME 注入：{text}");
     assert!(text.contains("__WORLDSEA_DSH_HOME__"), "缺常量赋值：{text}");
     assert!(text.contains(r"C:\\Users\\tester\\AppData\\dsh-home"), "未按 JSON 转义带入：{text}");
+}
+
+/// 账号登录回调基址以传输钩子字段透传（dsh 客户端据此定 Platform 的 redirect_uri）；
+/// 未起回调口（None）时**不写该键**，客户端回落原逻辑并以可辨认错误失败。
+#[test]
+fn index_carries_oauth_callback_origin_only_when_provided() {
+    let (port, _seen) = fake_upstream();
+    let plain = body_text(&proxy(&cfg(port), &req("GET", "/")));
+    assert!(!plain.contains("oauthCallbackOrigin"), "未起回调口不应注入基址：{plain}");
+
+    let mut bridged = cfg(port);
+    bridged.oauth_callback_origin = Some("http://127.0.0.1:50231".to_string());
+    let text = body_text(&proxy(&bridged, &req("GET", "/")));
+    assert!(text.contains("worldsea-shell:oauth-callback"), "缺回调基址注入：{text}");
+    assert!(text.contains("oauthCallbackOrigin"), "缺字段赋值：{text}");
+    assert!(text.contains(r#""http://127.0.0.1:50231""#), "基址应按 JSON 字符串带入：{text}");
+    // 只合并不覆盖：不能把传输行整体替换掉（那会丢 openStream/sse）
+    assert!(text.contains("worldsea-shell:transport"), "传输行必须仍在：{text}");
+    let assign = text.find("oauthCallbackOrigin").expect("基址行存在");
+    let transport = text.find("worldsea-shell:transport").expect("传输行存在");
+    assert!(transport < assign, "基址须在传输行之后合并：{text}");
 }
 
 #[test]
@@ -501,6 +524,20 @@ fn shell_bridge_script_wires_expected_commands() {
     // 设置入口的定位依赖 aria-label（侧栏折叠态只剩图标；ui-settings-general 的触发按钮带该属性）
     assert!(text.contains("aria-label"), "壳桥必须按 aria-label 定位设置入口（折叠态）");
     assert!(text.contains("设置"), "壳桥需要中英文两套文案标签");
+}
+
+/// 登录路径依赖「预开窗 + 后续导航」：`window.open('about:blank')` 必须交回一个可用的桩，
+/// 其 `location.replace` 把授权页交给系统浏览器。缺了它，dsh 的登录会点了没反应。
+#[test]
+fn shell_bridge_hands_back_a_preopened_window_for_login() {
+    let (port, _seen) = fake_upstream();
+    let text = body_text(&proxy(&cfg(port), &req("GET", "/")));
+    assert!(text.contains("preopenedShell"), "缺预开窗桩：{text}");
+    // 只认 about:blank —— 带真实地址的 open 仍外开且返回 null（不放大逃逸面）
+    assert!(text.contains("'about:blank'"), "桩必须只认 about:blank：{text}");
+    assert!(text.contains("location"), "桩需提供 location.replace：{text}");
+    // 桩的导航落点仍是壳的外链命令（与其它外开同一条路）
+    assert!(text.contains("cmd_shell_open_external"), "桩导航须走壳外链命令");
 }
 
 #[test]

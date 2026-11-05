@@ -31,6 +31,8 @@ pub(crate) struct ProxyCfg {
     /// 宿主 hello 上报的前缀路由表（运行期快照）。与 `ALLOWED_PREFIXES` 取并集判定；
     /// 空 = 旧宿主或未上报（回落静态底集，等价改造前行为）。
     pub route_prefixes: Vec<String>,
+    /// 账号登录回调基址（壳起的 loopback 口；`None` = 未起/已关）——注入给页面做 Platform 的 redirect_uri 前缀。
+    pub oauth_callback_origin: Option<String>,
 }
 
 /// 上游传输面（两种形态产出同构的「状态 / 头 / 体」）。
@@ -39,6 +41,30 @@ pub(crate) enum Upstream {
     Tcp { port: u16, cookie: String, client: reqwest::blocking::Client },
     /// 默认形态：IPC 管道（cookie 同样由壳持有；`Host` 由管道客户端合成 `127.0.0.1`）。
     Pipe { client: std::sync::Arc<crate::dsh_pipe::PipeClient>, cookie: String },
+}
+
+impl ProxyCfg {
+    /// 一切关闭的基线装配（桥已卸下 / 测试兜底用；调用方按需覆盖字段）。
+    pub(crate) fn off() -> Self {
+        Self {
+            upstream: Upstream::Tcp {
+                port: 0,
+                cookie: String::new(),
+                client: reqwest::blocking::Client::new(),
+            },
+            transport: TransportInject::None,
+            inject_shell_bridge: false,
+            titlebar: false,
+            diag: false,
+            capabilities: false,
+            deny_path: None,
+            open_paths: false,
+            workspace_notice: None,
+            dsh_home: None,
+            route_prefixes: Vec::new(),
+            oauth_callback_origin: None,
+        }
+    }
 }
 
 use crate::dsh_inject::{inject_shell_scripts, TransportInject};
@@ -219,7 +245,8 @@ pub(crate) fn proxy(cfg: &ProxyCfg, request: &http::Request<Vec<u8>>) -> http::R
             || cfg.diag
             || cfg.capabilities
             || cfg.workspace_notice.is_some()
-            || cfg.dsh_home.is_some())
+            || cfg.dsh_home.is_some()
+            || cfg.oauth_callback_origin.is_some())
     {
         let text = String::from_utf8_lossy(&body).to_string();
         body = inject_shell_scripts(
@@ -231,6 +258,7 @@ pub(crate) fn proxy(cfg: &ProxyCfg, request: &http::Request<Vec<u8>>) -> http::R
             cfg.capabilities,
             cfg.workspace_notice.as_deref(),
             cfg.dsh_home.as_deref(),
+            cfg.oauth_callback_origin.as_deref(),
         )
         .into_bytes();
     }
