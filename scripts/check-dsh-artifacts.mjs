@@ -30,23 +30,46 @@ const DSH = path.join(REPO, 'dsh')
 const SKIP_DIRS = new Set(['node_modules', 'lib', 'tests', '__tests__', '.git', 'locale', 'assets'])
 
 /**
- * 工作树里该路径下**有未提交改动**的文件（相对仓库根）。
+ * 工作树里**全部有未提交改动**的文件（相对仓库根）。启动时取一次。
  *
  * 只把「内容确实变了」当作「源码比产物新」的证据：checkout / merge 会刷新 mtime
- * 而内容不变，仅凭时间会在每次合并后误报整棵树。非 git 工作区或 git 不可用时退化为
- * 「不提供证据」（返回空），此时只保留版本内联判据——宁可少报也不误报。
+ * 而内容不变，仅凭时间会在每次合并后误报整棵树（实测 280 个提交合并后误报 460 项）。
+ * 非 git 工作区或 git 不可用时返回 `undefined`，表示「无从判断」——此时只保留版本
+ * 内联判据，宁可少报也不误报。
  */
-function dirtyPathsUnder(relativePath) {
+function dirtyPaths() {
   try {
-    const out = execFileSync('git', ['status', '--porcelain', '--', relativePath], {
+    const out = execFileSync('git', ['status', '--porcelain'], {
       cwd: REPO,
       encoding: 'utf8',
+      // 大型仓库的 git status 输出远超默认 1MiB 缓冲
+      maxBuffer: 64 * 1024 * 1024,
       stdio: ['ignore', 'pipe', 'ignore'],
     })
-    return out.split('\n').map(line => line.slice(3).trim()).filter(Boolean)
+    return new Set(
+      out
+        .split('\n')
+        .map(line => line.slice(3).trim())
+        .filter(Boolean)
+        // 重命名行形如 `old -> new`：两边都要算进改动面
+        .flatMap(entry => entry.split(' -> ')),
+    )
   } catch {
-    return []
+    return undefined
   }
+}
+
+/** 启动时唯一的一次 git 读取（372 个包每个跑一次 status 会把门禁拖到 36s）。 */
+const DIRTY = dirtyPaths()
+
+/** 该包目录下是否有未提交改动（内存判定，无子进程）。 */
+function hasDirtySources(relativePkg) {
+  if (DIRTY === undefined) return false
+  const prefix = `${relativePkg}/`
+  for (const file of DIRTY) {
+    if (file.startsWith(prefix)) return true
+  }
+  return false
 }
 
 if (process.env.SKIP_DSH_ARTIFACT_FRESHNESS === '1') {
@@ -163,8 +186,7 @@ for (const pkg of collectPackages()) {
   // 280 个提交合并后误报 460 项）。git 干净 = 工作树内容等于 HEAD，此时产物对应当前源码，
   // 时间差不构成证据。
   const relativePkg = path.relative(REPO, pkg.dir).split(path.sep).join('/')
-  const dirtySources = dirtyPathsUnder(relativePkg)
-  const sourceMoved = dirtySources.length > 0
+  const sourceMoved = hasDirtySources(relativePkg)
   for (const rel of pkg.entries) {
     const mtime = statSync(path.join(pkg.dir, rel)).mtimeMs
     if (newestSource.mtime > mtime && sourceMoved) {
