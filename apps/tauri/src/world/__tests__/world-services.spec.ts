@@ -1,0 +1,162 @@
+/**
+ * 阶段 2-B · 服务目录：`createWorldServices()` 的方法表与 `requires` 预检链路。
+ *
+ * 这里测三件**独立**的事：
+ * 1. 服务方法表可用（能取到实体/关系/schema/项目/视图），且**返回 store 的响应式引用而非拷贝**；
+ * 2. `manifest.requires` 从这个服务列表出发才真正生效——这才是「空间轴」的入口；
+ * 3. 真实插件（timeline）声明了依赖，且该声明对得上服务目录。
+ */
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
+
+import { assemblePlugins } from '../loader'
+import { createWorldServices, WORLD_SERVICE_NAMES } from '../services'
+
+beforeEach(() => {
+  setActivePinia(createPinia())
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
+
+describe('createWorldServices：服务方法表', () => {
+  it('提供 7 个服务，且与 WORLD_SERVICE_NAMES 完全一致', () => {
+    const services = createWorldServices()
+    expect(Object.keys(services).sort()).toEqual([...WORLD_SERVICE_NAMES].sort())
+    expect(WORLD_SERVICE_NAMES).toContain('world.info')
+    expect(WORLD_SERVICE_NAMES).toHaveLength(7)
+  })
+
+  it('world.projectExtras 直通 entity-core 的两个迁移扩展点注册面，且返回 disposer', () => {
+    const extras = (createWorldServices() as Record<string, Record<string, any>>)['world.projectExtras']!
+    expect(typeof extras.registerPackSerializer).toBe('function')
+    expect(typeof extras.registerProjectExtraProvider).toBe('function')
+
+    // 返回的必须是可调用 disposer（插件交给 ctx.effect 才能回卷）
+    const serializer = {
+      id: '__svc_test__',
+      label: '测试分区',
+      dependsOn: [] as string[],
+      collect: async () => ({}),
+      import: async () => undefined,
+    }
+    const dispose = extras.registerPackSerializer(serializer)
+    expect(typeof dispose).toBe('function')
+    expect(() => dispose()).not.toThrow()
+
+    const provider = {
+      id: '__svc_test_provider__',
+      path: 'settings/__svc_test__.json',
+      exportFile: () => null,
+      importFile: async () => {},
+    }
+    const disposeProvider = extras.registerProjectExtraProvider(provider)
+    expect(typeof disposeProvider).toBe('function')
+    expect(() => disposeProvider()).not.toThrow()
+  })
+
+  it('world.entities.list 返回响应式引用而非拷贝（保持既有性能假设）', () => {
+    const services = createWorldServices() as Record<string, { list: () => readonly unknown[] }>
+    const first = services['world.entities']!.list()
+    const second = services['world.entities']!.list()
+    // 同一数组引用 = 不是每次新拷贝（96 个文件直访 store 时依赖这一点）
+    expect(first).toBe(second)
+  })
+
+  it('world.relations 暴露 byEntity（读内存）与 loadByEntity（重载）两个不同语义', () => {
+    const relations = (createWorldServices() as Record<string, Record<string, unknown>>)['world.relations']!
+    expect(typeof relations.byEntity).toBe('function')
+    expect(typeof relations.loadByEntity).toBe('function')
+    expect(relations.byEntity).not.toBe(relations.loadByEntity)
+  })
+
+  it('world.schema 代理 entitySchemaRegistry 的 list/get/label', () => {
+    const schema = (createWorldServices() as Record<string, Record<string, any>>)['world.schema']!
+    expect(typeof schema.list).toBe('function')
+    expect(typeof schema.get).toBe('function')
+    expect(typeof schema.label).toBe('function')
+    expect(schema.get('__不存在的类型__')).toBeUndefined()
+  })
+
+  it('world.info 携带树的元信息', () => {
+    const info = (createWorldServices() as Record<string, Record<string, unknown>>)['world.info']!
+    expect(info).toMatchObject({ name: 'WorldSea', tree: 'world', mode: 'browser' })
+  })
+})
+
+/** 构造装载器候选（`assemblePlugins` 的入参形状）。 */
+function makePlugin(id: string, requires?: string[]) {
+  return {
+    file: `./plugins/${id}/index.ts`,
+    plugin: {
+      manifest: { id, name: id, version: '1.0.0', description: '依赖预检用', requires },
+      apply() {},
+    },
+  }
+}
+
+describe('requires 预检：服务目录让依赖声明真正生效', () => {
+  const SERVICES = [...WORLD_SERVICE_NAMES]
+
+  it('声明已提供的服务 → 接受装载', () => {
+    const { accepted, report } = assemblePlugins(
+      [makePlugin('ws.test.ok', ['world.entities', 'world.relations'])],
+      SERVICES,
+    )
+    expect(report.rejected, '不应被拒').toHaveLength(0)
+    expect(accepted.map(p => p.manifest.id)).toEqual(['ws.test.ok'])
+  })
+
+  it('声明未提供的服务 → 拒绝且给出可读原因', () => {
+    const { accepted, report } = assemblePlugins(
+      [makePlugin('ws.test.bad', ['world.nonexistent'])],
+      SERVICES,
+    )
+    expect(accepted).toHaveLength(0)
+    expect(report.rejected).toHaveLength(1)
+    expect(report.rejected[0]!.reason).toContain('本树未提供依赖服务')
+    expect(report.rejected[0]!.reason).toContain('world.nonexistent')
+  })
+
+  it('部分满足 → 仍拒（缺一不可）', () => {
+    const { report } = assemblePlugins(
+      [makePlugin('ws.test.partial', ['world.entities', 'world.missing'])],
+      SERVICES,
+    )
+    expect(report.rejected).toHaveLength(1)
+    expect(report.rejected[0]!.reason).toContain('world.missing')
+    expect(report.rejected[0]!.reason).not.toContain('world.entities')
+  })
+
+  it('不声明 requires → 照常接受（向后兼容）', () => {
+    const { accepted, report } = assemblePlugins([makePlugin('ws.test.none')], SERVICES)
+    expect(report.rejected).toHaveLength(0)
+    expect(accepted).toHaveLength(1)
+  })
+})
+
+describe('真实插件依赖：timeline 声明 world.projectExtras', () => {
+  it('timeline manifest 声明了 world.projectExtras 依赖', async () => {
+    // 不 import '../plugins/timeline'：其 TimelineView.vue 会连带拉起重依赖（vitest 并行下超时）。
+    // 改为静态读取源码中的 manifest 声明——这正是「声明是什么」的权威来源。
+    const { readFileSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const source = readFileSync(join(__dirname, '..', 'plugins', 'timeline', 'index.ts'), 'utf8')
+    expect(source).toContain("requires: ['world.projectExtras']")
+  })
+
+  it('服务目录里确有该依赖（声明与实际提供对得上）', () => {
+    expect(WORLD_SERVICE_NAMES).toContain('world.projectExtras')
+  })
+
+  it('装载器：从服务名单里抽掉该服务 → timeline 被拒', () => {
+    const services = WORLD_SERVICE_NAMES.filter(n => n !== 'world.projectExtras')
+    const { accepted, report } = assemblePlugins(
+      [makePlugin('official.timeline', ['world.projectExtras'])],
+      [...services],
+    )
+    expect(accepted).toHaveLength(0)
+    expect(report.rejected[0]!.reason).toContain('world.projectExtras')
+  })
+})

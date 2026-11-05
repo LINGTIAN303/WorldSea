@@ -24,6 +24,20 @@ function captureApi() {
   }
 }
 
+/**
+ * 最小 cordis 上下文桩：本 spec 只验 schema 注册面，不关心迁移扩展点。
+ * `timeline` 现经 `ctx.get('world.projectExtras')` 取服务，故此处返回一对不产生副作用的注册函数。
+ */
+function fakeCtx(): any {
+  return {
+    get: (_name: string) => ({
+      registerPackSerializer: () => () => {},
+      registerProjectExtraProvider: () => () => {},
+    }),
+    effect: (fn: () => unknown) => fn(),
+  }
+}
+
 describe('旧版实体 schema 归一', () => {
   it('pipeline 使用 V2 方言：identifiable + taggable，业务字段留在 ownFields', () => {
     const { calls, api } = captureApi()
@@ -50,7 +64,7 @@ describe('旧版实体 schema 归一', () => {
 describe('事件父级字段口径', () => {
   it('parentId 仍是 entityRef + refType，且刻意不声明 relationType', () => {
     const { calls, api } = captureApi()
-    applyTimeline(null, api as any)
+    applyTimeline(fakeCtx(), api as any)
     const parentId = calls[0].ownFields.find((f: any) => f.key === 'parentId')
     expect(parentId).toMatchObject({ fieldType: 'entityRef', refType: 'event', label: '父级事件' })
     expect(parentId.relationType).toBeUndefined()

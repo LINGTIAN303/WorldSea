@@ -1,5 +1,6 @@
 import type { WorldPluginApi } from '../../api'
-import { registerPackSerializer, registerProjectExtraProvider } from '@worldsea/entity-core/core'
+import type { CordisContext } from '@deepseek-ai/cordis'
+import type { WorldProjectExtrasService } from '../../services'
 import TimelineView from './TimelineView.vue'
 import { createTimelinePackSerializer, timelineProjectExtraProvider } from './calendar/projectExtras'
 
@@ -12,19 +13,17 @@ export const manifest = {
   version: '2.0.0',
   description: '管理世界观中的历史事件与时间线',
   author: 'WorldSea',
+  /** 历法与打包分区必须接进项目迁移链——依赖树提供的迁移扩展点服务（阶段 2-B）。 */
+  requires: ['world.projectExtras'],
 }
 
-let projectExtrasRegistered = false
-/** 芽重载（切项目 unload→load 重跑 apply）时只注册一次，避免覆盖同名分区 */
-function registerProjectExtras(): void {
-  if (projectExtrasRegistered) return
-  projectExtrasRegistered = true
-  registerPackSerializer(createTimelinePackSerializer())
-  registerProjectExtraProvider(timelineProjectExtraProvider)
-}
+export function apply(ctx: CordisContext, api: WorldPluginApi) {
+  // 经服务登记迁移扩展点：返回值是 disposer，交给 ctx.effect 后卸载即回卷
+  // （旧实现是模块级幂等布尔 + 全局 Map 写入，卸载后条目永久残留）。
+  const extras = ctx.get('world.projectExtras') as WorldProjectExtrasService
+  ctx.effect(() => extras.registerPackSerializer(createTimelinePackSerializer()))
+  ctx.effect(() => extras.registerProjectExtraProvider(timelineProjectExtraProvider))
 
-export function apply(_ctx: unknown, api: WorldPluginApi) {
-  registerProjectExtras()
   api.registerEntityV2({
     type: 'event',
     label: '事件',

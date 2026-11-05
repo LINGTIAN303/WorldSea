@@ -1,0 +1,175 @@
+/**
+ * 第二棵树的**服务目录**（阶段 2-B，2026-11-05）。
+ *
+ * 职责：把「应用侧共享态」包装成 cordis 服务，供树内插件经 `ctx.get(name)` 使用。
+ *
+ * 三条口径（见 docs/plans/2026-11-05-阶段1B-服务目录设计.md）：
+ * - **服务名复数**（`world.entities`）= 一类东西的集合；能力 id 单数.方法（`world.entity.list`）
+ *   是同一实现的桥接暴露——两侧语义同构，未来合并成一棵树时可零改造退化。
+ * - **暴露方法表，不暴露 store 实例**：方法可加访问控制/日志，store 实例会把内部结构钉成公共契约。
+ * - **返回响应式引用而非拷贝**：`list()` 直接给 store 的响应式数组，保持既有性能假设
+ *   （96 个文件直访 `useEntityStore` 时就是这么用的）。
+ *
+ * 命名空间：本树服务一律 `world.`；dsh 侧为 `dsh-*`，天然分域。
+ */
+import {
+  entitySchemaRegistry,
+  getProjectManager,
+  pluginAPI,
+  useEntityStore,
+  useRelationStore,
+} from '@worldsea/entity-core'
+import type { Entity, Relation } from '@worldsea/entity-core'
+import {
+  registerPackSerializer,
+  registerProjectExtraProvider,
+} from '@worldsea/entity-core/core'
+import type { ProjectExtraProvider, Serializer } from '@worldsea/entity-core/core'
+
+/** 实体服务的读写面（对应能力 `world.entity.*`）。 */
+export interface WorldEntitiesService {
+  /** 全部实体（响应式引用，非拷贝） */
+  list(): readonly Entity[]
+  /** 按 id 取（读 store 的内存索引，不解 IO） */
+  get(id: string): Entity | undefined
+  /** 按类型取 */
+  byType(type: string): readonly Entity[]
+  /** 新建；返回新实体 id */
+  add(entity: Entity, source?: 'user' | 'agent' | 'import'): Promise<string>
+  /** 局部更新 */
+  update(id: string, changes: Partial<Entity>, source?: 'user' | 'agent' | 'import'): Promise<void>
+  /** 删除（同时清理关联关系） */
+  remove(id: string, source?: 'user' | 'agent' | 'import'): Promise<void>
+  /** 全量重载（外部改动后对账用） */
+  reload(): Promise<void>
+}
+
+/** 关系服务的读写面（对应能力 `world.relation.*`）。 */
+export interface WorldRelationsService {
+  list(): readonly Relation[]
+  /** 与某实体相关的关系（读 store 内存态；不从磁盘重载） */
+  byEntity(entityId: string): readonly Relation[]
+  /** 从磁盘重载某实体的关系（增量语义：只替换涉及该实体的条目） */
+  loadByEntity(entityId: string): Promise<void>
+  add(relation: Relation, source?: 'user' | 'agent' | 'import'): Promise<string>
+  /** 注意：relationStore.update 只有 (id, changes)，不接受 source（与 entityStore 不同） */
+  update(id: string, changes: Partial<Relation>): Promise<void>
+  remove(id: string, source?: 'user' | 'agent' | 'import'): Promise<void>
+  reload(): Promise<void>
+}
+
+/** 类型 schema 服务（对应能力 `world.schema.*`）。 */
+export interface WorldSchemaService {
+  /** 全部已登记类型 */
+  list(): ReturnType<typeof entitySchemaRegistry.getAll>
+  /** 按 typeKey 取 */
+  get(type: string): ReturnType<typeof entitySchemaRegistry.get>
+  /** 类型的中文标签（含 fallback） */
+  label(type: string): string
+}
+
+/** 项目服务（对应能力 `world.project.*`）。 */
+export interface WorldProjectService {
+  current(): Promise<{ id: string | null; name: string | null; dirPath: string | null; isDefault: boolean | null }>
+}
+
+/** 视图服务（只读；对应能力 `world.views.list`）。 */
+export interface WorldViewsService {
+  list(): Array<{ id: string; label: string; pluginId: string | null; toolbar: string }>
+}
+
+/**
+ * 项目迁移扩展点服务（对应 entity-core 的两个全局注册表）。
+ *
+ * **为什么它是一个服务**：`registerPackSerializer` / `registerProjectExtraProvider` 是
+ * 应用级全局注册面，插件的 `apply` 必须依赖它才能把「随项目迁移的配置」接进导出/导入链。
+ * 这是目前**唯一在 `apply` 层真实被消费的应用能力**（时间线芽用它接历法与分区）。
+ *
+ * 两个方法都返回 disposer，插件可交给 `ctx.effect` 实现卸载回卷。
+ */
+export interface WorldProjectExtrasService {
+  registerPackSerializer(serializer: Serializer): () => void
+  registerProjectExtraProvider(provider: ProjectExtraProvider): () => void
+}
+
+/**
+ * 构建全部服务实现（每次起树调一次）。
+ *
+ * **注意**：这些是**读时绑定**——store 由 pinia 惰性创建，故在方法体内调用 `useEntityStore()`
+ * 而非在构建时取一次，避免起树早于 pinia 初始化的顺序依赖。
+ */
+export function createWorldServices(): Record<string, unknown> {
+  return {
+    // 树元信息（原有服务；并入本目录以便「新增服务只改一处」）
+    'world.info': { name: 'WorldSea', tree: 'world', mode: 'browser' },
+
+    'world.entities': {
+      list: () => useEntityStore().entities,
+      get: (id: string) => useEntityStore().entityMap.get(id),
+      byType: (type: string) => useEntityStore().entities.filter(e => e.type === type),
+      add: (entity: Entity, source?: 'user' | 'agent' | 'import') => useEntityStore().add(entity, source),
+      update: (id: string, changes: Partial<Entity>, source?: 'user' | 'agent' | 'import') =>
+        useEntityStore().update(id, changes, source),
+      remove: (id: string, source?: 'user' | 'agent' | 'import') => useEntityStore().remove(id, source),
+      reload: () => useEntityStore().loadAll(),
+    } satisfies WorldEntitiesService,
+
+    'world.relations': {
+      list: () => useRelationStore().relations,
+      byEntity: (entityId: string) =>
+        useRelationStore().relations.filter(r => r.sourceId === entityId || r.targetId === entityId),
+      loadByEntity: (entityId: string) => useRelationStore().loadByEntity(entityId),
+      add: (relation: Relation, source?: 'user' | 'agent' | 'import') => useRelationStore().add(relation, source),
+      update: (id: string, changes: Partial<Relation>) => useRelationStore().update(id, changes),
+      remove: (id: string, source?: 'user' | 'agent' | 'import') => useRelationStore().remove(id, source),
+      reload: () => useRelationStore().loadAll(),
+    } satisfies WorldRelationsService,
+
+    'world.schema': {
+      list: () => entitySchemaRegistry.getAll(),
+      get: (type: string) => entitySchemaRegistry.get(type),
+      label: (type: string) => entitySchemaRegistry.getLabel(type),
+    } satisfies WorldSchemaService,
+
+    'world.project': {
+      current: async () => {
+        const manager = getProjectManager()
+        const id = manager.getCurrentProjectId()
+        const info = id ? await manager.getCurrentProject() : undefined
+        return {
+          id: id ?? null,
+          name: info?.name ?? null,
+          dirPath: info?.dirPath ?? null,
+          isDefault: info?.isDefault ?? null,
+        }
+      },
+    } satisfies WorldProjectService,
+
+    'world.views': {
+      list: () =>
+        pluginAPI.getViews().map(view => ({
+          id: view.id,
+          label: view.label,
+          pluginId: view.pluginId ?? null,
+          toolbar: view.toolbar ?? 'bar',
+        })),
+    } satisfies WorldViewsService,
+
+    // 直通 entity-core 的两个全局注册面；返回值即 disposer，插件交给 `ctx.effect` 即可回卷。
+    'world.projectExtras': {
+      registerPackSerializer,
+      registerProjectExtraProvider,
+    } satisfies WorldProjectExtrasService,
+  }
+}
+
+/** 本树提供的全部服务名（`manifest.requires` 预检的权威名单）。 */
+export const WORLD_SERVICE_NAMES: readonly string[] = [
+  'world.info',
+  'world.entities',
+  'world.relations',
+  'world.schema',
+  'world.project',
+  'world.views',
+  'world.projectExtras',
+]
