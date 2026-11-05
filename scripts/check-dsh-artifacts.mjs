@@ -22,11 +22,32 @@
  * 退出码：通过 0，失败 1。
  */
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
 import path from 'node:path'
 
 const REPO = process.cwd()
 const DSH = path.join(REPO, 'dsh')
 const SKIP_DIRS = new Set(['node_modules', 'lib', 'tests', '__tests__', '.git', 'locale', 'assets'])
+
+/**
+ * 工作树里该路径下**有未提交改动**的文件（相对仓库根）。
+ *
+ * 只把「内容确实变了」当作「源码比产物新」的证据：checkout / merge 会刷新 mtime
+ * 而内容不变，仅凭时间会在每次合并后误报整棵树。非 git 工作区或 git 不可用时退化为
+ * 「不提供证据」（返回空），此时只保留版本内联判据——宁可少报也不误报。
+ */
+function dirtyPathsUnder(relativePath) {
+  try {
+    const out = execFileSync('git', ['status', '--porcelain', '--', relativePath], {
+      cwd: REPO,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
+    return out.split('\n').map(line => line.slice(3).trim()).filter(Boolean)
+  } catch {
+    return []
+  }
+}
 
 if (process.env.SKIP_DSH_ARTIFACT_FRESHNESS === '1') {
   console.log('== dsh 产物新鲜度 ==\n— 已按 SKIP_DSH_ARTIFACT_FRESHNESS=1 跳过')
@@ -136,12 +157,20 @@ for (const pkg of collectPackages()) {
   // 判据 1：源码比任一产物入口新 → 该产物未重建。
   // 逐个比而非取全部产物的最小值/最大值：一个包可能只重建了一半（例如只重打了 lib/client.js，
   // lib/index.js 仍是旧的），取极值会把「部分陈旧」这种情况掩盖掉。
+  //
+  // **mtime 只在「源码内容确实与已提交版本不同」时才算数**：checkout / merge / rebase 会把整棵
+  // 工作树的 mtime 刷成当前时间，而内容一个字没变——只看时间会在每次合并后误报整棵树（实测
+  // 280 个提交合并后误报 460 项）。git 干净 = 工作树内容等于 HEAD，此时产物对应当前源码，
+  // 时间差不构成证据。
+  const relativePkg = path.relative(REPO, pkg.dir).split(path.sep).join('/')
+  const dirtySources = dirtyPathsUnder(relativePkg)
+  const sourceMoved = dirtySources.length > 0
   for (const rel of pkg.entries) {
     const mtime = statSync(path.join(pkg.dir, rel)).mtimeMs
-    if (newestSource.mtime > mtime) {
+    if (newestSource.mtime > mtime && sourceMoved) {
       problems.push(
         `${pkg.name}：${newestSource.label} 比产物 ${rel} 新（源码 ${new Date(newestSource.mtime).toLocaleString()} > ` +
-          `产物 ${new Date(mtime).toLocaleString()}）→ 需重建该包产物`,
+          `产物 ${new Date(mtime).toLocaleString()}）且该包源码有未提交改动 → 需重建该包产物`,
       )
     }
   }
