@@ -23,6 +23,7 @@ import { collectExternalPlugins, externalDomain } from './external'
 import { collectWorldPlugins, type LoadReport } from './loader'
 import type { WorldPlugin } from './manifest'
 import { runPluginCleanups } from './registry'
+import { clearWorldServiceTable, registerWorldServiceTable } from './service-registry'
 import { createWorldServices, WORLD_SERVICE_NAMES } from './services'
 
 /** 本树提供的服务（`requires` 预检的**权威名单**；定义在 `./services.ts`，此处仅再导出）。 */
@@ -168,9 +169,12 @@ export async function startWorldTree(options?: StartOptions): Promise<WorldTreeH
     const context = new Context()
     ctx = context
     // 服务目录（阶段 2-B）：info + 实体/关系/schema/项目/视图，供插件 `ctx.get(...)` 使用。
-    for (const [name, value] of Object.entries(createWorldServices())) {
+    const services = createWorldServices()
+    for (const [name, value] of Object.entries(services)) {
       drops.push(context.provide(name, value))
     }
+    // 同一份表寄存给能力桥（阶段 2-C）：能力 12 条经此取数，避免 capabilities↔tree 成环。
+    registerWorldServiceTable(services)
     const { accepted, report } = options?.plugins
       ? {
           accepted: options.plugins,
@@ -370,6 +374,8 @@ export function disposeWorldTree(): void {
   void ctx?.fiber.dispose().catch((error: unknown) => {
     console.error('[world-tree] 拆 root 抛错（已隔离）：', error)
   })
+  // 清空能力桥的服务表：此后能力调用回退到直连 storage 的旧路径（降级策略）。
+  clearWorldServiceTable()
   ctx = null
   available.clear()
   externalIds.clear()

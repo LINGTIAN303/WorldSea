@@ -61,10 +61,10 @@ export const useRelationStore = defineStore('relation', () => {
     return existingId
   }
 
-  async function update(id: string, changes: Partial<Relation>) {
+  async function update(id: string, changes: Partial<Relation>, opts?: { skipUndo?: boolean }) {
     changes.updatedAt = new Date().toISOString()
     const old = findById(id)
-    if (!isUndoing && old) {
+    if (!isUndoing && !opts?.skipUndo && old) {
       const before: Partial<Relation> = {}
       for (const key of Object.keys(changes)) {
         (before as any)[key] = (old as any)[key]

@@ -34,12 +34,21 @@ export interface WorldEntitiesService {
   get(id: string): Entity | undefined
   /** 按类型取 */
   byType(type: string): readonly Entity[]
-  /** 新建；返回新实体 id */
-  add(entity: Entity, source?: 'user' | 'agent' | 'import'): Promise<string>
-  /** 局部更新 */
-  update(id: string, changes: Partial<Entity>, source?: 'user' | 'agent' | 'import'): Promise<void>
-  /** 删除（同时清理关联关系） */
-  remove(id: string, source?: 'user' | 'agent' | 'import'): Promise<void>
+  /**
+   * 新建；返回新实体 id。
+   * @param opts.skipUndo Agent/系统类批量写入应传 true——这类写入若进撤销栈，
+   *   会迅速填满上限（默认 20）并挤掉用户真实操作的历史。用户交互写入不要传。
+   */
+  add(entity: Entity, source?: 'user' | 'agent' | 'import', opts?: { skipUndo?: boolean }): Promise<string>
+  /** 局部更新（`opts.skipUndo` 语义同 add） */
+  update(
+    id: string,
+    changes: Partial<Entity>,
+    source?: 'user' | 'agent' | 'import',
+    opts?: { skipUndo?: boolean },
+  ): Promise<void>
+  /** 删除（同时清理关联关系；`opts.skipUndo` 语义同 add） */
+  remove(id: string, source?: 'user' | 'agent' | 'import', opts?: { skipUndo?: boolean }): Promise<void>
   /** 全量重载（外部改动后对账用） */
   reload(): Promise<void>
 }
@@ -51,10 +60,10 @@ export interface WorldRelationsService {
   byEntity(entityId: string): readonly Relation[]
   /** 从磁盘重载某实体的关系（增量语义：只替换涉及该实体的条目） */
   loadByEntity(entityId: string): Promise<void>
-  add(relation: Relation, source?: 'user' | 'agent' | 'import'): Promise<string>
-  /** 注意：relationStore.update 只有 (id, changes)，不接受 source（与 entityStore 不同） */
-  update(id: string, changes: Partial<Relation>): Promise<void>
-  remove(id: string, source?: 'user' | 'agent' | 'import'): Promise<void>
+  add(relation: Relation, source?: 'user' | 'agent' | 'import', opts?: { skipUndo?: boolean }): Promise<string>
+  /** 注意：relationStore.update 不接受 source（与 entityStore 不同），但支持 skipUndo */
+  update(id: string, changes: Partial<Relation>, opts?: { skipUndo?: boolean }): Promise<void>
+  remove(id: string, source?: 'user' | 'agent' | 'import', opts?: { skipUndo?: boolean }): Promise<void>
   reload(): Promise<void>
 }
 
@@ -107,10 +116,12 @@ export function createWorldServices(): Record<string, unknown> {
       list: () => useEntityStore().entities,
       get: (id: string) => useEntityStore().entityMap.get(id),
       byType: (type: string) => useEntityStore().entities.filter(e => e.type === type),
-      add: (entity: Entity, source?: 'user' | 'agent' | 'import') => useEntityStore().add(entity, source),
-      update: (id: string, changes: Partial<Entity>, source?: 'user' | 'agent' | 'import') =>
-        useEntityStore().update(id, changes, source),
-      remove: (id: string, source?: 'user' | 'agent' | 'import') => useEntityStore().remove(id, source),
+      add: (entity: Entity, source?: 'user' | 'agent' | 'import', opts?: { skipUndo?: boolean }) =>
+        useEntityStore().add(entity, source, opts),
+      update: (id: string, changes: Partial<Entity>, source?: 'user' | 'agent' | 'import', opts?: { skipUndo?: boolean }) =>
+        useEntityStore().update(id, changes, source, opts),
+      remove: (id: string, source?: 'user' | 'agent' | 'import', opts?: { skipUndo?: boolean }) =>
+        useEntityStore().remove(id, source, opts),
       reload: () => useEntityStore().loadAll(),
     } satisfies WorldEntitiesService,
 
@@ -119,9 +130,12 @@ export function createWorldServices(): Record<string, unknown> {
       byEntity: (entityId: string) =>
         useRelationStore().relations.filter(r => r.sourceId === entityId || r.targetId === entityId),
       loadByEntity: (entityId: string) => useRelationStore().loadByEntity(entityId),
-      add: (relation: Relation, source?: 'user' | 'agent' | 'import') => useRelationStore().add(relation, source),
-      update: (id: string, changes: Partial<Relation>) => useRelationStore().update(id, changes),
-      remove: (id: string, source?: 'user' | 'agent' | 'import') => useRelationStore().remove(id, source),
+      add: (relation: Relation, source?: 'user' | 'agent' | 'import', opts?: { skipUndo?: boolean }) =>
+        useRelationStore().add(relation, source, opts),
+      update: (id: string, changes: Partial<Relation>, opts?: { skipUndo?: boolean }) =>
+        useRelationStore().update(id, changes, opts),
+      remove: (id: string, source?: 'user' | 'agent' | 'import', opts?: { skipUndo?: boolean }) =>
+        useRelationStore().remove(id, source, opts),
       reload: () => useRelationStore().loadAll(),
     } satisfies WorldRelationsService,
 

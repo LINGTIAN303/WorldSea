@@ -96,7 +96,7 @@ export const useEntityStore = defineStore('entity', () => {
     return raw ? normalizeIngestEntity(raw) : raw
   }
 
-  async function add(entity: Entity, source: 'user' | 'agent' | 'import' = 'user'): Promise<string> {
+  async function add(entity: Entity, source: 'user' | 'agent' | 'import' = 'user', opts?: { skipUndo?: boolean }): Promise<string> {
     clearError()
     // import 来源数据已由 importBatch 处理，无需 clone；
     // user/agent 来源需要 clone 防止外部引用污染
@@ -136,7 +136,7 @@ export const useEntityStore = defineStore('entity', () => {
     await storage.putEntity(clean)
     push(clean)
     mapSet(clean.id, clean)
-    if (!isUndoing) record('entity', 'add', clean.id, null, { ...clean }, clean.name)
+    if (!isUndoing && !opts?.skipUndo) record('entity', 'add', clean.id, null, { ...clean }, clean.name)
     getEventBus().emit('entity:create', { entityId: clean.id, entityType: clean.type, properties: clean.properties || {}, source })
     refreshAllTypeCounts()
 
@@ -216,7 +216,7 @@ export const useEntityStore = defineStore('entity', () => {
     }
   }
 
-  async function remove(id: string, source: 'user' | 'agent' | 'import' = 'user') {
+  async function remove(id: string, source: 'user' | 'agent' | 'import' = 'user', opts?: { skipUndo?: boolean }) {
     clearError()
     const old = findById(id)
     if (!old) return
@@ -253,7 +253,7 @@ export const useEntityStore = defineStore('entity', () => {
     }
 
     // 记录到 undo 栈
-    if (!isUndoing) {
+    if (!isUndoing && !opts?.skipUndo) {
       for (const rel of connectedRels) {
         record('relation', 'delete', rel.id, { ...rel }, null)
       }
