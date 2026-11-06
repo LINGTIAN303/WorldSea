@@ -1,5 +1,19 @@
 import { computed } from 'vue'
-import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
+import { getWorldService } from '../../../service-registry'
+import type { WorldEntitiesService, WorldRelationsService } from '../../../services'
+
+/** 取数经树服务（唯一取数通道，换数据源只改 services.ts）；取不到属时序被破坏，报错不降级。 */
+function entitiesSvc(): WorldEntitiesService {
+  const svc = getWorldService<WorldEntitiesService>('world.entities')
+  if (!svc) throw new Error('[buildings] world.entities 服务未就绪（视图渲染早于起树）')
+  return svc
+}
+function relationsSvc(): WorldRelationsService {
+  const svc = getWorldService<WorldRelationsService>('world.relations')
+  if (!svc) throw new Error('[buildings] world.relations 服务未就绪（视图渲染早于起树）')
+  return svc
+}
+
 
 export interface BuildingNode {
   id: string
@@ -78,11 +92,9 @@ export function parseFloors(interior: string, floorCount: number): FloorInfo[] {
 }
 
 export function useBuildingSectionData() {
-  const es = useEntityStore()
-  const rs = useRelationStore()
-
+    
   const buildingEntities = computed(() =>
-    (es.entities ?? []).filter(e => e.type === 'building')
+    (entitiesSvc().list() ?? []).filter(e => e.type === 'building')
   )
 
   const nodes = computed<BuildingNode[]>(() =>
@@ -111,7 +123,7 @@ export function useBuildingSectionData() {
 
   const connections = computed<ConnectionEdge[]>(() => {
     const result: ConnectionEdge[] = []
-    for (const r of rs.relations) {
+    for (const r of relationsSvc().list()) {
       if (r.type === 'connected_to') {
         result.push({
           sourceId: r.sourceId,
@@ -130,17 +142,17 @@ export function useBuildingSectionData() {
   })
 
   function getResidents(buildingId: string) {
-    return rs.relations
+    return relationsSvc().list()
       .filter(r => r.type === 'resident' && r.sourceId === buildingId)
-      .map(r => es.entities?.find(e => e.id === r.targetId && e.type === 'character'))
+      .map(r => entitiesSvc().list()?.find(e => e.id === r.targetId && e.type === 'character'))
       .filter(e => !!e)
       .map(e => ({ id: e!.id, name: e!.name }))
   }
 
   function getStoredItems(buildingId: string) {
-    return rs.relations
+    return relationsSvc().list()
       .filter(r => r.type === 'stored_at' && r.sourceId === buildingId)
-      .map(r => es.entities?.find(e => e.id === r.targetId && e.type === 'item'))
+      .map(r => entitiesSvc().list()?.find(e => e.id === r.targetId && e.type === 'item'))
       .filter(e => !!e)
       .map(e => ({ id: e!.id, name: e!.name }))
   }

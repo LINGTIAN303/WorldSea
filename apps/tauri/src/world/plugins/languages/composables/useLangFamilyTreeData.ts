@@ -1,5 +1,19 @@
 import { computed } from 'vue'
-import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
+import { getWorldService } from '../../../service-registry'
+import type { WorldEntitiesService, WorldRelationsService } from '../../../services'
+
+/** 取数经树服务（唯一取数通道，换数据源只改 services.ts）；取不到属时序被破坏，报错不降级。 */
+function entitiesSvc(): WorldEntitiesService {
+  const svc = getWorldService<WorldEntitiesService>('world.entities')
+  if (!svc) throw new Error('[languages] world.entities 服务未就绪（视图渲染早于起树）')
+  return svc
+}
+function relationsSvc(): WorldRelationsService {
+  const svc = getWorldService<WorldRelationsService>('world.relations')
+  if (!svc) throw new Error('[languages] world.relations 服务未就绪（视图渲染早于起树）')
+  return svc
+}
+
 
 export interface LangNode {
   id: string
@@ -55,11 +69,9 @@ function getFamilyColor(family: string): string {
 }
 
 export function useLangFamilyTreeData() {
-  const es = useEntityStore()
-  const rs = useRelationStore()
-
+    
   const langEntities = computed(() =>
-    (es.entities ?? []).filter(e => e.type === 'language')
+    (entitiesSvc().list() ?? []).filter(e => e.type === 'language')
   )
 
   const nodes = computed<LangNode[]>(() =>
@@ -83,7 +95,7 @@ export function useLangFamilyTreeData() {
 
   const edges = computed<LangEdge[]>(() => {
     const result: LangEdge[] = []
-    for (const r of rs.relations) {
+    for (const r of relationsSvc().list()) {
       if (r.type === 'language_branch') {
         result.push({
           sourceId: r.sourceId,

@@ -1,5 +1,19 @@
 import { computed } from 'vue'
-import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
+import { getWorldService } from '../../../service-registry'
+import type { WorldEntitiesService, WorldRelationsService } from '../../../services'
+
+/** 取数经树服务（唯一取数通道，换数据源只改 services.ts）；取不到属时序被破坏，报错不降级。 */
+function entitiesSvc(): WorldEntitiesService {
+  const svc = getWorldService<WorldEntitiesService>('world.entities')
+  if (!svc) throw new Error('[weapons] world.entities 服务未就绪（视图渲染早于起树）')
+  return svc
+}
+function relationsSvc(): WorldRelationsService {
+  const svc = getWorldService<WorldRelationsService>('world.relations')
+  if (!svc) throw new Error('[weapons] world.relations 服务未就绪（视图渲染早于起树）')
+  return svc
+}
+
 
 export interface WeaponNode {
   id: string
@@ -47,11 +61,9 @@ const TYPE_COLORS: Record<string, string> = {
 }
 
 export function useWeaponLineageData() {
-  const es = useEntityStore()
-  const rs = useRelationStore()
-
+    
   const weaponEntities = computed(() =>
-    (es.entities ?? []).filter(e =>
+    (entitiesSvc().list() ?? []).filter(e =>
       e.type === 'item' && (e.facets?.weapon != null || e.properties?.itemType === '武器')
     )
   )
@@ -81,12 +93,12 @@ export function useWeaponLineageData() {
 
   const holderLinks = computed<HolderLink[]>(() => {
     const result: HolderLink[] = []
-    for (const r of rs.relations) {
+    for (const r of relationsSvc().list()) {
       if (r.type === 'current_holder') {
-        const ch = es.entities?.find(e => e.id === r.targetId && e.type === 'character')
+        const ch = entitiesSvc().list()?.find(e => e.id === r.targetId && e.type === 'character')
         if (ch) result.push({ weaponId: r.sourceId, characterId: ch.id, characterName: ch.name, isCurrent: true })
       } else if (r.type === 'past_holders') {
-        const ch = es.entities?.find(e => e.id === r.targetId && e.type === 'character')
+        const ch = entitiesSvc().list()?.find(e => e.id === r.targetId && e.type === 'character')
         if (ch) result.push({ weaponId: r.sourceId, characterId: ch.id, characterName: ch.name, isCurrent: false })
       }
     }
@@ -95,7 +107,7 @@ export function useWeaponLineageData() {
 
   const weaponEdges = computed<WeaponEdge[]>(() => {
     const result: WeaponEdge[] = []
-    for (const r of rs.relations) {
+    for (const r of relationsSvc().list()) {
       if (r.type === 'weapon_relation') {
         const rel = (r.properties?.relation as string) || '配套'
         result.push({ sourceId: r.sourceId, targetId: r.targetId, relation: rel })

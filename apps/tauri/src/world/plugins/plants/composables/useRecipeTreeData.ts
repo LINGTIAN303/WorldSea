@@ -1,5 +1,19 @@
 import { computed } from 'vue'
-import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
+import { getWorldService } from '../../../service-registry'
+import type { WorldEntitiesService, WorldRelationsService } from '../../../services'
+
+/** 取数经树服务（唯一取数通道，换数据源只改 services.ts）；取不到属时序被破坏，报错不降级。 */
+function entitiesSvc(): WorldEntitiesService {
+  const svc = getWorldService<WorldEntitiesService>('world.entities')
+  if (!svc) throw new Error('[plants] world.entities 服务未就绪（视图渲染早于起树）')
+  return svc
+}
+function relationsSvc(): WorldRelationsService {
+  const svc = getWorldService<WorldRelationsService>('world.relations')
+  if (!svc) throw new Error('[plants] world.relations 服务未就绪（视图渲染早于起树）')
+  return svc
+}
+
 
 export type RecipeNodeType = 'plant' | 'item' | 'magic'
 
@@ -44,18 +58,16 @@ const NODE_TYPE_COLORS: Record<RecipeNodeType, string> = {
 }
 
 export function useRecipeTreeData() {
-  const es = useEntityStore()
-  const rs = useRelationStore()
-
+    
   const plantEntities = computed(() =>
-    (es.entities ?? []).filter(e => e.type === 'plant')
+    (entitiesSvc().list() ?? []).filter(e => e.type === 'plant')
   )
 
   const nodes = computed<RecipeNode[]>(() => {
     const result: RecipeNode[] = []
     const itemIds = new Set<string>()
 
-    for (const r of rs.relations) {
+    for (const r of relationsSvc().list()) {
       if (r.type === 'materials_from') itemIds.add(r.targetId)
       if (r.type === 'magic_material') itemIds.add(r.targetId)
     }
@@ -77,7 +89,7 @@ export function useRecipeTreeData() {
     }
 
     for (const itemId of itemIds) {
-      const entity = es.entities?.find(e => e.id === itemId)
+      const entity = entitiesSvc().list()?.find(e => e.id === itemId)
       if (!entity) continue
       const it = (entity.properties.itemType as string) || '其他'
       const rarity = (entity.properties.rarity as string) || '常见'
@@ -99,7 +111,7 @@ export function useRecipeTreeData() {
 
   const edges = computed<RecipeEdge[]>(() => {
     const result: RecipeEdge[] = []
-    for (const r of rs.relations) {
+    for (const r of relationsSvc().list()) {
       if (r.type === 'materials_from') {
         result.push({ sourceId: r.sourceId, targetId: r.targetId, edgeType: 'materials_from' })
       } else if (r.type === 'magic_material') {

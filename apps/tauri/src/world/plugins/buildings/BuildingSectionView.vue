@@ -67,15 +67,27 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { WsIcon } from '@worldsea/ui-kit'
-import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
 import { CustomDropdown } from '@worldsea/plugin-sdk'
 import { useBuildingSectionData, parseFloors, type BuildingNode, type FloorInfo } from './composables/useBuildingSectionData'
 import { useBuildingSectionCanvas } from './composables/useBuildingSectionCanvas'
+import { getWorldService } from '../../service-registry'
+import type { WorldEntitiesService, WorldRelationsService } from '../../services'
+
+/** 取数经树服务（唯一取数通道，换数据源只改 services.ts）；取不到属时序被破坏，报错不降级。 */
+function entitiesSvc(): WorldEntitiesService {
+  const svc = getWorldService<WorldEntitiesService>('world.entities')
+  if (!svc) throw new Error('[buildings] world.entities 服务未就绪（视图渲染早于起树）')
+  return svc
+}
+function relationsSvc(): WorldRelationsService {
+  const svc = getWorldService<WorldRelationsService>('world.relations')
+  if (!svc) throw new Error('[buildings] world.relations 服务未就绪（视图渲染早于起树）')
+  return svc
+}
+
 
 defineEmits<{ (e: 'back'): void }>()
 
-const es = useEntityStore()
-const rs = useRelationStore()
 const containerRef = ref<HTMLElement | null>(null)
 const filterType = ref('')
 const showConnections = ref(true)
@@ -129,7 +141,7 @@ const buildingConnections = computed(() => {
 })
 
 function connectedName(id: string): string {
-  const e = es.entities?.find(e => e.id === id)
+  const e = entitiesSvc().list()?.find(e => e.id === id)
   return e ? e.name : id.slice(0, 8)
 }
 
@@ -194,8 +206,8 @@ watch([filteredNodes, filteredConnections], () => {
 })
 
 onMounted(async () => {
-  await es.loadAll()
-  await rs.loadAll()
+  await entitiesSvc().reload()
+  await relationsSvc().reload()
   recalcLayout()
   updateCanvasData()
   canvas.setCallbacks({

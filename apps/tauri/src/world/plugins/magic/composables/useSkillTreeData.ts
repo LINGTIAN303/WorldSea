@@ -1,6 +1,20 @@
 import { computed } from 'vue'
-import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
 import { getNodeTypeInfo } from '@worldsea/entity-core'
+import { getWorldService } from '../../../service-registry'
+import type { WorldEntitiesService, WorldRelationsService } from '../../../services'
+
+/** 取数经树服务（唯一取数通道，换数据源只改 services.ts）；取不到属时序被破坏，报错不降级。 */
+function entitiesSvc(): WorldEntitiesService {
+  const svc = getWorldService<WorldEntitiesService>('world.entities')
+  if (!svc) throw new Error('[magic] world.entities 服务未就绪（视图渲染早于起树）')
+  return svc
+}
+function relationsSvc(): WorldRelationsService {
+  const svc = getWorldService<WorldRelationsService>('world.relations')
+  if (!svc) throw new Error('[magic] world.relations 服务未就绪（视图渲染早于起树）')
+  return svc
+}
+
 
 export interface SkillNode {
   id: string
@@ -32,11 +46,9 @@ const TYPE_ICONS: Record<string, string> = {
 }
 
 export function useSkillTreeData() {
-  const es = useEntityStore()
-  const rs = useRelationStore()
-
+    
   const magicEntities = computed(() =>
-    (es.entities ?? []).filter(e => e.type === 'magic')
+    (entitiesSvc().list() ?? []).filter(e => e.type === 'magic')
   )
 
   const nodes = computed<SkillNode[]>(() =>
@@ -58,7 +70,7 @@ export function useSkillTreeData() {
 
   const edges = computed<SkillEdge[]>(() => {
     const result: SkillEdge[] = []
-    for (const r of rs.relations) {
+    for (const r of relationsSvc().list()) {
       if (r.type === 'upgrades_to' || r.type === 'counters') {
         result.push({
           sourceId: r.sourceId,

@@ -1,5 +1,5 @@
 /**
- * 轻档 6 插件的取数通道守卫：视图组件读树服务，而非直连 pinia store。
+ * 已迁移插件的取数通道守卫：视图/composable 读树服务，而非直连 pinia store。
  *
  * 为何用源码扫描而非挂载：要锁的是「取数通道」这一架构事实，不是渲染结果。挂载
  * `GenericEntityView` 需 pinia + i18n + 图标注册表全链路，替身环境测的是假路径。
@@ -9,12 +9,26 @@ import { describe, expect, it } from 'vitest'
 
 /** 被测文件（相对 `world/plugins/`）。只列已迁移的；新迁移请追加。 */
 const MIGRATED = [
+  // 轻档
   'organizations/OrganizationView.vue',
   'codex/CodexView.vue',
   'concepts/ConceptView.vue',
   'drawing/composables/useDrawingPersistence.ts',
   'gallery/GalleryView.vue',
   'inspiration/MoodboardView.vue',
+  // 中档（成对结构：composable 供数 + View 承载）
+  'buildings/composables/useBuildingSectionData.ts',
+  'buildings/BuildingSectionView.vue',
+  'languages/composables/useLangFamilyTreeData.ts',
+  'languages/LanguageFamilyTreeView.vue',
+  'magic/composables/useSkillTreeData.ts',
+  'magic/SkillTreeView.vue',
+  'plants/composables/useRecipeTreeData.ts',
+  'plants/RecipeTreeView.vue',
+  'species/composables/useEvolutionTreeData.ts',
+  'species/EvolutionTreeView.vue',
+  'weapons/composables/useWeaponLineageData.ts',
+  'weapons/WeaponLineageView.vue',
 ] as const
 
 async function readPluginFile(rel: string): Promise<string> {
@@ -41,6 +55,9 @@ describe.each(MIGRATED)('%s 取数经服务', rel => {
     expect(code).not.toContain('useRelationStore')
     expect(code).not.toMatch(/\bentityStore\b/)
     expect(code).not.toMatch(/\brelationStore\b/)
+    // 中档插件沿用短别名 es / rs，同样不能再出现
+    expect(code).not.toMatch(/\bes\.(entities|loadAll|add|update|remove)\b/)
+    expect(code).not.toMatch(/\brs\.(relations|loadAll|add|update|remove)\b/)
   })
 
   it('经 getWorldService 取服务，且缺席时抛错而非静默降级', async () => {
