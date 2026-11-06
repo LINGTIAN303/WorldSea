@@ -146,14 +146,33 @@
 <script setup lang="ts">
 import { ref, computed, reactive } from 'vue'
 import { GenericEntityView, type FilterDef, type CardFieldDef, type CustomTabDef, type RelationTabDef } from '@worldsea/plugin-sdk'
-import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
 import { EntityRelationSelector } from '@worldsea/plugin-sdk'
 import { RegionMap, WsIcon, WsEmpty } from '@worldsea/ui-kit'
+import { getWorldService } from '../../service-registry'
+import type { WorldEntitiesService, WorldRelationsService } from '../../services'
 import { regionFields, regionTypeIcon } from './regionConfig'
 import { DETAIL_TAB_DECLARATIONS } from '../../detailTabDeclarations'
 
-const entityStore = useEntityStore()
-const relationStore = useRelationStore()
+/**
+ * 取数经树服务，而非直连 pinia store。
+ *
+ * 为什么：服务层是取数的唯一通道，将来换数据源（内存缓存 / 远端 / 隔离实例）只改
+ * `services.ts` 一处，组件不用动。服务返回的仍是 store 的响应式引用，故 `computed`
+ * 依赖追踪与直连时一致。
+ *
+ * 服务在起树时登记，而视图组件由树装配的视图注册表驱动挂载，时序上必然晚于起树。
+ * 故取不到属时序被破坏的编程错误——报错而非静默降级，否则表现为「列表莫名是空的」。
+ */
+function entitiesSvc(): WorldEntitiesService {
+  const svc = getWorldService<WorldEntitiesService>('world.entities')
+  if (!svc) throw new Error('[regions] world.entities 服务未就绪（视图渲染早于起树）')
+  return svc
+}
+function relationsSvc(): WorldRelationsService {
+  const svc = getWorldService<WorldRelationsService>('world.relations')
+  if (!svc) throw new Error('[regions] world.relations 服务未就绪（视图渲染早于起树）')
+  return svc
+}
 
 // ── View mode（2026-10-01：默认卡片；树/地图仍可切）──
 const viewMode = ref<string>('grid')
@@ -191,7 +210,7 @@ const customTabs: CustomTabDef[] = DETAIL_TAB_DECLARATIONS.region?.custom ?? []
 const detailTabs: RelationTabDef[] = []
 
 // ── Region list helper ──
-const regionList = computed(() => entityStore.entities.filter(e => e.type === 'region'))
+const regionList = computed(() => entitiesSvc().byType('region'))
 
 // ── Tree computation ──
 interface TreeItem {
@@ -201,7 +220,7 @@ interface TreeItem {
 }
 
 function buildTree(entities: any[]): TreeItem[] {
-  const rels = relationStore.relations
+  const rels = relationsSvc().list()
   const parentMap: Record<string, string> = {}
   const enclaveMap: Record<string, string> = {}
   for (const rel of rels) {
@@ -250,55 +269,60 @@ function visibleTree(entities: any[]): TreeItem[] {
 
 // ── Parent/enclave helpers ──
 function getParentName(id: string) {
-  const rel = relationStore.relations.find(r => r.type === 'located_in' && r.sourceId === id)
-  return rel ? entityStore.entityMap.get(rel.targetId)?.name || '' : ''
+  const rel = relationsSvc().list().find(r => r.type === 'located_in' && r.sourceId === id)
+  return rel ? entitiesSvc().get(rel.targetId)?.name || '' : ''
 }
 
 function getEnclaveName(id: string) {
-  const rel = relationStore.relations.find(r => r.type === 'enclave_of' && r.sourceId === id)
-  return rel ? entityStore.entityMap.get(rel.targetId)?.name || '' : ''
+  const rel = relationsSvc().list().find(r => r.type === 'enclave_of' && r.sourceId === id)
+  return rel ? entitiesSvc().get(rel.targetId)?.name || '' : ''
 }
 
 // ── Relation helpers ──
 function childRegions(parentId: string) {
   return regionList.value.filter(r => {
-    const rel = relationStore.relations.find(rel => rel.type === 'located_in' && rel.sourceId === r.id && rel.targetId === parentId)
+    const rel = relationsSvc().list().find(rel => rel.type === 'located_in' && rel.sourceId === r.id && rel.targetId === parentId)
     return !!rel
   })
 }
 
 function enclaveRegions(parentId: string) {
   return regionList.value.filter(r => {
-    const rel = relationStore.relations.find(rel => rel.type === 'enclave_of' && rel.sourceId === r.id && rel.targetId === parentId)
+    const rel = relationsSvc().list().find(rel => rel.type === 'enclave_of' && rel.sourceId === r.id && rel.targetId === parentId)
     return !!rel
   })
 }
 
 function controllingOrgs(regionId: string) {
-  return relationStore.relations
+  const entities = entitiesSvc()
+  return relationsSvc().list()
     .filter(r => r.type === 'controls' && r.targetId === regionId)
-    .map(r => ({ relation: r, org: entityStore.entityMap.get(r.sourceId) }))
+    .map(r => ({ relation: r, org: entities.get(r.sourceId) }))
 }
 
 function residentCharacters(regionId: string) {
-  return relationStore.relations
+  const entities = entitiesSvc()
+  return relationsSvc().list()
     .filter(r => r.type === 'resides_in' && r.targetId === regionId)
-    .map(r => ({ relation: r, character: entityStore.entityMap.get(r.sourceId) }))
+    .map(r => ({ relation: r, character: entities.get(r.sourceId) }))
 }
 
 async function removeLocatedIn(childId: string, parentId: string) {
-  const rel = relationStore.relations.find(r => r.type === 'located_in' && r.sourceId === childId && r.targetId === parentId)
-  if (rel) { await relationStore.remove(rel.id); await relationStore.loadAll() }
+  const relations = relationsSvc()
+  const rel = relations.list().find(r => r.type === 'located_in' && r.sourceId === childId && r.targetId === parentId)
+  if (rel) { await relations.remove(rel.id); await relations.reload() }
 }
 
 async function removeEnclave(encId: string, parentId: string) {
-  const rel = relationStore.relations.find(r => r.type === 'enclave_of' && r.sourceId === encId && r.targetId === parentId)
-  if (rel) { await relationStore.remove(rel.id); await relationStore.loadAll() }
+  const relations = relationsSvc()
+  const rel = relations.list().find(r => r.type === 'enclave_of' && r.sourceId === encId && r.targetId === parentId)
+  if (rel) { await relations.remove(rel.id); await relations.reload() }
 }
 
 async function removeRelation(relId: string) {
-  await relationStore.remove(relId)
-  await relationStore.loadAll()
+  const relations = relationsSvc()
+  await relations.remove(relId)
+  await relations.reload()
 }
 
 // ── Selection ──
