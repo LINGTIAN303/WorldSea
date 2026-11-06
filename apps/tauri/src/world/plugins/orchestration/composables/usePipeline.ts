@@ -1,5 +1,4 @@
 import { ref, computed } from 'vue'
-import { useEntityStore } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
 import type {
   CreationPipeline,
@@ -8,6 +7,15 @@ import type {
   PipelineStatus,
   PipelineSummary,
 } from '../types'
+import { getWorldService } from '../../../service-registry'
+import type { WorldEntitiesService } from '../../../services'
+
+/** 取数经树服务（唯一取数通道，换数据源只改 services.ts）；取不到属时序被破坏，报错不降级。 */
+function entitiesSvc(): WorldEntitiesService {
+  const svc = getWorldService<WorldEntitiesService>('world.entities')
+  if (!svc) throw new Error('[orchestration] world.entities 服务未就绪（视图渲染早于起树）')
+  return svc
+}
 
 const PIPELINE_TYPE = 'pipeline'
 
@@ -34,12 +42,11 @@ function entityToPipeline(e: Entity): CreationPipeline {
 }
 
 export function usePipeline() {
-  const entityStore = useEntityStore()
-  const selectedId = ref<string | null>(null)
+    const selectedId = ref<string | null>(null)
 
   /** 所有 pipeline 实体 */
   const pipelineEntities = computed(() =>
-    (entityStore.entities ?? []).filter(e => e.type === PIPELINE_TYPE),
+    (entitiesSvc().list() ?? []).filter(e => e.type === PIPELINE_TYPE),
   )
 
   /** Pipeline 列表（摘要） */
@@ -63,13 +70,13 @@ export function usePipeline() {
   /** 当前选中的 Pipeline 详情 */
   const selectedPipeline = computed<CreationPipeline | null>(() => {
     if (!selectedId.value) return null
-    const e = entityStore.entityMap.get(selectedId.value)
+    const e = entitiesSvc().get(selectedId.value)
     return e ? entityToPipeline(e) : null
   })
 
   /** 加载所有 Pipeline */
   async function loadPipelines() {
-    await entityStore.loadByType(PIPELINE_TYPE)
+    await entitiesSvc().loadByType(PIPELINE_TYPE)
   }
 
   /** 创建新 Pipeline */
@@ -100,9 +107,9 @@ export function usePipeline() {
       updatedAt: new Date().toISOString(),
     }
 
-    await entityStore.add(entity)
-    await entityStore.loadByType(PIPELINE_TYPE)
-    return entityToPipeline(entityStore.entityMap.get(id)!)
+    await entitiesSvc().add(entity)
+    await entitiesSvc().loadByType(PIPELINE_TYPE)
+    return entityToPipeline(entitiesSvc().get(id)!)
   }
 
   /** 更新 Pipeline */
@@ -133,15 +140,15 @@ export function usePipeline() {
       updateData.properties = propsUpdate
     }
 
-    await entityStore.update(id, updateData)
-    await entityStore.loadByType(PIPELINE_TYPE)
+    await entitiesSvc().update(id, updateData)
+    await entitiesSvc().loadByType(PIPELINE_TYPE)
   }
 
   /** 删除 Pipeline */
   async function deletePipeline(id: string): Promise<void> {
-    await entityStore.remove(id)
+    await entitiesSvc().remove(id)
     if (selectedId.value === id) selectedId.value = null
-    await entityStore.loadByType(PIPELINE_TYPE)
+    await entitiesSvc().loadByType(PIPELINE_TYPE)
   }
 
   /** 选中 Pipeline */
@@ -156,7 +163,7 @@ export function usePipeline() {
   ): Promise<void> {
     const pipeline = selectedPipeline.value?.id === pipelineId
       ? selectedPipeline.value
-      : entityToPipeline(entityStore.entityMap.get(pipelineId)!)
+      : entityToPipeline(entitiesSvc().get(pipelineId)!)
 
     if (!pipeline) return
 
@@ -173,7 +180,7 @@ export function usePipeline() {
   async function removeStep(pipelineId: string, stepId: string): Promise<void> {
     const pipeline = selectedPipeline.value?.id === pipelineId
       ? selectedPipeline.value
-      : entityToPipeline(entityStore.entityMap.get(pipelineId)!)
+      : entityToPipeline(entitiesSvc().get(pipelineId)!)
 
     if (!pipeline) return
 
@@ -186,7 +193,7 @@ export function usePipeline() {
   async function addConnection(pipelineId: string, connection: StepConnection): Promise<void> {
     const pipeline = selectedPipeline.value?.id === pipelineId
       ? selectedPipeline.value
-      : entityToPipeline(entityStore.entityMap.get(pipelineId)!)
+      : entityToPipeline(entitiesSvc().get(pipelineId)!)
 
     if (!pipeline) return
 
@@ -203,7 +210,7 @@ export function usePipeline() {
   ): Promise<void> {
     const pipeline = selectedPipeline.value?.id === pipelineId
       ? selectedPipeline.value
-      : entityToPipeline(entityStore.entityMap.get(pipelineId)!)
+      : entityToPipeline(entitiesSvc().get(pipelineId)!)
 
     if (!pipeline) return
 
@@ -221,7 +228,7 @@ export function usePipeline() {
   ): Promise<void> {
     const pipeline = selectedPipeline.value?.id === pipelineId
       ? selectedPipeline.value
-      : entityToPipeline(entityStore.entityMap.get(pipelineId)!)
+      : entityToPipeline(entitiesSvc().get(pipelineId)!)
 
     if (!pipeline) return
 
@@ -238,7 +245,7 @@ export function usePipeline() {
   ): Promise<void> {
     const pipeline = selectedPipeline.value?.id === pipelineId
       ? selectedPipeline.value
-      : entityToPipeline(entityStore.entityMap.get(pipelineId)!)
+      : entityToPipeline(entitiesSvc().get(pipelineId)!)
 
     if (!pipeline) return
 
@@ -255,7 +262,7 @@ export function usePipeline() {
   async function removeConnection(pipelineId: string, from: string, to: string): Promise<void> {
     const pipeline = selectedPipeline.value?.id === pipelineId
       ? selectedPipeline.value
-      : entityToPipeline(entityStore.entityMap.get(pipelineId)!)
+      : entityToPipeline(entitiesSvc().get(pipelineId)!)
 
     if (!pipeline) return
 

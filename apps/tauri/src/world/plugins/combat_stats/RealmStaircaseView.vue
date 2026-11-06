@@ -63,15 +63,27 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { WsIcon } from '@worldsea/ui-kit'
-import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
 import { CustomDropdown } from '@worldsea/plugin-sdk'
 import { useRealmStaircaseData, type RealmStep } from './composables/useRealmStaircaseData'
 import { useRealmStaircaseCanvas } from './composables/useRealmStaircaseCanvas'
+import { getWorldService } from '../../service-registry'
+import type { WorldEntitiesService, WorldRelationsService } from '../../services'
+
+/** 取数经树服务（唯一取数通道，换数据源只改 services.ts）；取不到属时序被破坏，报错不降级。 */
+function entitiesSvc(): WorldEntitiesService {
+  const svc = getWorldService<WorldEntitiesService>('world.entities')
+  if (!svc) throw new Error('[combat_stats] world.entities 服务未就绪（视图渲染早于起树）')
+  return svc
+}
+function relationsSvc(): WorldRelationsService {
+  const svc = getWorldService<WorldRelationsService>('world.relations')
+  if (!svc) throw new Error('[combat_stats] world.relations 服务未就绪（视图渲染早于起树）')
+  return svc
+}
+
 
 defineEmits<{ (e: 'back'): void }>()
 
-const es = useEntityStore()
-const rs = useRelationStore()
 const containerRef = ref<HTMLElement | null>(null)
 const filterSystem = ref('')
 
@@ -95,9 +107,9 @@ const selectedStep = computed<RealmStep | null>(() => {
 
 function getRelated(targetType: string, relType: string) {
   if (!canvas.selectedId.value) return []
-  return rs.relations
+  return relationsSvc().list()
     .filter(r => r.type === relType && r.sourceId === canvas.selectedId.value)
-    .map(r => es.entities?.find(e => e.id === r.targetId && e.type === targetType))
+    .map(r => entitiesSvc().list()?.find(e => e.id === r.targetId && e.type === targetType))
     .filter(e => !!e)
     .map(e => ({ id: e!.id, name: e!.name }))
 }
@@ -118,8 +130,8 @@ watch(filterSystem, () => {
 })
 
 onMounted(async () => {
-  await es.loadAll()
-  await rs.loadAll()
+  await entitiesSvc().reload()
+  await relationsSvc().reload()
   canvas.setData(steps.value, filterSystem.value)
   canvas.setCallbacks({
     onNodeClick: (node) => { canvas.setSelectedId(node.id) },

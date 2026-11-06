@@ -1,5 +1,14 @@
 import { computed } from 'vue'
-import { useEntityStore } from '@worldsea/entity-core'
+import { getWorldService } from '../../../service-registry'
+import type { WorldEntitiesService } from '../../../services'
+
+/** 取数经树服务（唯一取数通道，换数据源只改 services.ts）；取不到属时序被破坏，报错不降级。 */
+function entitiesSvc(): WorldEntitiesService {
+  const svc = getWorldService<WorldEntitiesService>('world.entities')
+  if (!svc) throw new Error('[combat_stats] world.entities 服务未就绪（视图渲染早于起树）')
+  return svc
+}
+
 
 export interface RealmStep {
   id: string
@@ -54,10 +63,9 @@ export function getRadarValues(step: RealmStep): number[] {
 export { RADAR_DIMS }
 
 export function useRealmStaircaseData() {
-  const es = useEntityStore()
-
+  
   const combatEntities = computed(() =>
-    (es.entities ?? []).filter(e => e.type === 'combat_stat')
+    (entitiesSvc().list() ?? []).filter(e => e.type === 'combat_stat')
   )
 
   const steps = computed<RealmStep[]>(() => {

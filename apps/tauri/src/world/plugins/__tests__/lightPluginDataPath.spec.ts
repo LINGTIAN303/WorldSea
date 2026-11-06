@@ -29,6 +29,13 @@ const MIGRATED = [
   'species/EvolutionTreeView.vue',
   'weapons/composables/useWeaponLineageData.ts',
   'weapons/WeaponLineageView.vue',
+  // 中档剩余（可直接推、不需新服务）
+  'combat_stats/composables/useRealmStaircaseData.ts',
+  'combat_stats/RealmStaircaseView.vue',
+  'culture/composables/useFestivalCalendarData.ts',
+  'culture/FestivalCalendarView.vue',
+  'orchestration/composables/usePipeline.ts',
+  'orchestration/composables/usePipelineTemplates.ts',
 ] as const
 
 async function readPluginFile(rel: string): Promise<string> {

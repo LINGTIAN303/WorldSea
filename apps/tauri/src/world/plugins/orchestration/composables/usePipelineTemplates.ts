@@ -2,7 +2,16 @@ import { ref, computed } from 'vue'
 import type { CreationTemplate, PipelineStep, StepConnection } from '../types'
 import { builtinTemplates } from '../templates'
 import { usePipeline } from './usePipeline'
-import { useEntityStore } from '@worldsea/entity-core'
+import { getWorldService } from '../../../service-registry'
+import type { WorldEntitiesService } from '../../../services'
+
+/** 取数经树服务（唯一取数通道，换数据源只改 services.ts）；取不到属时序被破坏，报错不降级。 */
+function entitiesSvc(): WorldEntitiesService {
+  const svc = getWorldService<WorldEntitiesService>('world.entities')
+  if (!svc) throw new Error('[orchestration] world.entities 服务未就绪（视图渲染早于起树）')
+  return svc
+}
+
 
 const USER_TEMPLATES_KEY = 'worldsea-pipeline-templates'
 const TEMPLATE_ENTITY_TYPE = 'pipeline-template'
@@ -20,8 +29,7 @@ function loadUserTemplatesFromLS(): CreationTemplate[] {
 /** 从 EntityStore 加载用户自定义模板 */
 function loadUserTemplatesFromStore(): CreationTemplate[] {
   try {
-    const entityStore = useEntityStore()
-    const entities = (entityStore.entities ?? []).filter(e => e.type === TEMPLATE_ENTITY_TYPE)
+        const entities = (entitiesSvc().list() ?? []).filter(e => e.type === TEMPLATE_ENTITY_TYPE)
     return entities.map(e => {
       const p = e.properties ?? {}
       return {
@@ -40,7 +48,6 @@ function loadUserTemplatesFromStore(): CreationTemplate[] {
 }
 
 export function usePipelineTemplates() {
-  const entityStore = useEntityStore()
   const { createPipeline } = usePipeline()
 
   // 合并 localStorage 旧数据到 EntityStore（一次性迁移）
@@ -53,7 +60,7 @@ export function usePipelineTemplates() {
 
     for (const tpl of lsTemplates) {
       if (!storeIds.has(tpl.id)) {
-        await entityStore.add({
+        await entitiesSvc().add({
           id: tpl.id,
           type: TEMPLATE_ENTITY_TYPE,
           name: tpl.name,
@@ -72,7 +79,7 @@ export function usePipelineTemplates() {
 
     // 迁移完成后清除 localStorage
     localStorage.removeItem(USER_TEMPLATES_KEY)
-    await entityStore.loadByType(TEMPLATE_ENTITY_TYPE)
+    await entitiesSvc().loadByType(TEMPLATE_ENTITY_TYPE)
   }
 
   const userTemplates = ref<CreationTemplate[]>([])
@@ -174,7 +181,7 @@ export function usePipelineTemplates() {
     }
 
     // 存到 EntityStore（后端可通过 EntityStore 访问）
-    await entityStore.add({
+    await entitiesSvc().add({
       id: templateId,
       type: TEMPLATE_ENTITY_TYPE,
       name: template.name,
@@ -195,7 +202,7 @@ export function usePipelineTemplates() {
 
   /** 删除用户自定义模板 */
   async function deleteTemplate(id: string): Promise<void> {
-    await entityStore.remove(id)
+    await entitiesSvc().remove(id)
     userTemplates.value = userTemplates.value.filter(t => t.id !== id)
   }
 

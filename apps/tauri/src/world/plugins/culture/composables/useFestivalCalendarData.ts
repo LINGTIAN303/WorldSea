@@ -1,5 +1,14 @@
 import { computed } from 'vue'
-import { useEntityStore } from '@worldsea/entity-core'
+import { getWorldService } from '../../../service-registry'
+import type { WorldEntitiesService } from '../../../services'
+
+/** 取数经树服务（唯一取数通道，换数据源只改 services.ts）；取不到属时序被破坏，报错不降级。 */
+function entitiesSvc(): WorldEntitiesService {
+  const svc = getWorldService<WorldEntitiesService>('world.entities')
+  if (!svc) throw new Error('[culture] world.entities 服务未就绪（视图渲染早于起树）')
+  return svc
+}
+
 
 export interface FestivalNode {
   id: string
@@ -98,10 +107,9 @@ export function monthToAngle(month: number): number {
 }
 
 export function useFestivalCalendarData() {
-  const es = useEntityStore()
-
+  
   const cultureEntities = computed(() =>
-    (es.entities ?? []).filter(e => e.type === 'culture')
+    (entitiesSvc().list() ?? []).filter(e => e.type === 'culture')
   )
 
   const nodes = computed<FestivalNode[]>(() =>
