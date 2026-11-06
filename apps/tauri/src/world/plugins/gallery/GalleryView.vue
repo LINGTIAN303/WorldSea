@@ -42,12 +42,21 @@
 import { computed, onMounted, ref } from 'vue'
 import { invoke, convertFileSrc } from '@tauri-apps/api/core'
 import { WsIcon, useViewEntering } from '@worldsea/ui-kit'
-import { useEntityStore, entitySchemaRegistry, type Entity } from '@worldsea/entity-core'
+import { entitySchemaRegistry, type Entity } from '@worldsea/entity-core'
 import { CustomDropdown, EntityCardCover } from '@worldsea/plugin-sdk'
+import { getWorldService } from '../../service-registry'
+import type { WorldEntitiesService } from '../../services'
 import { collectGalleryItems, type GalleryItem } from './galleryItems'
 import { mimeFromExt } from '@/composables/imageAssets'
 import { resolveEntityDataDir } from '@/composables/workspace'
 import FilePreview from '@/components/files/FilePreview.vue'
+
+/** 取数经树服务（唯一取数通道，换数据源只改 services.ts）；取不到属时序被破坏，报错不降级。 */
+function entitiesSvc(): WorldEntitiesService {
+  const svc = getWorldService<WorldEntitiesService>('world.entities')
+  if (!svc) throw new Error('[gallery] world.entities 服务未就绪（视图渲染早于起树）')
+  return svc
+}
 
 const SOURCE_OPTIONS = [
   { value: 'all', label: '全部来源' },
@@ -58,7 +67,6 @@ const SOURCE_OPTIONS = [
   { value: 'asset', label: '资产文件' },
 ]
 
-const entityStore = useEntityStore()
 const sourceFilter = ref('all')
 const typeFilter = ref('all')
 const keyword = ref('')
@@ -68,14 +76,14 @@ const gridEntering = useViewEntering(() => `${sourceFilter.value}|${typeFilter.v
 
 /** 实体类型选项（仅收录当前存在实体的类型，按注册表 label 展示） */
 const typeOptions = computed(() => {
-  const types = [...new Set(entityStore.entities.map(e => e.type))]
+  const types = [...new Set(entitiesSvc().list().map(e => e.type))]
   return [
     { value: 'all', label: '全部类型' },
     ...types.map(t => ({ value: t, label: entitySchemaRegistry.getLabel(t) || t })),
   ]
 })
 
-const allItems = computed(() => collectGalleryItems(entityStore.entities))
+const allItems = computed(() => collectGalleryItems(entitiesSvc().list()))
 
 /** assets/ 目录图片资产（挂账②：与实体条目合并展示；id 存磁盘路径供预览） */
 const assetItems = ref<GalleryItem[]>([])

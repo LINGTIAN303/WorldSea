@@ -66,18 +66,22 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import { WsIcon } from '@worldsea/ui-kit'
-import { useEntityStore } from '@worldsea/entity-core'
 import { CustomDropdown } from '@worldsea/plugin-sdk'
 import MoodboardCanvas from './components/MoodboardCanvas.vue'
+import { getWorldService } from '../../service-registry'
+import type { WorldEntitiesService } from '../../services'
 import type { CardData } from './composables/moodboardDraw'
 import { extractColorsFromUrl } from './composables/useColorExtractor'
 import type { Entity } from '@worldsea/entity-core'
 
-defineEmits<{
-  (e: 'back'): void
-}>()
+/** 取数经树服务（唯一取数通道，换数据源只改 services.ts）；取不到属时序被破坏，报错不降级。 */
+function entitiesSvc(): WorldEntitiesService {
+  const svc = getWorldService<WorldEntitiesService>('world.entities')
+  if (!svc) throw new Error('[inspiration] world.entities 服务未就绪（视图渲染早于起树）')
+  return svc
+}
 
-const es = useEntityStore()
+defineEmits<{ (e: 'back'): void }>()
 
 const filterType = ref('')
 const selectedCardId = ref<string | null>(null)
@@ -102,7 +106,7 @@ const ctxMenu = ref<{ visible: boolean; x: number; y: number; cardId: string }>(
 })
 
 const inspirationEntities = computed(() => {
-  return (es.entities ?? []).filter(e => e.type === 'inspiration')
+  return (entitiesSvc().list() ?? []).filter(e => e.type === 'inspiration')
 })
 
 const filteredCards = computed<CardData[]>(() => {
@@ -210,7 +214,7 @@ function onCtxEdit() {
 
 function onCtxDelete() {
   if (ctxMenu.value.cardId) {
-    es.remove(ctxMenu.value.cardId)
+    entitiesSvc().remove(ctxMenu.value.cardId)
   }
   ctxMenu.value.visible = false
 }
@@ -222,7 +226,7 @@ watch(inspirationEntities, () => {
 }, { deep: true })
 
 onMounted(async () => {
-  es.loadAll()
+  entitiesSvc().reload()
   autoLayout()
   setTimeout(() => extractColorsForEntities(), 500)
 })

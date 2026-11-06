@@ -96,14 +96,24 @@ import { ref, computed } from 'vue'
 import { GenericEntityView, EntityRelationSelector, type FilterDef, type CardFieldDef, type CustomTabDef, type RelationTabDef } from '@worldsea/plugin-sdk'
 import { WsIcon } from '@worldsea/ui-kit'
 import { WsEmpty } from '@worldsea/ui-kit'
-import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
 import OrgTreeNode from './OrgTreeNode.vue'
 import { orgFields, orgIconOf } from './organizationConfig'
+import { getWorldService } from '../../service-registry'
+import type { WorldEntitiesService, WorldRelationsService } from '../../services'
 import { DETAIL_TAB_DECLARATIONS } from '../../detailTabDeclarations'
 
-const entityStore = useEntityStore()
-const relationStore = useRelationStore()
+/** 取数经树服务（唯一取数通道，换数据源只改 services.ts）；取不到属时序被破坏，报错不降级。 */
+function entitiesSvc(): WorldEntitiesService {
+  const svc = getWorldService<WorldEntitiesService>('world.entities')
+  if (!svc) throw new Error('[organizations] world.entities 服务未就绪（视图渲染早于起树）')
+  return svc
+}
+function relationsSvc(): WorldRelationsService {
+  const svc = getWorldService<WorldRelationsService>('world.relations')
+  if (!svc) throw new Error('[organizations] world.relations 服务未就绪（视图渲染早于起树）')
+  return svc
+}
 
 // ── View mode（2026-10-02：默认卡片——GEV 默认 EntityCard 网格；树形可切，同 regions 先例）──
 const viewMode = ref<string>('cards')
@@ -142,7 +152,7 @@ interface OrgTreeNodeData {
   children: OrgTreeNodeData[]
 }
 
-const subOrgRels = computed(() => relationStore.relations.filter(r => r.type === 'sub_organization'))
+const subOrgRels = computed(() => relationsSvc().list().filter(r => r.type === 'sub_organization'))
 
 function buildTree(entities: Entity[]): OrgTreeNodeData[] {
   const childIds = new Set(subOrgRels.value.map(r => r.sourceId))
@@ -162,13 +172,13 @@ function buildTree(entities: Entity[]): OrgTreeNodeData[] {
 
 /* ─── Tab data helpers ─── */
 
-const orgList = computed(() => entityStore.entities.filter(e => e.type === 'organization'))
+const orgList = computed(() => entitiesSvc().list().filter(e => e.type === 'organization'))
 
 function getMembers(entityId: string) {
-  const rels = relationStore.relations.filter(r => r.type === 'member_of' && r.targetId === entityId)
+  const rels = relationsSvc().list().filter(r => r.type === 'member_of' && r.targetId === entityId)
   return rels.map(r => ({
     relation: r,
-    character: entityStore.entityMap.get(r.sourceId),
+    character: entitiesSvc().get(r.sourceId),
   }))
 }
 
@@ -178,21 +188,21 @@ function getSubOrgs(entityId: string) {
 }
 
 function getTerritories(entityId: string) {
-  const rels = relationStore.relations.filter(r => r.type === 'controls' && r.sourceId === entityId)
+  const rels = relationsSvc().list().filter(r => r.type === 'controls' && r.sourceId === entityId)
   return rels.map(r => ({
     relation: r,
-    region: entityStore.entityMap.get(r.targetId),
+    region: entitiesSvc().get(r.targetId),
   }))
 }
 
 function getDiplomacy(entityId: string) {
-  const all = relationStore.relations.filter(r =>
+  const all = relationsSvc().list().filter(r =>
     (r.sourceId === entityId || r.targetId === entityId) &&
     (r.type === 'allied_with' || r.type === 'at_war_with' || r.type === 'trade_with')
   )
   return all.map(r => {
     const otherId = r.sourceId === entityId ? r.targetId : r.sourceId
-    const other = entityStore.entityMap.get(otherId)
+    const other = entitiesSvc().get(otherId)
     const name = other?.name || '(未知)'
     if (r.type === 'allied_with') return { relation: r, label: `盟友：${name}`, icon: 'handshake', class: 'diplo-ally' }
     if (r.type === 'at_war_with') return { relation: r, label: `交战：${name}`, icon: 'sword', class: 'diplo-war' }
@@ -217,15 +227,15 @@ function openNewFormWithParent(parent: Entity) {
 }
 
 async function removeRelation(relId: string) {
-  await relationStore.remove(relId)
-  await relationStore.loadAll()
+  await relationsSvc().remove(relId)
+  await relationsSvc().reload()
 }
 
 async function removeSubOrg(childId: string, parentId: string) {
   const rel = subOrgRels.value.find(r => r.sourceId === childId && r.targetId === parentId)
   if (rel) {
-    await relationStore.remove(rel.id)
-    await relationStore.loadAll()
+    await relationsSvc().remove(rel.id)
+    await relationsSvc().reload()
   }
 }
 </script>

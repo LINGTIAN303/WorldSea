@@ -54,7 +54,6 @@
 import { computed, ref } from 'vue'
 import { WsIcon } from '@worldsea/ui-kit'
 import {
-  useEntityStore,
   entitySchemaRegistry,
   entitySchemaRegistryV2,
   SPROUT_DOMAINS,
@@ -64,6 +63,8 @@ import {
 } from '@worldsea/entity-core'
 import { toPlainText } from '@worldsea/plugin-sdk'
 import { availablePlugins } from '../../tree'
+import { getWorldService } from '../../service-registry'
+import type { WorldEntitiesService } from '../../services'
 import { useProjectSwitcher } from '@/composables/useProjectSwitcher'
 import {
   buildCodexHtml,
@@ -74,6 +75,13 @@ import {
   type CodexSectionData,
 } from './codexExport'
 import CodexThumb from './CodexThumb.vue'
+
+/** 取数经树服务（唯一取数通道，换数据源只改 services.ts）；取不到属时序被破坏，报错不降级。 */
+function entitiesSvc(): WorldEntitiesService {
+  const svc = getWorldService<WorldEntitiesService>('world.entities')
+  if (!svc) throw new Error('[codex] world.entities 服务未就绪（视图渲染早于起树）')
+  return svc
+}
 
 /** 展示行：导出结构 + 原实体（跳转用） */
 interface CodexRow { data: CodexEntryData; entity: Entity }
@@ -86,7 +94,6 @@ const SYSTEM_FIELD_KEYS = new Set([
   'coverImage', 'coverPosition', 'coverZoom', 'coverSource', 'portrait', 'portraitKind', 'portraitMeta', 'videoAsset',
 ])
 
-const entityStore = useEntityStore()
 const keyword = ref('')
 
 /** 导出标题/文件名带项目名（挂账①：固定「WorldSea 设定集」退役） */
@@ -122,7 +129,7 @@ function collectFields(schemaFields: FieldSchema[] | undefined, entity: Entity):
 /** 分章构建（kw 空 = 全量；导出走全量，展示走搜索后结果） */
 function buildSectionRows(kw: string): CodexSectionRows[] {
   const byType = new Map<string, Entity[]>()
-  for (const e of entityStore.entities) {
+  for (const e of entitiesSvc().list()) {
     const list = byType.get(e.type) ?? []
     list.push(e)
     byType.set(e.type, list)

@@ -15,9 +15,16 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import { GenericEntityView, type FormFieldDef, type FilterDef, type CardFieldDef, type RelationTabDef } from '@worldsea/plugin-sdk'
-import { useEntityStore } from '@worldsea/entity-core'
+import { getWorldService } from '../../service-registry'
+import type { WorldEntitiesService } from '../../services'
 
-const entityStore = useEntityStore()
+/** 取数经树服务（唯一取数通道，换数据源只改 services.ts）；取不到属时序被破坏，报错不降级。 */
+function entitiesSvc(): WorldEntitiesService {
+  const svc = getWorldService<WorldEntitiesService>('world.entities')
+  if (!svc) throw new Error('[concepts] world.entities 服务未就绪（视图渲染早于起树）')
+  return svc
+}
+
 
 /**
  * 清理重复「中心主题」概念（保留 1 个，删除其余）。
@@ -25,10 +32,10 @@ const entityStore = useEntityStore()
  * 芽已删除（2026-09-13），此处保留自愈逻辑清理存量数据。
  */
 onMounted(async () => {
-  await entityStore.loadAll()
-  const centers = entityStore.entities.filter(e => e.type === 'concept' && e.name === '中心主题')
+  await entitiesSvc().reload()
+  const centers = entitiesSvc().list().filter(e => e.type === 'concept' && e.name === '中心主题')
   if (centers.length > 1) {
-    await Promise.all(centers.slice(1).map(c => entityStore.remove(c.id)))
+    await Promise.all(centers.slice(1).map(c => entitiesSvc().remove(c.id)))
   }
 })
 

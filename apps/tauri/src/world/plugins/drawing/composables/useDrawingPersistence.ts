@@ -1,8 +1,16 @@
 import { ref } from 'vue'
-import { useEntityStore } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
+import { getWorldService } from '../../../service-registry'
+import type { WorldEntitiesService } from '../../../services'
 import type { DrawingLayer } from '../types'
 import { DEFAULT_BG_COLOR, AUTOSAVE_DELAY } from '../drawingConfig'
+
+/** 取数经树服务（唯一取数通道，换数据源只改 services.ts）；取不到属时序被破坏，报错不降级。 */
+function entitiesSvc(): WorldEntitiesService {
+  const svc = getWorldService<WorldEntitiesService>('world.entities')
+  if (!svc) throw new Error('[drawing] world.entities 服务未就绪（视图渲染早于起树）')
+  return svc
+}
 
 export interface DrawingEntity extends Entity {
   type: 'drawing'
@@ -21,7 +29,6 @@ export interface DrawingEntity extends Entity {
 }
 
 export function useDrawingPersistence() {
-  const entityStore = useEntityStore()
   const selectedDrawingId = ref<string | null>(null)
   let saveTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -33,8 +40,8 @@ export function useDrawingPersistence() {
 
   // 加载所有画板
   async function loadDrawings(): Promise<void> {
-    await entityStore.loadByType('drawing')
-    drawingEntities.value = (entityStore.entities ?? [])
+    await entitiesSvc().loadByType('drawing')
+    drawingEntities.value = (entitiesSvc().list() ?? [])
       .filter((e): e is DrawingEntity => e.type === 'drawing')
   }
 
@@ -68,7 +75,7 @@ export function useDrawingPersistence() {
       createdAt: now,
       updatedAt: now,
     }
-    await entityStore.add(entity)
+    await entitiesSvc().add(entity)
     await loadDrawings()
     return entity
   }
@@ -116,7 +123,7 @@ export function useDrawingPersistence() {
     const entity = drawingEntities.value.find(d => d.id === drawingId)
     if (!entity) return
 
-    await entityStore.update(drawingId, {
+    await entitiesSvc().update(drawingId, {
       properties: {
         ...entity.properties,
         layers: JSON.stringify(data.layers),
@@ -133,7 +140,7 @@ export function useDrawingPersistence() {
 
   // 删除画板
   async function deleteDrawing(id: string): Promise<void> {
-    await entityStore.remove(id)
+    await entitiesSvc().remove(id)
     if (selectedDrawingId.value === id) {
       selectedDrawingId.value = null
       selectedDrawing.value = null
@@ -143,7 +150,7 @@ export function useDrawingPersistence() {
 
   // 重命名画板
   async function renameDrawing(id: string, name: string): Promise<void> {
-    await entityStore.update(id, { name, updatedAt: new Date().toISOString() })
+    await entitiesSvc().update(id, { name, updatedAt: new Date().toISOString() })
     await loadDrawings()
   }
 

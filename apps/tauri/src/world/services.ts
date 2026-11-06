@@ -51,6 +51,13 @@ export interface WorldEntitiesService {
   remove(id: string, source?: 'user' | 'agent' | 'import', opts?: { skipUndo?: boolean }): Promise<void>
   /** 全量重载（外部改动后对账用） */
   reload(): Promise<void>
+  /**
+   * 按类型从磁盘重载（**增量语义**：该类型整体替换并同步删除，其它类型原样保留）。
+   *
+   * 与 `byType()` 的区别：`byType` 只读内存（不碰 IO），本方法会读磁盘。
+   * 视图首次进入、或怀疑该类型内存态过期时用它；日常读列表用 `byType`。
+   */
+  loadByType(type: string): Promise<void>
 }
 
 /** 关系服务的读写面（对应能力 `world.relation.*`）。 */
@@ -123,6 +130,7 @@ export function createWorldServices(): Record<string, unknown> {
       remove: (id: string, source?: 'user' | 'agent' | 'import', opts?: { skipUndo?: boolean }) =>
         useEntityStore().remove(id, source, opts),
       reload: () => useEntityStore().loadAll(),
+      loadByType: (type: string) => useEntityStore().loadByType(type),
     } satisfies WorldEntitiesService,
 
     'world.relations': {
