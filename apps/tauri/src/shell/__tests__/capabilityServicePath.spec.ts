@@ -10,13 +10,19 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { storage } from '@worldsea/entity-core'
+
 import { WORLD_BUILTIN_CAPABILITIES } from '@/shell/capabilities'
 import { clearWorldServiceTable, registerWorldServiceTable } from '@/world/service-registry'
 
-function handlerOf(id: string): (args: Record<string, unknown>) => unknown {
+/**
+ * 取能力的 handler 并统一包成 Promise。
+ * `WorldCapability.handler` 声明为 `unknown | Promise<unknown>`，同步分支会让 `.catch` 在类型层消失。
+ */
+function handlerOf(id: string): (args: Record<string, unknown>) => Promise<unknown> {
   const cap = WORLD_BUILTIN_CAPABILITIES.find(c => c.id === id)
   if (!cap) throw new Error(`未找到能力 ${id}`)
-  return cap.handler as (args: Record<string, unknown>) => unknown
+  return async args => cap.handler(args)
 }
 
 beforeEach(() => {
@@ -118,18 +124,24 @@ describe('读类：服务缺席时回退（不抛错，仍可用）', () => {
 
   /**
    * `world.entity.list` 的回退分支直连 `storage`（需 Tauri invoke），测试环境没有壳。
-   * 这里不断言返回结构，只断言**没有走服务分支**——即它确实尝试了 storage 而非静默返回空。
+   * 这里不断言返回结构，只断言**确实走了 storage 回退**，而非静默返回空或走服务。
    * 真正的 storage 往返由真机走查覆盖，不在单测里伪造。
    */
-  it('树未启动 → world.entity.list 不走服务分支（回退路径可达）', async () => {
-    const list = vi.fn(() => [{ id: 'should-not-be-used' }])
-    // 登记一个「只有 views 没有 entities」的表，确保 entities 确实缺席
+  it('树未启动 → world.entity.list 回退到 storage（服务分支不可达）', async () => {
+    // 只登记 views，确保 entities 确实缺席
     registerWorldServiceTable({ 'world.views': { list: () => [] } })
+    const getAll = vi.spyOn(storage, 'getAllEntities').mockResolvedValue([])
 
-    const handler = handlerOf('world.entity.list')
-    // storage 在无壳环境下会抛（或返回空），关键是 list 未被调用
-    await handler({}).catch(() => undefined)
-    expect(list, 'entities 服务缺席时不应走服务分支').not.toHaveBeenCalled()
+    await handlerOf('world.entity.list')({}).catch(() => undefined)
+    expect(getAll, 'entities 服务缺席时应回退到 storage 取数').toHaveBeenCalledOnce()
+  })
+
+  it('服务就绪 → world.entity.list 不再碰 storage', async () => {
+    registerWorldServiceTable({ 'world.entities': { list: () => [], byType: () => [] } })
+    const getAll = vi.spyOn(storage, 'getAllEntities').mockResolvedValue([])
+
+    await handlerOf('world.entity.list')({})
+    expect(getAll, '服务就绪时不应回退 storage').not.toHaveBeenCalled()
   })
 })
 
