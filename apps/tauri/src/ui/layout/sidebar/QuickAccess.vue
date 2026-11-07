@@ -183,8 +183,7 @@ function togglePinned() {
 }
 
 function select(view: PluginView) {
-  uiStore.setView(view.id)
-  uiStore.viewComponent = view.component
+  uiStore.showView(view)
   if (!pinned.value) close()
 }
 

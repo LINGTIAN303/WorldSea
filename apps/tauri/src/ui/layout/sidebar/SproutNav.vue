@@ -128,8 +128,7 @@ function selectDomain(id: SproutDomainFilter) {
 }
 
 function selectView(view: PluginView) {
-  uiStore.setView(view.id)
-  uiStore.viewComponent = view.component
+  uiStore.showView(view)
 }
 
 /** 静态回退没有 SidebarV2 的落点 watcher：冷启动或 split 换域后补一次首芽兜底。 */
@@ -139,8 +138,7 @@ watch(
     if (views.value.length === 0) return
     if (uiStore.currentView && views.value.some(view => view.id === uiStore.currentView)) return
     const first = views.value[0]
-    uiStore.setView(first.id)
-    uiStore.viewComponent = first.component
+    uiStore.showView(first)
   },
   { immediate: true, flush: 'post' },
 )

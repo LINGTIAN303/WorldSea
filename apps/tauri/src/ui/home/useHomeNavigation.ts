@@ -37,8 +37,7 @@ export function useHomeNavigation() {
       toastWarn('没有可用视图，请先在设置中启用芽')
       return false
     }
-    ui.setView(preferred)
-    ui.viewComponent = view.component
+    ui.showView(view)
     if (entityId) {
       ui.selectEntity(entityId)
       window.dispatchEvent(new CustomEvent('ws-select-entity', { detail: { entityId } }))

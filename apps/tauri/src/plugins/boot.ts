@@ -98,10 +98,7 @@ export async function bootstrapShell(opts?: BootstrapOptions): Promise<void> {
   if (!opts?.skipDefaultView && !uiStore.currentView) {
     const views = visibleViewsInSidebarOrder()
     const target = views.find(view => view.id === resolveDefaultViewId(views, readLastViewId()))
-    if (target) {
-      uiStore.setView(target.id)
-      uiStore.viewComponent = target.component
-    }
+    if (target) uiStore.showView(target)
   }
 
   // D2-c：schema 快照导出（此刻实体类型注册已就绪；切项目重播种同样走到，快照随项目更新）

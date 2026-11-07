@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, shallowRef, watch } from 'vue'
+import { ref, shallowRef, toRaw, watch } from 'vue'
 import type { Component } from 'vue'
 import { watchDebounced } from '@worldsea/perf-kit/render'
 import { isSproutDomain, type SproutDomainId } from '../core/sproutDomains'
@@ -185,6 +185,29 @@ export const useUIStore = defineStore('ui', () => {
     }
   }
 
+  /**
+   * 切视图并同时指定其组件。
+   *
+   * 为什么需要它：`viewComponent` 是 `currentView` 的派生缓存，但调用方此前必须在
+   * `setView()` 之后手动成对赋值（全仓 13 处同一模式），漏写就会让 `ViewContainer`
+   * 落到兜底解析——两边结果虽同，却多出一条隐性契约。收敛在此后调用方只写一次。
+   *
+   * 参数取 `{ id, component }` 而非 `PluginView`：本 store 不依赖 pluginStore（避免成环），
+   * 也不该知道视图还有 label/icon 等无关字段。
+   */
+  function showView(view: { id: string; component: Component }) {
+    // `toRaw`：调用方常从 pinia 的深代理数组（`pluginStore.views`）取 view，其上
+    // `.component` 会被读取为代理对象；缓存原对象可避免后续 `is` 比较与 Vue 复用判定失真。
+    viewComponent.value = toRaw(view.component)
+    setView(view.id)
+  }
+
+  /** 清空当前视图（无可用视图时）。同步清组件缓存，避免残留旧视图被 `ViewContainer` 优先取用。 */
+  function clearView() {
+    viewComponent.value = null
+    setView('')
+  }
+
   function selectEntity(id: string | null) {
     selectedEntityId.value = id
   }
@@ -290,6 +313,8 @@ export const useUIStore = defineStore('ui', () => {
     splitSyncCollapse,
     domainSidebarCollapsed,
     setView,
+    showView,
+    clearView,
     selectEntity,
     toggleSidebar,
     toggleDomainSidebar,

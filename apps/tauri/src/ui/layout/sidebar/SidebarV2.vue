@@ -121,8 +121,7 @@ const physics = useSidebarPhysics({
     if (views.length === 0) return
     const view = views[viewIdx]
     Promise.resolve().then(() => {
-      uiStore.setView(view.id)
-      uiStore.viewComponent = view.component
+      uiStore.showView(view)
     })
   },
 })
@@ -260,8 +259,7 @@ watch(
   () => sortedViews.value,
   (views) => {
     if (views.length === 0) {
-      uiStore.setView('')
-      uiStore.viewComponent = null
+      uiStore.clearView()
       return
     }
     const currentId = uiStore.currentView
@@ -273,8 +271,7 @@ watch(
       physics.setPosition(0)
       physics.syncSettledIdx(0)
       const view = views[0]
-      uiStore.setView(view.id)
-      uiStore.viewComponent = view.component
+      uiStore.showView(view)
     }
     nextTick(() => syncDomStyles())
   },

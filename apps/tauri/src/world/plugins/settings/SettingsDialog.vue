@@ -376,10 +376,7 @@ function close() {
       const view = pluginStore.getView(currentView)
       if (view?.pluginId && !isViewVisible(view.pluginId)) {
         const firstActive = pluginStore.views.find(v => isViewVisible(v.pluginId))
-        if (firstActive) {
-          uiStore.setView(firstActive.id)
-          uiStore.viewComponent = firstActive.component
-        }
+        if (firstActive) uiStore.showView(firstActive)
       }
     }
     uiStore.viewRefreshKey++

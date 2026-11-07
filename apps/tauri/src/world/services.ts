@@ -19,6 +19,7 @@ import {
   useEntityStore,
   useRelationStore,
   useSettingsStore,
+  useUIStore,
 } from '@worldsea/entity-core'
 import type { Entity, Relation } from '@worldsea/entity-core'
 import {
@@ -93,6 +94,32 @@ export interface WorldProjectService {
 /** 视图服务（只读；对应能力 `world.views.list`）。 */
 export interface WorldViewsService {
   list(): Array<{ id: string; label: string; pluginId: string | null; toolbar: string }>
+}
+
+/**
+ * 界面导航服务（跨视图跳转 + 设置落点）。
+ *
+ * **为什么不暴露组件对象**：`uiStore.viewComponent` 是 `currentView` 的派生缓存，
+ * 已收进 `uiStore.showView()` 内部维护（见该函数注释）。这里只暴露**导航意图**——
+ * 插件说「去哪」，组件由 `ViewContainer` 自行解析，不跨服务传 `Component`。
+ *
+ * 故本服务**没有** `showView(view)`，只有 `navigateTo(viewId)`：`custom` 芽原本写
+ * `showView(pluginStore.getView(id))`，改造后改为 `navigateTo(id)`——行为等价
+ * （`ViewContainer` 有按 `currentView` 解析组件的兜底，且有 watch 自动补齐缓存）。
+ */
+export interface WorldUiService {
+  /** 切换当前视图（按 id；不传组件，由 ViewContainer 解析） */
+  navigateTo(viewId: string): void
+  /** 当前视图 id（响应式读取） */
+  currentView(): string | null
+  /** 跨视图跳转的选中挂起位（目标视图挂载时读回） */
+  selectedEntityId(): string | null
+  /** 写选中挂起位 */
+  selectEntity(id: string | null): void
+  /** 打开设置后的落点（theme-editor 芽用） */
+  setSettingsTarget(target: { section: string } | null): void
+  /** 自定义视窗的「返回」目标视图 id（custom 芽写，视图容器读） */
+  setJumpBackViewId(viewId: string | null): void
 }
 
 /**
@@ -208,6 +235,20 @@ export function createWorldServices(): Record<string, unknown> {
       graphBackgroundMode: () => useSettingsStore().graphBackgroundMode,
     } satisfies WorldSettingsService,
 
+    // 导航意图（不含组件对象，见 `WorldUiService` 注释）。
+    'world.ui': {
+      navigateTo: (viewId: string) => useUIStore().setView(viewId),
+      currentView: () => useUIStore().currentView || null,
+      selectedEntityId: () => useUIStore().selectedEntityId,
+      selectEntity: (id: string | null) => useUIStore().selectEntity(id),
+      setSettingsTarget: (target: { section: string } | null) => {
+        useUIStore().settingsTarget = target as never
+      },
+      setJumpBackViewId: (viewId: string | null) => {
+        useUIStore()._jumpBackViewId = viewId
+      },
+    } satisfies WorldUiService,
+
     // 直通 entity-core 的两个全局注册面；返回值即 disposer，插件交给 `ctx.effect` 即可回卷。
     'world.projectExtras': {
       registerPackSerializer,
@@ -225,5 +266,6 @@ export const WORLD_SERVICE_NAMES: readonly string[] = [
   'world.project',
   'world.views',
   'world.settings',
+  'world.ui',
   'world.projectExtras',
 ]

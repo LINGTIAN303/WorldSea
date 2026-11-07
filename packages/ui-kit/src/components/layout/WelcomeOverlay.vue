@@ -165,8 +165,7 @@ function skip() {
 function handleCardClick(card: { viewId: string }) {
   const view = pluginStore.views.find(v => v.id === card.viewId)
   if (view) {
-    uiStore.setView(view.id)
-    uiStore.viewComponent = view.component
+    uiStore.showView(view)
   }
   dismiss()
 }
