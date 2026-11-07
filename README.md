@@ -156,3 +156,6 @@ WorldSea/
 ## License
 
 [MIT](LICENSE)
+
+本软件包含第三方开源组件，其许可声明见 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)；
+第三方组件的版权归各自作者所有，并依其自身许可条款分发。
