@@ -5,11 +5,13 @@ status: 现行
 # GitHub 仓库配置现状与待办（交接）
 
 > 交接对象：后续会话或直接操作仓库的人。
-> 记录日期：2026-11-07。仓库：`LINGTIAN303/WorldSea`。
+> 记录日期：2026-11-07（§六–§七 为 2026-11-08 补齐）。仓库：`LINGTIAN303/WorldSea`。
 
 ## 一、一句话结论
 
 仓库已转为**公开**，四项 CI 检查（门禁 / WASM / 类型 / 单测）已设为合并的**强制前置条件**，`main` 禁直推、禁强推、禁删除。平台级约束已真正生效，不再只靠流程自觉。
+
+2026-11-08 补第二轮：元数据填齐、许可识别修复为 MIT、安全面五项开启、协作模板补齐、CI 四项加固、合并方式收紧为 squash-only。**当前已无「该开而没开」的平台能力**，剩余项见 §6.2 末尾（需 GHAS 的两项）与 CodeQL（独立批次）。
 
 ## 二、当前实测状态
 
@@ -255,60 +257,97 @@ PR #3 之前，`main` 上自 2026-11-06 起连续 5 次 CI 失败（如 run 4237
 
 教训：任何指向 gitignore 文件的相对链接，都是必然断链。写文档时链接之前先确认目标是否入库。
 
-## 六、缺口盘点（2026-11-08 全量实测）
+## 六、缺口盘点与补齐（2026-11-08）
 
-上面各节记述的是「已建成什么」。本节反向记录**尚未配置的部分**，全部经 API 实测，可作为下一批施工的底单。
+§一到§五记述的是 2026-11-07 那一轮建成的部分。本节记录 2026-11-08 全量实测发现的**未配置项**，以及同一轮的补齐结果。
 
-### 6.1 元数据
+### 6.1 元数据（已补齐）
 
-| 项 | 实测值 | 影响 |
+| 项 | 补齐前 | 补齐后 | 影响 |
+|---|---|---|---|
+| `description` | `null` | 已填（一句话定位 + 技术栈） | 仓库页与搜索结果无说明 |
+| `topics` | `[]` | 13 个 | 无法被 GitHub 主题检索命中 |
+| `homepage` | `null` | 仍为 `null` | 暂无对外站点 |
+| `license` | `NOASSERTION` | **`MIT`** | **MIT 徽标不显示，`license:mit` 检索筛不到** |
+
+**`NOASSERTION` 的成因**：`LICENSE` 在标准 MIT 正文后追加了 `---` 分隔线与中文第三方声明段。GitHub 的 licensee 解析器要求文件近似逐字匹配已知许可模板，尾部追加内容即判为「Other」。修复方式是把自定义段落移出 `LICENSE`——内容本身已完整存在于 `THIRD-PARTY-NOTICES.md`，并在 `README.md` 的 License 段补充指向，不构成信息丢失。
+
+**topics 的写入口**：`gh api -f 'topics[]=x'` 对数组字段不生效（返回 200 但值不变），必须用 `gh api -X PUT .../topics --input <json>` 传 `{"names":[...]}`。
+
+### 6.2 安全面（已补齐）
+
+| 能力 | 补齐前 | 补齐后 |
 |---|---|---|
-| `description` | 曾为 `null` | 仓库页与搜索结果无说明 |
-| `topics` | 曾为 `[]` | 无法被 GitHub 主题检索命中 |
-| `homepage` | `null` | 无外链入口 |
-| `license` | 曾为 `NOASSERTION` | **MIT 徽标不显示，`license:mit` 检索筛不到** |
+| `dependabot_security_updates` | `disabled` | **`enabled`** |
+| `secret_scanning` | `disabled` | **`enabled`** |
+| `secret_scanning_push_protection` | `disabled` | **`enabled`** |
+| Dependabot alerts | 未开启 | **已开启** |
+| 私有漏洞上报 | `enabled: false` | **`enabled: true`** |
+| `secret_scanning_non_provider_patterns` | `disabled` | 仍 `disabled` |
+| `secret_scanning_validity_checks` | `disabled` | 仍 `disabled` |
+| CodeQL | 无分析 | 未启用 |
 
-**`NOASSERTION` 的成因**：`LICENSE` 在标准 MIT 正文后追加了 `---` 分隔线与中文第三方声明段。GitHub 的 licensee 解析器需要文件近似逐字匹配已知许可模板，尾部追加内容即判为「Other」。修复方式是把自定义段落移出 `LICENSE`——内容本身已完整存在于 `THIRD-PARTY-NOTICES.md`，不构成信息丢失。
-
-### 6.2 安全面（公开仓库，此前全关）
-
-| 能力 | 实测值 | 说明 |
-|---|---|---|
-| `dependabot_security_updates` | `disabled` | 依赖漏洞不会自动开 PR |
-| `secret_scanning` | `disabled` | 公开仓库免费，未启用 |
-| `secret_scanning_push_protection` | `disabled` | 推送含密钥时不会拦截 |
-| `secret_scanning_validity_checks` | `disabled` | 命中后不校验凭据是否真实有效 |
-| Dependabot alerts | 未开启 | API 返回 403 |
-| 私有漏洞上报 | `enabled: false` | 外部研究者无私下报告通道 |
-| CodeQL | 无分析 | 公开仓库可免费用 |
+后两项需要 GitHub Advanced Security，公开仓库免费档不支持——是**已知边界**，不是遗漏。CodeQL 本身对公开仓库免费，但本仓 TypeScript + Rust 的 CodeQL 配置属于独立批次，未纳入本轮。
 
 公开仓库放弃 secret scanning + push protection 是纯损失：二者对 public repo 免费，且是防「误提交凭据」的唯一平台级拦截。
 
-### 6.3 协作与流程文件
+**命令口径**：这三类开关分别在三个不同端点，不能一次 PATCH 搞定：
 
-git 跟踪的元文件只有 `LICENSE`、`README.md`、`.github/workflows/ci.yml`、`.githooks/*`。缺失：
+```bash
+# 1. 漏洞告警（无请求体，204 即成功）
+gh api -X PUT repos/LINGTIAN303/WorldSea/vulnerability-alerts
 
-- PR 模板（`.github/pull_request_template.md`）
-- issue 模板（`.github/ISSUE_TEMPLATE/`）
-- `SECURITY.md`、`CONTRIBUTING.md`、`CODEOWNERS`
-- 根级 `.github/dependabot.yml`
+# 2. secret scanning + push protection（走 security_and_analysis）
+gh api -X PATCH repos/LINGTIAN303/WorldSea --input .tmp/security-and-analysis.json
 
-`dsh/.github/dependabot.yml` 是 vendored fork 自带的，不覆盖仓库根，且不应改动。
+# 3. Dependabot 自动修复 + 私有漏洞上报
+gh api -X PUT repos/LINGTIAN303/WorldSea/automated-security-fixes
+gh api -X PUT repos/LINGTIAN303/WorldSea/private-vulnerability-reporting
+```
 
-### 6.4 CI 工程面
+### 6.3 协作与流程文件（已补齐）
 
-| 缺口 | 后果 |
+补齐前 git 跟踪的元文件只有 `LICENSE`、`README.md`、`.github/workflows/ci.yml`、`.githooks/*`。本轮新增：
+
+| 文件 | 作用 |
 |---|---|
-| 无 `concurrency` 组 | 同一分支连续推送时，旧提交的 job 会排队跑完，浪费且拖慢反馈 |
-| 无 workflow 级 `permissions:` 块 | 依赖仓库默认 `read` 隐式生效，改动默认值即静默放宽 |
-| `wasm-core` 无 cargo 缓存 | 每次全量编译 Rust |
-| 检查名与分支保护 `contexts` 无自动校验 | §2.2 已警示「错一个字符 PR 永久卡住」，但改 job 名时无任何门禁拦截 |
+| `.github/pull_request_template.md` | 自查项对应真实踩过的坑（断链、产物未重建、job 名不同步） |
+| `.github/ISSUE_TEMPLATE/bug.yml` / `feature.yml` / `config.yml` | issue 表单；config 把安全问题导向私密上报，避免公开 issue 贴凭据 |
+| `SECURITY.md` | 凭据泄露处置顺序：**先轮换、再清历史** |
+| `CONTRIBUTING.md` | 本仓**实际执行**的流程，含「本地全绿不等于 CI 会绿」的分叉机制 |
+| `.github/CODEOWNERS` | 单人项目下不自动指派评审人，实际作用是高风险路径登记清单 |
+| `.github/dependabot.yml` | 根级依赖更新策略（见 6.7） |
 
-**push 与 pull_request 双触发**：`on.push.branches: ['**']` 与 `on.pull_request.branches: [main]` 同时命中同一提交时，会起两个 run、跑两遍全部 job。这是 §3.5「触发面必须覆盖全部分支」与 PR 校验需求叠加的必然结果，需要 `concurrency` 与事件条件共同处理，不能简单删掉其中一个触发源。
+`dsh/.github/dependabot.yml` 是 vendored fork 自带的，不覆盖仓库根，不应改动。
 
-### 6.5 合并策略
+### 6.4 CI 工程面（已补齐）
 
-`allow_merge_commit` / `allow_rebase_merge` / `allow_squash_merge` 三项此前全开，`required_linear_history: false`。与「一次逻辑变更一个提交」的既有纪律不完全对应：任何有写权限的人都能在 UI 上点出 merge commit，把历史搅成非线性。
+| 项 | 补齐内容 |
+|---|---|
+| `concurrency` | 按「事件 + 分支」分组，连续推送时新 run 取消旧 run |
+| `permissions` | 显式 `contents: read`，不再依赖仓库默认值 |
+| cargo 缓存 | `wasm-core` 加 `Swatinem/rust-cache@v2`（`workspaces: worldsea-core`） |
+| 检查名一致性 | 新增 `scripts/check-ci-required-checks.mjs`，接入 `gate.mjs` |
+
+**concurrency 的分组键为什么带 `event_name`**：push run 与 PR run 必须互不取消。若同组并设 `cancel-in-progress`，后启动的 push run 可能取消 PR run；被取消的 run 会让分支保护要求的检查永远停在 pending，PR 再也合不了。代价是分支有 PR 时同一提交跑两遍——删任一触发源都更糟：删 `push` 通配会让开发分支未开 PR 期间的提交失去校验（本仓曾因此 242 个提交零校验），删 `pull_request` 会让分支保护的 PR 检查失去权威 run。
+
+**检查名门禁双向判据**：① 每个 context 都能在 ci.yml 找到同名 job（否则该检查永不到达，PR 卡死）；② 每个 job 都出现在 contexts 里（否则该 job 跑红也不拦合并）。无 `gh` 或无管理员权限时降级为静态自检，不阻塞本地开发。
+
+反证实测：把 job 名 `Unit Tests (vitest)` 改成 `Unit Test (vitest)` → 双向报红、exit=1；新增一个未列入保护的 job → 报「未列入必需项」、exit=1；恢复后 exit=0。
+
+### 6.5 合并策略（已收紧）
+
+三项此前全开，现为：
+
+| 设置 | 值 |
+|---|---|
+| `allow_squash_merge` | `true` |
+| `allow_merge_commit` | `false` |
+| `allow_rebase_merge` | `false` |
+| `allow_update_branch` | `true`（开启「更新分支」按钮，便于满足 `strict`） |
+| `delete_branch_on_merge` | `true` |
+
+`required_linear_history` 仍为 `false`：三种合并方式里只剩 squash，已不可能在 `main` 上产生合并节点，此项无需再单独开启。`strict: true` 要求 PR 基于最新 `main`，而 main 在 PR 排队期间必然前进，因此 `allow_update_branch` 是配套项。
 
 ### 6.6 规模约束（影响任何全仓级配置）
 
@@ -316,3 +355,35 @@ git 跟踪的元文件只有 `LICENSE`、`README.md`、`.github/workflows/ci.yml
 
 - Dependabot 必须排除 `dsh/`，否则单次更新会淹没 issue 列表
 - 任何全仓扫描 / 缓存策略要先把 `dsh/` 划出去
+
+### 6.7 依赖更新策略（新增）
+
+`.github/dependabot.yml` 四组：npm（根 workspace）、cargo ×2（`worldsea-core` / `tactical-engine`）、github-actions。
+
+要点：
+
+- **不纳入 `dsh/`**：见 6.6，且它是上游 fork，依赖应随上游升级节奏走
+- **groups 合并 minor/patch**：依赖面大，不合并会被补丁版本 PR 刷屏，真正的安全更新反被埋掉
+- **ignore 两类 major**：`@tauri-apps/*` 与 `vue` 需与 Rust 侧配对或配套迁移，交给人工一起升
+
+**实测发现的 Dependabot 行为**：开启 security updates 后，它立刻开出了 PR（`#11` storybook、`#12` dompurify、`#13` vite），说明配置生效。其中 security update 作业本身在 updater 容器内失败（`update_files` 退出码 1，日志无更具体原因），但 version update 路径正常——即漏洞发现与 PR 创建可用，仅自动修复链不稳定。这是 Dependabot 侧行为，与本仓配置无关，记为已知现象。
+
+## 七、本轮验收记录（2026-11-08）
+
+五个 PR 全部走 PR 合并，无一例直推 `main`：
+
+| PR | 内容 | 验收 |
+|---|---|---|
+| #6 | LICENSE 恢复纯 MIT，修复许可识别 | 合并后 `license.spdx_id` = `MIT` |
+| #7 | §六 缺口底单 + 索引摘要校正 | 断链 0、绝对路径 0 |
+| #8 | CI 加固（concurrency / permissions / 缓存 / 检查名门禁） | 门禁 6 项全过；检查名门禁双向反证通过 |
+| #9 | 协作流程文件 | js-yaml 解析三份模板通过 |
+| #10 | 依赖更新策略 | js-yaml 解析通过 |
+
+**实测到的分支保护行为**：
+
+- `strict: true` 下，main 前进后 PR 变 `BEHIND`，合并被拒（`not mergeable: head branch is not up to date`）。这是配置在起作用，不是故障。
+- 同步方式优先 `gh api -X PUT .../pulls/<n>/update-branch`（产生 merge commit）；由于 squash-only 策略要求线性，本地改用 `git rebase main` + `--force-with-lease` 推送，保持分支单提交。
+- `allow_update_branch` 开启后 API 更新分支可用。
+
+**本地验证与 CI 的关系**：本轮所有改动都在本地跑过 `pnpm gate`（6 项）后才推送。CI 每次 8 个 job 全绿，与本地结论一致。
