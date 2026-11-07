@@ -19,11 +19,13 @@ import {
   useEntityStore,
   useRelationStore,
   useSettingsStore,
+  useTrash,
+  useTrashStore,
   useUIStore,
 } from '@worldsea/entity-core'
 import { useFontStore } from '@worldsea/entity-core/stores/fontStore'
 import { useFontLibraryStore } from '@worldsea/font-kit'
-import type { Entity, Relation } from '@worldsea/entity-core'
+import type { Entity, Relation, TrashItem } from '@worldsea/entity-core'
 import {
   registerPackSerializer,
   registerProjectExtraProvider,
@@ -122,6 +124,32 @@ export interface WorldUiService {
   setSettingsTarget(target: { section: string } | null): void
   /** 自定义视窗的「返回」目标视图 id（custom 芽写，视图容器读） */
   setJumpBackViewId(viewId: string | null): void
+}
+
+/**
+ * 回收站服务（读清单 + 三个用户动作）。
+ *
+ * **为什么只到「用户能做的三件事」为止**：`trashStore` 有 8 个成员，但其中
+ * `add` 是**删除管线的内部写入口**（由 `entityStore.remove` 与 `useTrash` 调用，
+ * 插件不该自己造回收站条目）；`restore` / `permanentDelete` 是「只动回收站、不碰
+ * 磁盘与实体表」的半步操作，直接用会让恢复变成「条目消失了但实体没回来」。
+ * 插件真正需要的是**完整的语义动作**，故这里只暴露 `useTrash` 的两条编排
+ * （恢复含级联关系、永久删除含级联关系）+ 清空。
+ *
+ * 恢复后实体表/关系表需重载——那两步由调用方经 `world.entities.reload` /
+ * `world.relations.reload` 完成，本服务不代劳（避免回收站服务反向依赖实体服务）。
+ */
+export interface WorldTrashService {
+  /** 仅实体条目（列表展示用；关系条目随实体级联处理，不单独展示） */
+  entityItems(): readonly TrashItem[]
+  /** 条目总数（含关系条目；角标与空态判断用） */
+  totalCount(): number
+  /** 恢复一条实体（连同其级联关系）；条目不存在或非实体返回 false */
+  restoreEntity(trashItemId: string): Promise<boolean>
+  /** 永久删除一条实体（连同其级联关系），不入回收站也不可撤销 */
+  permanentDeleteEntity(trashItemId: string): void
+  /** 清空回收站（不可撤销） */
+  emptyTrash(): void
 }
 
 /**
@@ -305,6 +333,15 @@ export function createWorldServices(): Record<string, unknown> {
         })),
     } satisfies WorldFontLibraryService,
 
+    // 三个用户动作走 useTrash 的编排（含级联关系），不暴露 store 的 add（见 `WorldTrashService`）。
+    'world.trash': {
+      entityItems: () => useTrashStore().entityItems,
+      totalCount: () => useTrashStore().totalCount,
+      restoreEntity: (trashItemId: string) => useTrash().restoreEntity(trashItemId),
+      permanentDeleteEntity: (trashItemId: string) => useTrash().permanentDeleteEntity(trashItemId),
+      emptyTrash: () => useTrashStore().emptyTrash(),
+    } satisfies WorldTrashService,
+
     // 直通 entity-core 的两个全局注册面；返回值即 disposer，插件交给 `ctx.effect` 即可回卷。
     'world.projectExtras': {
       registerPackSerializer,
@@ -325,5 +362,6 @@ export const WORLD_SERVICE_NAMES: readonly string[] = [
   'world.ui',
   'world.font',
   'world.fontLibrary',
+  'world.trash',
   'world.projectExtras',
 ]

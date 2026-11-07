@@ -66,6 +66,10 @@ const MIGRATED = [
   'manuscript/components/PhonePreview.vue',
   'manuscript/composables/useManuscriptExport.ts',
   'manuscript/serviceAccess.ts',
+  // 补 world.trash 后解锁
+  'data-tools/TrashPanel.vue',
+  'data-tools/ConsistencyReportPanel.vue',
+  'data-tools/serviceAccess.ts',
 ] as const
 
 /**
@@ -90,6 +94,8 @@ const VIA_SHARED_ACCESSOR = new Set([
   'outline/board/export/exportRunner.ts',
   'manuscript/components/PhonePreview.vue',
   'manuscript/composables/useManuscriptExport.ts',
+  'data-tools/TrashPanel.vue',
+  'data-tools/ConsistencyReportPanel.vue',
 ])
 
 async function readPluginFile(rel: string): Promise<string> {
