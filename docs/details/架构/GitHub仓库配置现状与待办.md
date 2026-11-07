@@ -368,6 +368,25 @@ gh api -X PUT repos/LINGTIAN303/WorldSea/private-vulnerability-reporting
 
 **实测发现的 Dependabot 行为**：开启 security updates 后，它立刻开出了 PR（`#11` storybook、`#12` dompurify、`#13` vite），说明配置生效。其中 security update 作业本身在 updater 容器内失败（`update_files` 退出码 1，日志无更具体原因），但 version update 路径正常——即漏洞发现与 PR 创建可用，仅自动修复链不稳定。这是 Dependabot 侧行为，与本仓配置无关，记为已知现象。
 
+**一个易错点：两处 `update-types` 的语法不同。**
+
+| 位置 | 合法取值 |
+|---|---|
+| `groups.<name>.update-types` | `major` / `minor` / `patch` 简写 |
+| `ignore[].update-types` | `version-update:semver-major` 等**全名** |
+
+按 `groups` 的写法填 `ignore` 会导致整个文件解析失败，报错为：
+
+```
+The property '#/updates/0/ignore/0/update-types/0' value "major"
+did not match one of the following values:
+version-update:semver-major, version-update:semver-minor, version-update:semver-patch
+```
+
+**这个错误的表现值得单独记**：它不会拦住合并——配置校验是 Dependabot 自己发的一条 check run，不在分支保护的 `contexts` 里，所以四项必需检查照常全绿，PR 仍可合并。只有主动看 checks 列表才会发现多出一条 fail。若不清掉，`dependabot.yml` 整个不被采用，等于白配。
+
+**排查入口**：`gh api repos/<owner>/<repo>/commits/<sha>/check-runs --jq '.check_runs[] | select(.name==".github/dependabot.yml") | .output.summary'`，摘要里会直说哪一行、哪个值不合法。
+
 ## 七、本轮验收记录（2026-11-08）
 
 五个 PR 全部走 PR 合并，无一例直推 `main`：
@@ -378,12 +397,18 @@ gh api -X PUT repos/LINGTIAN303/WorldSea/private-vulnerability-reporting
 | #7 | §六 缺口底单 + 索引摘要校正 | 断链 0、绝对路径 0 |
 | #8 | CI 加固（concurrency / permissions / 缓存 / 检查名门禁） | 门禁 6 项全过；检查名门禁双向反证通过 |
 | #9 | 协作流程文件 | js-yaml 解析三份模板通过 |
-| #10 | 依赖更新策略 | js-yaml 解析通过 |
+| #10 | 依赖更新策略 | 合并后 Dependabot 立即开出 #11–#13，配置生效 |
+| #16 | 修复 `ignore.update-types` 语法 | 校验 fail 消失，校验摘要转为无该条 |
+
+**一次自查抓到的缺陷**：PR #10 合并后，PR #14 的 checks 里多出一条 `.github/dependabot.yml` fail——我写的 `ignore.update-types: [major]` 语法不合法（见 6.7）。四项必需检查全绿、PR 本可照常合并，是主动核对 checks 列表才发现的。已用 PR #16 单独修复，并按「fix the introducing PR before propagation」的做法在文档里记明成因。
 
 **实测到的分支保护行为**：
 
 - `strict: true` 下，main 前进后 PR 变 `BEHIND`，合并被拒（`not mergeable: head branch is not up to date`）。这是配置在起作用，不是故障。
 - 同步方式优先 `gh api -X PUT .../pulls/<n>/update-branch`（产生 merge commit）；由于 squash-only 策略要求线性，本地改用 `git rebase main` + `--force-with-lease` 推送，保持分支单提交。
 - `allow_update_branch` 开启后 API 更新分支可用。
+- **合并策略收紧后的实际效果**：本轮 7 个 PR 全部以 squash 落成单提交，`main` 上无合并节点。
+
+**顺手清理**：删除 3 个已合并未清理的远端残留分支（`feat/world-font-service`、`feat/world-notebook-service`、`feat/world-ui-service`）。`release` 分支保留——它是 2026-10-11 的孤立快照（`6e2d8e6`，main 领先 1350 个提交），是否退场需另行决定。
 
 **本地验证与 CI 的关系**：本轮所有改动都在本地跑过 `pnpm gate`（6 项）后才推送。CI 每次 8 个 job 全绿，与本地结论一致。
