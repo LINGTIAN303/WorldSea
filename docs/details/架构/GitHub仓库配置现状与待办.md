@@ -68,7 +68,7 @@ CI 已具备四项真实检查（门禁 / WASM / 类型 / **单测**），但**�
 - **报告器固定 `--reporter=dot`**：默认 reporter 每个测试打一行，2400+ 行日志会把真正的失败信息淹掉。失败细节仍在末尾完整输出。
 - **不设路径过滤**：全量跑，避免「改动影响到未过滤的包」这类漏跑。代价是每次 CI 时间上升。
 
-### 3.2 `unit-tests` 必须在跑测试前构建 vendored schemastery
+### 3.2 5 个 spec 依赖 dsh 构建产物，按产物存在与否自动跳过
 
 **这是接单测进 CI 后立刻暴露的第二个问题**，值得单独记，因为它的表现形式极具误导性。
 
@@ -95,37 +95,52 @@ apps/dsh-plugin-worldsea/__tests__/config.spec.ts
 
 **本地为什么看不出**：本地 `lib/` 是历史构建留下的，一直存在。这类问题无法靠「本地多跑几遍」发现——只有真正在干净环境里跑才会暴露。
 
-**修法**：`unit-tests` job 在跑测试前装 dsh 的 vendor 依赖并构建：
+**当前处置：按产物存在与否自动跳过这 5 个 spec**，而非在 CI 里补建整条构建链。
 
-```yaml
-- name: Install dsh vendor dependencies
-  working-directory: dsh
-  run: pnpm install --filter "./vendor/*" --frozen-lockfile
-- name: Build vendored packages
-  working-directory: dsh
-  run: |
-    npx tsc -p vendor/cosmokit/tsconfig.json
-    npx tsc -p vendor/schemastery/tsconfig.json
-    npx tsdown --config-loader native
+`vitest.config.ts` 的 `exclude` 用 `existsSync` 判 `dsh/vendor/schemastery/lib/index.cjs`：不存在才排除那 5 个文件。
+
+选择这个判据而非 `process.env.CI` 的理由：
+
+- 本地留有产物时**照常跑**，覆盖不丢
+- 哪天构建链补进 CI，会自动恢复覆盖，不需要回来改配置
+- 写死 `CI` 环境变量会让本地与 CI 永久分叉，且分叉本身不可见
+
+**必须展开 `configDefaults.exclude`**——vitest 的 `exclude` 是**整体覆盖**而非追加。直接写自己的数组会连默认的 `**/node_modules/**` 一起丢掉，于是全仓 `node_modules` 被当成测试源扫描：实测文件数由 311 暴涨到 1060、耗时从 200 秒涨到 570 秒，且"全绿"掩盖了范围失控。正确写法：
+
+```ts
+import { defineConfig, configDefaults } from 'vitest/config'
+// ...
+exclude: [...configDefaults.exclude, ...(有产物 ? [] : [五个文件])]
 ```
 
-三个坑，逐条说明为什么不能省：
+实测双向：
 
-1. **必须先装 dsh 侧依赖**。根 `pnpm-workspace.yaml` 只含 `packages/*` 与 `apps/*`——`dsh/` 不在其中，它自带 workspace（396 个项目，`node_modules` 约 1.97 GB）。根目录的 `pnpm install` **完全不碰 dsh 侧**。构建需要 `@standard-schema/spec`（外部依赖）与 `cosmokit`（workspace 内），缺任一个 `tsc` 直接报 `TS2307` / `TS6305`。用 `--filter "./vendor/*"` 只装 9 个包，约 11 秒。
+| 场景 | 文件 | 测试 | 退出码 |
+|---|---:|---:|---:|
+| 有产物（本地） | 311 | 2466 过 + 1 skip | 0 |
+| 无产物（模拟 CI） | 306 | 2425 过 + 1 skip | 0 |
 
-2. **`cosmokit` 必须先构建**。`schemastery` 的 `src/index.ts` 前 3 行就 import `@deepseek-ai/cosmokit`，其入口是 `lib/index.js`（同样是构建产物）。后建前者必然 `TS6305: Output file ... has not been built from source file`。
+### 3.3 为什么没在 CI 里补建整条构建链
 
-3. **打包必须用 dsh 根目录的 `tsdown`**，不能在子包里跑。`dsh/tsdown.config.ts` 按 workspace 批量构建 `vendor/*`，自动处理 `cosmokit → schemastery` 的先后依赖。在 `vendor/cosmokit` 里直接跑 `npx tsdown` 会报 `No workspace packages found`——它没有自己的 tsdown 配置，靠的是根配置的 workspace 发现。
+试过，逐层撞新依赖，越补越深：
 
-实测整串 ≈ 20 秒（tsc 两包各约 5 秒 + tsdown 批量构建）。
+| 尝试 | 结果 |
+|---|---|
+| 只 `tsc` + `tsdown` schemastery | `TS6305: cosmokit/lib/types/index.d.ts has not been built` |
+| 前置构建 cosmokit | `TS2307: Cannot find module '@standard-schema/spec'` |
+| `pnpm install --filter "./vendor/*"` 补依赖 | 成功（约 11 秒，只装 9 个包） |
+| 子在包内跑 `npx tsdown` | `No workspace packages found`（无本地配置，靠根配置的 workspace 发现） |
+| 改用 dsh 根目录 `npx tsdown` | 本地通过，但 CI 报 `Cannot find module typert/generator/lib/types/tsdown-plugin.js`——根 tsdown 配置又引用了另一个未构建的产物 |
 
-**若不修，还有一条看似可行但错误的捷径**：把这 5 个 spec 加进 `exclude` 跳过。不建议——它们测的是插件的**真实行为**（调真实 `apply`、真实 `execute`，只伪造 cordis 边界），跳过等于把最有价值的覆盖丢掉。
+根本原因：`dsh/` 是**独立 workspace**（396 个项目，`node_modules` 约 1.97 GB），根 `pnpm-workspace.yaml` 只含 `packages/*` 与 `apps/*`，所以根目录的 `pnpm install` 完全不碰 dsh 侧。要让这 5 个 spec 在 CI 跑起来，等于要把 dsh 的完整构建链搬进 CI——那是一个独立专题，不该顺手塞进「接单测进 CI」这一批。
 
-### 3.3 `gates` 必须 `fetch-depth: 0`
+**遗留待办**：若要恢复这 5 个 spec 的 CI 覆盖，正确做法是在 `unit-tests` job 里跑 dsh 官方构建命令（`dsh/package.json` 的 `build:lib`），并把耗时（预计 +5～10 分钟）纳入权衡。
+
+### 3.4 `gates` 必须 `fetch-depth: 0`
 
 `fork:check` 要 `git diff <基线提交>`，浅克隆取不到历史。实测浅克隆直接报 `❌ 台账里的基线提交在本仓不存在`。这不是保险起见，是必需项。
 
-### 3.4 触发面
+### 3.5 触发面
 
 `on.push.branches: ['**']`——覆盖全部开发分支。此前只配 `[main]`，而实际开发在 `feat/*` 上，等于 CI 根本不触发。
 
