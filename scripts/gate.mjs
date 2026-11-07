@@ -27,6 +27,7 @@ const CHECKS = [
   { name: 'dsh 产物新鲜度与版本注入', script: 'scripts/check-dsh-artifacts.mjs' },
   { name: '样式一致性（裸色值/阴影/滤镜计数）', script: 'scripts/style-conformance/check.mjs' },
   { name: '文档相对链接与绝对路径', script: 'scripts/check-doc-links.mjs' },
+  { name: '必需检查名与分支保护一致（ci.yml vs contexts）', script: 'scripts/check-ci-required-checks.mjs' },
 ]
 
 const args = process.argv.slice(2)
