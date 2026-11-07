@@ -11,6 +11,7 @@ import { createPinia, setActivePinia } from 'pinia'
 
 import { assemblePlugins } from '../loader'
 import { createWorldServices, WORLD_SERVICE_NAMES } from '../services'
+import { entitySchemaRegistry } from '@worldsea/entity-core'
 
 beforeEach(() => {
   setActivePinia(createPinia())
@@ -77,6 +78,14 @@ describe('createWorldServices：服务方法表', () => {
     expect(typeof schema.get).toBe('function')
     expect(typeof schema.label).toBe('function')
     expect(schema.get('__不存在的类型__')).toBeUndefined()
+  })
+
+  it('world.schema.iconName 透传注册表（含用户图标槽位覆写解析）', () => {
+    const schema = (createWorldServices() as Record<string, Record<string, (t: string) => string>>)['world.schema']!
+    expect(typeof schema.iconName).toBe('function')
+    // 未登记类型也应返回兜底图标名而非 undefined（getIconName 内部有 getDefaultIconName 兜底）
+    expect(typeof schema.iconName!('__不存在的类型__')).toBe('string')
+    expect(schema.iconName!('character')).toBe(entitySchemaRegistry.getIconName('character'))
   })
 
   it('world.info 携带树的元信息', () => {

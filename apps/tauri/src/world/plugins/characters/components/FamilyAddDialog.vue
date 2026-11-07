@@ -35,7 +35,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
-import { useEntityStore } from '@worldsea/entity-core'
+import { entitiesSvc } from '../serviceAccess'
 import type { Entity } from '@worldsea/entity-core'
 import { useFocusTrap } from '@/composables/useFocusTrap'
 
@@ -63,7 +63,7 @@ watch(() => props.visible, (v) => {
   else deactivate()
 })
 
-const entityStore = useEntityStore()
+const entities = entitiesSvc()
 const mode = ref<'search' | 'create'>('search')
 const searchQuery = ref('')
 const newName = ref('')
@@ -71,7 +71,7 @@ const newGender = ref('')
 const selectedId = ref('')
 
 const allCharacters = computed(() =>
-  entityStore.entities.filter(e => e.type === 'character' && !props.excludeIds.includes(e.id))
+  entities.list().filter(e => e.type === 'character' && !props.excludeIds.includes(e.id))
 )
 
 const searchResults = computed(() => {

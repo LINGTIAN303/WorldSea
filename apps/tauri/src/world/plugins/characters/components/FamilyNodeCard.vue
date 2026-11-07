@@ -17,7 +17,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useEntityStore } from '@worldsea/entity-core'
+import { entitiesSvc } from '../serviceAccess'
 
 const props = defineProps<{
   visible: boolean
@@ -31,9 +31,9 @@ defineEmits<{
   viewDetail: [id: string]
 }>()
 
-const entityStore = useEntityStore()
+const entities = entitiesSvc()
 
-const character = computed(() => entityStore.entityMap.get(props.characterId))
+const character = computed(() => entities.get(props.characterId))
 
 const shortDesc = computed(() => {
   const d = character.value?.description || ''

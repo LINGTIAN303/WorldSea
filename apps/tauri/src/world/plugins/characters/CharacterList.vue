@@ -19,7 +19,7 @@
       </template>
 
       <template #detail-header="{ entity }">
-        <span class="dp-avatar"><template v-if="entity?.avatar">{{ entity?.avatar }}</template><WsIcon v-else :name="entitySchemaRegistry.getIconName('character')" :size="22" /></span>
+        <span class="dp-avatar"><template v-if="entity?.avatar">{{ entity?.avatar }}</template><WsIcon v-else :name="schema.iconName('character')" :size="22" /></span>
         <div class="dp-title-area">
           <h3>{{ entity?.name || '' }}</h3>
           <span class="dp-type-label">角色</span>
@@ -121,8 +121,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { TuiButton, WsIcon  } from '@worldsea/ui-kit'
-import { useEntityStore, useRelationStore, entitySchemaRegistry, useUIStore } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
+import { entitiesSvc, relationsSvc, schemaSvc, uiSvc } from './serviceAccess'
 import FamilyTree from './components/FamilyTree.vue'
 import RelationGraph from './components/RelationGraph.vue'
 import CharacterExperience from './components/CharacterExperience.vue'
@@ -133,9 +133,8 @@ import { characterTemplates } from './characterTemplates'
 import { DETAIL_TAB_DECLARATIONS } from '../../detailTabDeclarations'
 import type { FilterDef, CustomTabDef, LayoutSource } from '@worldsea/plugin-sdk'
 
-const entityStore = useEntityStore()
-const relationStore = useRelationStore()
-const charSchema = computed(() => entitySchemaRegistry.get('character'))
+const entities = entitiesSvc(), relations = relationsSvc(), schema = schemaSvc()
+const charSchema = computed(() => schema.get('character'))
 const { register, unregister } = useShortcuts()
 const { undo, redo } = useUndoRedo()
 
@@ -184,7 +183,7 @@ function toggleCompareChar(id: string) {
 }
 
 const compareChars = computed(() =>
-  compareIds.value.map(id => entityStore.entityMap.get(id)).filter(Boolean) as Entity[]
+  compareIds.value.map(id => entities.get(id)).filter(Boolean) as Entity[]
 )
 
 const compareFields = computed(() => {
@@ -238,7 +237,7 @@ function onSelectEntity(entity: Entity) {
 
 // ── ws-select-entity listener (cross-plugin navigation) ──
 function selectCharacterById(id?: string | null) {
-  const entity = entityStore.entityMap.get(id ?? '')
+  const entity = entities.get(id ?? '')
   if (!entity || entity.type !== 'character') return
   gevRef.value?.selectEntityById(entity.id)
   loadEntityTabData(entity)
@@ -250,12 +249,12 @@ function onWsSelectEntity(e: Event) {
 // ── Undo/Redo shortcuts ──
 onMounted(() => {
   window.addEventListener('ws-select-entity', onWsSelectEntity)
-  void entityStore.loadAll().then(() => selectCharacterById(useUIStore().selectedEntityId)) // 跨视图跳转挂起位兜底（见 Shell.onWsNavigate）
+  void entities.reload().then(() => selectCharacterById(uiSvc().selectedEntityId())) // 跨视图跳转挂起位兜底（见 Shell.onWsNavigate）
 
   const undoKeys = ['ctrl', 'z']
   const redoKeys = ['ctrl', 'y']
-  register({ id: 'character.undo', keys: undoKeys, scope: 'view', description: '角色：撤销', handler: () => undo(entityStore, relationStore) })
-  register({ id: 'character.redo', keys: redoKeys, scope: 'view', description: '角色：重做', handler: () => redo(entityStore, relationStore) })
+  register({ id: 'character.undo', keys: undoKeys, scope: 'view', description: '角色：撤销', handler: () => undo(entities, relations) })
+  register({ id: 'character.redo', keys: redoKeys, scope: 'view', description: '角色：重做', handler: () => redo(entities, relations) })
 })
 
 onBeforeUnmount(() => {
@@ -276,10 +275,10 @@ function loadNames(entity: Entity): { name: string; context: string }[] {
 
 async function saveNames(entity: Entity) {
   const names = alternateNames.value.filter(n => n.name.trim())
-  await entityStore.update(entity.id, {
+  await entities.update(entity.id, {
     properties: { ...entity.properties, _altNames: JSON.stringify(names) },
   })
-  await entityStore.loadByType('character')
+  await entities.loadByType('character')
   toastSuccess('称呼已保存')
 }
 
@@ -298,10 +297,10 @@ function loadAppearances(entity: Entity): { stage: string; description: string }
 
 async function saveAppearances(entity: Entity) {
   const apps = appearanceStages.value.filter(a => a.stage.trim())
-  await entityStore.update(entity.id, {
+  await entities.update(entity.id, {
     properties: { ...entity.properties, _appearances: JSON.stringify(apps) },
   })
-  await entityStore.loadByType('character')
+  await entities.loadByType('character')
   toastSuccess('外貌记录已保存')
 }
 
@@ -313,15 +312,15 @@ function removeAppearance(idx: number) { appearanceStages.value.splice(idx, 1) }
 function loadEntityTabData(entity: Entity) {
   alternateNames.value = loadNames(entity)
   appearanceStages.value = loadAppearances(entity)
-  relationStore.loadAll()
+  void relations.reload()
 }
 
 // ── Equipment / worn apparel ──
 function getWornApparel(characterId: string): Entity[] {
-  const rels = relationStore.relations.filter(r =>
+  const rels = relations.list().filter(r =>
     r.type === 'worn_by' && r.targetId === characterId
   )
-  return rels.map(r => entityStore.entities.find(e => e.id === r.sourceId)).filter(Boolean) as Entity[]
+  return rels.map(r => entities.list().find(e => e.id === r.sourceId)).filter(Boolean) as Entity[]
 }
 
 function apparelIcon(item: Entity): string {
@@ -369,12 +368,12 @@ function slotItems(characterId: string, slotId: string): Entity[] {
 }
 
 async function unequipApparel(characterId: string, apparelId: string) {
-  const rel = relationStore.relations.find(r =>
+  const rel = relations.list().find(r =>
     r.type === 'worn_by' && r.sourceId === apparelId && r.targetId === characterId
   )
   if (rel) {
-    await relationStore.remove(rel.id)
-    await relationStore.loadAll()
+    await relations.remove(rel.id)
+    await relations.reload()
     toastSuccess('已卸下装备')
   }
 }
@@ -382,7 +381,7 @@ async function unequipApparel(characterId: string, apparelId: string) {
 // ── Navigation helpers ──
 function onFamilyNavigate(id: string) {
   gevRef.value?.selectEntityById(id)
-  const entity = entityStore.entityMap.get(id)
+  const entity = entities.get(id)
   if (entity) {
     loadEntityTabData(entity)
   }

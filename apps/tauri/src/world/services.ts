@@ -88,6 +88,11 @@ export interface WorldSchemaService {
   get(type: string): ReturnType<typeof entitySchemaRegistry.get>
   /** 类型的中文标签（含 fallback） */
   label(type: string): string
+  /**
+   * 类型的图标名（含用户图标槽位覆写，经 `getEffectiveIconOverride` 解析）。
+   * 消费方：`characters` 的详情头与模板卡。
+   */
+  iconName(type: string): string
 }
 
 /** 项目服务（对应能力 `world.project.*`）。 */
@@ -264,6 +269,7 @@ export function createWorldServices(): Record<string, unknown> {
       list: () => entitySchemaRegistry.getAll(),
       get: (type: string) => entitySchemaRegistry.get(type),
       label: (type: string) => entitySchemaRegistry.getLabel(type),
+      iconName: (type: string) => entitySchemaRegistry.getIconName(type),
     } satisfies WorldSchemaService,
 
     'world.project': {
