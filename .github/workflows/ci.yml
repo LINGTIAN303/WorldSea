@@ -75,5 +75,33 @@ jobs:
       - name: Typecheck (apps/tauri)
         run: pnpm --filter @worldsea/tauri typecheck
 
+  # ════════════════════════════════════════════════════════════════
+  # 前端单元测试（vitest，全量）
+  #
+  # 此前 2400+ 个测试只在本地跑，CI 三项 job 都不覆盖：漏跑测试照样全绿，
+  # 等于把「测试通过」的判定权完全交给本地自觉。本 job 把它变成可核验的远程事实。
+  #
+  # 覆盖范围以 vitest.config.ts 的 include 为准（packages/** + apps/tauri +
+  # 两个 dsh 内置插件 + 壳注入脚本），不在本文件重复列举——两处维护必然漂移。
+  # ════════════════════════════════════════════════════════════════
+  unit-tests:
+    name: Unit Tests (vitest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      # 报告器用 dot：默认 reporter 会为每个测试打一行，2400+ 行日志把真正的
+      # 失败信息淹掉。失败细节仍会完整输出在末尾。
+      - name: Run vitest
+        run: pnpm exec vitest run --reporter=dot
+
   # 注：桌面壳（apps/tauri/src-tauri）的编译验证依赖 Windows 桌面构建链，
   # 由本地构建（scripts/build-installer.ps1 / pnpm tauri:build）覆盖。
