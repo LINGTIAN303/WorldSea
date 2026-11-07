@@ -20,12 +20,15 @@ updates:
         applies-to: version-updates
         update-types: [minor, patch]
     ignore:
-      # tauri 及其插件与 Rust 侧 crate 版本需配对，交给人工一起升
+      # tauri 及其插件与 Rust 侧 crate 版本需配对，交给人工一起升。
+      # 注意：ignore.update-types 必须写 version-update:semver-* 全名；
+      # groups.update-types 才允许 minor/patch 简写。两者格式不同，写错会让
+      # Dependabot 拒绝整个文件（校验失败在 PR 的 checks 里表现为一条 fail）。
       - dependency-name: '@tauri-apps/*'
-        update-types: [major]
+        update-types: ['version-update:semver-major']
       # vue 大版本升级需要配套迁移
       - dependency-name: vue
-        update-types: [major]
+        update-types: ['version-update:semver-major']
     commit-message:
       prefix: chore
       include: scope
