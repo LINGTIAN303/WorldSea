@@ -11,16 +11,15 @@
  */
 import { autocompletion, type CompletionContext, type CompletionResult } from '@codemirror/autocomplete'
 import type { Extension } from '@codemirror/state'
-import { useEntityStore } from '@worldsea/entity-core'
+import { entitiesSvc } from '../serviceAccess'
 
 /** `[[` 双链补全：候选 = notebook 实体（排除当前笔记；selfId 走 getter 实时取） */
 function noteLinkSource(selfId: () => string | null) {
   return (context: CompletionContext): CompletionResult | null => {
     const before = context.matchBefore(/\[\[([^\[\]\n]*)$/)
     if (!before) return null
-    const es = useEntityStore()
     const self = selfId()
-    const options = (es.entities ?? [])
+    const options = entitiesSvc().list()
       .filter((e) => e.type === 'notebook' && e.id !== self)
       .slice(0, 20)
       .map((e) => ({
@@ -38,8 +37,7 @@ function mentionSource() {
   return (context: CompletionContext): CompletionResult | null => {
     const before = context.matchBefore(/@([\u4e00-\u9fa5A-Za-z0-9_]*)$/)
     if (!before) return null
-    const es = useEntityStore()
-    const options = (es.entities ?? [])
+    const options = entitiesSvc().list()
       .slice(0, 20)
       .map((e) => ({
         label: e.name,

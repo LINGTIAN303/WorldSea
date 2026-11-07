@@ -20,8 +20,9 @@
  * - 半转义 `\[[x]]`（仅转义首括号处）会被扫到（渲染上该处非链接）；
  * - 行内反引号按「先到先得最短配对」简化（GFM 复杂配对未全量复刻）。
  */
-import { useEntityStore, useRelationStore, useBidirectional, useUndoRedo } from '@worldsea/entity-core'
+import { useBidirectional, useUndoRedo } from '@worldsea/entity-core'
 import type { Entity, Relation } from '@worldsea/entity-core'
+import { entitiesSvc, relationsSvc } from './serviceAccess'
 
 /** 双链引用正则——与 noteLinkExt.tokenizer 同源（非 global；扫描侧克隆 global 版使用） */
 export const NOTE_REF_RE = /\[\[([^\[\]\n]+)\]\]/
@@ -147,13 +148,13 @@ export function recomputeNoteLinks(noteId: string): Promise<boolean> {
 }
 
 async function doRecompute(noteId: string): Promise<boolean> {
-  const es = useEntityStore()
-  const rs = useRelationStore()
-  const note = es.entityMap.get(noteId)
+  const entities = entitiesSvc()
+  const relations = relationsSvc()
+  const note = entities.get(noteId)
   if (!note || note.type !== 'notebook') return false // 实体已不存在——无从派生
 
-  const desired = computeDesiredLinks(note, es.entities)
-  const current = rs.relations.filter((r) => r.type === 'note_link' && r.sourceId === noteId)
+  const desired = computeDesiredLinks(note, entities.list())
+  const current = relations.list().filter((r) => r.type === 'note_link' && r.sourceId === noteId)
   const { toAdd, toRemove } = computeLinkDiff(desired, current)
   if (toAdd.length === 0 && toRemove.length === 0) return false // 幂等短路：无变化零写入
 
@@ -163,10 +164,10 @@ async function doRecompute(noteId: string): Promise<boolean> {
   // skipUndo——派生系统行为不进撤销栈。
   for (const rel of toRemove) {
     const pair = rel.pairId
-      ? rs.relations.find((r) => r.pairId === rel.pairId && r.id !== rel.id)
+      ? relations.list().find((r) => r.pairId === rel.pairId && r.id !== rel.id)
       : undefined
-    if (pair) await rs.remove(pair.id, 'user', { skipUndo: true })
-    await rs.remove(rel.id, 'user', { skipUndo: true })
+    if (pair) await relations.remove(pair.id, 'user', { skipUndo: true })
+    await relations.remove(rel.id, 'user', { skipUndo: true })
   }
 
   // 新增：createBidirectional——note_link 现产出双记录（forward + note_linked_from，pairId 配对）
@@ -186,23 +187,23 @@ async function doRecompute(noteId: string): Promise<boolean> {
  * - 失败不抛出（各步内部兜底）——返回处理的笔记数（供测试与日志）。
  */
 export async function recomputeAllNoteLinks(): Promise<number> {
-  const es = useEntityStore()
-  const notes = es.entities.filter((e) => e.type === 'notebook')
+  const entities = entitiesSvc()
+  const relations = relationsSvc()
+  const notes = entities.list().filter((e) => e.type === 'notebook')
   for (const note of notes) {
     await recomputeNoteLinks(note.id)
   }
 
   // 孤儿清理（note_link 类：source / target 实体已不存在）
-  const rs = useRelationStore()
-  const alive = new Set(es.entities.map((e) => e.id))
-  const orphans = rs.relations.filter(
+  const alive = new Set(entities.list().map((e) => e.id))
+  const orphans = relations.list().filter(
     (r) =>
       (r.type === 'note_link' || r.type === 'note_linked_from') &&
       (!alive.has(r.sourceId) || !alive.has(r.targetId)),
   )
   for (const rel of orphans) {
     try {
-      await rs.remove(rel.id, 'user', { skipUndo: true })
+      await relations.remove(rel.id, 'user', { skipUndo: true })
     } catch (err) {
       console.warn('[backlinkDerive] 孤儿关系清理失败（跳过该条）:', err)
     }
@@ -314,21 +315,21 @@ export function applyNoteRename(params: {
   /** 改名 update 的载荷（name + 合并后的 properties） */
   changes: Record<string, unknown>
 }): number {
-  const es = useEntityStore()
+  const entities = entitiesSvc()
   const { beginTransaction, commitTransaction, rollbackTransaction } = useUndoRedo()
   const rewrittenIds: string[] = []
 
   beginTransaction()
   try {
     // ① 改名本体（先落名；重写扫描基于名字匹配，与执行顺序无关）
-    es.update(params.noteId, params.changes, 'user')
+    entities.update(params.noteId, params.changes, 'user')
     // ② 全库扫描重写（纯同步段：record 全部归入本事务组）
-    for (const note of es.entities) {
+    for (const note of entities.list()) {
       if (note.type !== 'notebook' || note.properties?.noteType === 'code') continue
       const md = String(note.properties?.content ?? '')
       const r = rewriteNoteRefs(md, params.oldName, params.newName)
       if (r.count > 0) {
-        es.update(note.id, { properties: { ...note.properties, content: r.md } }, 'user')
+        entities.update(note.id, { properties: { ...note.properties, content: r.md } }, 'user')
         rewrittenIds.push(note.id)
       }
     }

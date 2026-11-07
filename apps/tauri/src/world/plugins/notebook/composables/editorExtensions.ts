@@ -21,7 +21,8 @@ import { TaskList, TaskItem } from '@tiptap/extension-list'
 import { TableKit } from '@tiptap/extension-table'
 import type { Editor } from '@tiptap/core'
 import type { Entity } from '@worldsea/entity-core'
-import { entitySchemaRegistry, useEntityStore } from '@worldsea/entity-core'
+import { entitySchemaRegistry } from '@worldsea/entity-core'
+import { entitiesSvc } from '../serviceAccess'
 
 import CodeBlockEnhanced from './codeBlockExt'
 import { NotebookImage } from './notebookImage'
@@ -160,9 +161,8 @@ export function buildNotebookExtensions(hooks: EditorExtensionHooks): any[] {
         pluginKey: noteLinkPluginKey,
         char: '[[',
         items: ({ query }: { query: string }) => {
-          const es = useEntityStore()
           const selfId = hooks.currentNoteId()
-          const all = (es.entities ?? [])
+          const all = entitiesSvc().list()
             .filter((e: Entity) => e.type === 'notebook' && e.id !== selfId)
             .map((e: Entity) => ({
               id: e.id,
@@ -230,8 +230,7 @@ export function buildNotebookExtensions(hooks: EditorExtensionHooks): any[] {
       suggestion: {
         char: '@',
         items: ({ query }: { query: string }) => {
-          const es = useEntityStore()
-          const all = (es.entities ?? []).map((e: Entity) => ({
+          const all = entitiesSvc().list().map((e: Entity) => ({
             id: e.id,
             name: e.name,
             type: e.type,
@@ -331,8 +330,7 @@ export function fireNoteLinkCommand(item: { id: string; name: string }): void {
  */
 function resolveEntityByName(name: string): { id: string } | null {
   try {
-    const es = useEntityStore()
-    const matches = (es.entities ?? []).filter((e: Entity) => e.name === name)
+    const matches = entitiesSvc().list().filter((e: Entity) => e.name === name)
     return matches.length === 1 ? { id: matches[0].id } : null
   } catch {
     return null

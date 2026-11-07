@@ -3,12 +3,12 @@ import { Editor } from '@tiptap/vue-3'
 import { pickImageFiles, insertImageFilesInto } from '@/composables/imageInsert'
 import { normalizeNoteContent } from '../contentNormalize'
 import { recomputeNoteLinks } from '../backlinkDerive'
-import { useEntityStore } from '@worldsea/entity-core'
 import { buildNotebookExtensions, fireMentionCommand, fireSlashCommand, fireNoteLinkCommand, type MentionItem } from './editorExtensions'
 import { FindReplaceExtension, type FindReplaceBarApi } from '@/composables/findReplaceExtension'
 import { findNoteLinkAnchor } from './noteLinkExt'
 import type { SlashCommandItem } from './slashCommandExtension'
 import type { Entity } from '@worldsea/entity-core'
+import { entitiesSvc } from '../serviceAccess'
 
 const AUTOSAVE_DELAY = 300
 
@@ -22,7 +22,6 @@ export function useNoteEditor(
   onContentChange?: (md: string) => void,
   onNavigate?: (noteId: string) => void,
 ) {
-  const es = useEntityStore()
   const saveStatus = ref<SaveStatus>('saved')
   const wordCount = ref(0)
   let saveTimer: ReturnType<typeof setTimeout> | null = null
@@ -219,9 +218,9 @@ export function useNoteEditor(
   async function persistContent(md: string): Promise<void> {
     const noteId = loadedNoteId
     if (!noteId) return
-    const live = es.entityMap.get(noteId)
+    const live = entitiesSvc().get(noteId)
     if (!live) return // 实体已不在（被删除等）——无从落盘
-    await es.update(noteId, {
+    await entitiesSvc().update(noteId, {
       properties: {
         ...live.properties,
         content: md,

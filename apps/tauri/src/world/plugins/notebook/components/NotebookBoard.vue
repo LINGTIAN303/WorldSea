@@ -61,11 +61,11 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import draggable from 'vuedraggable'
-import { useEntityStore } from '@worldsea/entity-core'
 import { WsEmpty, WsIcon } from '@worldsea/ui-kit'
 import { formatRelativeTime } from '@/components/ui/format'
 import { NOTE_TYPES } from '../notebookConfig'
 import type { NotebookEntity } from '../types'
+import { entitiesSvc } from '../serviceAccess'
 
 interface BoardColumn {
   type: string
@@ -77,7 +77,6 @@ interface BoardColumn {
 const props = defineProps<{ notes: NotebookEntity[]; searching?: boolean }>()
 const emit = defineEmits<{ select: [id: string] }>()
 
-const entityStore = useEntityStore()
 const columns = ref<BoardColumn[]>([])
 
 watch(() => props.notes, (notes) => {
@@ -131,7 +130,7 @@ function onColChange(colType: string, evt: any) {
   if (!evt.added) return
   const note = evt.added.element as NotebookEntity
   if (!note || note.properties?.noteType === colType) return
-  entityStore.update(note.id, {
+  entitiesSvc().update(note.id, {
     properties: { ...note.properties, noteType: colType },
   })
 }

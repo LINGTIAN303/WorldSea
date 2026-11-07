@@ -19,6 +19,8 @@ import { setActivePinia, createPinia, type Pinia } from 'pinia'
 import 'fake-indexeddb/auto'
 import { useEntityStore, type Entity } from '@worldsea/entity-core'
 import { makeFullEditor } from './markdownTestKit'
+import { clearWorldServiceTable } from '../../../service-registry'
+import { installStoreServices } from './storeServices'
 
 /** 建一个只挂官方扩展的编辑器（md 直装） */
 function makeEditor(md: string): Editor {
@@ -113,8 +115,10 @@ describe('全量接线往返（buildNotebookExtensions · 自定义 handler）',
     localStorage.clear()
     pinia = createPinia()
     setActivePinia(pinia) // 裸调 useEntityStore()（handler 内）依赖 active pinia
+    installStoreServices()
   })
   afterEach(() => {
+    clearWorldServiceTable()
     vi.restoreAllMocks()
   })
 

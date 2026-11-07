@@ -147,7 +147,7 @@
 
 <script setup lang="ts">
 import { ref, computed, reactive, watch, onMounted, onBeforeUnmount } from 'vue'
-import { useEntityStore, useUndoRedo } from '@worldsea/entity-core'
+import { useUndoRedo } from '@worldsea/entity-core'
 import { WsEmpty, WsIcon, useConfirm } from '@worldsea/ui-kit'
 import NotebookEditor from './components/NotebookEditor.vue'
 import NotebookBoard from './components/NotebookBoard.vue'
@@ -157,6 +157,7 @@ import FileTreeBrowser from '@/components/files/FileTreeBrowser.vue'
 import FilePreview from '@/components/files/FilePreview.vue'
 import ExportDialog from '@/world/plugins/manuscript/components/ExportDialog.vue'
 import { resolveEntityDataDir } from '@/composables/workspace'
+import { entitiesSvc } from './serviceAccess'
 import { toastInfo, toastSuccess, toastWarn } from '@/composables/useToast'
 import { collectAssetDiskPaths, deleteOrphanAssets, findOrphanAssets, listAssetFiles } from '@/composables/imageAssets'
 import { isSupportedAsset } from './assetFilter'
@@ -171,7 +172,6 @@ interface NotebookFolder {
   name: string
 }
 
-const entityStore = useEntityStore()
 const { beginTransaction, commitTransaction, rollbackTransaction } = useUndoRedo()
 const currentMode = ref<ViewMode>('editor')
 const searchQuery = ref('')
@@ -219,7 +219,7 @@ async function onCleanOrphanAssets(): Promise<void> {
   if (!filesRoot.value || cleaningAssets.value) return
   cleaningAssets.value = true
   try {
-    const texts = entityStore.entities.map((e) => JSON.stringify([e.properties, e.portrait, e.videoAsset, e.coverImage, e.avatar]))
+    const texts = entitiesSvc().list().map((e) => JSON.stringify([e.properties, e.portrait, e.videoAsset, e.coverImage, e.avatar]))
     const refs = collectAssetDiskPaths(texts)
     const files = await listAssetFiles(filesRoot.value)
     const orphans = findOrphanAssets(files, refs, Date.now())
@@ -280,7 +280,7 @@ const modeLabels: Record<ViewMode, string> = {
 }
 
 const notebookNotes = computed(() =>
-  entityStore.entities.filter((e): e is NotebookEntity => e.type === 'notebook')
+  entitiesSvc().list().filter((e): e is NotebookEntity => e.type === 'notebook')
 )
 
 // ── 置顶 + 最近打开（批 3 I9）──
@@ -309,7 +309,7 @@ const recentNotes = computed(() =>
 function togglePin(noteId: string): void {
   const note = notebookNotes.value.find(n => n.id === noteId)
   if (!note) return
-  entityStore.update(noteId, {
+  entitiesSvc().update(noteId, {
     properties: { ...note.properties, pinned: !note.properties?.pinned },
   })
 }
@@ -368,7 +368,7 @@ function toggleFolder(id: string): void {
 
 async function createNote(targetFolderId?: string): Promise<void> {
   const targetFolder = targetFolderId ?? ''
-  const id = await entityStore.add({
+  const id = await entitiesSvc().add({
     id: crypto.randomUUID(),
     type: 'notebook',
     name: '未命名笔记',
@@ -428,7 +428,7 @@ function deleteFolder(folderId: string): void {
       // 文件夹内的笔记要一并移出，属同一次用户动作 → 归并为一条撤销记录
       asSingleUndoStep('删除文件夹', () => {
         for (const note of getFolderNotes(folderId)) {
-          entityStore.update(note.id, { properties: { ...note.properties, folderId: '' } })
+          entitiesSvc().update(note.id, { properties: { ...note.properties, folderId: '' } })
         }
       })
       folders.value = folders.value.filter(f => f.id !== folderId)
@@ -446,7 +446,7 @@ function deleteFolder(folderId: string): void {
 function moveNoteToFolder(noteId: string, folderId: string): void {
   const note = notebookNotes.value.find((n) => n.id === noteId)
   if (!note) return
-  entityStore.update(noteId, {
+  entitiesSvc().update(noteId, {
     properties: { ...note.properties, folderId },
   })
 }
@@ -454,7 +454,7 @@ function moveNoteToFolder(noteId: string, folderId: string): void {
 async function duplicateNote(noteId: string): Promise<void> {
   const note = notebookNotes.value.find((n) => n.id === noteId)
   if (!note) return
-  const id = await entityStore.add({
+  const id = await entitiesSvc().add({
     ...note,
     id: crypto.randomUUID(),
     name: note.name + '（副本）',
@@ -467,7 +467,7 @@ async function duplicateNote(noteId: string): Promise<void> {
 async function deleteNote(noteId: string): Promise<void> {
   // 丢弃待写入，避免笔记删除后闸门再把它写回来
   pendingWrites.delete(noteId)
-  await entityStore.remove(noteId)
+  await entitiesSvc().remove(noteId)
   if (selectedNoteId.value === noteId) selectedNoteId.value = null
 }
 
@@ -479,7 +479,7 @@ function reorderNotes(_folderId: string, noteIds: string[]): void {
       if (!note) continue
       const sortOrder = String(i).padStart(10, '0')
       if (note.properties?.sortOrder !== sortOrder) {
-        entityStore.update(note.id, {
+        entitiesSvc().update(note.id, {
           properties: { ...note.properties, sortOrder },
         })
       }
@@ -548,7 +548,7 @@ async function flushPendingWrites(): Promise<void> {
       continue
     }
     try {
-      await entityStore.update(id, {
+      await entitiesSvc().update(id, {
         ...item.changes,
         properties: { ...live.properties, ...partial },
       }, 'user', { skipUndo: item.skipUndo })
