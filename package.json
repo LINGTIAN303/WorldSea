@@ -100,7 +100,7 @@
     "rollup-plugin-visualizer": "^7.0.1",
     "storybook": "^8.6.18",
     "typescript": "~6.0.2",
-    "vite": "^8.0.10",
+    "vite": "^8.1.6",
     "vite-plugin-compression2": "^2.5.3",
     "vite-plugin-wasm": "^3.6.0",
     "vitest": "^3.2.6",

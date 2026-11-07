@@ -173,10 +173,10 @@ importers:
         version: 5.0.6
       '@vitejs/plugin-vue':
         specifier: ^6.0.6
-        version: 6.0.8(vite@8.1.5(@types/node@24.13.3)(esbuild@0.25.12)(tsx@4.23.1))(vue@3.5.40(typescript@6.0.3))
+        version: 6.0.8(vite@8.1.6(@types/node@24.13.3)(esbuild@0.25.12)(tsx@4.23.1))(vue@3.5.40(typescript@6.0.3))
       '@vitest/coverage-v8':
         specifier: ^3.2.6
-        version: 3.2.7(vitest@3.2.7(@types/node@24.13.3)(jsdom@25.0.1)(lightningcss@1.33.0)(tsx@4.23.1))
+        version: 3.2.7(supports-color@7.2.0)(vitest@3.2.7(@types/node@24.13.3)(jsdom@25.0.1(supports-color@7.2.0))(lightningcss@1.33.0)(supports-color@7.2.0)(tsx@4.23.1))
       '@vue/test-utils':
         specifier: ^2.4.10
         version: 2.4.11(@vue/compiler-dom@3.5.40)(@vue/server-renderer@3.5.40)(vue@3.5.40(typescript@6.0.3))
@@ -188,28 +188,28 @@ importers:
         version: 6.2.5
       jsdom:
         specifier: ^25.0.1
-        version: 25.0.1
+        version: 25.0.1(supports-color@7.2.0)
       rollup-plugin-visualizer:
         specifier: ^7.0.1
         version: 7.0.1(rolldown@1.1.5)(rollup@4.62.3)
       storybook:
         specifier: ^8.6.18
-        version: 8.6.18
+        version: 8.6.18(supports-color@7.2.0)
       typescript:
         specifier: ~6.0.2
         version: 6.0.3
       vite:
-        specifier: ^8.0.10
-        version: 8.1.5(@types/node@24.13.3)(esbuild@0.25.12)(tsx@4.23.1)
+        specifier: ^8.1.6
+        version: 8.1.6(@types/node@24.13.3)(esbuild@0.25.12)(tsx@4.23.1)
       vite-plugin-compression2:
         specifier: ^2.5.3
         version: 2.5.3(rollup@4.62.3)
       vite-plugin-wasm:
         specifier: ^3.6.0
-        version: 3.6.0(vite@8.1.5(@types/node@24.13.3)(esbuild@0.25.12)(tsx@4.23.1))
+        version: 3.6.0(vite@8.1.6(@types/node@24.13.3)(esbuild@0.25.12)(tsx@4.23.1))
       vitest:
         specifier: ^3.2.6
-        version: 3.2.7(@types/node@24.13.3)(jsdom@25.0.1)(lightningcss@1.33.0)(tsx@4.23.1)
+        version: 3.2.7(@types/node@24.13.3)(jsdom@25.0.1(supports-color@7.2.0))(lightningcss@1.33.0)(supports-color@7.2.0)(tsx@4.23.1)
       vue-tsc:
         specifier: ^3.2.7
         version: 3.3.8(typescript@6.0.3)
@@ -417,19 +417,19 @@ importers:
         version: 3.0.10
       '@vitejs/plugin-vue':
         specifier: ^6.0.6
-        version: 6.0.8(vite@8.1.5(@types/node@25.9.5)(esbuild@0.28.1)(tsx@4.23.1))(vue@3.5.40(typescript@6.0.3))
+        version: 6.0.8(vite@8.1.6(@types/node@24.13.3)(esbuild@0.28.1)(tsx@4.23.1))(vue@3.5.40(typescript@6.0.3))
       rollup-plugin-visualizer:
         specifier: ^7.0.1
         version: 7.0.1(rolldown@1.1.5)(rollup@4.62.3)
       vite:
-        specifier: ^8.0.10
-        version: 8.1.5(@types/node@25.9.5)(esbuild@0.28.1)(tsx@4.23.1)
+        specifier: ^8.1.6
+        version: 8.1.6(@types/node@24.13.3)(esbuild@0.28.1)(tsx@4.23.1)
       vite-plugin-compression2:
         specifier: ^2.5.3
         version: 2.5.3(rollup@4.62.3)
       vite-plugin-wasm:
         specifier: ^3.6.0
-        version: 3.6.0(vite@8.1.5(@types/node@25.9.5)(esbuild@0.28.1)(tsx@4.23.1))
+        version: 3.6.0(vite@8.1.6(@types/node@24.13.3)(esbuild@0.28.1)(tsx@4.23.1))
       vue-tsc:
         specifier: ^3.2.7
         version: 3.3.8(typescript@6.0.3)
@@ -3599,8 +3599,8 @@ packages:
       yaml:
         optional: true
 
-  vite@8.1.5:
-    resolution: {integrity: sha512-7ULLwsCdYx/nRyrpiEwvqb5TFHrMVZyBt+rg/OAXT7rgj/z+DtTDyKFeLAdDkubDVDKD8jOsndmy7m55XcfUsw==}
+  vite@8.1.6:
+    resolution: {integrity: sha512-aRAHIxx5SW5zc1sMqFwJU/t5qaFfXb5Hj0J7W0VXihu/X99+346tz6080tO1T1xVIJORX/b3zVTXGFqUXh35uw==}
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
     peerDependencies:
@@ -4750,13 +4750,13 @@ snapshots:
   '@rollup/rollup-win32-x64-msvc@4.62.3':
     optional: true
 
-  '@storybook/core@8.6.18(storybook@8.6.18)':
+  '@storybook/core@8.6.18(storybook@8.6.18(supports-color@7.2.0))(supports-color@7.2.0)':
     dependencies:
-      '@storybook/theming': 8.6.18(storybook@8.6.18)
+      '@storybook/theming': 8.6.18(storybook@8.6.18(supports-color@7.2.0))
       better-opn: 3.0.2
       browser-assert: 1.2.1
       esbuild: 0.25.12
-      esbuild-register: 3.6.0(esbuild@0.25.12)
+      esbuild-register: 3.6.0(esbuild@0.25.12)(supports-color@7.2.0)
       jsdoc-type-pratt-parser: 4.8.0
       process: 0.11.10
       recast: 0.23.12
@@ -4769,9 +4769,9 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@storybook/theming@8.6.18(storybook@8.6.18)':
+  '@storybook/theming@8.6.18(storybook@8.6.18(supports-color@7.2.0))':
     dependencies:
-      storybook: 8.6.18
+      storybook: 8.6.18(supports-color@7.2.0)
 
   '@tabler/icons-vue@3.46.0(vue@3.5.40(typescript@6.0.3))':
     dependencies:
@@ -5122,34 +5122,34 @@ snapshots:
 
   '@types/turndown@5.0.6': {}
 
-  '@vitejs/plugin-vue@6.0.8(vite@8.1.5(@types/node@24.13.3)(esbuild@0.25.12)(tsx@4.23.1))(vue@3.5.40(typescript@6.0.3))':
+  '@vitejs/plugin-vue@6.0.8(vite@8.1.6(@types/node@24.13.3)(esbuild@0.25.12)(tsx@4.23.1))(vue@3.5.40(typescript@6.0.3))':
     dependencies:
       '@rolldown/pluginutils': 1.0.1
-      vite: 8.1.5(@types/node@24.13.3)(esbuild@0.25.12)(tsx@4.23.1)
+      vite: 8.1.6(@types/node@24.13.3)(esbuild@0.25.12)(tsx@4.23.1)
       vue: 3.5.40(typescript@6.0.3)
 
-  '@vitejs/plugin-vue@6.0.8(vite@8.1.5(@types/node@25.9.5)(esbuild@0.28.1)(tsx@4.23.1))(vue@3.5.40(typescript@6.0.3))':
+  '@vitejs/plugin-vue@6.0.8(vite@8.1.6(@types/node@24.13.3)(esbuild@0.28.1)(tsx@4.23.1))(vue@3.5.40(typescript@6.0.3))':
     dependencies:
       '@rolldown/pluginutils': 1.0.1
-      vite: 8.1.5(@types/node@25.9.5)(esbuild@0.28.1)(tsx@4.23.1)
+      vite: 8.1.6(@types/node@24.13.3)(esbuild@0.28.1)(tsx@4.23.1)
       vue: 3.5.40(typescript@6.0.3)
 
-  '@vitest/coverage-v8@3.2.7(vitest@3.2.7(@types/node@24.13.3)(jsdom@25.0.1)(lightningcss@1.33.0)(tsx@4.23.1))':
+  '@vitest/coverage-v8@3.2.7(supports-color@7.2.0)(vitest@3.2.7(@types/node@24.13.3)(jsdom@25.0.1(supports-color@7.2.0))(lightningcss@1.33.0)(supports-color@7.2.0)(tsx@4.23.1))':
     dependencies:
       '@ampproject/remapping': 2.3.0
       '@bcoe/v8-coverage': 1.0.2
       ast-v8-to-istanbul: 0.3.12
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       istanbul-lib-coverage: 3.2.2
       istanbul-lib-report: 3.0.1
-      istanbul-lib-source-maps: 5.0.6
+      istanbul-lib-source-maps: 5.0.6(supports-color@7.2.0)
       istanbul-reports: 3.2.0
       magic-string: 0.30.21
       magicast: 0.3.5
       std-env: 3.10.0
       test-exclude: 7.0.2
       tinyrainbow: 2.0.0
-      vitest: 3.2.7(@types/node@24.13.3)(jsdom@25.0.1)(lightningcss@1.33.0)(tsx@4.23.1)
+      vitest: 3.2.7(@types/node@24.13.3)(jsdom@25.0.1(supports-color@7.2.0))(lightningcss@1.33.0)(supports-color@7.2.0)(tsx@4.23.1)
     transitivePeerDependencies:
       - supports-color
 
@@ -5626,9 +5626,11 @@ snapshots:
 
   date-fns@4.4.0: {}
 
-  debug@4.4.3:
+  debug@4.4.3(supports-color@7.2.0):
     dependencies:
       ms: 2.1.3
+    optionalDependencies:
+      supports-color: 7.2.0
 
   decimal.js@10.6.0: {}
 
@@ -5731,9 +5733,9 @@ snapshots:
       has-tostringtag: 1.0.2
       hasown: 2.0.4
 
-  esbuild-register@3.6.0(esbuild@0.25.12):
+  esbuild-register@3.6.0(esbuild@0.25.12)(supports-color@7.2.0):
     dependencies:
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       esbuild: 0.25.12
     transitivePeerDependencies:
       - supports-color
@@ -5932,17 +5934,17 @@ snapshots:
       css-line-break: 2.1.0
       text-segmentation: 1.0.3
 
-  http-proxy-agent@7.0.2:
+  http-proxy-agent@7.0.2(supports-color@7.2.0):
     dependencies:
       agent-base: 7.1.4
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
-  https-proxy-agent@7.0.6:
+  https-proxy-agent@7.0.6(supports-color@7.2.0):
     dependencies:
       agent-base: 7.1.4
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
@@ -6037,10 +6039,10 @@ snapshots:
       make-dir: 4.0.0
       supports-color: 7.2.0
 
-  istanbul-lib-source-maps@5.0.6:
+  istanbul-lib-source-maps@5.0.6(supports-color@7.2.0):
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       istanbul-lib-coverage: 3.2.2
     transitivePeerDependencies:
       - supports-color
@@ -6078,15 +6080,15 @@ snapshots:
 
   jsdoc-type-pratt-parser@4.8.0: {}
 
-  jsdom@25.0.1:
+  jsdom@25.0.1(supports-color@7.2.0):
     dependencies:
       cssstyle: 4.6.0
       data-urls: 5.0.0
       decimal.js: 10.6.0
       form-data: 4.0.6
       html-encoding-sniffer: 4.0.0
-      http-proxy-agent: 7.0.2
-      https-proxy-agent: 7.0.6
+      http-proxy-agent: 7.0.2(supports-color@7.2.0)
+      https-proxy-agent: 7.0.6(supports-color@7.2.0)
       is-potential-custom-element-name: 1.0.1
       nwsapi: 2.2.24
       parse5: 7.3.0
@@ -6665,9 +6667,9 @@ snapshots:
 
   std-env@3.10.0: {}
 
-  storybook@8.6.18:
+  storybook@8.6.18(supports-color@7.2.0):
     dependencies:
-      '@storybook/core': 8.6.18(storybook@8.6.18)
+      '@storybook/core': 8.6.18(storybook@8.6.18(supports-color@7.2.0))(supports-color@7.2.0)
     transitivePeerDependencies:
       - bufferutil
       - supports-color
@@ -6819,10 +6821,10 @@ snapshots:
       evtd: 0.2.4
       vue: 3.5.40(typescript@6.0.3)
 
-  vite-node@3.2.4(@types/node@24.13.3)(lightningcss@1.33.0)(tsx@4.23.1):
+  vite-node@3.2.4(@types/node@24.13.3)(lightningcss@1.33.0)(supports-color@7.2.0)(tsx@4.23.1):
     dependencies:
       cac: 6.7.14
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       es-module-lexer: 1.7.0
       pathe: 2.0.3
       vite: 7.3.6(@types/node@24.13.3)(lightningcss@1.33.0)(tsx@4.23.1)
@@ -6847,13 +6849,13 @@ snapshots:
     transitivePeerDependencies:
       - rollup
 
-  vite-plugin-wasm@3.6.0(vite@8.1.5(@types/node@24.13.3)(esbuild@0.25.12)(tsx@4.23.1)):
+  vite-plugin-wasm@3.6.0(vite@8.1.6(@types/node@24.13.3)(esbuild@0.25.12)(tsx@4.23.1)):
     dependencies:
-      vite: 8.1.5(@types/node@24.13.3)(esbuild@0.25.12)(tsx@4.23.1)
+      vite: 8.1.6(@types/node@24.13.3)(esbuild@0.25.12)(tsx@4.23.1)
 
-  vite-plugin-wasm@3.6.0(vite@8.1.5(@types/node@25.9.5)(esbuild@0.28.1)(tsx@4.23.1)):
+  vite-plugin-wasm@3.6.0(vite@8.1.6(@types/node@24.13.3)(esbuild@0.28.1)(tsx@4.23.1)):
     dependencies:
-      vite: 8.1.5(@types/node@25.9.5)(esbuild@0.28.1)(tsx@4.23.1)
+      vite: 8.1.6(@types/node@24.13.3)(esbuild@0.28.1)(tsx@4.23.1)
 
   vite@7.3.6(@types/node@24.13.3)(lightningcss@1.33.0)(tsx@4.23.1):
     dependencies:
@@ -6869,7 +6871,7 @@ snapshots:
       lightningcss: 1.33.0
       tsx: 4.23.1
 
-  vite@8.1.5(@types/node@24.13.3)(esbuild@0.25.12)(tsx@4.23.1):
+  vite@8.1.6(@types/node@24.13.3)(esbuild@0.25.12)(tsx@4.23.1):
     dependencies:
       lightningcss: 1.33.0
       picomatch: 4.0.5
@@ -6882,7 +6884,7 @@ snapshots:
       fsevents: 2.3.3
       tsx: 4.23.1
 
-  vite@8.1.5(@types/node@25.9.5)(esbuild@0.28.1)(tsx@4.23.1):
+  vite@8.1.6(@types/node@24.13.3)(esbuild@0.28.1)(tsx@4.23.1):
     dependencies:
       lightningcss: 1.33.0
       picomatch: 4.0.5
@@ -6890,12 +6892,12 @@ snapshots:
       rolldown: 1.1.5
       tinyglobby: 0.2.17
     optionalDependencies:
-      '@types/node': 25.9.5
+      '@types/node': 24.13.3
       esbuild: 0.28.1
       fsevents: 2.3.3
       tsx: 4.23.1
 
-  vitest@3.2.7(@types/node@24.13.3)(jsdom@25.0.1)(lightningcss@1.33.0)(tsx@4.23.1):
+  vitest@3.2.7(@types/node@24.13.3)(jsdom@25.0.1(supports-color@7.2.0))(lightningcss@1.33.0)(supports-color@7.2.0)(tsx@4.23.1):
     dependencies:
       '@types/chai': 5.2.3
       '@vitest/expect': 3.2.7
@@ -6906,7 +6908,7 @@ snapshots:
       '@vitest/spy': 3.2.7
       '@vitest/utils': 3.2.7
       chai: 5.3.3
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       expect-type: 1.4.0
       magic-string: 0.30.21
       pathe: 2.0.3
@@ -6918,11 +6920,11 @@ snapshots:
       tinypool: 1.1.1
       tinyrainbow: 2.0.0
       vite: 7.3.6(@types/node@24.13.3)(lightningcss@1.33.0)(tsx@4.23.1)
-      vite-node: 3.2.4(@types/node@24.13.3)(lightningcss@1.33.0)(tsx@4.23.1)
+      vite-node: 3.2.4(@types/node@24.13.3)(lightningcss@1.33.0)(supports-color@7.2.0)(tsx@4.23.1)
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@types/node': 24.13.3
-      jsdom: 25.0.1
+      jsdom: 25.0.1(supports-color@7.2.0)
     transitivePeerDependencies:
       - jiti
       - less

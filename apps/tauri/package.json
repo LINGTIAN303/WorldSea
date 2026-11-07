@@ -79,7 +79,7 @@
     "@vitejs/plugin-vue": "^6.0.6",
     "rollup-plugin-visualizer": "^7.0.1",
     "typescript": "~6.0.2",
-    "vite": "^8.0.10",
+    "vite": "^8.1.6",
     "vite-plugin-compression2": "^2.5.3",
     "vite-plugin-wasm": "^3.6.0",
     "vue-tsc": "^3.2.7"
