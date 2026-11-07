@@ -254,3 +254,65 @@ PR #3 之前，`main` 上自 2026-11-06 起连续 5 次 CI 失败（如 run 4237
 **没有**为此给校验器开白名单——那会让「文档不能链到不入库文件」这条约定一起失效。
 
 教训：任何指向 gitignore 文件的相对链接，都是必然断链。写文档时链接之前先确认目标是否入库。
+
+## 六、缺口盘点（2026-11-08 全量实测）
+
+上面各节记述的是「已建成什么」。本节反向记录**尚未配置的部分**，全部经 API 实测，可作为下一批施工的底单。
+
+### 6.1 元数据
+
+| 项 | 实测值 | 影响 |
+|---|---|---|
+| `description` | 曾为 `null` | 仓库页与搜索结果无说明 |
+| `topics` | 曾为 `[]` | 无法被 GitHub 主题检索命中 |
+| `homepage` | `null` | 无外链入口 |
+| `license` | 曾为 `NOASSERTION` | **MIT 徽标不显示，`license:mit` 检索筛不到** |
+
+**`NOASSERTION` 的成因**：`LICENSE` 在标准 MIT 正文后追加了 `---` 分隔线与中文第三方声明段。GitHub 的 licensee 解析器需要文件近似逐字匹配已知许可模板，尾部追加内容即判为「Other」。修复方式是把自定义段落移出 `LICENSE`——内容本身已完整存在于 `THIRD-PARTY-NOTICES.md`，不构成信息丢失。
+
+### 6.2 安全面（公开仓库，此前全关）
+
+| 能力 | 实测值 | 说明 |
+|---|---|---|
+| `dependabot_security_updates` | `disabled` | 依赖漏洞不会自动开 PR |
+| `secret_scanning` | `disabled` | 公开仓库免费，未启用 |
+| `secret_scanning_push_protection` | `disabled` | 推送含密钥时不会拦截 |
+| `secret_scanning_validity_checks` | `disabled` | 命中后不校验凭据是否真实有效 |
+| Dependabot alerts | 未开启 | API 返回 403 |
+| 私有漏洞上报 | `enabled: false` | 外部研究者无私下报告通道 |
+| CodeQL | 无分析 | 公开仓库可免费用 |
+
+公开仓库放弃 secret scanning + push protection 是纯损失：二者对 public repo 免费，且是防「误提交凭据」的唯一平台级拦截。
+
+### 6.3 协作与流程文件
+
+git 跟踪的元文件只有 `LICENSE`、`README.md`、`.github/workflows/ci.yml`、`.githooks/*`。缺失：
+
+- PR 模板（`.github/pull_request_template.md`）
+- issue 模板（`.github/ISSUE_TEMPLATE/`）
+- `SECURITY.md`、`CONTRIBUTING.md`、`CODEOWNERS`
+- 根级 `.github/dependabot.yml`
+
+`dsh/.github/dependabot.yml` 是 vendored fork 自带的，不覆盖仓库根，且不应改动。
+
+### 6.4 CI 工程面
+
+| 缺口 | 后果 |
+|---|---|
+| 无 `concurrency` 组 | 同一分支连续推送时，旧提交的 job 会排队跑完，浪费且拖慢反馈 |
+| 无 workflow 级 `permissions:` 块 | 依赖仓库默认 `read` 隐式生效，改动默认值即静默放宽 |
+| `wasm-core` 无 cargo 缓存 | 每次全量编译 Rust |
+| 检查名与分支保护 `contexts` 无自动校验 | §2.2 已警示「错一个字符 PR 永久卡住」，但改 job 名时无任何门禁拦截 |
+
+**push 与 pull_request 双触发**：`on.push.branches: ['**']` 与 `on.pull_request.branches: [main]` 同时命中同一提交时，会起两个 run、跑两遍全部 job。这是 §3.5「触发面必须覆盖全部分支」与 PR 校验需求叠加的必然结果，需要 `concurrency` 与事件条件共同处理，不能简单删掉其中一个触发源。
+
+### 6.5 合并策略
+
+`allow_merge_commit` / `allow_rebase_merge` / `allow_squash_merge` 三项此前全开，`required_linear_history: false`。与「一次逻辑变更一个提交」的既有纪律不完全对应：任何有写权限的人都能在 UI 上点出 merge commit，把历史搅成非线性。
+
+### 6.6 规模约束（影响任何全仓级配置）
+
+仓库报告大小 105,367 KB，跟踪文件 22,954 个，其中 20,325 个（88.6%）位于 `dsh/`（vendored fork）。因此：
+
+- Dependabot 必须排除 `dsh/`，否则单次更新会淹没 issue 列表
+- 任何全仓扫描 / 缓存策略要先把 `dsh/` 划出去
