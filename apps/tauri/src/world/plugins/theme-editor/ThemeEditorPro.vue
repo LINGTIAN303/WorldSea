@@ -85,9 +85,9 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
-import { useUIStore } from '@worldsea/entity-core'
 import { toastSuccess, toastWarn } from '@worldsea/ui-kit'
 import { useTheme } from '@/composables/useTheme'
+import { uiSvc } from './serviceAccess'
 
 interface TokenDef {
   key: string
@@ -111,8 +111,7 @@ const props = defineProps<{ activeTab?: string; previewNonce?: number }>()
 
 /** 前往外观面板（强调色唯一入口）：带 section 目标打开设置并关本编辑器 */
 function jumpToAppearance() {
-  const ui = useUIStore()
-  ui.settingsTarget = { section: 'appearance' }
+  uiSvc().setSettingsTarget({ section: 'appearance' })
   window.dispatchEvent(new CustomEvent('ws-open-settings'))
   emit('jump-to-appearance')
 }

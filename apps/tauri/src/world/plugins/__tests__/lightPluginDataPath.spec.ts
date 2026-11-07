@@ -52,12 +52,20 @@ const MIGRATED = [
   'notebook/composables/useNoteEditor.ts',
   'notebook/backlinkDerive.ts',
   'notebook/serviceAccess.ts',
+  // 补 world.ui 后解锁
+  'custom/DashboardView.vue',
+  'custom/serviceAccess.ts',
+  'theme-editor/ThemeEditorPro.vue',
+  'theme-editor/ThemeEditorQuick.vue',
+  'theme-editor/serviceAccess.ts',
+  'mindmap/MindmapView.vue',
+  'mindmap/serviceAccess.ts',
 ] as const
 
 /**
- * 经共享取值器取数的文件：它们自身只 `import { entitiesSvc } from '../serviceAccess'`，
+ * 经共享取值器取数的文件：它们自身只 `import { xSvc } from './serviceAccess'`，
  * 服务名与 throw 都收敛在 `serviceAccess.ts`（单份）。故这些文件只断言「不直连 store
- * + 确实引用共享取值器」，服务名校验交给 `serviceAccess.ts` 那一例。
+ * + 确实引用共享取值器」，服务名校验交给对应 `serviceAccess.ts` 那一例。
  */
 const VIA_SHARED_ACCESSOR = new Set([
   'notebook/NotebookView.vue',
@@ -69,6 +77,10 @@ const VIA_SHARED_ACCESSOR = new Set([
   'notebook/composables/noteLinkExt.ts',
   'notebook/composables/useNoteEditor.ts',
   'notebook/backlinkDerive.ts',
+  'custom/DashboardView.vue',
+  'theme-editor/ThemeEditorPro.vue',
+  'theme-editor/ThemeEditorQuick.vue',
+  'mindmap/MindmapView.vue',
 ])
 
 async function readPluginFile(rel: string): Promise<string> {

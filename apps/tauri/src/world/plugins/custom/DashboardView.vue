@@ -106,23 +106,20 @@
 import { ref, computed, onMounted, onBeforeUnmount, shallowRef, watch } from 'vue'
 import { WsIcon, WsSkeleton, WsEmpty } from '@worldsea/ui-kit'
 import { usePluginStore } from '@worldsea/entity-core'
-import { useUIStore } from '@/stores/uiStore'
 import { toastWarn } from '@worldsea/ui-kit'
-import { useSettingsStore } from '@/stores/settingsStore'
 import type { Component } from 'vue'
 import type { Panel, LayoutDirection } from './dashboard/types'
 import { useDashboardStorage } from './dashboard/useDashboardStorage'
 import { useGridLayout } from './dashboard/useGridLayout'
 import { usePanelResize } from './dashboard/usePanelResize'
 import { usePanelDragSort } from './dashboard/usePanelDragSort'
+import { settingsSvc, uiSvc } from './serviceAccess'
 import DashboardToolbar from './dashboard/DashboardToolbar.vue'
 import PanelWrapper from './dashboard/PanelWrapper.vue'
 import AddPanelModal from './dashboard/AddPanelModal.vue'
 import PanelContextMenu from './dashboard/PanelContextMenu.vue'
 
 const pluginStore = usePluginStore()
-const settingsStore = useSettingsStore()
-const uiStore = useUIStore()
 
 // ===== 核心状态 =====
 const panels = ref<Panel[]>([])
@@ -231,7 +228,7 @@ const availableViews = computed(() => {
 // ===== 添加面板 =====
 async function handleAddPanel() {
   const newCount = panels.value.length + 1
-  if (settingsStore.panelLimitEnabled) {
+  if (settingsSvc().panelLimitEnabled()) {
     if (newCount > 11) {
       toastWarn('面板数量已达上限，可在设置中调整')
       return
@@ -329,9 +326,9 @@ function jumpToMainView() {
   const viewId = panelCtxMenu.value.panelViewId
   const view = pluginStore.getView(viewId)
   if (view) {
-    uiStore.viewComponent = view.component
-    uiStore.setView(viewId)
-    uiStore._jumpBackViewId = 'custom'
+    // 不传组件：ViewContainer 按 currentView 自行解析（服务不跨传 Component）
+    uiSvc().navigateTo(view.id)
+    uiSvc().setJumpBackViewId('custom')
   }
 }
 

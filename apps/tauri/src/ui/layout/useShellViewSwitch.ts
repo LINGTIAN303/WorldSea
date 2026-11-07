@@ -21,8 +21,7 @@ export function useShellViewSwitch() {
     const next = ((idx === -1 ? 0 : idx + delta) + views.length) % views.length
     const v = views[next]
     if (!v) return false
-    ui.setView(v.id)
-    ui.viewComponent = v.component
+    ui.showView(v)
     return true
   }
 }

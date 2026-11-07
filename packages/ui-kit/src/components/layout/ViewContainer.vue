@@ -70,12 +70,12 @@ const viewComp = computed(() => {
   return view?.component ?? null
 })
 
-// 确保 viewComponent 始终与 currentView 同步
+// 确保 viewComponent 始终与 currentView 同步。
+// 必须**无条件**覆盖：若只在空值时同步，`showView(A)` 后紧跟 `setView(B)` 会让
+// viewComponent 停留在 A，而下面 viewComp 优先取它 → 渲染出错视图。
 watch(() => uiStore.currentView, (viewId) => {
-  if (viewId && !uiStore.viewComponent) {
-    const view = pluginStore.getView(viewId)
-    if (view) uiStore.viewComponent = view.component
-  }
+  const view = viewId ? pluginStore.getView(viewId) : undefined
+  uiStore.viewComponent = view?.component ?? null
 })
 
 const jumpBackMenu = reactive({ show: false, x: 0, y: 0 })

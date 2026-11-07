@@ -170,7 +170,8 @@ import MindElixir from 'mind-elixir'
 import 'mind-elixir/style'
 import type { NodeObj, MindElixirData, MindElixirInstance } from 'mind-elixir'
 import { WsIcon, WsEmpty, WsInlineLoading, WsLoadingOverlay, useAsyncTask, toastSuccess, toastWarn, type LoadingStage, type LoadingStatus } from '@worldsea/ui-kit'
-import { useEntityStore, useUIStore, type Entity } from '@worldsea/entity-core'
+import type { Entity } from '@worldsea/entity-core'
+import { entitiesSvc, uiSvc } from './serviceAccess'
 import { CustomDropdown, useConfirm } from '@worldsea/plugin-sdk'
 import { useMindmapDocStore } from './mindmapStore'
 import { markdownToMindElixir, mindElixirToMarkdown, findImportViolation, mindElixirStats, MINDMAP_MAX_NODES, MINDMAP_MAX_DEPTH, MINDMAP_OPEN_MAX_NODES, MINDMAP_OPEN_MAX_DEPTH } from './mindmapMarkdown'
@@ -201,8 +202,6 @@ const MENU_LOCALE = {
 }
 
 const store = useMindmapDocStore()
-const entityStore = useEntityStore()
-const uiStore = useUIStore()
 const { confirm } = useConfirm()
 
 const mapEl = ref<HTMLElement | null>(null)
@@ -241,12 +240,12 @@ const saveStateText = computed(() => {
 
 /** 实体下拉选项：全部实体，label = 「名称（类型）」 */
 const entityOptions = computed(() =>
-  entityStore.entities.map(e => ({ value: e.id, label: `${e.name}（${e.type}）` })),
+  entitiesSvc().list().map(e => ({ value: e.id, label: `${e.name}（${e.type}）` })),
 )
 
 const boundEntityId = computed(() => (selectedObj.value?.metadata as NodeMeta | undefined)?.entityId ?? null)
 const boundEntity = computed<Entity | null>(() =>
-  boundEntityId.value ? entityStore.entities.find(e => e.id === boundEntityId.value) ?? null : null,
+  boundEntityId.value ? entitiesSvc().list().find(e => e.id === boundEntityId.value) ?? null : null,
 )
 
 /* ── 画布实例管理 ── */
@@ -782,7 +781,7 @@ function onSelUp(e: PointerEvent) {
 function onBindEntity(entityId: string) {
   const obj = selectedObj.value
   if (!obj || !entityId || !mind) return
-  const entity = entityStore.entities.find(e => e.id === entityId)
+  const entity = entitiesSvc().list().find(e => e.id === entityId)
   if (!entity) return
   // 移除旧绑定徽章，写入新徽章与元数据
   const tags = (obj.tags ?? []).filter(t => typeof t === 'string' && !t.startsWith(BIND_TAG_PREFIX))
@@ -917,7 +916,7 @@ function goToEntity(entity: Entity) {
     toastSuccess(`实体「${entity.name}」暂无专属视图`)
     return
   }
-  uiStore.setView(viewId)
+  uiSvc().navigateTo(viewId)
 }
 
 /* ── 生命周期 ── */
@@ -939,7 +938,7 @@ async function initializeMindmap(): Promise<void> {
   try {
     await runMindmapLoad(async () => {
       mindStage.value = 0
-      await entityStore.loadAll()
+      await entitiesSvc().reload()
       await store.loadAll()
       mindStage.value = 1
       if (store.currentId) openDoc(store.currentId)

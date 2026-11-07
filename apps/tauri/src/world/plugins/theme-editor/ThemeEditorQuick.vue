@@ -60,16 +60,15 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { useUIStore } from '@worldsea/entity-core'
 // entity-core 主题引擎：setUserOverrides 仅写令牌覆盖（圆角/密度），不碰 data-theme 与强调色。
 import { useTheme } from '@/composables/useTheme'
 import { useStyle, AXIS_META, type AxisKey } from '@worldsea/style-kit'
+import { uiSvc } from './serviceAccess'
 
 const props = defineProps<{ activeTab?: string }>()
 const emit = defineEmits<{ 'jump-to-appearance': [] }>()
 
 const { userOverrides, setUserOverrides } = useTheme()
-const ui = useUIStore()
 const { resolvedAxes, setAxis, resetAxis, resetAxes, isOverridden } = useStyle()
 
 const axisItems = computed(() =>
@@ -100,7 +99,7 @@ watch(() => props.activeTab, (v) => {
 
 /** 前往外观面板：带 section 目标打开设置（先例 HomeSurface），并关本编辑器避免双模态 */
 function jumpToAppearance() {
-  ui.settingsTarget = { section: 'appearance' }
+  uiSvc().setSettingsTarget({ section: 'appearance' })
   window.dispatchEvent(new CustomEvent('ws-open-settings'))
   emit('jump-to-appearance')
 }

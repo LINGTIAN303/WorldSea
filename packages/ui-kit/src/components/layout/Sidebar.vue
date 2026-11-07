@@ -280,8 +280,7 @@ function checkViewSwitch() {
     // 原实现 setView + viewComponent 赋值在 tick() 中同步执行,与 width 动画叠加导致掉帧
     // 用 microtask 推迟,既保证响应性又避免阻塞动画帧
     Promise.resolve().then(() => {
-      uiStore.setView(view.id)
-      uiStore.viewComponent = view.component
+      uiStore.showView(view)
     })
   }
 }
@@ -419,8 +418,7 @@ watch(
   () => sortedViews.value,
   (views) => {
     if (views.length === 0) {
-      uiStore.setView('')
-      uiStore.viewComponent = null
+      uiStore.clearView()
       return
     }
     const currentId = uiStore.currentView
@@ -432,8 +430,7 @@ watch(
       pos = 0
       lastSettledIdx = 0
       const view = views[0]
-      uiStore.setView(view.id)
-      uiStore.viewComponent = view.component
+      uiStore.showView(view)
     }
     renderTick.value++
     nextTick(() => syncDomStyles())

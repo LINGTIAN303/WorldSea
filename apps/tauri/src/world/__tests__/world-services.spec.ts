@@ -21,11 +21,11 @@ afterEach(() => {
 })
 
 describe('createWorldServices：服务方法表', () => {
-  it('提供 8 个服务，且与 WORLD_SERVICE_NAMES 完全一致', () => {
+  it('提供 9 个服务，且与 WORLD_SERVICE_NAMES 完全一致', () => {
     const services = createWorldServices()
     expect(Object.keys(services).sort()).toEqual([...WORLD_SERVICE_NAMES].sort())
     expect(WORLD_SERVICE_NAMES).toContain('world.info')
-    expect(WORLD_SERVICE_NAMES).toHaveLength(8)
+    expect(WORLD_SERVICE_NAMES).toHaveLength(9)
   })
 
   it('world.projectExtras 直通 entity-core 的两个迁移扩展点注册面，且返回 disposer', () => {
@@ -185,5 +185,28 @@ describe('world.settings：只读偏好，不转发整个 store', () => {
     for (const forbidden of ['aiCloudKey', 'customProviders', 'getCustomKeyStoreId', 'aiLocalEndpoint', 'agentBackend']) {
       expect(settings).not.toHaveProperty(forbidden)
     }
+  })
+})
+
+describe('world.ui：导航意图，不传组件对象', () => {
+  it('暴露 6 个方法，且不含任何组件相关字段', () => {
+    const ui = (createWorldServices() as Record<string, Record<string, unknown>>)['world.ui']!
+    expect(Object.keys(ui).sort()).toEqual([
+      'currentView',
+      'navigateTo',
+      'selectEntity',
+      'selectedEntityId',
+      'setJumpBackViewId',
+      'setSettingsTarget',
+    ])
+    // 组件引用不得跨服务传递：viewComponent 由 uiStore.showView 内部维护
+    for (const forbidden of ['viewComponent', 'showView', 'viewRefreshKey', 'views']) {
+      expect(ui).not.toHaveProperty(forbidden)
+    }
+  })
+
+  it('navigateTo 只设 currentView，不传组件（由 ViewContainer 解析）', () => {
+    const ui = (createWorldServices() as Record<string, Record<string, (id: string) => void>>)['world.ui']!
+    expect(ui.navigateTo!.length).toBe(1) // 单参 = 只有 viewId
   })
 })
