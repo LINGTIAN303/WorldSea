@@ -1,0 +1,27 @@
+# 代码所有者
+#
+# 单人项目下 CODEOWNERS 不会自动指派评审人（GitHub 不允许自审），它的实际作用是
+# **把几条高风险路径显式登记为「必须由仓库所有者过目」**，供将来引入协作账号时
+# 自动生效；同时它也是一份「哪些地方动之前要想清楚」的清单。
+#
+# 语法：<路径模式> <@用户或 @组织/团队>
+# 匹配以最后一个命中的行为准。
+
+# 兜底：所有改动都归仓库所有者
+*                                   @LINGTIAN303
+
+# 平台级约束：分支保护、CI 必需检查、依赖更新策略
+/.github/                          @LINGTIAN303
+
+# 门禁本身：这些脚本决定「什么算通过」，改动敏感性高
+/scripts/gate.mjs                  @LINGTIAN303
+/scripts/architecture/             @LINGTIAN303
+/scripts/check-*.mjs               @LINGTIAN303
+
+# vendored 上游 fork：每处改动都要登记台账
+/dsh/                              @LINGTIAN303
+
+# 许可与第三方声明：公开仓库的合规面
+/LICENSE                           @LINGTIAN303
+/THIRD-PARTY-NOTICES.md            @LINGTIAN303
+/SECURITY.md                       @LINGTIAN303
