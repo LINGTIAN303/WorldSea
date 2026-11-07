@@ -23,6 +23,7 @@ import { EditorContent } from '@tiptap/vue-3'
 import { useEntityStore, type Entity } from '@worldsea/entity-core'
 import { useChapterEditor } from '../composables/useChapterEditor'
 import { useNoteEditor } from '../../notebook/composables/useNoteEditor'
+import { clearWorldServiceTable, registerWorldServiceTable } from '../../../service-registry'
 
 function makeEntity(id: string, content: string): Entity {
   const now = new Date().toISOString()
@@ -55,9 +56,24 @@ describe('编辑器生命周期 · 卸载先落盘后销毁（方案 A 回归）
     pinia = createPinia()
     es = useEntityStore(pinia)
     updateSpy = vi.spyOn(es, 'update').mockResolvedValue(undefined)
+    // 第二个用例复用 notebook 的 useNoteEditor，它现在经 world.entities 服务取数；
+    // 本 spec 不起树，故登记转发到同一 store 的服务表（保持 spy 仍能捕获转发调用）。
+    registerWorldServiceTable({
+      'world.entities': {
+        list: () => es.entities,
+        get: (id: string) => es.entityMap.get(id),
+        byType: (type: string) => es.entities.filter(e => e.type === type),
+        add: (...args: Parameters<typeof es.add>) => es.add(...args),
+        update: (...args: Parameters<typeof es.update>) => es.update(...args),
+        remove: (...args: Parameters<typeof es.remove>) => es.remove(...args),
+        reload: () => es.loadAll(),
+        loadByType: (type: string) => es.loadByType(type),
+      },
+    })
   })
 
   afterEach(() => {
+    clearWorldServiceTable()
     vi.restoreAllMocks()
   })
 

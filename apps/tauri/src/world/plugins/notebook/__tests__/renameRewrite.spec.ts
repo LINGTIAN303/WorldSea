@@ -9,8 +9,10 @@
  * 契约来源：协议 §3.5（裁决 D：全库重写 S-1）· 批计划 §2.5 / §三阶段 3。
  */
 import 'fake-indexeddb/auto'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
+import { clearWorldServiceTable } from '../../../service-registry'
+import { installStoreServices } from './storeServices'
 import {
   getProjectManager,
   storage,
@@ -37,6 +39,7 @@ function makeNote(id: string, name: string, content = '', noteType = 'markdown')
 
 beforeEach(async () => {
   setActivePinia(createPinia())
+  installStoreServices()
   localStorage.clear()
   const { undoStack } = useUndoRedo()
   undoStack.value = []
@@ -49,6 +52,8 @@ beforeEach(async () => {
   await useEntityStore().loadAll()
   await useRelationStore().loadAll()
 })
+
+afterEach(() => clearWorldServiceTable())
 
 // ────────────────────────────────────────────────
 // ① rewriteNoteRefs · 纯函数

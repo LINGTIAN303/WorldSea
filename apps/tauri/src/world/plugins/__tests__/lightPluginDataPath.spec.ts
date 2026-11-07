@@ -41,7 +41,35 @@ const MIGRATED = [
   // 补 world.settings 后解锁
   'graph/composables/useGraphView.ts',
   'field-matrix/composables/useAutoLinkObserver.ts',
+  // 重档（无服务缺口，10 文件全量迁移）
+  'notebook/NotebookView.vue',
+  'notebook/components/NotebookBoard.vue',
+  'notebook/components/NotebookEditor.vue',
+  'notebook/components/NotebookGraph.vue',
+  'notebook/components/sourceAutocomplete.ts',
+  'notebook/composables/editorExtensions.ts',
+  'notebook/composables/noteLinkExt.ts',
+  'notebook/composables/useNoteEditor.ts',
+  'notebook/backlinkDerive.ts',
+  'notebook/serviceAccess.ts',
 ] as const
+
+/**
+ * 经共享取值器取数的文件：它们自身只 `import { entitiesSvc } from '../serviceAccess'`，
+ * 服务名与 throw 都收敛在 `serviceAccess.ts`（单份）。故这些文件只断言「不直连 store
+ * + 确实引用共享取值器」，服务名校验交给 `serviceAccess.ts` 那一例。
+ */
+const VIA_SHARED_ACCESSOR = new Set([
+  'notebook/NotebookView.vue',
+  'notebook/components/NotebookBoard.vue',
+  'notebook/components/NotebookEditor.vue',
+  'notebook/components/NotebookGraph.vue',
+  'notebook/components/sourceAutocomplete.ts',
+  'notebook/composables/editorExtensions.ts',
+  'notebook/composables/noteLinkExt.ts',
+  'notebook/composables/useNoteEditor.ts',
+  'notebook/backlinkDerive.ts',
+])
 
 async function readPluginFile(rel: string): Promise<string> {
   const { readFileSync } = await import('node:fs')
@@ -72,8 +100,13 @@ describe.each(MIGRATED)('%s 取数经服务', rel => {
     expect(code).not.toMatch(/\brs\.(relations|loadAll|add|update|remove)\b/)
   })
 
-  it('经 getWorldService 取服务，且服务名在权威名单内', async () => {
+  it('经服务取数（直接 getWorldService，或引用共享取值器），服务名在权威名单内', async () => {
     const code = stripComments(await readPluginFile(rel))
+    if (VIA_SHARED_ACCESSOR.has(rel)) {
+      // 服务名与 throw 收敛在 serviceAccess.ts（下面单独一例覆盖），此处只验它确实经该模块取数
+      expect(code).toMatch(/from '(\.\.?\/)+serviceAccess'/)
+      return
+    }
     // 允许两种写法：直接 getWorldService<T>('name')，或经本地 svcOf 包装后传字面量
     expect(code).toMatch(/getWorldService|svcOf/)
     // 服务名必须真实存在：只匹配 'world.xxx' 会放过拼错的名字（如 world.settingsXX）
@@ -85,6 +118,7 @@ describe.each(MIGRATED)('%s 取数经服务', rel => {
   })
 
   it('服务缺席时抛错而非静默降级', async () => {
+    if (VIA_SHARED_ACCESSOR.has(rel)) return // 由 serviceAccess.ts 那一例覆盖
     const code = stripComments(await readPluginFile(rel))
     // 守卫必须 throw：静默返回会让「时序被破坏」表现成「列表莫名是空的」
     expect(code).toMatch(/if \(!svc\) throw new Error\(/)

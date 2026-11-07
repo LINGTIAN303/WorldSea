@@ -14,11 +14,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { defineComponent, h, computed, ref, type Ref } from 'vue'
 import { mount } from '@vue/test-utils'
-import { createPinia, type Pinia } from 'pinia'
+import { createPinia, setActivePinia, type Pinia } from 'pinia'
 import 'fake-indexeddb/auto'
 import { EditorContent } from '@tiptap/vue-3'
 import { useEntityStore, useRelationStore, type Entity } from '@worldsea/entity-core'
 import { useNoteEditor } from '../composables/useNoteEditor'
+import { clearWorldServiceTable } from '../../../service-registry'
+import { installStoreServices } from './storeServices'
 
 function makeNote(id: string, name: string, content = ''): Entity {
   const now = new Date().toISOString()
@@ -58,9 +60,12 @@ describe('backlinkWiring · 保存后派生（persistContent 收口）', () => {
   beforeEach(() => {
     localStorage.clear()
     pinia = createPinia()
+    setActivePinia(pinia)
+    installStoreServices()
   })
 
   afterEach(() => {
+    clearWorldServiceTable()
     vi.restoreAllMocks()
   })
 
@@ -138,9 +143,12 @@ describe('backlinkWiring · 装载时重算（loadNote）', () => {
   beforeEach(() => {
     localStorage.clear()
     pinia = createPinia()
+    setActivePinia(pinia)
+    installStoreServices()
   })
 
   afterEach(() => {
+    clearWorldServiceTable()
     vi.restoreAllMocks()
   })
 

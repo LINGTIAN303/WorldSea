@@ -59,7 +59,6 @@
 <script setup lang="ts">
 import { ref, watch, computed, nextTick } from 'vue'
 import { WsIcon } from '@worldsea/ui-kit'
-import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
 import type { Relation } from '@worldsea/entity-core'
 import CodeCell from './CodeCell.vue'
 import ErrorBoundary from './ErrorBoundary.vue'
@@ -67,6 +66,7 @@ import NotebookTipTapEditor from './NotebookTipTapEditor.vue'
 import BacklinkPanel from './BacklinkPanel.vue'
 import { NOTE_TYPES } from '../notebookConfig'
 import type { NotebookEntity } from '../types'
+import { entitiesSvc, relationsSvc } from '../serviceAccess'
 
 interface NotebookFolder {
   id: string
@@ -79,9 +79,6 @@ const emit = defineEmits<{
   navigate: [id: string]
   export: []
 }>()
-
-const entityStore = useEntityStore()
-const relationStore = useRelationStore()
 
 const editName = ref(props.note.name || '')
 const editContent = ref(String(props.note.properties?.content || ''))
@@ -132,11 +129,11 @@ watch(() => props.note?.id, (id, oldId) => {
 })
 
 const backlinkNotes = computed(() => {
-  const rels = relationStore.relations.filter(
+  const rels = relationsSvc().list().filter(
     (r: Relation) => r.type === 'note_link' && r.targetId === props.note.id
   )
   const sourceIds = rels.map((r: Relation) => r.sourceId)
-  return entityStore.entities.filter((e) => sourceIds.includes(e.id))
+  return entitiesSvc().list().filter((e) => sourceIds.includes(e.id))
 })
 
 /**
@@ -174,7 +171,7 @@ function emitUpdate(opts?: { skipUndo?: boolean }): void {
 }
 
 function onCodeRun(output: string): void {
-  entityStore.update(props.note.id, {
+  entitiesSvc().update(props.note.id, {
     properties: {
       ...props.note.properties,
       codeOutput: output,

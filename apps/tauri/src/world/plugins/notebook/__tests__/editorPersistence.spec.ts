@@ -20,6 +20,27 @@ import type { Editor } from '@tiptap/core'
 import { useEntityStore, type Entity } from '@worldsea/entity-core'
 import { useNoteEditor } from '../composables/useNoteEditor'
 import NotebookTipTapEditor from '../components/NotebookTipTapEditor.vue'
+import { clearWorldServiceTable, registerWorldServiceTable } from '../../../service-registry'
+
+/**
+ * 组件/composable 取数经 `world.entities` 服务；本 spec 不起树，故登记一个
+ * **转发到真实 store** 的表——保持原「真实 store + fake-indexeddb」的集成语义，
+ * 且 `vi.spyOn(es, 'update')` 仍能捕获到服务转发的调用。
+ */
+function installStoreBackedServices(pinia: Pinia) {
+  registerWorldServiceTable({
+    'world.entities': {
+      list: () => useEntityStore(pinia).entities,
+      get: (id: string) => useEntityStore(pinia).entityMap.get(id),
+      byType: (type: string) => useEntityStore(pinia).entities.filter(e => e.type === type),
+      add: (...args: Parameters<ReturnType<typeof useEntityStore>['add']>) => useEntityStore(pinia).add(...args),
+      update: (...args: Parameters<ReturnType<typeof useEntityStore>['update']>) => useEntityStore(pinia).update(...args),
+      remove: (...args: Parameters<ReturnType<typeof useEntityStore>['remove']>) => useEntityStore(pinia).remove(...args),
+      reload: () => useEntityStore(pinia).loadAll(),
+      loadByType: (type: string) => useEntityStore(pinia).loadByType(type),
+    },
+  })
+}
 
 function makeNote(id: string, content: string): Entity {
   const now = new Date().toISOString()
@@ -60,9 +81,11 @@ describe('笔记本编辑器 · 切换窗口 · 脏内容归属（回归）', ()
   beforeEach(() => {
     localStorage.clear()
     pinia = createPinia()
+    installStoreBackedServices(pinia)
   })
 
   afterEach(() => {
+    clearWorldServiceTable()
     vi.restoreAllMocks()
   })
 
@@ -114,9 +137,11 @@ describe('笔记本编辑器 · 同 id 回流短路（回归）', () => {
   beforeEach(() => {
     localStorage.clear()
     pinia = createPinia()
+    installStoreBackedServices(pinia)
   })
 
   afterEach(() => {
+    clearWorldServiceTable()
     vi.restoreAllMocks()
   })
 
@@ -148,9 +173,11 @@ describe('NotebookTipTapEditor · 保存回流不打断输入（组件级回归�
   beforeEach(() => {
     localStorage.clear()
     pinia = createPinia()
+    installStoreBackedServices(pinia)
   })
 
   afterEach(() => {
+    clearWorldServiceTable()
     vi.restoreAllMocks()
   })
 

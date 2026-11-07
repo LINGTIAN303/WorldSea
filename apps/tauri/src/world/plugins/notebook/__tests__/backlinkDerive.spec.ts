@@ -11,8 +11,10 @@
  * 批计划：docs/plans/2026-10-15-块2-连接派生-批计划.md §五（验收判据）。
  */
 import 'fake-indexeddb/auto'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
+import { clearWorldServiceTable } from '../../../service-registry'
+import { installStoreServices } from './storeServices'
 import {
   getProjectManager,
   storage,
@@ -46,6 +48,7 @@ function makeNote(id: string, name: string, content = '', type = 'notebook'): En
 
 beforeEach(async () => {
   setActivePinia(createPinia())
+  installStoreServices()
   localStorage.clear()
   const { undoStack } = useUndoRedo()
   undoStack.value = []
@@ -53,6 +56,8 @@ beforeEach(async () => {
   for (const e of await storage.getAllEntities()) await storage.deleteEntity(e.id)
   for (const r of await storage.getAllRelations()) await storage.deleteRelation(r.id)
 })
+
+afterEach(() => clearWorldServiceTable())
 
 // ────────────────────────────────────────────────
 // ① extractNoteRefs · 语法感知扫描

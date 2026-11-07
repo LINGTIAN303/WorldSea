@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="nb-graph">
     <!-- 空态（批 4 V7，走查修正=去按钮、引导语承载动作）：无笔记 / 有笔记无链接 分流 -->
     <WsEmpty
@@ -15,26 +15,24 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { WsEmpty, WsIcon } from '@worldsea/ui-kit'
-import { useRelationStore, useEntityStore } from '@worldsea/entity-core'
 import type { Relation } from '@worldsea/entity-core'
 import { useSmallCanvasGraph, type SGNode, type SGEdge } from '@worldsea/ui-kit'
 import type { NotebookEntity } from '../types'
+import { entitiesSvc, relationsSvc } from '../serviceAccess'
 
 const props = defineProps<{ notes: NotebookEntity[] }>()
 const emit = defineEmits<{ select: [id: string] }>()
 
-const relationStore = useRelationStore()
-const entityStore = useEntityStore()
 const containerRef = ref<HTMLDivElement | null>(null)
 
-const noteLinkRels = computed(() =>
-  relationStore.relations.filter((r: Relation) => r.type === 'note_link')
+const noteLinkRels = computed<readonly Relation[]>(() =>
+  relationsSvc().list().filter((r: Relation) => r.type === 'note_link')
 )
 
 const noEdges = computed(() => noteLinkRels.value.length === 0)
 
-const allNotes = computed(() =>
-  entityStore.entities.filter((e): e is NotebookEntity => e.type === 'notebook')
+const allNotes = computed<readonly NotebookEntity[]>(() =>
+  entitiesSvc().list().filter((e): e is NotebookEntity => e.type === 'notebook')
 )
 
 const graph = useSmallCanvasGraph(containerRef, {

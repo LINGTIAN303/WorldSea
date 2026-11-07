@@ -16,8 +16,8 @@ import { Mark, Extension } from '@tiptap/core'
 import suggestion from '@tiptap/suggestion'
 import type { SuggestionOptions } from '@tiptap/suggestion'
 import type { Editor } from '@tiptap/core'
-import { useEntityStore } from '@worldsea/entity-core'
 import { resolveNoteRef } from '../backlinkDerive'
+import { entitiesSvc } from '../serviceAccess'
 
 /** `[[ ]]` 选择器条目（MentionItem 形状——弹层复用 MentionPopover） */
 export interface NoteLinkCandidate {
@@ -154,8 +154,7 @@ export function findNoteLinkAnchor(target: EventTarget | null): HTMLElement | nu
  */
 function resolveNoteByName(name: string): { id: string } | null {
   try {
-    const es = useEntityStore()
-    const hit = resolveNoteRef(name, es.entities ?? [])
+    const hit = resolveNoteRef(name, entitiesSvc().list())
     return hit.kind === 'hit' ? { id: hit.id } : null
   } catch {
     return null
