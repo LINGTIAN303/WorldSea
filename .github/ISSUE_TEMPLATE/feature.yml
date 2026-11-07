@@ -1,0 +1,34 @@
+name: 功能建议
+description: 提出一个新功能或改进
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 要解决什么问题
+      description: 描述用户遇到的困难，而不是直接给方案——先说清问题才谈得上选对方案
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 建议的做法
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 考虑过的替代方案
+      description: 以及为什么没选它
+    validations:
+      required: false
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: 影响面
+      description: 涉及哪些插件 / 模块 / 数据模型；是否改变用户操作路径
+    validations:
+      required: false
