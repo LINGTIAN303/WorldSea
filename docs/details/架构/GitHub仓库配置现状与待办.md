@@ -95,17 +95,29 @@ apps/dsh-plugin-worldsea/__tests__/config.spec.ts
 
 **本地为什么看不出**：本地 `lib/` 是历史构建留下的，一直存在。这类问题无法靠「本地多跑几遍」发现——只有真正在干净环境里跑才会暴露。
 
-**修法**：`unit-tests` job 在跑测试前加一步构建该包：
+**修法**：`unit-tests` job 在跑测试前装 dsh 的 vendor 依赖并构建：
 
 ```yaml
-- name: Build vendored schemastery
-  working-directory: dsh/vendor/schemastery
+- name: Install dsh vendor dependencies
+  working-directory: dsh
+  run: pnpm install --filter "./vendor/*" --frozen-lockfile
+- name: Build vendored packages
+  working-directory: dsh
   run: |
-    npx tsc -p tsconfig.json
-    npx tsdown
+    npx tsc -p vendor/cosmokit/tsconfig.json
+    npx tsc -p vendor/schemastery/tsconfig.json
+    npx tsdown --config-loader native
 ```
 
-**为什么只构这一个包而非整个 `dsh/`**：两个插件的 `lib/*.js` 里 `@deepseek-ai` 引用只有 `schemastery`（`client.js` 引用的是 `dsh` 自身类型，非 vendor 包）。实测 `tsc` 5.5 秒 + `tsdown` 4 秒 ≈ 10 秒，远低于完整 dsh 构建。
+三个坑，逐条说明为什么不能省：
+
+1. **必须先装 dsh 侧依赖**。根 `pnpm-workspace.yaml` 只含 `packages/*` 与 `apps/*`——`dsh/` 不在其中，它自带 workspace（396 个项目，`node_modules` 约 1.97 GB）。根目录的 `pnpm install` **完全不碰 dsh 侧**。构建需要 `@standard-schema/spec`（外部依赖）与 `cosmokit`（workspace 内），缺任一个 `tsc` 直接报 `TS2307` / `TS6305`。用 `--filter "./vendor/*"` 只装 9 个包，约 11 秒。
+
+2. **`cosmokit` 必须先构建**。`schemastery` 的 `src/index.ts` 前 3 行就 import `@deepseek-ai/cosmokit`，其入口是 `lib/index.js`（同样是构建产物）。后建前者必然 `TS6305: Output file ... has not been built from source file`。
+
+3. **打包必须用 dsh 根目录的 `tsdown`**，不能在子包里跑。`dsh/tsdown.config.ts` 按 workspace 批量构建 `vendor/*`，自动处理 `cosmokit → schemastery` 的先后依赖。在 `vendor/cosmokit` 里直接跑 `npx tsdown` 会报 `No workspace packages found`——它没有自己的 tsdown 配置，靠的是根配置的 workspace 发现。
+
+实测整串 ≈ 20 秒（tsc 两包各约 5 秒 + tsdown 批量构建）。
 
 **若不修，还有一条看似可行但错误的捷径**：把这 5 个 spec 加进 `exclude` 跳过。不建议——它们测的是插件的**真实行为**（调真实 `apply`、真实 `execute`，只伪造 cordis 边界），跳过等于把最有价值的覆盖丢掉。
 

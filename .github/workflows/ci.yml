@@ -98,18 +98,34 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      # 两个 dsh 内置插件的 spec 导入各自 lib/index.js，其中 import 了
-      # @deepseek-ai/schemastery；该包经 link: 指向 dsh/vendor/schemastery，
-      # 入口是 lib/index.cjs —— 而 dsh/.gitignore 忽略 lib/，CI 全新克隆里没有它。
+      # ══════════════════════════════════════════════════════════════
+      # 构建 vendored 的 @deepseek-ai/schemastery（及其依赖 cosmokit）
+      #
+      # 为什么必需：两个 dsh 内置插件的 spec 导入各自 lib/index.js，其中 import
+      # 了 @deepseek-ai/schemastery。该包经 link: 指向 dsh/vendor/schemastery，
+      # 入口是 lib/index.cjs —— 而 dsh/.gitignore 忽略 lib/，CI 全新克隆里没有。
       # 本地因留有历史构建产物而看不出问题，CI 会稳定报
       # 「Failed to resolve entry for package "@deepseek-ai/schemastery"」。
-      # 实测只需这一个包（两个插件 lib 的 @deepseek-ai 引用只有 schemastery），
-      # tsc + tsdown 合计约 10 秒，不必构建整个 dsh。
-      - name: Build vendored schemastery
-        working-directory: dsh/vendor/schemastery
+      #
+      # 为什么先装 dsh 的依赖：根 workspace 不含 dsh/（它自带 pnpm-workspace.yaml），
+      # 上一步的 pnpm install 不会装 dsh 侧任何东西。构建需要 @standard-schema/spec
+      # 与 workspace 内的 cosmokit，缺一个 tsc 就报 TS2307 / TS6305。
+      # 用 --filter "./vendor/*" 只装 9 个 vendor 包（约 11 秒），
+      # 而非 dsh 全量 396 个 workspace 项目。
+      #
+      # 为什么用 dsh 根目录的 tsdown：它按 workspace 批量构建 vendor/*，
+      # 自动处理 cosmokit → schemastery 的先后依赖（后者 import 前者产物）。
+      # 单独在子包跑 tsc/tsdown 会因缺前置产物失败。
+      # ══════════════════════════════════════════════════════════════
+      - name: Install dsh vendor dependencies
+        working-directory: dsh
+        run: pnpm install --filter "./vendor/*" --frozen-lockfile
+      - name: Build vendored packages
+        working-directory: dsh
         run: |
-          npx tsc -p tsconfig.json
-          npx tsdown
+          npx tsc -p vendor/cosmokit/tsconfig.json
+          npx tsc -p vendor/schemastery/tsconfig.json
+          npx tsdown --config-loader native
       # 报告器用 dot：默认 reporter 会为每个测试打一行，2400+ 行日志把真正的
       # 失败信息淹掉。失败细节仍会完整输出在末尾。
       - name: Run vitest
