@@ -6,12 +6,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { defineComponent, h, computed, ref, nextTick, type Ref } from 'vue'
 import { mount } from '@vue/test-utils'
-import { createPinia, type Pinia } from 'pinia'
+import { createPinia, setActivePinia, type Pinia } from 'pinia'
 import 'fake-indexeddb/auto'
 import { EditorContent } from '@tiptap/vue-3'
 import { useEntityStore, type Entity } from '@worldsea/entity-core'
 import { useNoteEditor } from '../composables/useNoteEditor'
 import { getFindState } from '@/composables/findReplaceExtension'
+import { installStoreServices } from './storeServices'
+import { clearWorldServiceTable } from '../../../service-registry'
 
 function makeNote(content: string): Entity {
   const now = new Date().toISOString()
@@ -37,10 +39,14 @@ describe('notebook 查找替换接线', () => {
 
   beforeEach(() => {
     pinia = createPinia()
+    // useNoteEditor 经树服务持久化，卸载时仍会触发保存；不登记则抛「服务未就绪」
+    setActivePinia(pinia)
+    installStoreServices()
   })
 
   afterEach(() => {
     vi.restoreAllMocks()
+    clearWorldServiceTable()
   })
 
   async function setupEditor(content: string) {

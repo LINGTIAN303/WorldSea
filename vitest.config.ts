@@ -1,5 +1,6 @@
-import { defineConfig } from 'vitest/config'
+import { defineConfig, configDefaults } from 'vitest/config'
 import vue from '@vitejs/plugin-vue'
+import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
@@ -35,6 +36,28 @@ export default defineConfig({
       // 一致）都是会**静默断链**的契约，且 Rust 单测与 dsh 自带门禁都看不见它们。
       'apps/dsh-plugin-worldsea/__tests__/**/*.spec.ts',
       'apps/dsh-plugin-worldsea-console/__tests__/**/*.spec.ts',
+    ],
+    // 依赖 dsh 构建产物的 spec：其 import 链最终指向 dsh/vendor/schemastery 的
+    // main（lib/index.cjs），而 dsh/.gitignore 忽略 lib/ —— 该产物不出现在克隆里。
+    // 本地有历史产物、CI 没有，于是同一份代码两地结论分裂。
+    //
+    // 判据取「产物是否存在」而非「是否 CI」：本地留产物时照常跑，哪天构建链补进
+    // CI 也会自动恢复覆盖，不需要回来改这里。
+    //
+    // 必须先展开 configDefaults.exclude：vitest 的 `exclude` 是整体覆盖而非追加，
+    // 直接写自己的数组会把默认的 `**/node_modules/**` 一起丢掉，导致全仓扫描
+    // （实测文件数由 311 暴涨到 1060）。
+    exclude: [
+      ...configDefaults.exclude,
+      ...(existsSync(path.resolve(__dirname, 'dsh/vendor/schemastery/lib/index.cjs'))
+        ? []
+        : [
+            'apps/dsh-plugin-worldsea/__tests__/config.spec.ts',
+            'apps/dsh-plugin-worldsea/__tests__/plugin-tools.spec.ts',
+            'apps/dsh-plugin-worldsea/__tests__/schema-tools.spec.ts',
+            'apps/dsh-plugin-worldsea-console/__tests__/client.spec.ts',
+            'apps/dsh-plugin-worldsea-console/__tests__/command.spec.ts',
+          ]),
     ],
     coverage: {
       provider: 'v8',
