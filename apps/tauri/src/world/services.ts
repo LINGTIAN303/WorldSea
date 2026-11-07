@@ -18,6 +18,7 @@ import {
   pluginAPI,
   useEntityStore,
   useRelationStore,
+  useSettingsStore,
 } from '@worldsea/entity-core'
 import type { Entity, Relation } from '@worldsea/entity-core'
 import {
@@ -92,6 +93,27 @@ export interface WorldProjectService {
 /** 视图服务（只读；对应能力 `world.views.list`）。 */
 export interface WorldViewsService {
   list(): Array<{ id: string; label: string; pluginId: string | null; toolbar: string }>
+}
+
+/**
+ * 用户偏好读取服务（只读）。
+ *
+ * **为什么只暴露具名字段而不转发整个 store**：`settingsStore` 对外有 40+ 项
+ * （模型密钥、自定义 provider、AI 端点等），整包暴露等于把 store 的内部结构钉成
+ * 公共契约，且会让插件顺手读到不该读的配置。这里只列**已证实被插件消费**的字段，
+ * 新增字段必须伴随真实消费者一起加。
+ *
+ * 全部为响应式引用读取：方法内取 store 当前值，故在 `computed` 里调用可正常追踪。
+ */
+export interface WorldSettingsService {
+  /** 自定义视窗的面板数量上限是否启用（custom 芽） */
+  panelLimitEnabled(): boolean
+  /** AutoLink 三态开关（field-matrix 芽） */
+  autoCreateEntityEnabled(): boolean
+  autoCreateEntityRefEnabled(): boolean
+  autoCreateSelectorEnabled(): boolean
+  /** 全局图谱背景模式（graph 芽）：'theme' 跟随主题，其余按深色 */
+  graphBackgroundMode(): string
 }
 
 /**
@@ -177,6 +199,15 @@ export function createWorldServices(): Record<string, unknown> {
         })),
     } satisfies WorldViewsService,
 
+    // 只转发已证实被消费的字段（见 `WorldSettingsService` 注释）。
+    'world.settings': {
+      panelLimitEnabled: () => useSettingsStore().panelLimitEnabled,
+      autoCreateEntityEnabled: () => useSettingsStore().autoCreateEntityEnabled,
+      autoCreateEntityRefEnabled: () => useSettingsStore().autoCreateEntityRefEnabled,
+      autoCreateSelectorEnabled: () => useSettingsStore().autoCreateSelectorEnabled,
+      graphBackgroundMode: () => useSettingsStore().graphBackgroundMode,
+    } satisfies WorldSettingsService,
+
     // 直通 entity-core 的两个全局注册面；返回值即 disposer，插件交给 `ctx.effect` 即可回卷。
     'world.projectExtras': {
       registerPackSerializer,
@@ -193,5 +224,6 @@ export const WORLD_SERVICE_NAMES: readonly string[] = [
   'world.schema',
   'world.project',
   'world.views',
+  'world.settings',
   'world.projectExtras',
 ]

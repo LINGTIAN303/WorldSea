@@ -17,6 +17,7 @@ dist-ssr
 *.tmp
 *.bak
 *.orig
+.tmp/
 Thumbs.db
 
 # Editor directories and files

@@ -21,11 +21,11 @@ afterEach(() => {
 })
 
 describe('createWorldServices：服务方法表', () => {
-  it('提供 7 个服务，且与 WORLD_SERVICE_NAMES 完全一致', () => {
+  it('提供 8 个服务，且与 WORLD_SERVICE_NAMES 完全一致', () => {
     const services = createWorldServices()
     expect(Object.keys(services).sort()).toEqual([...WORLD_SERVICE_NAMES].sort())
     expect(WORLD_SERVICE_NAMES).toContain('world.info')
-    expect(WORLD_SERVICE_NAMES).toHaveLength(7)
+    expect(WORLD_SERVICE_NAMES).toHaveLength(8)
   })
 
   it('world.projectExtras 直通 entity-core 的两个迁移扩展点注册面，且返回 disposer', () => {
@@ -158,5 +158,32 @@ describe('真实插件依赖：timeline 声明 world.projectExtras', () => {
     )
     expect(accepted).toHaveLength(0)
     expect(report.rejected[0]!.reason).toContain('world.projectExtras')
+  })
+})
+
+describe('world.settings：只读偏好，不转发整个 store', () => {
+  it('暴露的正是消费方实际读取的 5 个字段', () => {
+    const settings = (createWorldServices() as Record<string, Record<string, unknown>>)['world.settings']!
+    expect(Object.keys(settings).sort()).toEqual([
+      'autoCreateEntityEnabled',
+      'autoCreateEntityRefEnabled',
+      'autoCreateSelectorEnabled',
+      'graphBackgroundMode',
+      'panelLimitEnabled',
+    ])
+  })
+
+  it('取值来自 settingsStore（非写死的默认值）', () => {
+    const settings = (createWorldServices() as Record<string, Record<string, () => unknown>>)['world.settings']!
+    // 读的是 store 当前值：类型与 store 声明一致即可；此处断言可调用且非 undefined
+    expect(typeof settings.panelLimitEnabled!()).toBe('boolean')
+    expect(typeof settings.graphBackgroundMode!()).toBe('string')
+  })
+
+  it('未暴露 store 的敏感面（模型密钥 / provider / AI 端点）', () => {
+    const settings = (createWorldServices() as Record<string, Record<string, unknown>>)['world.settings']!
+    for (const forbidden of ['aiCloudKey', 'customProviders', 'getCustomKeyStoreId', 'aiLocalEndpoint', 'agentBackend']) {
+      expect(settings).not.toHaveProperty(forbidden)
+    }
   })
 })

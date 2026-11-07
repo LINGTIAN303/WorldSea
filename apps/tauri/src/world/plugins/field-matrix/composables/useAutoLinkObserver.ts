@@ -5,7 +5,6 @@ import {
   autoLinkStrategyRegistry,
   potentialLinkIndex,
   semanticHintRegistry,
-  useSettingsStore,
   userFieldMappingStore,
 } from '@worldsea/entity-core'
 import type {
@@ -13,9 +12,17 @@ import type {
   AutoLinkRuntimeEvent,
   PotentialLink,
 } from '@worldsea/entity-core'
+import { getWorldService } from '../../../service-registry'
+import type { WorldSettingsService } from '../../../services'
+
+/** 取数经树服务（唯一取数通道，换数据源只改 services.ts）；取不到属时序被破坏，报错不降级。 */
+function settingsSvc(): WorldSettingsService {
+  const svc = getWorldService<WorldSettingsService>('world.settings')
+  if (!svc) throw new Error('[field-matrix] world.settings 服务未就绪（视图渲染早于起树）')
+  return svc
+}
 
 export function useAutoLinkObserver() {
-  const settings = useSettingsStore()
   const links = ref<PotentialLink[]>([])
   const decisions = ref<AutoLinkDecision[]>([])
   const paused = ref(false)
@@ -28,9 +35,9 @@ export function useAutoLinkObserver() {
   const resolvedLinks = computed(() => links.value.filter(link => link.resolved))
   const stageToggles = computed(() => [
     { id: 'suggestions', label: '关联建议', enabled: true, detail: '详情页建议面板' },
-    { id: 'auto-create-entity', label: '自动创建实体', enabled: settings.autoCreateEntityEnabled, detail: '保存时按建议建实体' },
-    { id: 'auto-create-ref', label: '自动创建实体引用', enabled: settings.autoCreateEntityRefEnabled, detail: '建立实体引用关系' },
-    { id: 'auto-create-selector', label: '自动创建选择器', enabled: settings.autoCreateSelectorEnabled, detail: '字段映射选择器' },
+    { id: 'auto-create-entity', label: '自动创建实体', enabled: settingsSvc().autoCreateEntityEnabled(), detail: '保存时按建议建实体' },
+    { id: 'auto-create-ref', label: '自动创建实体引用', enabled: settingsSvc().autoCreateEntityRefEnabled(), detail: '建立实体引用关系' },
+    { id: 'auto-create-selector', label: '自动创建选择器', enabled: settingsSvc().autoCreateSelectorEnabled(), detail: '字段映射选择器' },
   ])
 
   function refresh() {

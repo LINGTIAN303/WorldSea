@@ -7,7 +7,9 @@
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useAsyncTask, useGraphData, type LoadingStatus } from '@worldsea/ui-kit'
-import { getNodeTypeInfo, useEntityStore, useRelationStore, useSettingsStore } from '@worldsea/entity-core'
+import { getNodeTypeInfo } from '@worldsea/entity-core'
+import { getWorldService } from '../../../service-registry'
+import type { WorldEntitiesService, WorldRelationsService, WorldSettingsService } from '../../../services'
 import GraphCanvas from '../view/GraphCanvas.vue'
 import { analyzeOverview } from '../model/overview'
 import { layoutOverview } from '../model/layout'
@@ -22,17 +24,24 @@ import { useGraphCommunities } from './useGraphCommunities'
 import { usePathSearch } from './usePathSearch'
 import { useTimelineFilter } from './useTimelineFilter'
 
+/** 取数经树服务（唯一取数通道，换数据源只改 services.ts）；取不到属时序被破坏，报错不降级。 */
+function svcOf<T>(name: string): T {
+  const svc = getWorldService<T>(name)
+  if (!svc) throw new Error(`[graph] ${name} 服务未就绪（视图渲染早于起树）`)
+  return svc
+}
+const entitiesSvc = () => svcOf<WorldEntitiesService>('world.entities')
+const relationsSvc = () => svcOf<WorldRelationsService>('world.relations')
+const settingsSvc = () => svcOf<WorldSettingsService>('world.settings')
+
 export function useGraphView() {
-  const entityStore = useEntityStore()
-  const relationStore = useRelationStore()
-  const settingsStore = useSettingsStore()
   const { nodes: graphNodes, edges: graphEdges } = useGraphData()
 
   const viewRef = ref<HTMLElement | null>(null)
   const canvasRef = ref<InstanceType<typeof GraphCanvas> | null>(null)
 
   const graphThemeMode = computed<'dark' | 'theme'>(() =>
-    settingsStore.graphBackgroundMode === 'theme' ? 'theme' : 'dark',
+    settingsSvc().graphBackgroundMode() === 'theme' ? 'theme' : 'dark',
   )
   const theme = computed(() => graphTheme(graphThemeMode.value))
 
@@ -45,7 +54,7 @@ export function useGraphView() {
   const layout = computed(() => layoutOverview(overview.value))
   const g6Data = computed(() => buildG6Data(overview.value, layout.value, theme.value))
   const nodeMap = computed(() => new Map(overview.value.nodes.map(node => [node.id, node])))
-  const entityCount = computed(() => entityStore.entities.length)
+  const entityCount = computed(() => entitiesSvc().list().length)
   const { visible: graphLoading, status: graphLoadStatus, error: graphError, run: runGraphLoad } = useAsyncTask({ successHold: 0 })
   const graphStage = ref(0)
   const graphLoaded = ref(false)
@@ -75,7 +84,7 @@ export function useGraphView() {
     activeGroupId.value ? overview.value.nodes.filter(node => node.groupId === activeGroupId.value) : [],
   )
 
-  const timeline = useTimelineFilter(() => entityStore.entities)
+  const timeline = useTimelineFilter(() => [...entitiesSvc().list()])
 
   const visibility = useGraphVisibility({
     overview,
@@ -280,7 +289,7 @@ export function useGraphView() {
    *  否则 overlay 会先关闭、首帧是空图。 */
   async function waitForGraphData(): Promise<void> {
     const started = Date.now()
-    while (graphNodes.value.length !== entityStore.entities.length && Date.now() - started < 1500) {
+    while (graphNodes.value.length !== entitiesSvc().list().length && Date.now() - started < 1500) {
       await new Promise(resolve => setTimeout(resolve, 40))
     }
   }
@@ -289,8 +298,8 @@ export function useGraphView() {
     try {
       await runGraphLoad(async () => {
         graphStage.value = 0
-        await entityStore.loadAll()
-        await relationStore.loadAll()
+        await entitiesSvc().reload()
+        await relationsSvc().reload()
         selectedNodeId.value = null
         focus.value = null
         activeGroupId.value = null

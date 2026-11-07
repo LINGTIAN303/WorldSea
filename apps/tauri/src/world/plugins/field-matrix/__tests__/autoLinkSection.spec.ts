@@ -1,7 +1,8 @@
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { autoLinkDecisionStore, clearAutoLinkEvents, recordAutoLinkEvent } from '@worldsea/entity-core'
+import { clearWorldServiceTable, registerWorldServiceTable } from '../../../service-registry'
 import AutoLinkSection from '../components/AutoLinkSection.vue'
 
 describe('AutoLinkSection', () => {
@@ -9,7 +10,20 @@ describe('AutoLinkSection', () => {
     setActivePinia(createPinia())
     clearAutoLinkEvents()
     autoLinkDecisionStore.clear()
+    // 组件经 world.settings 服务读取 AutoLink 三态开关；真机上由起树登记，
+    // 单测里手工登记同形表（只需组件实际调用的字段）。
+    registerWorldServiceTable({
+      'world.settings': {
+        panelLimitEnabled: () => false,
+        autoCreateEntityEnabled: () => true,
+        autoCreateEntityRefEnabled: () => false,
+        autoCreateSelectorEnabled: () => false,
+        graphBackgroundMode: () => 'dark',
+      },
+    })
   })
+
+  afterEach(() => clearWorldServiceTable())
 
   it('渲染事件流、当前态与阶段开关', () => {
     recordAutoLinkEvent('index:start', '索引 character')

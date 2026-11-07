@@ -7,6 +7,8 @@
  */
 import { describe, expect, it } from 'vitest'
 
+import { WORLD_SERVICE_NAMES } from '../../services'
+
 /** 被测文件（相对 `world/plugins/`）。只列已迁移的；新迁移请追加。 */
 const MIGRATED = [
   // 轻档
@@ -36,6 +38,9 @@ const MIGRATED = [
   'culture/FestivalCalendarView.vue',
   'orchestration/composables/usePipeline.ts',
   'orchestration/composables/usePipelineTemplates.ts',
+  // 补 world.settings 后解锁
+  'graph/composables/useGraphView.ts',
+  'field-matrix/composables/useAutoLinkObserver.ts',
 ] as const
 
 async function readPluginFile(rel: string): Promise<string> {
@@ -67,11 +72,20 @@ describe.each(MIGRATED)('%s 取数经服务', rel => {
     expect(code).not.toMatch(/\brs\.(relations|loadAll|add|update|remove)\b/)
   })
 
-  it('经 getWorldService 取服务，且缺席时抛错而非静默降级', async () => {
+  it('经 getWorldService 取服务，且服务名在权威名单内', async () => {
     const code = stripComments(await readPluginFile(rel))
-    expect(code).toContain('getWorldService')
-    // 至少一个世界树服务名
-    expect(code).toMatch(/'world\.(entities|relations)'/)
+    // 允许两种写法：直接 getWorldService<T>('name')，或经本地 svcOf 包装后传字面量
+    expect(code).toMatch(/getWorldService|svcOf/)
+    // 服务名必须真实存在：只匹配 'world.xxx' 会放过拼错的名字（如 world.settingsXX）
+    const used = [...code.matchAll(/'((?:world)\.[a-zA-Z.]+)'/g)].map(m => m[1]!)
+    expect(used.length).toBeGreaterThan(0)
+    for (const name of used) {
+      expect(WORLD_SERVICE_NAMES, `拼错或未登记的服务名：${name}`).toContain(name)
+    }
+  })
+
+  it('服务缺席时抛错而非静默降级', async () => {
+    const code = stripComments(await readPluginFile(rel))
     // 守卫必须 throw：静默返回会让「时序被破坏」表现成「列表莫名是空的」
     expect(code).toMatch(/if \(!svc\) throw new Error\(/)
   })
