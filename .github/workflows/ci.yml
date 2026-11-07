@@ -98,6 +98,18 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      # 两个 dsh 内置插件的 spec 导入各自 lib/index.js，其中 import 了
+      # @deepseek-ai/schemastery；该包经 link: 指向 dsh/vendor/schemastery，
+      # 入口是 lib/index.cjs —— 而 dsh/.gitignore 忽略 lib/，CI 全新克隆里没有它。
+      # 本地因留有历史构建产物而看不出问题，CI 会稳定报
+      # 「Failed to resolve entry for package "@deepseek-ai/schemastery"」。
+      # 实测只需这一个包（两个插件 lib 的 @deepseek-ai 引用只有 schemastery），
+      # tsc + tsdown 合计约 10 秒，不必构建整个 dsh。
+      - name: Build vendored schemastery
+        working-directory: dsh/vendor/schemastery
+        run: |
+          npx tsc -p tsconfig.json
+          npx tsdown
       # 报告器用 dot：默认 reporter 会为每个测试打一行，2400+ 行日志把真正的
       # 失败信息淹掉。失败细节仍会完整输出在末尾。
       - name: Run vitest

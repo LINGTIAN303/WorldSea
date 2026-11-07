@@ -68,11 +68,52 @@ CI 已具备四项真实检查（门禁 / WASM / 类型 / **单测**），但**�
 - **报告器固定 `--reporter=dot`**：默认 reporter 每个测试打一行，2400+ 行日志会把真正的失败信息淹掉。失败细节仍在末尾完整输出。
 - **不设路径过滤**：全量跑，避免「改动影响到未过滤的包」这类漏跑。代价是每次 CI 时间上升。
 
-### 3.2 `gates` 必须 `fetch-depth: 0`
+### 3.2 `unit-tests` 必须在跑测试前构建 vendored schemastery
+
+**这是接单测进 CI 后立刻暴露的第二个问题**，值得单独记，因为它的表现形式极具误导性。
+
+现象：CI 上 `Test Files 5 failed | 306 passed`，错误统一为——
+
+```
+Error: Failed to resolve entry for package "@deepseek-ai/schemastery".
+The package may have incorrect main/module/exports specified in its package.json.
+```
+
+本地却完全通过（311 个文件全绿）。
+
+**根因链**：
+
+```
+apps/dsh-plugin-worldsea/__tests__/config.spec.ts
+  └─ import * as plugin from '../lib/index.js'      ← 已入库
+       └─ import { ... } from '@deepseek-ai/schemastery'
+            └─ package.json 声明 main: lib/index.cjs   ← 构建产物
+                 └─ dsh/.gitignore:7 忽略 lib/          ← 不在 git 里
+```
+
+`dsh/vendor/schemastery` 的 `package.json` 指向 `lib/index.cjs`，而 `lib/` 是 `tsc` + `tsdown` 的产物，被 `dsh/.gitignore` 忽略。CI 全新克隆拿不到它，于是解析失败。
+
+**本地为什么看不出**：本地 `lib/` 是历史构建留下的，一直存在。这类问题无法靠「本地多跑几遍」发现——只有真正在干净环境里跑才会暴露。
+
+**修法**：`unit-tests` job 在跑测试前加一步构建该包：
+
+```yaml
+- name: Build vendored schemastery
+  working-directory: dsh/vendor/schemastery
+  run: |
+    npx tsc -p tsconfig.json
+    npx tsdown
+```
+
+**为什么只构这一个包而非整个 `dsh/`**：两个插件的 `lib/*.js` 里 `@deepseek-ai` 引用只有 `schemastery`（`client.js` 引用的是 `dsh` 自身类型，非 vendor 包）。实测 `tsc` 5.5 秒 + `tsdown` 4 秒 ≈ 10 秒，远低于完整 dsh 构建。
+
+**若不修，还有一条看似可行但错误的捷径**：把这 5 个 spec 加进 `exclude` 跳过。不建议——它们测的是插件的**真实行为**（调真实 `apply`、真实 `execute`，只伪造 cordis 边界），跳过等于把最有价值的覆盖丢掉。
+
+### 3.3 `gates` 必须 `fetch-depth: 0`
 
 `fork:check` 要 `git diff <基线提交>`，浅克隆取不到历史。实测浅克隆直接报 `❌ 台账里的基线提交在本仓不存在`。这不是保险起见，是必需项。
 
-### 3.3 触发面
+### 3.4 触发面
 
 `on.push.branches: ['**']`——覆盖全部开发分支。此前只配 `[main]`，而实际开发在 `feat/*` 上，等于 CI 根本不触发。
 
