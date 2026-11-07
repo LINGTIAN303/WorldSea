@@ -21,11 +21,11 @@ afterEach(() => {
 })
 
 describe('createWorldServices：服务方法表', () => {
-  it('提供 9 个服务，且与 WORLD_SERVICE_NAMES 完全一致', () => {
+  it('提供 11 个服务，且与 WORLD_SERVICE_NAMES 完全一致', () => {
     const services = createWorldServices()
     expect(Object.keys(services).sort()).toEqual([...WORLD_SERVICE_NAMES].sort())
     expect(WORLD_SERVICE_NAMES).toContain('world.info')
-    expect(WORLD_SERVICE_NAMES).toHaveLength(9)
+    expect(WORLD_SERVICE_NAMES).toHaveLength(11)
   })
 
   it('world.projectExtras 直通 entity-core 的两个迁移扩展点注册面，且返回 disposer', () => {
@@ -208,5 +208,37 @@ describe('world.ui：导航意图，不传组件对象', () => {
   it('navigateTo 只设 currentView，不传组件（由 ViewContainer 解析）', () => {
     const ui = (createWorldServices() as Record<string, Record<string, (id: string) => void>>)['world.ui']!
     expect(ui.navigateTo!.length).toBe(1) // 单参 = 只有 viewId
+  })
+})
+
+describe('world.font / world.fontLibrary：只给「有效字体」，不给 prefs 整包', () => {
+  it('world.font 暴露 3 个方法，且不含 prefs / setLayerFont 等写面', () => {
+    const font = (createWorldServices() as Record<string, Record<string, unknown>>)['world.font']!
+    expect(Object.keys(font).sort()).toEqual(['exportFamily', 'family', 'uiScale'])
+    for (const forbidden of ['prefs', 'setLayerFont', 'setLayerVariant', 'resetLayer', 'reapplyAll']) {
+      expect(font).not.toHaveProperty(forbidden)
+    }
+  })
+
+  it('exportFamily 单点实现回落链（preview → content → 兜底），避免两处各写一份', () => {
+    const font = (createWorldServices() as Record<string, Record<string, (fb?: string) => string>>)['world.font']!
+    // 无自定义字体时落到兜底；自定义形参生效
+    expect(typeof font.exportFamily!('__fallback__')).toBe('string')
+    expect(font.exportFamily!('__fallback__').length).toBeGreaterThan(0)
+  })
+
+  it('family 接受任意层，未设置返回空串而非 undefined', () => {
+    const font = (createWorldServices() as Record<string, Record<string, (l: string) => string>>)['world.font']!
+    for (const layer of ['chrome', 'editorUi', 'content', 'preview', 'canvas', 'agent']) {
+      expect(typeof font.family!(layer)).toBe('string')
+    }
+  })
+
+  it('world.fontLibrary 只暴露只读清单，不含增删与容量管理', () => {
+    const lib = (createWorldServices() as Record<string, Record<string, unknown>>)['world.fontLibrary']!
+    expect(Object.keys(lib)).toEqual(['list'])
+    for (const forbidden of ['addEntry', 'removeEntry', 'totalSize', 'isOverCapacity', 'restoreAllFonts']) {
+      expect(lib).not.toHaveProperty(forbidden)
+    }
   })
 })

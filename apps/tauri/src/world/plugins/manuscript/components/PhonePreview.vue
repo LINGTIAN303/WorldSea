@@ -73,8 +73,7 @@
 import { ref, computed } from 'vue'
 import { WsIcon } from '@worldsea/ui-kit'
 import DOMPurify from 'dompurify'
-import { useFontStore } from '@/stores/fontStore'
-import { useFontLibraryStore } from '@worldsea/font-kit'
+import { fontLibrarySvc, fontSvc } from '../serviceAccess'
 
 const props = defineProps<{
   visible: boolean
@@ -86,9 +85,8 @@ const props = defineProps<{
 
 defineEmits<{ close: [] }>()
 
-const fontStore = useFontStore()
 // 手机预览字体下拉数据源 = 字体库真实条目（预设死数据已退役，字体系统 v2 批 1）
-const libraryEntries = computed(() => useFontLibraryStore().getAllEntries())
+const libraryEntries = computed(() => fontLibrarySvc().list())
 
 const isDock = computed(() => props.mode !== 'popup')
 
@@ -162,7 +160,8 @@ const contentStyle = computed(() => ({
   fontSize: fontSize.value + 'px',
   lineHeight: lineHeight.value,
   '--para-spacing': paraSpacing.value + 'em',
-  fontFamily: localFontFamily.value || fontStore.prefs.preview.family || fontStore.prefs.content.family || 'inherit',
+  // 回落链与导出同源（preview → content），但末段是本预览特有的 'inherit'
+  fontFamily: localFontFamily.value || fontSvc().exportFamily('inherit'),
 }))
 
 const sanitizedHTML = computed(() => {

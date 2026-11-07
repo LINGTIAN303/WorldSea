@@ -1,7 +1,7 @@
 import type { Entity } from '@worldsea/entity-core'
-import { useFontStore } from '@/stores/fontStore'
 import { renderMarkdownForEditor } from '@worldsea/shared-ui/markdown'
 import { markdownToPlainText } from '@/composables/markdownText'
+import { fontSvc } from '../serviceAccess'
 
 function stripHTML(html: string): string {
   const div = document.createElement('div')
@@ -83,10 +83,9 @@ async function htmlToDocx(html: string, title: string, includeTitle = true): Pro
   // src 原样保留 → 映射层显式占位降级。
   const { resolveAssetImagesInHtml } = await import('@/composables/imageAssets')
   const resolved = await resolveAssetImagesInHtml(html)
-  const fontStore = useFontStore()
-  const exportFont = fontStore.prefs.preview.family || fontStore.prefs.content.family || 'Microsoft YaHei'
   const blocks = htmlToBlocks(resolved)
-  return buildDocxBlob(blocks, { title: includeTitle ? title : '', defaultFont: exportFont })
+  // 回落链（preview → content → 微软雅黑）收在服务单点，与 outline 导出同源
+  return buildDocxBlob(blocks, { title: includeTitle ? title : '', defaultFont: fontSvc().exportFamily() })
 }
 
 function downloadBlob(blob: Blob, filename: string) {
