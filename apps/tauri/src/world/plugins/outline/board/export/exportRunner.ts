@@ -14,6 +14,8 @@
  * 【为什么跳过资产图片预处理】manuscript 导出会先把 `convertFileSrc` 绝对 URL 换回 data URL；
  * 大纲导出的产物只含标题/摘要/表格（**不含图片**），故不做这一步（省一次 IO 与失败面）。
  */
+import { fontSvc } from '../../serviceAccess'
+
 /** 导出格式（UI 与执行器共用） */
 export type ExportFormat = 'md' | 'docx'
 
@@ -48,12 +50,10 @@ export function safeFileName(name: string, fallback = '大纲'): string {
  * 字体取「预览字体 → 内容字体 → 微软雅黑」，与 manuscript 导出一致，避免同项目两种字体。
  */
 export async function htmlToDocxBlob(html: string, title: string): Promise<Blob> {
-  const [{ htmlToBlocks }, { buildDocxBlob }, { useFontStore }] = await Promise.all([
+  const [{ htmlToBlocks }, { buildDocxBlob }] = await Promise.all([
     import('@/composables/docx/htmlToDocxBlocks'),
     import('@/composables/docx/blocksToDocx'),
-    import('@/stores/fontStore'),
   ])
-  const prefs = useFontStore().prefs
-  const defaultFont = prefs.preview.family || prefs.content.family || 'Microsoft YaHei'
-  return buildDocxBlob(htmlToBlocks(html), { title, defaultFont })
+  // 回落链（preview → content → 微软雅黑）收在服务单点，避免与 manuscript 导出各写一份而漂移
+  return buildDocxBlob(htmlToBlocks(html), { title, defaultFont: fontSvc().exportFamily() })
 }

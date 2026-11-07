@@ -21,6 +21,8 @@ import {
   useSettingsStore,
   useUIStore,
 } from '@worldsea/entity-core'
+import { useFontStore } from '@worldsea/entity-core/stores/fontStore'
+import { useFontLibraryStore } from '@worldsea/font-kit'
 import type { Entity, Relation } from '@worldsea/entity-core'
 import {
   registerPackSerializer,
@@ -144,6 +146,40 @@ export interface WorldSettingsService {
 }
 
 /**
+ * 字体服务（只读）。
+ *
+ * **为什么只给「取有效字体」而不给 `prefs` 整包**：`fontPreferences` 是 6 层 × 3 字段
+ * 的嵌套结构，整包暴露会把分层模型钉成公共契约；而实际消费方只用得上「某一层现在
+ * 该用什么字体」（导出链的 `preview → content → 兜底` 回落也统一在此实现）。
+ *
+ * 无导入运行时的「字体库」侧（`world.fontLibrary`）同理：导出/预览只需条目清单。
+ */
+export interface WorldFontService {
+  /** 某层当前字体族（`FontLayer` 之一）；未设置返回空串 */
+  family(layer: 'chrome' | 'editorUi' | 'content' | 'preview' | 'canvas' | 'agent'): string
+  /**
+   * 导出用字体族：`preview` → `content` → 给定兜底。
+   * 单点实现，避免 outline 与 manuscript 两处各写一份回落链而漂移。
+   */
+  exportFamily(fallback?: string): string
+  /** UI 字号档位（0.85–1.15） */
+  uiScale(): number
+}
+
+/** 字体库条目（只读投影：导出/预览只需要这些字段，不暴露 manifest 等内部结构）。 */
+export interface WorldFontLibraryEntry {
+  id: string
+  family: string
+  displayName: string
+}
+
+/** 字体库服务（只读）。 */
+export interface WorldFontLibraryService {
+  /** 全部已安装字体条目 */
+  list(): WorldFontLibraryEntry[]
+}
+
+/**
  * 项目迁移扩展点服务（对应 entity-core 的两个全局注册表）。
  *
  * **为什么它是一个服务**：`registerPackSerializer` / `registerProjectExtraProvider` 是
@@ -249,6 +285,26 @@ export function createWorldServices(): Record<string, unknown> {
       },
     } satisfies WorldUiService,
 
+    // 字体：只给「取有效字体」，不给 prefs 整包（见 `WorldFontService` 注释）。
+    'world.font': {
+      family: (layer: 'chrome' | 'editorUi' | 'content' | 'preview' | 'canvas' | 'agent') =>
+        useFontStore().prefs[layer].family,
+      exportFamily: (fallback = 'Microsoft YaHei') => {
+        const prefs = useFontStore().prefs
+        return prefs.preview.family || prefs.content.family || fallback
+      },
+      uiScale: () => useFontStore().uiScale,
+    } satisfies WorldFontService,
+
+    'world.fontLibrary': {
+      list: () =>
+        useFontLibraryStore().getAllEntries().map(entry => ({
+          id: entry.id,
+          family: entry.family,
+          displayName: entry.displayName,
+        })),
+    } satisfies WorldFontLibraryService,
+
     // 直通 entity-core 的两个全局注册面；返回值即 disposer，插件交给 `ctx.effect` 即可回卷。
     'world.projectExtras': {
       registerPackSerializer,
@@ -267,5 +323,7 @@ export const WORLD_SERVICE_NAMES: readonly string[] = [
   'world.views',
   'world.settings',
   'world.ui',
+  'world.font',
+  'world.fontLibrary',
   'world.projectExtras',
 ]

@@ -60,6 +60,12 @@ const MIGRATED = [
   'theme-editor/serviceAccess.ts',
   'mindmap/MindmapView.vue',
   'mindmap/serviceAccess.ts',
+  // 补 world.font / world.fontLibrary 后解锁
+  'outline/board/export/exportRunner.ts',
+  'outline/serviceAccess.ts',
+  'manuscript/components/PhonePreview.vue',
+  'manuscript/composables/useManuscriptExport.ts',
+  'manuscript/serviceAccess.ts',
 ] as const
 
 /**
@@ -81,6 +87,9 @@ const VIA_SHARED_ACCESSOR = new Set([
   'theme-editor/ThemeEditorPro.vue',
   'theme-editor/ThemeEditorQuick.vue',
   'mindmap/MindmapView.vue',
+  'outline/board/export/exportRunner.ts',
+  'manuscript/components/PhonePreview.vue',
+  'manuscript/composables/useManuscriptExport.ts',
 ])
 
 async function readPluginFile(rel: string): Promise<string> {
