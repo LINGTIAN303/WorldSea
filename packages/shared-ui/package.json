@@ -16,7 +16,7 @@
     "build": "vite build"
   },
   "dependencies": {
-    "dompurify": "^3.4.3",
+    "dompurify": "^3.4.17",
     "marked": "^18.0.3",
     "prismjs": "^1.29.0"
   },
@@ -24,6 +24,6 @@
     "@types/node": "^22.0.0",
     "@types/prismjs": "^1.26.5",
     "typescript": "~6.0.2",
-    "vue-tsc": "^3.2.7"
+    "vue-tsc": "^3.3.14"
   }
 }

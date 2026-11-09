@@ -15,7 +15,7 @@
     "typecheck": "vue-tsc --noEmit"
   },
   "dependencies": {
-    "@tabler/icons-vue": "^3.46.0",
+    "@tabler/icons-vue": "^3.50.0",
     "@worldsea/entity-core": "link:../entity-core",
     "@worldsea/canvas-engine": "link:../canvas-engine",
     "@worldsea/motion-kit": "link:../motion-kit",
