@@ -21,11 +21,11 @@ afterEach(() => {
 })
 
 describe('createWorldServices：服务方法表', () => {
-  it('提供 11 个服务，且与 WORLD_SERVICE_NAMES 完全一致', () => {
+  it('提供 12 个服务，且与 WORLD_SERVICE_NAMES 完全一致', () => {
     const services = createWorldServices()
     expect(Object.keys(services).sort()).toEqual([...WORLD_SERVICE_NAMES].sort())
     expect(WORLD_SERVICE_NAMES).toContain('world.info')
-    expect(WORLD_SERVICE_NAMES).toHaveLength(11)
+    expect(WORLD_SERVICE_NAMES).toHaveLength(12)
   })
 
   it('world.projectExtras 直通 entity-core 的两个迁移扩展点注册面，且返回 disposer', () => {
@@ -240,5 +240,59 @@ describe('world.font / world.fontLibrary：只给「有效字体」，不给 pre
     for (const forbidden of ['addEntry', 'removeEntry', 'totalSize', 'isOverCapacity', 'restoreAllFonts']) {
       expect(lib).not.toHaveProperty(forbidden)
     }
+  })
+})
+
+describe('world.trash：只给「用户能做的三件事」，不暴露管线内部写入口', () => {
+  it('暴露 5 个成员：2 个只读投影 + 3 个语义动作', () => {
+    const trash = (createWorldServices() as Record<string, Record<string, unknown>>)['world.trash']!
+    expect(Object.keys(trash).sort()).toEqual([
+      'emptyTrash',
+      'entityItems',
+      'permanentDeleteEntity',
+      'restoreEntity',
+      'totalCount',
+    ])
+  })
+
+  it('不暴露 store 的 add（删除管线内部写入口，插件不得自造回收站条目）', () => {
+    const trash = (createWorldServices() as Record<string, Record<string, unknown>>)['world.trash']!
+    expect(trash).not.toHaveProperty('add')
+  })
+
+  it('不暴露半步操作 restore / permanentDelete（只动回收站、不碰磁盘与实体表）', () => {
+    const trash = (createWorldServices() as Record<string, Record<string, unknown>>)['world.trash']!
+    // 用 useTrash 的编排替换，故同名裸方法不得出现
+    expect(trash).not.toHaveProperty('restore')
+    expect(trash).not.toHaveProperty('permanentDelete')
+    expect(trash.restoreEntity).not.toBe(trash.permanentDeleteEntity)
+  })
+
+  it('只读投影读 store 当前值：空回收站下 entityItems 为空、totalCount 为 0', () => {
+    const trash = (createWorldServices() as Record<string, Record<string, () => unknown>>)['world.trash']!
+    expect(trash.entityItems!()).toEqual([])
+    expect(trash.totalCount!()).toBe(0)
+  })
+
+  it('computed 包成方法后仍保持响应式（模板里 {{ trash.totalCount() }} 能追踪到）', async () => {
+    const { computed, nextTick } = await import('vue')
+    const trash = (createWorldServices() as Record<string, Record<string, () => unknown>>)['world.trash']!
+    const count = computed(() => trash.totalCount!() as number)
+    expect(count.value).toBe(0)
+
+    const { useTrashStore } = await import('@worldsea/entity-core')
+    useTrashStore().add({
+      id: 'trash_entity_svc_probe',
+      entityType: 'entity',
+      data: { id: 'svc_probe', type: 'character', properties: {} } as never,
+      deletedAt: new Date().toISOString(),
+      deletedBy: 'user',
+    })
+    await nextTick()
+    expect(count.value, 'computed 未追踪到 store 变更').toBe(1)
+
+    useTrashStore().emptyTrash()
+    await nextTick()
+    expect(count.value).toBe(0)
   })
 })
