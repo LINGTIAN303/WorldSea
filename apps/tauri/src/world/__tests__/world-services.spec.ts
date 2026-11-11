@@ -22,11 +22,11 @@ afterEach(() => {
 })
 
 describe('createWorldServices：服务方法表', () => {
-  it('提供 12 个服务，且与 WORLD_SERVICE_NAMES 完全一致', () => {
+  it('提供 13 个服务，且与 WORLD_SERVICE_NAMES 完全一致', () => {
     const services = createWorldServices()
     expect(Object.keys(services).sort()).toEqual([...WORLD_SERVICE_NAMES].sort())
     expect(WORLD_SERVICE_NAMES).toContain('world.info')
-    expect(WORLD_SERVICE_NAMES).toHaveLength(12)
+    expect(WORLD_SERVICE_NAMES).toHaveLength(13)
   })
 
   it('world.projectExtras 直通 entity-core 的两个迁移扩展点注册面，且返回 disposer', () => {
@@ -171,7 +171,7 @@ describe('真实插件依赖：timeline 声明 world.projectExtras', () => {
 })
 
 describe('world.settings：只读偏好，不转发整个 store', () => {
-  it('暴露的正是消费方实际读取的 5 个字段', () => {
+  it('暴露的正是消费方实际读取的字段（5 个原有 + 4 个 timeline）', () => {
     const settings = (createWorldServices() as Record<string, Record<string, unknown>>)['world.settings']!
     expect(Object.keys(settings).sort()).toEqual([
       'autoCreateEntityEnabled',
@@ -179,7 +179,11 @@ describe('world.settings：只读偏好，不转发整个 store', () => {
       'autoCreateSelectorEnabled',
       'graphBackgroundMode',
       'panelLimitEnabled',
-    ])
+      'timelineCompactMode',
+      'timelineDefaultGroup',
+      'timelineDefaultMode',
+      'timelineDragEnabled',
+    ].sort())
   })
 
   it('取值来自 settingsStore（非写死的默认值）', () => {
@@ -194,6 +198,49 @@ describe('world.settings：只读偏好，不转发整个 store', () => {
     for (const forbidden of ['aiCloudKey', 'customProviders', 'getCustomKeyStoreId', 'aiLocalEndpoint', 'agentBackend']) {
       expect(settings).not.toHaveProperty(forbidden)
     }
+  })
+})
+
+describe('world.detailLayout：只给只读 Tab 覆写，不给写面', () => {
+  it('只暴露 tabOverride 一个方法', () => {
+    const dl = (createWorldServices() as Record<string, Record<string, unknown>>)['world.detailLayout']!
+    expect(Object.keys(dl)).toEqual(['tabOverride'])
+  })
+
+  it('写面归设置面：插件不得改用户的全局详情偏好', () => {
+    const dl = (createWorldServices() as Record<string, Record<string, unknown>>)['world.detailLayout']!
+    for (const forbidden of [
+      'setTabOverride',
+      'clearTabOverride',
+      'setCarrier',
+      'clearCarrier',
+      'setBackdropOverride',
+      'patch',
+      'clear',
+      'overrides',
+      'carriers',
+      'backdropMode',
+    ]) {
+      expect(dl).not.toHaveProperty(forbidden)
+    }
+  })
+
+  it('未设覆写时返回 undefined（调用方按芽声明默认序）', () => {
+    const dl = (createWorldServices() as Record<string, Record<string, (t: string) => unknown>>)['world.detailLayout']!
+    expect(dl.tabOverride!('__未设覆写的类型__')).toBeUndefined()
+  })
+
+  it('按实体类型取到真实覆写（读 store 当前值，非写死）', async () => {
+    const { useDetailLayoutStore } = await import('@worldsea/entity-core')
+    useDetailLayoutStore().setTabOverride('__probe_type__', { order: ['b', 'a'], hidden: ['x'] })
+
+    const dl = (createWorldServices() as Record<string, Record<string, (t: string) => { order?: string[] } | undefined>>)['world.detailLayout']!
+    expect(dl.tabOverride!('__probe_type__')?.order).toEqual(['b', 'a'])
+    // 按类型分key：别的类型不受影响
+    expect(dl.tabOverride!('__probe_type_other__')).toBeUndefined()
+
+    useDetailLayoutStore().clearTabOverride('__probe_type__')
+    expect(dl.tabOverride!('__probe_type__')).toBeUndefined()
   })
 })
 

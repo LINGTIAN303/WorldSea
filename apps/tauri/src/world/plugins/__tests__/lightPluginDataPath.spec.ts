@@ -79,6 +79,13 @@ const MIGRATED = [
   'characters/components/FamilyNodeCard.vue',
   'characters/components/FamilyTree.vue',
   'characters/components/RelationGraph.vue',
+  // 补 world.detailLayout + world.settings 扩 4 字段后解锁
+  'timeline/TimelineView.vue',
+  'timeline/serviceAccess.ts',
+  'timeline/components/BatchEditModal.vue',
+  'timeline/components/InvolvedEntitiesPicker.vue',
+  'timeline/components/TimelineCanvas.vue',
+  'timeline/composables/eventInvolves.ts',
 ] as const
 
 /**
@@ -112,6 +119,11 @@ const VIA_SHARED_ACCESSOR = new Set([
   'characters/components/FamilyNodeCard.vue',
   'characters/components/FamilyTree.vue',
   'characters/components/RelationGraph.vue',
+  'timeline/TimelineView.vue',
+  'timeline/components/BatchEditModal.vue',
+  'timeline/components/InvolvedEntitiesPicker.vue',
+  'timeline/components/TimelineCanvas.vue',
+  'timeline/composables/eventInvolves.ts',
 ])
 
 async function readPluginFile(rel: string): Promise<string> {
@@ -174,9 +186,22 @@ describe('服务目录已补齐组件层所需的方法', () => {
     const { dirname, join } = await import('node:path')
     const { fileURLToPath } = await import('node:url')
     const here = dirname(fileURLToPath(import.meta.url))
-    const src = readFileSync(join(here, '..', '..', 'services.ts'), 'utf8')
-    // 接口声明 + 实现各一处
-    expect(src).toMatch(/loadByType\(type: string\): Promise<void>/)
-    expect(src).toMatch(/loadByType: \(type: string\) => useEntityStore\(\)\.loadByType\(type\)/)
+    const worldDir = join(here, '..', '..')
+    // 接口声明在 serviceTypes.ts、实现在 services.ts（2026-11-12 拆出，见该文件头注）
+    const types = readFileSync(join(worldDir, 'serviceTypes.ts'), 'utf8')
+    const impl = readFileSync(join(worldDir, 'services.ts'), 'utf8')
+    expect(types).toMatch(/loadByType\(type: string\): Promise<void>/)
+    expect(impl).toMatch(/loadByType: \(type: string\) => useEntityStore\(\)\.loadByType\(type\)/)
+  })
+
+  it('接口声明与实现分处两文件，且 services.ts 重新导出（调用方导入路径不变）', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { dirname, join } = await import('node:path')
+    const { fileURLToPath } = await import('node:url')
+    const here = dirname(fileURLToPath(import.meta.url))
+    const impl = readFileSync(join(here, '..', '..', 'services.ts'), 'utf8')
+    // 拆分的意义就在于单文件不顶 400 行；接口若搬回服务文件，这条会红
+    expect(impl).not.toMatch(/^export interface World/m)
+    expect(impl).toMatch(/export type \{[\s\S]*?\} from '\.\/serviceTypes'/)
   })
 })
