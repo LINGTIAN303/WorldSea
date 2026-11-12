@@ -5,7 +5,7 @@ status: 执行中
 # Cordis 化进度与下一步（交接）
 
 > 交接对象：接手 WorldSea「Cordis 化」工作的后续会话。
-> 记录日期：2026-11-08，对应 main 提交 `b674cc4` 之后、批次 C 已合并的状态。
+> 记录日期：2026-11-08，对应 main 提交 `b674cc4` 之后、批次 C/E 已提交的状态。
 > 相关文档：[产品域 Cordis 成型差距与前置条件](../../plans/2026-11-05-产品域Cordis成型差距与前置条件.md)、[阶段 3 续批 · 剩余服务缺口规划](../../plans/2026-11-07-阶段3续批-剩余服务缺口规划.md)。
 
 ## 一、这件事到底在做什么
@@ -49,6 +49,8 @@ status: 执行中
 | `world.font` / `world.fontLibrary` | 批次 D | 3 个方法 + 只读投影 |
 | `world.trash` | 批次 C | 2 个只读投影 + 3 个语义动作，**不含** `add` |
 
+> `world.schema` 于批次 E 补了 `iconName(type)`（原只有 `list` / `get` / `label`）。
+
 ### 2.2 已完成批次
 
 | 批次 | 内容 | 状态 |
@@ -56,11 +58,12 @@ status: 执行中
 | A | `notebook` 全量迁移（重档第一个） | 已合并（PR #1） |
 | B | `world.ui` 服务 + `viewComponent` 收敛 | 已合并（PR #2） |
 | D | `world.font` / `world.fontLibrary` | 已合并（PR #3，提交 `7308432`） |
-| C | `world.trash` 服务 + `data-tools` 迁移 | 已合并（PR #7） |
+| C | `world.trash` 服务 + `data-tools` 迁移 | PR #15（CI 四项全过） |
+| E | `characters` 全量迁移（6 文件 / 19 调用点）+ `world.schema.iconName` | 本批 |
 
-**已迁移插件**：`notebook`、`theme-editor`、`mindmap`、`custom`、`outline`、`manuscript`、`graph`、`field-matrix`、`characters`（部分）、`board`、`export`、`data-tools` 等。全仓**零 store 直连插件 35 个**（含本就不读 store 的）。
+**已迁移插件**：**24 个**（守卫清单实读：84 个文件项 / 24 个插件目录）。中档已清零。
 
-### 2.3 守卫测试：154 例
+### 2.3 守卫测试：178 例
 
 `apps/tauri/src/world/plugins/__tests__/lightPluginDataPath.spec.ts`
 
@@ -90,15 +93,25 @@ status: 执行中
 
 **验收**：服务目录 11 → **12 项** · 守卫 145 → **154 例**（清单 47 → 50 文件）· 全仓 **306 文件 / 2438 过 + 1 skip** · `vue-tsc` 0 · gate 5/5 · 反证 2 轮（`world.trashXX` 错名 → 1 例红；`ConsistencyReportPanel` 还原直连 → 1 例红）。
 
-### 3.2 批次 E · `characters`（重，剩的最大未迁移项）
+### 3.2 ✅ 批次 E · `characters`（已完成）
 
-- **规模**：**19 个调用点**，分布在 6 个文件（`CharacterList.vue` / `components/{CharacterExperience,ExperienceNode,FamilyAddDialog,FamilyNodeCard,FamilyTree,RelationGraph}.vue`）
-- **依赖已就绪**：只需 `world.ui.selectedEntityId` 一个字段，而 `world.ui` 已在批次 B 完成
-- **额外发现**：`CharacterList.vue` 还用 `entitySchemaRegistry.get('character')` / `getIconName('character')` 取类型与图标——这是**注册表单例**而非 pinia store，且 `world.schema` 已有 `get`/`label`，只差 `getIconName`。另 `undo/redo` 收的是 `entityStore` / `relationStore` 实例（`useUndoRedo` 的形参类型是鸭子类型），需传服务对象而非 store。
+重档里剩的最大未迁移项，**6 个文件 / 19 个调用点**，全量迁移（不只试点）。
 
-### 3.3 明确延后的
+**依赖只有两处缺口，都在服务目录侧补掉**：
 
-**`settings` 插件**——本批不做。原因：它涉及 **11 个 store**，若走服务目录需要新增 **15+ 项服务**，粒度会失控。需要独立评估，不能塞进现有批次。
+1. `world.ui.selectedEntityId` —— 批次 B 已就绪，直接用。
+2. `world.schema` **缺 `iconName(type)`** —— `CharacterList.vue` 的详情头要 `getIconName('character')` 取图标。原服务只有 `list` / `get` / `label`，本批补一个方法。它是**注册表单例**（`entitySchemaRegistry`）而非 pinia store，故本来就该走 `world.schema`。
+
+**`undo` / `redo` 传的是服务对象而非 store**：`useUndoRedo` 内部按鸭子类型只调用 `add` / `update` / `remove`；服务对象的 `remove` 多出的 `source` / `opts` 是可选参数，签名兼容。故 `undo(entitiesSvc(), relationsSvc())` 与原来等价。
+
+**验收**：服务目录仍 12 项（仅 `world.schema` 补方法）· 守卫 154 → **178 例**（清单 69 → 84 文件 / 23 → 24 插件）· 全仓 **306 文件 / 2464 过 + 1 skip** · `vue-tsc` 0 · gate 5/5 · 反证 2 轮（`iconName` 改 `type + 'XX'` → 1 例红；`FamilyNodeCard` 还原直连 → 1 例红）。
+
+**踩到 400 行红线一次**：`CharacterList.vue` 迁移后涨到 464 行（冻结 463），门禁当场红。把三行取值器合并成一行（`const entities = entitiesSvc(), relations = ..., schema = ...`）压回 462 行。**注意门禁计数是 `split('\n').length`（实际行数 +1）**，`Get-Content` 少 1，别被误导。
+
+### 3.3 剩下的
+
+**`timeline`** —— 需 `world.detailLayout`（`DetailLayout` store 无服务）。
+**`settings` 插件** —— 涉 11 个 store，若走服务目录需新增 15+ 项服务，粒度失控。需独立评估。
 
 ## 四、每批的固定流程（照做即可）
 
@@ -132,6 +145,7 @@ status: 执行中
 | **测试挂载组件需登记服务表** | 组件测试里 `getWorldService` 直接抛错 | 建 `__tests__/storeServices.ts` 之类**转发到真实 store** 的辅助（保留集成语义与 `vi.spyOn` 能力） |
 | **批量脚本改文件不可靠** | pwsh `.Replace` 经 cmd 层静默失效；Python 单行丢引号 | **一律用 Edit / Write**，仓库规则也是这么要求的 |
 | **同语义不同名的半步 API** | `trashStore` 同时有 `restore`/`permanentDelete`（只动回收站）与 `useTrash.restoreEntity`/`permanentDeleteEntity`（含级联关系、写磁盘） | 服务只暴露**完整语义动作**，并在自测里反向断言裸方法不得出现 |
+| **门禁行数比编辑器多 1** | 架构检查用 `split('\n').length`（= 实际行数 + 1），`Get-Content` 报的少 1 | 判断是否顶到冻结线时，以 `node -e "...split('\n').length"` 为准 |
 
 ## 五、怎么验证自己没搞坏
 
@@ -165,7 +179,7 @@ DataCloneError: #<Object> could not be cloned.
 
 ## 七、下一步建议
 
-1. **做批次 E**（`characters`）：依赖已就绪，拆多次提交（6 个文件 / 19 调用点）
+1. **`timeline`**：需先补 `world.detailLayout`（`DetailLayout` store 现无服务）
 2. **`settings` 单独评估**：不要硬塞进现有批次结构
 
 每批一次 PR，等 CI 绿、review 后合并。分支从最新 `main` 切。

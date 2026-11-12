@@ -70,6 +70,15 @@ const MIGRATED = [
   'data-tools/TrashPanel.vue',
   'data-tools/ConsistencyReportPanel.vue',
   'data-tools/serviceAccess.ts',
+  // 补 world.schema.iconName 后解锁（world.ui 批次 B 已就绪）
+  'characters/CharacterList.vue',
+  'characters/serviceAccess.ts',
+  'characters/components/CharacterExperience.vue',
+  'characters/components/ExperienceNode.vue',
+  'characters/components/FamilyAddDialog.vue',
+  'characters/components/FamilyNodeCard.vue',
+  'characters/components/FamilyTree.vue',
+  'characters/components/RelationGraph.vue',
 ] as const
 
 /**
@@ -96,6 +105,13 @@ const VIA_SHARED_ACCESSOR = new Set([
   'manuscript/composables/useManuscriptExport.ts',
   'data-tools/TrashPanel.vue',
   'data-tools/ConsistencyReportPanel.vue',
+  'characters/CharacterList.vue',
+  'characters/components/CharacterExperience.vue',
+  'characters/components/ExperienceNode.vue',
+  'characters/components/FamilyAddDialog.vue',
+  'characters/components/FamilyNodeCard.vue',
+  'characters/components/FamilyTree.vue',
+  'characters/components/RelationGraph.vue',
 ])
 
 async function readPluginFile(rel: string): Promise<string> {
