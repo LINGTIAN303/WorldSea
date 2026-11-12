@@ -53,7 +53,8 @@
  * 写入：双击某行改该行 `name`，400ms 防抖 + `{ skipUndo }` + 白板撤销栈一步。
  */
 import { computed, nextTick, ref, watch, type ComponentPublicInstance } from 'vue'
-import { useEntityStore, type Entity } from '@worldsea/entity-core'
+import { type Entity } from '@worldsea/entity-core'
+import { entitiesSvc } from '../../serviceAccess'
 import { resolveChildNodes } from '../outlineDerive'
 import { createChildNode } from './childNodeCreate'
 import { formatNumbering, type NumberingStyle } from './titleNumbering'
@@ -69,10 +70,10 @@ const props = defineProps<{
   config?: Record<string, unknown>
 }>()
 
-const es = useEntityStore()
+const es = entitiesSvc()
 const boardUndo = injectBoardUndo()
 
-const allNodes = computed(() => (es.entities ?? []).filter(e => e.type === 'outline_node'))
+const allNodes = computed(() => (es.list() ?? []).filter(e => e.type === 'outline_node'))
 const cfg = computed(() => resolveFormConfig('title', props.config))
 const showStatus = computed(() => cfg.value.showStatus !== false)
 const showBranch = computed(() => cfg.value.showBranch === true)

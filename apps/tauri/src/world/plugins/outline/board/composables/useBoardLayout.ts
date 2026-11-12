@@ -11,12 +11,9 @@
  * 详见 docs/plans/2026-09-16-大纲白板-编辑器交互规格.md §七。
  */
 import { ref } from 'vue'
-import { useEntityStore, type Entity } from '@worldsea/entity-core'
-import {
-  createDefaultViewport,
-  hasSavedViewport,
-  parseViewport,
-  serializeViewport,
+import { type Entity } from '@worldsea/entity-core'
+import { entitiesSvc } from '../../serviceAccess'
+import { createDefaultViewport, hasSavedViewport, parseViewport, serializeViewport,
   type Point,
   type Rect,
   type Viewport,
@@ -59,7 +56,7 @@ export const BOARD_SAVED_HOLD = 2000
 export type BoardSaveState = 'idle' | 'saving' | 'saved' | 'error'
 
 export function useBoardLayout() {
-  const es = useEntityStore()
+  const es = entitiesSvc()
 
   const boardId = ref<string | null>(null)
   const layout = ref<OutlineBoardLayout>(createEmptyBoardLayout())
@@ -90,7 +87,7 @@ export function useBoardLayout() {
 
   function boardEntity(id: string | null = boardId.value): Entity | undefined {
     if (!id) return undefined
-    return (es.entities ?? []).find(e => e.id === id && e.type === 'outline_board')
+    return (es.list() ?? []).find(e => e.id === id && e.type === 'outline_board')
   }
 
   /** 载入指定白板的布局体、视口与缩略图（调用前需确保 store 已含 outline_board 实体，视图层用 loadAll） */

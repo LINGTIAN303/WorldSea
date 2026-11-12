@@ -1,5 +1,6 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { useEntityStore, useRelationStore, type Entity } from '@worldsea/entity-core'
+import { type Entity } from '@worldsea/entity-core'
+import { chapterLinkStore, chapterRelationStore, entitiesSvc, relationsSvc } from '../../serviceAccess'
 import { genBoardId, type OutlineBoardLayout } from '../layoutSchema'
 import { cloneContainerIntoLayout } from '../duplicateContainer'
 import { syncParentChildRelation } from '../../parentChildSync'
@@ -42,22 +43,22 @@ interface DeleteTarget {
  * 独立成文件的原因：`BoardView.tsx` 已处 1230 行冻结基线，任何新逻辑都不许再进去。
  */
 export function useBoardNodeActions(opts: Options) {
-  const es = useEntityStore()
-  const rs = useRelationStore()
+  const es = entitiesSvc()
+  const rs = relationsSvc()
 
   const outlineNodes = computed<Entity[]>(
-    () => (es.entities ?? []).filter(e => e.type === 'outline_node'),
+    () => (es.list() ?? []).filter(e => e.type === 'outline_node'),
   )
 
   /** 删除 API 适配（store → 纯逻辑模块的最小接口） */
   const deleteApi: OutlineNodeDeleteApi = {
-    entities: () => es.entities ?? [],
-    relations: () => rs.relations ?? [],
+    entities: () => es.list() ?? [],
+    relations: () => rs.list() ?? [],
     removeEntity: (id) => es.remove(id),
     removeRelation: (id) => rs.remove(id),
-    unlinkChapter: (nodeId) => unlinkNode(es, rs, nodeId),
+    unlinkChapter: (nodeId) => unlinkNode(chapterLinkStore(), chapterRelationStore(), nodeId),
     updateNode: async (id, properties) => {
-      const node = es.entityMap.get(id)
+      const node = es.get(id)
       if (!node) return
       // 实体更新对 properties 是整体替换 → 必须先合并
       await es.update(id, { properties: { ...(node.properties ?? {}), ...properties } })
@@ -79,7 +80,7 @@ export function useBoardNodeActions(opts: Options) {
     const layout = opts.layout()
     const src = layout.containers.find(c => c.id === containerId)
     if (!src) return
-    const srcNode = es.entityMap.get(src.nodeId)
+    const srcNode = es.get(src.nodeId)
     if (!srcNode) return
 
     opts.recordUndo()
@@ -118,7 +119,7 @@ export function useBoardNodeActions(opts: Options) {
 
   /** 打开删除确认框（无子节点时也走同一框：破坏性操作必须确认） */
   function askDeleteNode(nodeId: string): void {
-    const node = es.entityMap.get(nodeId)
+    const node = es.get(nodeId)
     if (!node || node.type !== 'outline_node') return
     const nodes = outlineNodes.value
     const excluded = new Set(collectSubtreeIds(nodes, nodeId))
@@ -143,11 +144,11 @@ export function useBoardNodeActions(opts: Options) {
     const nodes = outlineNodes.value
     const doomed = new Set(strategy === 'cascade' ? collectSubtreeIds(nodes, target.id) : [target.id])
     const doomedNodes = nodes.filter(n => doomed.has(n.id))
-    const doomedRelations = (rs.relations ?? []).filter(
+    const doomedRelations = (rs.list() ?? []).filter(
       r => doomed.has(r.sourceId) || doomed.has(r.targetId),
     )
-    const linkIndex = buildChapterLinkIndex(es.entities ?? [], rs.relations ?? [])
-    const chapterLinks = (es.entities ?? [])
+    const linkIndex = buildChapterLinkIndex(es.list() ?? [], rs.list() ?? [])
+    const chapterLinks = (es.list() ?? [])
       .filter(e => e.type === 'manuscript')
       .map(c => ({ chapterId: c.id, nodeId: linkIndex.nodeByChapter.get(c.id) ?? '' }))
       .filter(l => l.nodeId && doomed.has(l.nodeId))
@@ -189,7 +190,7 @@ export function useBoardNodeActions(opts: Options) {
     for (const r of payload.restoreNodes ?? []) await deleteApi.updateNode(r.id, r.properties)
     for (const n of payload.nodes) await es.add(n)
     for (const r of payload.relations) await rs.add(r)
-    for (const l of payload.chapterLinks) await linkChapterToNode(es, rs, l.chapterId, l.nodeId)
+    for (const l of payload.chapterLinks) await linkChapterToNode(chapterLinkStore(), chapterRelationStore(), l.chapterId, l.nodeId)
   }
 
   /** 重做删除：再删一次（关系与章节绑定由 deleteOutlineNodes 一并清理） */

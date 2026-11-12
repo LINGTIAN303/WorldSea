@@ -47,20 +47,20 @@
  * 「填线索」的入口在属性面板的节点属性区（容器与节点 1:1，那是天然的归属地）。
  */
 import { computed } from 'vue'
-import { useEntityStore } from '@worldsea/entity-core'
 import { resolveFormConfig } from './registry'
 import { normalizeScope, resolveScopeNodes } from './scopeNodes'
 import { buildStorylineRows, normalizeStorylineSort, type StorylineRow, type StorylineSourceNode } from './storylineRows'
 import { normalizeLimit } from './limits'
 import { formatCount } from './progressStats'
 import { focusNodeField } from '../composables/useNodeFieldFocus'
+import { entitiesSvc } from '../../serviceAccess'
 
 const props = defineProps<{
   nodeId: string
   config?: Record<string, unknown>
 }>()
 
-const es = useEntityStore()
+const es = entitiesSvc()
 const cfg = computed(() => resolveFormConfig('storyline', props.config))
 
 const scope = computed(() => normalizeScope(cfg.value.scope))
@@ -84,7 +84,7 @@ const maxHeight = computed(() => {
 })
 
 const allNodes = computed<StorylineSourceNode[]>(
-  () => (es.entities ?? []).filter(e => e.type === 'outline_node') as unknown as StorylineSourceNode[],
+  () => (es.list() ?? []).filter(e => e.type === 'outline_node') as unknown as StorylineSourceNode[],
 )
 
 // ── 信息密度（2026-10-19）：行数 / 每条线索的标签数 / 排序 ──

@@ -86,6 +86,29 @@ const MIGRATED = [
   'timeline/components/InvolvedEntitiesPicker.vue',
   'timeline/components/TimelineCanvas.vue',
   'timeline/composables/eventInvolves.ts',
+  // 批次 G：outline 主线全量迁移（此前只迁了导出链的字体调用）
+  'outline/board/BoardView.vue',
+  'outline/board/components/ContainerLateralBadges.vue',
+  'outline/board/components/NodeDetailDock.vue',
+  'outline/board/components/NodeLateralSection.vue',
+  'outline/board/components/NodeRefsSection.vue',
+  'outline/board/composables/useBoardChapterLinks.ts',
+  'outline/board/composables/useBoardDocs.ts',
+  'outline/board/composables/useBoardLayout.ts',
+  'outline/board/composables/useBoardNodeActions.ts',
+  'outline/board/forms/CardForm.vue',
+  'outline/board/forms/childNodeCreate.ts',
+  'outline/board/forms/OutlineRefsForm.vue',
+  'outline/board/forms/ParagraphForm.vue',
+  'outline/board/forms/ProgressForm.vue',
+  'outline/board/forms/QuestionForm.vue',
+  'outline/board/forms/ScriptForm.vue',
+  'outline/board/forms/SentenceForm.vue',
+  'outline/board/forms/StorylineForm.vue',
+  'outline/board/forms/TableForm.vue',
+  'outline/board/forms/TitleForm.vue',
+  'outline/board/forms/TreeForm.vue',
+  'outline/parentChildSync.ts',
 ] as const
 
 /**
@@ -124,6 +147,28 @@ const VIA_SHARED_ACCESSOR = new Set([
   'timeline/components/InvolvedEntitiesPicker.vue',
   'timeline/components/TimelineCanvas.vue',
   'timeline/composables/eventInvolves.ts',
+  'outline/board/BoardView.vue',
+  'outline/board/components/ContainerLateralBadges.vue',
+  'outline/board/components/NodeDetailDock.vue',
+  'outline/board/components/NodeLateralSection.vue',
+  'outline/board/components/NodeRefsSection.vue',
+  'outline/board/composables/useBoardChapterLinks.ts',
+  'outline/board/composables/useBoardDocs.ts',
+  'outline/board/composables/useBoardLayout.ts',
+  'outline/board/composables/useBoardNodeActions.ts',
+  'outline/board/forms/CardForm.vue',
+  'outline/board/forms/childNodeCreate.ts',
+  'outline/board/forms/OutlineRefsForm.vue',
+  'outline/board/forms/ParagraphForm.vue',
+  'outline/board/forms/ProgressForm.vue',
+  'outline/board/forms/QuestionForm.vue',
+  'outline/board/forms/ScriptForm.vue',
+  'outline/board/forms/SentenceForm.vue',
+  'outline/board/forms/StorylineForm.vue',
+  'outline/board/forms/TableForm.vue',
+  'outline/board/forms/TitleForm.vue',
+  'outline/board/forms/TreeForm.vue',
+  'outline/parentChildSync.ts',
 ])
 
 async function readPluginFile(rel: string): Promise<string> {
@@ -150,13 +195,26 @@ describe.each(MIGRATED)('%s 取数经服务', rel => {
     expect(code).not.toContain('useRelationStore')
     expect(code).not.toMatch(/\bentityStore\b/)
     expect(code).not.toMatch(/\brelationStore\b/)
-    // 中档插件沿用短别名 es / rs，同样不能再出现
-    expect(code).not.toMatch(/\bes\.(entities|loadAll|add|update|remove)\b/)
-    expect(code).not.toMatch(/\brs\.(relations|loadAll|add|update|remove)\b/)
+    // 短别名 es / rs 本身是允许的（outline 等插件沿用该命名），
+    // 但它们必须由服务取值器赋值，不能来自 store：
+    //   const es = entitiesSvc()   ✓
+    //   const es = useEntityStore() ✗（上面 useEntityStore 那两条已拦，此处正向断言兜底）
+    if (/\bconst\s+es\s*=/.test(code)) {
+      expect(code, 'es 必须由 entitiesSvc() 赋值').toMatch(/\bconst\s+es\s*=\s*entitiesSvc\(\)/)
+    }
+    if (/\bconst\s+rs\s*=/.test(code)) {
+      expect(code, 'rs 必须由 relationsSvc() 赋值').toMatch(/\bconst\s+rs\s*=\s*relationsSvc\(\)/)
+    }
   })
 
   it('经服务取数（直接 getWorldService，或引用共享取值器），服务名在权威名单内', async () => {
     const code = stripComments(await readPluginFile(rel))
+    // 纯类型文件（只声明形参类型，不做运行期取数）走类型来源校验即可
+    if (/^import type \{ World[A-Za-z]+Service \} from '.*services'$/m.test(code)
+        && !/getWorldService|entitiesSvc|relationsSvc|fontSvc/.test(code)) {
+      expect(code).toMatch(/import type \{ World[A-Za-z]+Service \} from '(\.\.\/)+services'/)
+      return
+    }
     if (VIA_SHARED_ACCESSOR.has(rel)) {
       // 服务名与 throw 收敛在 serviceAccess.ts（下面单独一例覆盖），此处只验它确实经该模块取数
       expect(code).toMatch(/from '(\.\.?\/)+serviceAccess'/)

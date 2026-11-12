@@ -5,21 +5,21 @@
  * 非 null 为编辑器层。列表数据来自实体 store（type === 'outline_board'）。
  */
 import { computed, ref } from 'vue'
-import { useEntityStore } from '@worldsea/entity-core'
 import { createEmptyBoardLayout, genBoardId, parseBoardLayout, serializeBoardLayout } from '../layoutSchema'
 import type { SnapMode } from './useBoardSnap'
+import { entitiesSvc } from '../../serviceAccess'
 
 export const DEFAULT_BOARD_NAME = '未命名白板'
 
 export function useBoardDocs() {
-  const es = useEntityStore()
+  const es = entitiesSvc()
 
   /** null = 列表层；非 null = 编辑器层（当前白板 id） */
   const currentBoardId = ref<string | null>(null)
 
   /** 按更新时间倒序（最近的在前） */
   const boards = computed(() =>
-    (es.entities ?? [])
+    (es.list() ?? [])
       .filter(e => e.type === 'outline_board')
       .sort((a, b) => String(b.updatedAt ?? '').localeCompare(String(a.updatedAt ?? ''))),
   )
@@ -31,7 +31,7 @@ export function useBoardDocs() {
 
   /** 加载全部实体（白板与大纲节点都要：白板渲染依赖 outline_node） */
   async function loadAll(): Promise<void> {
-    await es.loadAll()
+    await es.reload()
   }
 
   async function createBoard(name: string = DEFAULT_BOARD_NAME): Promise<string> {

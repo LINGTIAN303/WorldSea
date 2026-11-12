@@ -1,9 +1,9 @@
-import type { useEntityStore } from '@worldsea/entity-core'
+import type { WorldEntitiesService } from '../../../../services'
 import { genBoardId } from '../layoutSchema'
 import { resolveChildNodes } from '../outlineDerive'
 import { syncParentChildRelation } from '../../parentChildSync'
 
-type Store = ReturnType<typeof useEntityStore>
+type Store = WorldEntitiesService
 
 /**
  * 在指定节点下新建一个子节点（未入板），返回新 id（2026-10-19）。
@@ -19,7 +19,7 @@ export async function createChildNode(
   name = '新节点',
 ): Promise<string> {
   const now = new Date().toISOString()
-  const nodes = (es.entities ?? []).filter(e => e.type === 'outline_node')
+  const nodes = (es.list() ?? []).filter(e => e.type === 'outline_node')
   const siblings = resolveChildNodes(parentId, nodes)
   const id = genBoardId('out')
   await es.add({

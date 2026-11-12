@@ -61,7 +61,8 @@
  * 只读派生不动，本件是该家族的用户侧写入口。
  */
 import { computed, onMounted, ref } from 'vue'
-import { useEntityStore, useRelationStore, entitySchemaRegistry, relationshipRegistry } from '@worldsea/entity-core'
+import { entitySchemaRegistry, relationshipRegistry } from '@worldsea/entity-core'
+import { entitiesSvc, outlineLinkStore, relationsSvc } from '../../serviceAccess'
 import type { Entity } from '@worldsea/entity-core'
 // 芽视图里的 UI 组件必须显式导入（不是全局组件）
 import { FloatingPanel, WsIcon } from '@worldsea/ui-kit'
@@ -70,13 +71,13 @@ import { pickRefRelationTypes, refRelationsOf, refRelationTypesForTarget, refTar
 
 const props = defineProps<{ node?: Entity }>()
 
-const es = useEntityStore()
-const rs = useRelationStore()
+const es = entitiesSvc()
+const rs = relationsSvc()
 
 // 关系与实体内存可能与别处加载面不同步，进入时各拉一次（幂等、判空省重载）
 onMounted(() => {
-  if (!rs.relations.length) void rs.loadAll()
-  if (!es.entities.length) void es.loadAll()
+  if (!rs.list().length) void rs.reload()
+  if (!es.list().length) void es.reload()
 })
 
 const schemas = computed(() => relationshipRegistry.getBySourceType('outline_node'))
@@ -98,9 +99,9 @@ interface RefRow {
 const refs = computed<RefRow[]>(() => {
   if (!props.node) return []
   const rows: RefRow[] = []
-  for (const rel of refRelationsOf(rs.relations, props.node.id, refTypes.value)) {
+  for (const rel of refRelationsOf(rs.list(), props.node.id, refTypes.value)) {
     const otherId = rel.sourceId === props.node.id ? rel.targetId : rel.sourceId
-    const entity = es.entityMap.get(otherId)
+    const entity = es.get(otherId)
     if (!entity) continue // 孤儿关系（实体已删）不显示——与徽章同语义
     const alts = refRelationTypesForTarget(schemas.value, entity.type).filter(t => t !== rel.type)
     rows.push({
@@ -140,7 +141,7 @@ const candidates = computed(() => {
   if (!pickerOpen.value || !props.node) return []
   const linked = new Set(refs.value.map(r => r.entityId))
   const q = query.value.trim().toLowerCase()
-  return es.entities
+  return es.list()
     .filter(e => targetTypes.value.includes(e.type) && !linked.has(e.id))
     .filter(e => !typeFilter.value || e.type === typeFilter.value)
     .filter(e => !q || (e.name ?? '').toLowerCase().includes(q))
@@ -154,19 +155,19 @@ async function linkTo(c: { id: string; type: string }): Promise<void> {
   if (!props.node) return
   const types = refRelationTypesForTarget(schemas.value, c.type)
   if (!types.length) return
-  await linkOutlineEntity(rs, props.node.id, c.id, types[0])
+  await linkOutlineEntity(outlineLinkStore(), props.node.id, c.id, types[0])
 }
 
 async function unlink(r: RefRow): Promise<void> {
   if (!props.node) return
-  await unlinkOutlineEntity(rs, props.node.id, r.entityId, r.relType)
+  await unlinkOutlineEntity(outlineLinkStore(), props.node.id, r.entityId, r.relType)
 }
 
 /** 「改类型」：先建新（幂等）再删旧——中途任何失败都不丢关联 */
 async function swapType(r: RefRow): Promise<void> {
   if (!props.node || !r.altType) return
-  await linkOutlineEntity(rs, props.node.id, r.entityId, r.altType)
-  await unlinkOutlineEntity(rs, props.node.id, r.entityId, r.relType)
+  await linkOutlineEntity(outlineLinkStore(), props.node.id, r.entityId, r.altType)
+  await unlinkOutlineEntity(outlineLinkStore(), props.node.id, r.entityId, r.relType)
 }
 
 /** 跳转实体（ws-navigate 契约 {entityType, entityId}，2026-10-08 全链统一） */

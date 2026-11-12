@@ -57,7 +57,8 @@
  * 写入：双击某行改该行 `description`，400ms 防抖 + `{ skipUndo }` + 白板栈会话级单步。
  */
 import { computed, nextTick, ref, watch, type ComponentPublicInstance } from 'vue'
-import { useEntityStore, type Entity } from '@worldsea/entity-core'
+import { type Entity } from '@worldsea/entity-core'
+import { entitiesSvc } from '../../serviceAccess'
 import { resolveChildNodes } from '../outlineDerive'
 import { createChildNode } from './childNodeCreate'
 import { resolveFormConfig } from './registry'
@@ -78,10 +79,10 @@ const props = defineProps<{
   config?: Record<string, unknown>
 }>()
 
-const es = useEntityStore()
+const es = entitiesSvc()
 const boardUndo = injectBoardUndo()
 
-const allNodes = computed(() => (es.entities ?? []).filter(e => e.type === 'outline_node'))
+const allNodes = computed(() => (es.list() ?? []).filter(e => e.type === 'outline_node'))
 const cfg = computed(() => resolveFormConfig('sentence', props.config))
 const maxLines = computed(() => normalizeMaxLines(cfg.value.maxLines))
 const charLimit = computed(() => normalizeCharLimit(cfg.value.charLimit))

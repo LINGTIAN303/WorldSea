@@ -74,7 +74,8 @@
 | 现行  | 芽字段矩阵 | **实体字段字典（2026-10-18 初版 / 2026-10-20 复核）**：21 个注册实体类型的芽 / 23 个实体类型 / 276 个字段实例 / 156 个唯一键；字段 = 13 个原子 Trait + ownFields（含 fieldOverrides），逐芽列出 English key、中文 label、类型、必填、来源与选项；附 Item Facet、系统字段与可搜索 HTML 阅读版 | [MD](../details/架构/芽字段矩阵.md) · [HTML](../details/架构/芽字段矩阵.html) |
 | 现行  | **芽生态研究（专题）** | **27 个侧栏芽生态诊断（2026-10-18 初版 / 10-20 复核 + R6-a）**：四层平铺；8 域重划；依赖声明均未生效；R6-a 后关系 105、孤岛 10（正文入网）、字段 274，大纲唯一跨域消费者（出度 16）；关闭芽=隐藏入口保留实体；R1–R6-a 已落地，旧 category 已随 R4 退役 | [MD](../details/架构/芽生态/README.md) · [阅读版 HTML](../details/架构/芽生态/阅读版/index.html) |
 | 现行  | **GitHub 仓库配置现状与待办** | **两轮建成后的完整底单**：公开仓 + 分支保护（4 项必需检查 + `strict` + `enforce_admins`，直推 main 实测被拒）；2026-11-08 补齐元数据、**许可识别修为 MIT**、安全面五项（secret scanning / push protection / Dependabot alerts+autofix / 私有漏洞上报）、协作模板（PR/issue/SECURITY/CONTRIBUTING/CODEOWNERS）、CI 四项加固（concurrency/权限/rust-cache/检查名门禁）、合并收紧为 **squash-only**。含 `dsh/` 占 88.6% 跟踪文件对全仓级配置的约束 | [GitHub仓库配置现状与待办.md](../details/架构/GitHub仓库配置现状与待办.md) |
-| 执行中 | **Cordis 化进度与下一步** | 服务目录 13 项、已迁移插件 25 个（守卫 197 例）、批次 A/B/C/D/E/F 已落地。除 `settings`（涉 11 store，需独立立项）外重档已全部迁移；`services.ts` 顶到 400 行后拆出 `serviceTypes.ts` 放接口声明。含每批固定流程与 8 个已踩坑的处置 | [Cordis化进度与下一步.md](../details/架构/Cordis化进度与下一步.md) |
+| 执行中 | **Cordis 化进度与下一步** | 服务目录 13 项、批次 A–G 已合并。**严格口径：剩余 4 个插件仍直连**（`settings` 40 / `manuscript` 22 / `tactical-board` 4 / `custom` 2 有意保留）；`outline` 批次 G 已从 50 处清零。早期「已迁移 25 个插件」按文件登记数算，会高估，已纠正。见 9 个踩坑处置 | [Cordis化进度与下一步.md](../details/架构/Cordis化进度与下一步.md) |
+| 执行中 | **`settings` 插件 Cordis 化评估** | **判定不迁移**：它写的是配置本身（`setCarrier`/`setProjectIcon`/`toggleSprout`）而非用户内容数据，服务目录定位是统一取数口径，把配置写面做成公共 API 是扩大契约而非解耦；`usePluginStore` 属「管理插件」功能本体，同 `custom` 渲染他视图组件，有意留芽内。附带纠正：真实剩余是 `outline`(50) / `manuscript`(22) / `tactical-board`(4) | [2026-11-12-settings插件Cordis化评估.md](../plans/2026-11-12-settings插件Cordis化评估.md) |
 
 ## 其他（misc/）
 
