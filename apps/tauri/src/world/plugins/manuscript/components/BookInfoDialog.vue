@@ -60,12 +60,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { TuiButton, WsIcon, WsInlineLoading } from '@worldsea/ui-kit'
-import { useEntityStore } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
 import { writeImageAsset, ASSET_MAX_BYTES } from '@/composables/imageAssets'
 import { pickLocalFiles } from '@/composables/pickLocalFiles'
 import { toastError } from '@/composables/useToast'
 import { useFocusTrap } from '@/composables/useFocusTrap'
+import { entitiesSvc } from '../serviceAccess'
 
 const props = defineProps<{
   /** null/缺省 = 创建模式（确认后才 es.add 落地实体）；传实体 = 编辑模式 */
@@ -75,7 +75,7 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ close: [] }>()
 
-const es = useEntityStore()
+const es = entitiesSvc()
 
 const isCreate = computed(() => !props.book)
 

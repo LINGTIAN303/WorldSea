@@ -1,6 +1,6 @@
 import { ref, type Ref } from 'vue'
-import { useEntityStore } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
+import { entitiesSvc } from '../serviceAccess'
 
 export interface ChapterSnapshot {
   time: string
@@ -25,7 +25,7 @@ function findLastIndex<T>(list: T[], pred: (item: T) => boolean): number {
 }
 
 export function useChapterSnapshots(currentChapter: Ref<Entity | null>) {
-  const es = useEntityStore()
+  const es = entitiesSvc()
   const snapshots = ref<ChapterSnapshot[]>([])
   const showHistory = ref(false)
 

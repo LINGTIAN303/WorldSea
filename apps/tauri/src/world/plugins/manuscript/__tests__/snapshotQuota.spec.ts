@@ -8,6 +8,8 @@ import { createPinia, type Pinia } from 'pinia'
 import 'fake-indexeddb/auto'
 import { useEntityStore, type Entity } from '@worldsea/entity-core'
 import { useChapterSnapshots, MAX_MANUAL_SNAPSHOTS, MAX_AUTO_SNAPSHOTS, MAX_TOTAL_SNAPSHOTS } from '../composables/useChapterSnapshots'
+import { installStoreServices } from './storeServices'
+import { clearWorldServiceTable } from '../../../service-registry'
 
 function makeChapter(): Entity {
   const now = new Date().toISOString()
@@ -31,10 +33,13 @@ describe('章节快照双配额', () => {
     pinia = createPinia()
     es = useEntityStore(pinia)
     vi.spyOn(es, 'update').mockResolvedValue(undefined)
+    // useChapterSnapshots 已改经树服务取数（批次 H），不起树时必须登记转发服务表
+    installStoreServices()
   })
 
   afterEach(() => {
     vi.restoreAllMocks()
+    clearWorldServiceTable()
   })
 
   function setup() {

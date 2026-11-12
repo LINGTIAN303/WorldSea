@@ -164,10 +164,10 @@ import { ref, computed, reactive, watch, nextTick, onBeforeUnmount } from 'vue'
 import draggable from 'vuedraggable'
 import { TuiButton, WsIcon  } from '@worldsea/ui-kit'
 import { WsEmpty } from '@worldsea/ui-kit'
-import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
 // 「章节 ↔ 大纲节点」关联的唯一写入入口（关系唯一真源 + 1:1 清旧值）
 import { buildChapterLinkIndex, linkChapterToNode, unlinkChapter } from '@/entity/chapterLink'
+import { chapterLinkStore, chapterRelationStore, entitiesSvc, relationsSvc } from '../serviceAccess'
 
 const props = defineProps<{
   chapters: Entity[]
@@ -182,8 +182,8 @@ const emit = defineEmits<{
   delete: [entity: Entity]
 }>()
 
-const es = useEntityStore()
-const rs = useRelationStore()
+const es = entitiesSvc()
+const rs = relationsSvc()
 
 // ── 分卷折叠持久化（2026-09-14 侧栏优化：此前刷新即丢；键按项目无关的全局——
 //    卷名是自由文本、跨项目同名的记忆冲突可忽略，与 notebook 侧栏 tab 记忆同口径）──
@@ -255,7 +255,7 @@ const groupedChapters = computed<ChapterGroup[]>(() => {
   return result
 })
 
-const outlineNodes = computed(() => (es.entities ?? []).filter(e => e.type === 'outline_node'))
+const outlineNodes = computed(() => (es.list() ?? []).filter(e => e.type === 'outline_node'))
 
 /** 状态色点修饰类（三态；色点体系替代整块彩底——克制化，2026-09-15 形态优化） */
 function dotClass(m: Entity): string {
@@ -293,7 +293,7 @@ const showBookPicker = ref(false)
 const bookPickId = ref('')
 
 /** 书籍选项（移动到书籍弹层；书籍列表从 store 自取，与 outlineNodes 同款） */
-const bookOptions = computed(() => (es.entities ?? []).filter(e => e.type === 'book'))
+const bookOptions = computed(() => (es.list() ?? []).filter(e => e.type === 'book'))
 
 const ctxMenuRef = ref<HTMLDivElement | null>(null)
 let ctxMenuReturnFocusEl: HTMLElement | null = null
@@ -391,7 +391,7 @@ async function confirmVolume() {
 function ctxLinkOutline() {
   ctxMenu.show = false
   if (!ctxMenu.entity) return
-  outlinePickId.value = buildChapterLinkIndex(es.entities ?? [], rs.relations ?? []).nodeByChapter.get(ctxMenu.entity.id) ?? ''
+  outlinePickId.value = buildChapterLinkIndex(es.list() ?? [], rs.list() ?? []).nodeByChapter.get(ctxMenu.entity.id) ?? ''
   showOutlinePicker.value = true
 }
 
@@ -403,10 +403,10 @@ async function confirmOutline() {
   // 走「章节 ↔ 大纲节点」关联的**唯一写入入口**（R6-a 关系化）：
   // 该函数负责关系对增删 + 1:1 清旧值；实体 properties 不再写关联字段。
   if (!nodeId) {
-    await unlinkChapter(es, rs, chapterId)
+    await unlinkChapter(chapterLinkStore(), chapterRelationStore(), chapterId)
     return
   }
-  await linkChapterToNode(es, rs, chapterId, nodeId)
+  await linkChapterToNode(chapterLinkStore(), chapterRelationStore(), chapterId, nodeId)
 }
 
 /** 章节跨书移动：目标 = 书籍 id 或 ''（未归书）；当前所属书禁选（点了无变化） */

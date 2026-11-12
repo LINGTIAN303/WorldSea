@@ -10,6 +10,9 @@ import {
   recordChapterDelta, readWritingStats, calcStreak, recentDays,
   statsDayKey, pruneOldDays, STATS_RETENTION_DAYS,
 } from '../composables/useWritingStats'
+import { installStoreServices } from './storeServices'
+import { clearWorldServiceTable } from '../../../service-registry'
+import { entitiesSvc } from '../serviceAccess'
 
 function makeEntity(id: string, type: 'book' | 'manuscript', props: Record<string, unknown>): Entity {
   const now = new Date().toISOString()
@@ -29,6 +32,13 @@ describe('写作统计', () => {
     es = useEntityStore(pinia)
     // 穿透式 spy：记录调用但走真实实现——recordChapterDelta 连续累加依赖 update 真实写回 entityMap
     updateSpy = vi.spyOn(es, 'update')
+    // recordChapterDelta 已改收服务对象（批次 H），不起树时必须登记转发服务表
+    installStoreServices()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    clearWorldServiceTable()
   })
 
   afterEach(() => {
@@ -44,8 +54,8 @@ describe('写作统计', () => {
     await es.add(makeEntity('b1', 'book', {}), 'user')
     await es.add(makeEntity('c1', 'manuscript', { bookId: 'b1', wordCount: 100 }), 'user')
     const live = es.entityMap.get('c1')!
-    await recordChapterDelta(es, live, 100, 600)
-    await recordChapterDelta(es, live, 600, 900)
+    await recordChapterDelta(entitiesSvc(), live, 100, 600)
+    await recordChapterDelta(entitiesSvc(), live, 600, 900)
     const stats = readWritingStats(es.entityMap.get('b1')!)
     expect(stats.daily[statsDayKey()]).toBe(800)
   })
@@ -54,8 +64,8 @@ describe('写作统计', () => {
     await es.add(makeEntity('b2', 'book', { writingStats: { goal: 0, daily: { [statsDayKey()]: 300 } } }), 'user')
     await es.add(makeEntity('c2', 'manuscript', { bookId: 'b2', wordCount: 300 }), 'user')
     const live = es.entityMap.get('c2')!
-    await recordChapterDelta(es, live, 300, 100) // -200 → 100
-    await recordChapterDelta(es, live, 100, 50) // -50 → 50
+    await recordChapterDelta(entitiesSvc(), live, 300, 100) // -200 → 100
+    await recordChapterDelta(entitiesSvc(), live, 100, 50) // -50 → 50
     expect(readWritingStats(es.entityMap.get('b2')!).daily[statsDayKey()]).toBe(50)
   })
 
@@ -63,14 +73,14 @@ describe('写作统计', () => {
     await es.add(makeEntity('b3', 'book', {}), 'user')
     await es.add(makeEntity('c3', 'manuscript', { bookId: 'b3', wordCount: 10 }), 'user')
     const live = es.entityMap.get('c3')!
-    await recordChapterDelta(es, live, 10, 10)
+    await recordChapterDelta(entitiesSvc(), live, 10, 10)
     expect(updateSpy).not.toHaveBeenCalled()
   })
 
   it('未归书章节不计入（bookId 为空直接跳过）', async () => {
     await es.add(makeEntity('c4', 'manuscript', { bookId: '', wordCount: 10 }), 'user')
     const live = es.entityMap.get('c4')!
-    await recordChapterDelta(es, live, 10, 500)
+    await recordChapterDelta(entitiesSvc(), live, 10, 500)
     expect(updateSpy).not.toHaveBeenCalled()
   })
 
@@ -78,7 +88,7 @@ describe('写作统计', () => {
     await es.add(makeEntity('b5', 'book', {}), 'user')
     await es.add(makeEntity('c5', 'manuscript', { bookId: 'b5', wordCount: 0 }), 'user')
     const live = es.entityMap.get('c5')!
-    await recordChapterDelta(es, live, 0, 100)
+    await recordChapterDelta(entitiesSvc(), live, 0, 100)
     expect(updateSpy).toHaveBeenCalledWith('b5', expect.anything(), 'user', { skipUndo: true })
   })
 

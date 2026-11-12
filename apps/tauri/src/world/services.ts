@@ -151,6 +151,7 @@ export function createWorldServices(): Record<string, unknown> {
       timelineCompactMode: () => useSettingsStore().timelineCompactMode,
       timelineDragEnabled: () => useSettingsStore().timelineDragEnabled,
       timelineDefaultGroup: () => useSettingsStore().timelineDefaultGroup,
+      phonePreviewMode: () => useSettingsStore().phonePreviewMode,
     } satisfies WorldSettingsService,
 
     // 导航意图（不含组件对象，见 `WorldUiService` 注释）。

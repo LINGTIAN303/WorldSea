@@ -11,6 +11,8 @@ import 'fake-indexeddb/auto'
 import { EditorContent } from '@tiptap/vue-3'
 import { useEntityStore, type Entity } from '@worldsea/entity-core'
 import { useChapterEditor } from '../composables/useChapterEditor'
+import { installStoreServices } from './storeServices'
+import { clearWorldServiceTable } from '../../../service-registry'
 import { getFindState } from '@/composables/findReplaceExtension'
 
 function makeChapter(content: string): Entity {
@@ -37,10 +39,13 @@ describe('查找替换扩展', () => {
 
   beforeEach(() => {
     pinia = createPinia()
+    // useChapterEditor 已改经树服务取数（批次 H），不起树时必须登记转发服务表
+    installStoreServices()
   })
 
   afterEach(() => {
     vi.restoreAllMocks()
+    clearWorldServiceTable()
   })
 
   /** 建一个挂载了真实 useChapterEditor 编辑器的宿主，载入内容后返回编辑器 */
