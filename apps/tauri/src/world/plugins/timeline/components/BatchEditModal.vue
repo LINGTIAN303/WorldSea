@@ -26,7 +26,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { useEntityStore } from '@worldsea/entity-core'
+import { entitiesSvc } from '../serviceAccess'
 import { TuiButton, toastSuccess } from '@worldsea/ui-kit'
 import TuiModal from '@/components/ui/TuiModal.vue'
 import { applyBatchProperties } from '../composables/batchProperties'
@@ -45,7 +45,7 @@ const emit = defineEmits<{
 const IMPORTANCE = ['关键', '重要', '普通', '细微']
 const STATUS = ['正史', '废案', '备选']
 
-const entityStore = useEntityStore()
+const entities = entitiesSvc()
 const importance = ref('')
 const status = ref('')
 const saving = ref(false)
@@ -60,12 +60,12 @@ async function apply(): Promise<void> {
   if (!dirty.value || saving.value) return
   saving.value = true
   try {
-    const updates = applyBatchProperties(entityStore.entities, props.ids, {
+    const updates = applyBatchProperties([...entities.list()], props.ids, {
       importance: importance.value,
       status: status.value,
     })
-    for (const item of updates) await entityStore.update(item.id, { properties: item.properties })
-    await entityStore.loadAll()
+    for (const item of updates) await entities.update(item.id, { properties: item.properties })
+    await entities.reload()
     toastSuccess(`已更新 ${updates.length} 个事件`)
     emit('applied', updates.length)
     emit('close')

@@ -15,7 +15,8 @@ export interface ConfirmOptions {
 
 export interface TimelineCalendarActionsOptions {
   events: () => Entity[]
-  entityStore: {
+  /** 取数端口：由视图注入 `world.entities` 服务（不是 pinia store 实例） */
+  entities: {
     update: (
       id: string,
       changes: Partial<Entity>,
@@ -72,7 +73,7 @@ export function useTimelineCalendarActions(options: TimelineCalendarActionsOptio
     migrating.value = true
     try {
       for (const item of result.updates) {
-        await options.entityStore.update(item.id, { properties: item.properties }, 'import', { skipUndo: true })
+        await options.entities.update(item.id, { properties: item.properties }, 'import', { skipUndo: true })
       }
       await markLegacyMigrated()
       await options.loadTimeline()

@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="family-tree" ref="treeContainer">
     <div ref="containerRef" class="ft-canvas" :inert="treeLoading || undefined" @contextmenu.prevent></div>
     <WsLoadingOverlay
@@ -45,7 +45,7 @@
 <script setup lang="ts">
 import { ref, onMounted, nextTick, computed } from 'vue'
 import { WsEmpty, WsLoadingOverlay, useAsyncTask, type LoadingStage, type LoadingStatus } from '@worldsea/ui-kit'
-import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
+import { entitiesSvc, relationsSvc } from '../serviceAccess'
 import { useBidirectional, deduplicateEdges, useSmallCanvasGraph, type SGNode, type SGEdge } from '@worldsea/ui-kit'
 import FamilyNodeCard from './FamilyNodeCard.vue'
 import FamilyContextMenu from './FamilyContextMenu.vue'
@@ -67,8 +67,8 @@ const emit = defineEmits<{
   switchToProfile: []
 }>()
 
-const entityStore = useEntityStore()
-const relationStore = useRelationStore()
+const entities = entitiesSvc()
+const relations = relationsSvc()
 const { createBidirectional, deleteWithConfirm } = useBidirectional()
 
 const containerRef = ref<HTMLDivElement>()
@@ -153,10 +153,10 @@ const addDialogTitle = ref('')
 const addDialogRelType = ref('')
 const addDialogExcludeIds = ref<string[]>([])
 
-const allCharacters = computed(() => entityStore.entities.filter(e => e.type === 'character'))
+const allCharacters = computed(() => entities.list().filter(e => e.type === 'character'))
 
 const familyRels = computed(() =>
-  relationStore.relations.filter(r => FAMILY_REL_TYPES.includes(r.type))
+  relations.list().filter(r => FAMILY_REL_TYPES.includes(r.type))
 )
 
 const noRelations = computed(() => {
@@ -167,8 +167,8 @@ async function initializeTree(): Promise<void> {
   try {
     await runTreeLoad(async () => {
       treeStage.value = 0
-      await entityStore.loadAll()
-      await relationStore.loadAll()
+      await entities.reload()
+      await relations.reload()
       treeStage.value = 1
       await nextTick()
       if (!graphInited) {
@@ -299,7 +299,7 @@ async function onAddConfirm(payload: { entityId: string; isNew: boolean; name?: 
   let targetEntityId = payload.entityId
 
   if (payload.isNew) {
-    const newId = await entityStore.add({
+    const newId = await entities.add({
       id: crypto.randomUUID(),
       type: 'character',
       name: payload.name || '未命名',
