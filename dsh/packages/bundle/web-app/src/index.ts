@@ -19,6 +19,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { auditStartupEntries } from '@deepseek-ai/dsh-app-boot'
 import type {} from '@deepseek-ai/dsh-client-connection'
+import type {} from '@deepseek-ai/dsh-api-gateway'
 import * as FrontendStatic from '@deepseek-ai/dsh-host-frontend-static'
 import { bindUrlHost, isLoopbackHost } from '@deepseek-ai/dsh-host-webserver'
 import { launchedThroughSsh, launchEnvironmentOf } from '@deepseek-ai/dsh-launch-environment'
@@ -26,6 +27,7 @@ import { scrubbedParentEnv } from '@deepseek-ai/dsh-subprocess'
 import type {} from '@deepseek-ai/cordis-plugin-loader'
 import type {} from '@deepseek-ai/dsh-shell-env'
 import { parsePublicUrl } from './public-url.ts'
+import { installPipeCarrier, readSseResponse, type PipeCarrier } from './pipe-transport.ts'
 
 /** The Web GUI this process serves, provided by the `web-runtime` row. */
 export interface WebApp {
@@ -70,6 +72,12 @@ export interface Config {
    * Absent or YAML `null` advertises the bind-address URL.
    */
   publicUrl?: string
+  /**
+   * `--ipc-pipe <path>`: serve the whole tree over this pipe instead of a TCP
+   * listener. The webserver runs in external-carrier mode and this row feeds
+   * it synthesized exchanges; `--port` only declares the authority.
+   */
+  ipcPipe?: string
 }
 
 export const Config: z<Config> = z.object({
@@ -77,6 +85,7 @@ export const Config: z<Config> = z.object({
   printUrl: z.boolean().default(true),
   surfaceContext: z.boolean().default(true),
   publicUrl: z.transform(z.string(), value => parsePublicUrl(value).href),
+  ipcPipe: z.string(),
 })
 
 /** Environment variable naming the advertised URL of this Web GUI. */
@@ -178,6 +187,52 @@ export const internals: {
 } = { resolveDistIndex, openBrowser }
 
 /**
+ * Start the pipe carrier in place of any TCP listener. The webserver row
+ * already runs in external-carrier mode (derived from the same flag), so the
+ * carrier only feeds it synthesized exchanges and the Gateway's stream opener
+ * for the browser Peer. A bind failure logs through the tree: the shell that
+ * cannot dial the pipe reports its own failure, and a URL line here would only
+ * mislead.
+ * @param ctx - plugin context carrying the webserver service.
+ * @param pipePath - the invocation's `--ipc-pipe` value.
+ */
+function installPipeMode(ctx: Context, pipePath: string): void {
+  ctx.inject(['typertGateway', 'connection'], (pipeCtx) => {
+    const state: { carrier: PipeCarrier | undefined; disposed: boolean } = { carrier: undefined, disposed: false }
+    pipeCtx.effect(() => () => {
+      state.disposed = true
+      // A carrier still binding at dispose time is closed by install's own
+      // continuation, so the disposer only owns one already assigned.
+      return state.carrier?.close() ?? Promise.resolve()
+    }, 'web-app: pipe carrier')
+    void installPipeCarrier({
+      path: pipePath,
+      // The carrier owns the response to completion, so this side starts the
+      // dispatch and never awaits it.
+      dispatch: (req, res) => { void ctx.webServer.dispatch(req, res) },
+      // Read per connection: plugins register routes while the server runs, so
+      // a shell that reconnects must see the routes as they are at that moment.
+      routePrefixes: () => ctx.webServer.listPrefixRoutes(),
+      openStream: (endpoint, payload, uplink, signal) =>
+        pipeCtx.typertGateway.wireStream.open(endpoint, payload, uplink, pipeCtx.connection.browserPeer, signal),
+      // SSE routes answer over a buffered body on the custom-scheme carrier, so a
+      // shell that owns the page carries them here instead of through dispatch.
+      openSseStream: (path, signal) =>
+        Promise.resolve(readSseResponse(path, (req, res) => { void ctx.webServer.dispatch(req, res) }, signal)),
+      streamFailure: error => pipeCtx.typertGateway.wireStream.failure(error),
+    }).then((carrier) => {
+      if (state.disposed) {
+        void carrier.close()
+        return
+      }
+      state.carrier = carrier
+    }, (error: unknown) => {
+      pipeCtx.logger.error(error instanceof Error ? error : new Error(String(error)))
+    })
+  })
+}
+
+/**
  * Mount the Web runtime: dist serving, the bash runtime variable, the URL
  * line, and the default-browser handoff.
  * @param ctx - plugin context carrying the webServer service.
@@ -204,6 +259,7 @@ export function apply(ctx: Context, config: Config): void {
   const appRootUrl = (): string => publicUrl ?? ctx.webServer.getOrigin()
   ctx.provide('webApp', { getAdvertisedUrl: appRootUrl } satisfies WebApp)
   ctx.plugin(FrontendStatic, { distIndex: internals.resolveDistIndex() })
+  if (config.ipcPipe !== undefined) installPipeMode(ctx, config.ipcPipe)
   if (config.surfaceContext) {
     ctx.inject(['shellEnv'], (runtimeCtx) => {
       runtimeCtx.shellEnv.register({

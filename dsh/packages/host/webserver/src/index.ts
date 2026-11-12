@@ -48,6 +48,35 @@ declare module '@deepseek-ai/cordis' {
 /** Route match kind: 'exact' matches the pathname verbatim; 'prefix' p matches p and p/<anything>. */
 export type WebRouteKind = 'exact' | 'prefix'
 
+/**
+ * How many recent dispatches the activity ring keeps.
+ * Sized so a crash report can show a short burst — a plugin looping on one route —
+ * without turning the fatal diagnostic into a request log. Five covers
+ * "open → poll → poll → the one that died" without dominating stderr.
+ */
+export const ACTIVITY_HISTORY = 5
+
+/** The route a request just reached, kept as crash evidence rather than a live log. */
+export interface WebRouteActivity {
+  /** Registration path that matched, so a crash report can name the plugin's namespace. */
+  readonly path: string
+  /**
+   * Plugin that registered the matched route, read from the registering
+   * fiber's name at registration time. A supervisor names this instead of
+   * guessing which plugin owns the path prefix. Absent for the fallback seat
+   * and for routes registered outside a plugin fiber.
+   */
+  readonly plugin?: string
+  /** Match kind of the entry that answered. */
+  readonly kind: WebRouteKind
+  /** Request method and pathname of the last dispatch. */
+  readonly method: string
+  /** Pathname as requested, before route matching. */
+  readonly url: string
+  /** Monotonic dispatch counter; a repeated route still advances it. */
+  readonly at: number
+}
+
 /** One named route registration. */
 export interface WebRoute {
   kind: WebRouteKind
@@ -71,6 +100,25 @@ export interface WebResourceRoute {
   path: string
   /** Answers HTTP GET and HEAD requests and in-process reads. */
   resource: WebResource
+}
+
+/** One route table row: the registration plus who registered it. */
+interface WebRouteEntry {
+  readonly route: WebRoute | WebResourceRoute
+  /** Registering plugin's fiber name; absent when registered outside a plugin. */
+  readonly plugin?: string | undefined
+}
+
+/**
+ * Name of the plugin whose fiber is running, inherited from the nearest named
+ * ancestor.
+ * @param ctx - the registering context, rebound to the caller by cordis.
+ * @returns the plugin name, or undefined when the root fiber is the registrant
+ * (no plugin owns the route, so naming it would mislead a crash report).
+ */
+function callerPluginName(ctx: Context): string | undefined {
+  const name = ctx.fiber.name
+  return name === '' || name === 'root' ? undefined : name
 }
 
 /** One exact-path HTTP upgrade registration. */
@@ -122,6 +170,20 @@ export interface Config {
   compressionLevel?: number
   /** Minimum known response length eligible for gzip; unknown-length streams are eligible. @default 1024 */
   compressionThresholdBytes?: number
+  /**
+   * Serve without binding any listener: an external carrier owns the transport
+   * and feeds exchanges through {@link WebServer.dispatch}. The advertised
+   * origin still derives from `host` and `port`, which then only declare the
+   * authority that URL display and trust fences are written against.
+   * @default false
+   */
+  external?: boolean
+  /**
+   * IPC pipe path the external carrier serves on (`\\.\pipe\<name>` on Windows,
+   * a socket path elsewhere). Read by the bundle row that starts the carrier;
+   * absent when the invocation named none.
+   */
+  ipcPipe?: string
 }
 
 const DEFAULT_COMPRESSION = 'none' as const
@@ -375,8 +437,14 @@ export class WebServer extends Service {
     compressionThresholdBytes: z.natural().default(DEFAULT_COMPRESSION_THRESHOLD_BYTES),
   })
 
-  private readonly exact = new Map<string, WebRoute | WebResourceRoute>()
-  private readonly prefixes = new Map<string, WebRoute | WebResourceRoute>()
+  private readonly exact = new Map<string, WebRouteEntry>()
+  private readonly prefixes = new Map<string, WebRouteEntry>()
+  private activity: WebRouteActivity | undefined
+  private activitySeq = 0
+  /**
+   * Ring of recent dispatches, oldest first, capped at {@link ACTIVITY_HISTORY}.
+   */
+  private readonly activityHistory: WebRouteActivity[] = []
   private readonly upgrades = new Map<string, WebUpgradeRoute>()
   private readonly upgradedSockets = new Set<Duplex>()
   /**
@@ -402,9 +470,12 @@ export class WebServer extends Service {
     this.gzip = resolved.compression === 'gzip' ? createGzipMiddleware(resolved) : undefined
   }
 
-  /** The listening port (the OS-assigned value when config.port is 0), or `undefined` before `listen` binds. */
+  /**
+   * The listening port (the OS-assigned value when config.port is 0), or the
+   * declared authority port in external-carrier mode, where nothing binds.
+   */
   get port(): number | undefined {
-    return this.listenedPort
+    return this.config.external === true ? this.config.port : this.listenedPort
   }
 
   /** The configured bind address (one concrete local interface). */
@@ -432,8 +503,11 @@ export class WebServer extends Service {
     if (host === undefined) {
       throw new Error(`webserver: bind address ${JSON.stringify(this.config.host)} carries an interface zone id, which no URL can express`)
     }
-    if (this.listenedPort === undefined) throw new Error('webserver: origin read before the listener bound a port')
-    return `${this.protocol}//${host}:${String(this.listenedPort)}`
+    // An external carrier binds nothing, so the configured port is the declared
+    // authority rather than a port the OS assigned.
+    const port = this.config.external === true ? this.config.port : this.listenedPort
+    if (port === undefined) throw new Error('webserver: origin read before the listener bound a port')
+    return `${this.protocol}//${host}:${String(port)}`
   }
 
   /**
@@ -447,7 +521,8 @@ export class WebServer extends Service {
     if (table.has(route.path)) {
       throw new Error(`webserver: duplicate ${route.kind} route "${route.path}"`)
     }
-    table.set(route.path, route)
+    // The registering fiber names the plugin a crash report should blame.
+    table.set(route.path, { route, plugin: callerPluginName(this.ctx) })
     return () => { table.delete(route.path) }
   }
 
@@ -524,21 +599,93 @@ export class WebServer extends Service {
     }
   }
 
-  /** Listen; resolves once the socket is bound (rejection = FAILED fiber). */
-  async [Service.init](): Promise<void> {
-    const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
-      /* v8 ignore next -- `?? '/'` arm: node:http always sets url on server
-      requests; the field is only optional on the client-side IncomingMessage type */
-      const target = new URL(req.url ?? '/', 'http://x')
-      const responder = this.responderFor(target.pathname)
-      if (responder === undefined) {
-        res.writeHead(404)
-        res.end()
+  /**
+   * Answer one exchange from the route table.
+   *
+   * A carrier that owns the transport (a shell piping requests into this web
+   * server instead of a TCP socket) hands its synthesized exchanges here, so
+   * the route table and its precedence stay the single authority.
+   * @param req - request the carrier synthesized.
+   * @param res - response the carrier captures.
+   */
+  async dispatch(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    /* v8 ignore next -- `?? '/'` arm: node:http always sets url on server
+    requests; the field is only optional on the client-side IncomingMessage type */
+    const rawPath = new URL(req.url ?? '/', 'http://x').pathname
+    const matched = this.match(rawPath)
+    // Recorded before the handler runs: a handler that throws leaves the
+    // route as the only surviving evidence of which plugin was live.
+    const entry: WebRouteActivity = {
+      path: matched?.route.path ?? '',
+      ...matched?.plugin === undefined ? {} : { plugin: matched.plugin },
+      kind: matched?.route.kind ?? 'exact',
+      method: req.method ?? '',
+      url: rawPath,
+      at: ++this.activitySeq,
+    }
+    this.activity = entry
+    this.activityHistory.push(entry)
+    if (this.activityHistory.length > ACTIVITY_HISTORY) this.activityHistory.shift()
+    const responder = matched?.route ?? this.fallback
+    if (responder === undefined) {
+      res.writeHead(404)
+      res.end()
+      return
+    }
+    // A rejecting handler must not escape: without a socket there is no outer
+    // guard, so an unanswered exchange would hang the carrier's connection.
+    try {
+      if (typeof responder === 'function') await responder(req, res)
+      else if ('resource' in responder) await this.serveResource(req, res, new URL(req.url ?? '/', 'http://x'), responder.resource)
+      else await responder.handler(req, res)
+    } catch (error) {
+      this.ctx.logger.warn(error instanceof Error ? error : new Error(String(error)))
+      if (res.headersSent) {
+        res.destroy()
         return
       }
-      if (typeof responder === 'function') await responder(req, res)
-      else if ('resource' in responder) await this.serveResource(req, res, target, responder.resource)
-      else await responder.handler(req, res)
+      res.writeHead(400)
+      res.end()
+    }
+  }
+
+  /**
+   * The route that answered the most recent dispatch.
+   * @returns the last matched route and request, or undefined before any request.
+   */
+  lastActivity(): WebRouteActivity | undefined {
+    return this.activity
+  }
+
+  /**
+   * Recent dispatches, oldest first, at most {@link ACTIVITY_HISTORY} of them.
+   *
+   * A crash report reads this to show the sequence rather than one instant: the
+   * last request can be unrelated traffic that merely overlapped the failure.
+   * @returns the retained dispatches; empty before any request.
+   */
+  recentActivity(): readonly WebRouteActivity[] {
+    return this.activityHistory
+  }
+
+  /**
+   * Registered prefix routes, read fresh.
+   *
+   * A carrier that dials in later must see the prefixes registered since its
+   * last connection, so this reads the live table rather than a snapshot.
+   * @returns the prefix paths, in no particular order.
+   */
+  listPrefixRoutes(): string[] {
+    return [...this.prefixes.keys()]
+  }
+  /** Listen; resolves once the socket is bound (rejection = FAILED fiber). */
+  async [Service.init](): Promise<void> {
+    // External carrier mode: the transport belongs to whoever called
+    // `dispatch`, so binding a listener here would both open an unused port and
+    // contradict the authority the URL display advertises.
+    if (this.config.external === true) return
+    const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+      await this.dispatch(req, res)
     }
     // Last-resort guard: handle() rejecting would otherwise be an unhandled
     // rejection killing the process on one malformed request (bad %-escape,
@@ -648,17 +795,17 @@ export class WebServer extends Service {
    * {@link readResource}: the matched named route, otherwise the fallback.
    */
   private responderFor(pathname: string): WebRoute | WebResourceRoute | WebRoute['handler'] | Pick<WebResourceRoute, 'resource'> | undefined {
-    return this.match(pathname) ?? this.fallback
+    return this.match(pathname)?.route ?? this.fallback
   }
 
   /** Longest-prefix-wins over the prefix table after an exact-table miss. */
-  private match(pathname: string): WebRoute | WebResourceRoute | undefined {
+  private match(pathname: string): WebRouteEntry | undefined {
     const exact = this.exact.get(pathname)
     if (exact !== undefined) return exact
-    let best: WebRoute | WebResourceRoute | undefined
-    for (const [prefix, route] of this.prefixes) {
+    let best: WebRouteEntry | undefined
+    for (const [prefix, entry] of this.prefixes) {
       if (pathname !== prefix && !pathname.startsWith(`${prefix}/`)) continue
-      if (best === undefined || prefix.length > best.path.length) best = route
+      if (best === undefined || prefix.length > best.route.path.length) best = entry
     }
     return best
   }

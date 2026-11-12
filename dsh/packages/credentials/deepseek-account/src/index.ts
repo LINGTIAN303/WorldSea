@@ -4,6 +4,7 @@ import type { ServerResponse } from 'node:http'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import { arch, platform, release } from 'node:os'
 import { promises as streamPromises } from 'node:stream'
+import { setTimeout as delay } from 'node:timers/promises'
 import { Context, Service } from '@deepseek-ai/cordis'
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import Schema from '@deepseek-ai/schemastery'
@@ -33,6 +34,12 @@ declare module '@deepseek-ai/cordis' {
 
 const KEY = credentialKey('deepseek-account-platform', 'default')
 const DEVICE = credentialKey('deepseek-account-platform', 'device')
+/**
+ * Upper bound on waiting for the callback response to drain before this route
+ * is removed. A socket transport answers in milliseconds; the ceiling only
+ * applies to a carrier whose response never reports completion.
+ */
+const CALLBACK_DRAIN_TIMEOUT_MS = 5_000
 const grant = z.object({ version: z.literal(1), token: z.string().min(1), issuer: z.url() })
 const device = z.object({ id: z.uuid() })
 
@@ -517,7 +524,26 @@ export class DeepSeekAccount extends TypertRemoteService {
       // begin() may report cancellation before the HTTP work observes its signal.
       await attempt.running.catch(() => undefined)
       if (attempt.callback !== undefined) {
-        await streamPromises.finished(attempt.callback, { cleanup: true }).catch(() => undefined)
+        // The purpose is to let the browser finish reading before this route is
+        // removed, not to observe the transport itself. A carrier that serves
+        // the callback over its own framing (a native shell piping the request
+        // into this web server, instead of a socket) answers `finished()` with
+        // neither completion nor an error, so an unbounded wait would leave
+        // this attempt unsettled and block every later `signOut` that awaits it.
+        // The timer is disposable, so a socket transport that answers at once
+        // leaves nothing scheduled.
+        const deadline = new AbortController()
+        const timer = delay(CALLBACK_DRAIN_TIMEOUT_MS, undefined, { signal: deadline.signal, ref: false })
+          .catch(() => undefined)
+        const drained = Promise.race([
+          streamPromises.finished(attempt.callback, { cleanup: true }).catch(() => undefined),
+          timer,
+        ])
+        try {
+          await drained
+        } finally {
+          deadline.abort()
+        }
       }
       await attempt.disposeCallback?.()
     })
