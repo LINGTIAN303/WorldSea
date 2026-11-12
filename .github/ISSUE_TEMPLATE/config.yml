@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 安全问题（请勿公开提交）
+    url: https://github.com/LINGTIAN303/WorldSea/security/advisories/new
+    about: 发现凭据泄露、注入、越权等问题请走私密漏洞上报，不要开公开 issue。

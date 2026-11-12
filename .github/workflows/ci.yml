@@ -2,18 +2,38 @@ name: CI
 
 # 触发面：只在 main 上跑的话，长期开发分支（如 feat/*）的提交永远得不到校验——
 # 本仓实际就是在 feat/ui-parallel 上开发，所以 push 用通配覆盖全部分支。
+#
+# 代价：分支同时存在 PR 时，push 与 pull_request 会对同一提交各起一个 run。
+# 这个重复是刻意保留的，理由见下面的 concurrency 注释。
 on:
   push:
     branches: ['**']
   pull_request:
     branches: [main]
 
+# 最小权限：本流水线只读仓库内容，不需要写回任何东西。
+# 显式声明而非依赖仓库默认值——默认值是仓库级设置，改了不会有任何提示。
+permissions:
+  contents: read
+
+# 同一事件、同一分支的 run 归入同组：连续推送时新 run 取消旧 run，只有最新提交在跑。
+#
+# 分组键里带 event_name 是**刻意的**：push run 与 PR run 必须互不取消。
+# 若让二者同组并在 PR 侧 cancel-in-progress，后启动的 push run 可能取消 PR run，
+# 被取消的 run 会让分支保护要求的检查永远停在 pending——PR 再也合不了。
+# 代价是分支有 PR 时同一提交会跑两遍；为消除它而删掉任一触发源都不划算：
+# 删 push 通配 → 开发分支未开 PR 期间的提交完全失去校验（本仓曾因此 242 个提交零校验）；
+# 删 pull_request → 分支保护的 PR 检查失去权威 run。
+concurrency:
+  group: ci-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
   # ════════════════════════════════════════════════════════════════
-  # 仓库门禁：架构 / fork 台账 / 样式一致性 / 文档链接
+  # 仓库门禁：架构 / fork 台账 / 样式一致性 / 文档链接 / 必需检查名一致性
   # 与本地 .githooks/pre-commit 跑同一套（scripts/gate.mjs），
   # 保证「本地过了 = CI 也过」，不会出现两套口径。
   # ════════════════════════════════════════════════════════════════
@@ -46,6 +66,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      # 缓存 ~/.cargo 与 target：无缓存时每次全量编译，约 1.5 分钟纯等待
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: worldsea-core
       - name: Install SQLite deps
         run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
       - name: Cargo check

@@ -2,8 +2,9 @@
  * 事件「参与角色/组织」→ involves 关系同步（表单保存后调用）。
  * 关系是角色日程冲突检测的唯一数据源：正向 involves（事件→角色）+ 反向 involved_in_event 成对维护。
  */
-import { useRelationStore, type Relation } from '@worldsea/entity-core'
+import type { Relation } from '@worldsea/entity-core'
 import { useBidirectional } from '@worldsea/entity-core/composables'
+import { relationsSvc } from '../serviceAccess'
 
 const INVOLVES = 'involves'
 const INVOLVE_INVERSE = 'involved_in_event'
@@ -36,10 +37,10 @@ export function diffInvolves(relations: Relation[], eventId: string, targetIds: 
 /** 落库：删除取消勾选的关系行，为新勾选建立成对关系 */
 export async function syncEventInvolves(eventId: string, targetIds: string[]): Promise<void> {
   if (!eventId) return
-  const relationStore = useRelationStore()
+  const relations = relationsSvc()
   const { createBidirectional } = useBidirectional()
-  const { add, remove } = diffInvolves(relationStore.relations, eventId, targetIds)
-  for (const id of remove) await relationStore.remove(id)
+  const { add, remove } = diffInvolves([...relations.list()], eventId, targetIds)
+  for (const id of remove) await relations.remove(id)
   for (const targetId of add) await createBidirectional({ type: INVOLVES, sourceId: eventId, targetId })
-  if (add.length || remove.length) await relationStore.loadAll()
+  if (add.length || remove.length) await relations.reload()
 }
