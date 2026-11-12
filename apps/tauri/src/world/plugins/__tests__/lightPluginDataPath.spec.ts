@@ -119,6 +119,10 @@ const MIGRATED = [
   'manuscript/composables/useChapterSnapshots.ts',
   'manuscript/composables/useManuscriptExternalNav.ts',
   'manuscript/composables/useWritingStats.ts',
+  // 批次 I：tactical-board（最后一个可执行项）
+  'tactical-board/TacticalBoardView.vue',
+  'tactical-board/composables/useBoardPersistence.ts',
+  'tactical-board/serviceAccess.ts',
 ] as const
 
 /**
@@ -188,6 +192,8 @@ const VIA_SHARED_ACCESSOR = new Set([
   'manuscript/composables/useChapterSnapshots.ts',
   'manuscript/composables/useManuscriptExternalNav.ts',
   'manuscript/composables/useWritingStats.ts',
+  'tactical-board/TacticalBoardView.vue',
+  'tactical-board/composables/useBoardPersistence.ts',
 ])
 
 async function readPluginFile(rel: string): Promise<string> {

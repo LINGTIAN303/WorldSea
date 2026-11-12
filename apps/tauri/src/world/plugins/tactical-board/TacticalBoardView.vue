@@ -82,7 +82,7 @@
         </div>
 
         <DeployPanel v-if="battlePhase === 'deployment'"
-          :entities="es.entities ?? []"
+          :entities="[...es.list()]"
           :placedIds="placedEntityIds"
           @selectEntity="onDeployEntity"
           @quickDeploy="onQuickDeploy"
@@ -152,7 +152,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useEntityStore } from '@worldsea/entity-core'
+import { entitiesSvc } from './serviceAccess'
 import { WsEmpty, WsIcon, WsLoadingOverlay, useAsyncTask, type LoadingStage, type LoadingStatus } from '@worldsea/ui-kit'
 import BoardCanvas from './components/BoardCanvas.vue'
 import UnitDetailDock from './components/UnitDetailDock.vue'
@@ -171,7 +171,7 @@ import type { UnitRenderData, HighlightCell } from './composables/boardDraw'
 import { useBoardAnimation } from './composables/useBoardAnimation'
 import { useKeyboardShortcuts } from './composables/useKeyboardShortcuts'
 
-const es = useEntityStore()
+const es = entitiesSvc()
 const { engine, loading, error: engineError, createEngine } = useTacticalEngine()
 
 const ENGINE_LOAD_STAGES: LoadingStage[] = [
@@ -444,7 +444,7 @@ function paintTerrain(x: number, y: number) {
 
 function deployUnit(x: number, y: number) {
   if (!engine.value) return
-  const allEntities = es.entities ?? []
+  const allEntities = es.list() ?? []
   if (allEntities.length === 0) return
   const placed = new Set(units.value.map(u => u.id))
   const available = allEntities.filter(e => !placed.has(e.id))
@@ -537,14 +537,14 @@ function onDeployEntity(entity: { id: string; name: string; type?: string }, tea
 }
 
 function onQuickDeploy(team: string, stats: { hp: number; attack: number; defense: number; speed: number; moveRange: number; attackRange: number }) {
-  const allEntities = es.entities ?? []
+  const allEntities = es.list() ?? []
   const available = allEntities.filter(e => !placedEntityIds.value.has(e.id) && e.type !== 'tactical-board')
   if (available.length === 0) return
   onDeployEntity(available[0], team, stats)
 }
 
 async function onSaveBoard() {
-  const allEntities = es.entities ?? []
+  const allEntities = es.list() ?? []
   let boardEntity = allEntities.find(e => e.type === 'tactical-board')
   if (!boardEntity) {
     const id = `tactical-board-${Date.now()}`
@@ -558,8 +558,8 @@ async function onSaveBoard() {
       createdAt: '',
       updatedAt: '',
     })
-    await es.loadAll()
-    boardEntity = es.entities?.find(e => e.id === id)
+    await es.reload()
+    boardEntity = es.list()?.find(e => e.id === id)
   }
   if (boardEntity) {
     await persistence.saveToEntity(boardEntity.id)
@@ -567,7 +567,7 @@ async function onSaveBoard() {
 }
 
 async function onLoadBoard() {
-  const allEntities = es.entities ?? []
+  const allEntities = es.list() ?? []
   const boardEntity = allEntities.find(e => e.type === 'tactical-board')
   if (!boardEntity) return
 
@@ -617,7 +617,7 @@ useKeyboardShortcuts({
 })
 
 onMounted(async () => {
-  es.loadAll()
+  es.reload()
   await rebuildBoard()
 })
 </script>

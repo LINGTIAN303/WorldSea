@@ -1,5 +1,5 @@
 import { ref, type Ref } from 'vue'
-import { useEntityStore } from '@worldsea/entity-core'
+import { entitiesSvc } from '../serviceAccess'
 import type { TacticalEngineAPI, WasmBattleUnit } from './useTacticalEngine'
 import type { BattlePhase } from './useBattleManager'
 
@@ -28,7 +28,7 @@ export function useBoardPersistence(
   battlePhase: Ref<BattlePhase>,
   currentTurn: Ref<number>,
 ) {
-  const es = useEntityStore()
+  const es = entitiesSvc()
   const combatStats = ref<CombatStats>({
     totalAttacks: 0,
     totalDamage: 0,
@@ -78,7 +78,7 @@ export function useBoardPersistence(
       }),
       combatStats: JSON.stringify(data.combatStats),
     }
-    const existing = es.entities?.find(e => e.id === entityId)
+    const existing = es.list()?.find(e => e.id === entityId)
     const existingProps = existing?.properties || {}
     await es.update(entityId, { properties: { ...existingProps, ...props } })
   }
