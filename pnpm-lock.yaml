@@ -12,8 +12,8 @@ importers:
   .:
     dependencies:
       '@chenglou/pretext':
-        specifier: ^0.0.7
-        version: 0.0.7
+        specifier: ^1.0.0
+        version: 1.0.0
       '@google/model-viewer':
         specifier: ^4.4.0
         version: 4.4.0(three@0.183.2)
@@ -684,8 +684,8 @@ packages:
     resolution: {integrity: sha512-6zABk/ECA/QYSCQ1NGiVwwbQerUCZ+TQbp64Q3AgmfNvurHH0j8TtXa1qbShXA6qqkpAj4V5W8pP6mLe1mcMqA==}
     engines: {node: '>=18'}
 
-  '@chenglou/pretext@0.0.7':
-    resolution: {integrity: sha512-FV5hj3fGqpBlzbANUbR+s+6XuNRrghVVyuNs33zdH2SzU7MvK+7GlW6xREjDCreixKbexEn7OEkDgAFeWuu5Hg==}
+  '@chenglou/pretext@1.0.0':
+    resolution: {integrity: sha512-BxKiDMxWJhyzL8asvcgg3T9YnUU7OUFsKO8oRaR2SYAPX4Sh2wM9gqTBjrBaZ4fnl84cEQ8czC0Q1M83z3chsA==}
 
   '@codemirror/autocomplete@6.18.6':
     resolution: {integrity: sha512-PHHBXFomUs5DF+9tCOM/UoW6XQ4R44lLNNhRaW9PKPTU0D7lIjRg3ElxaJnTwsl/oHiR93WSXDBrekhoUGCPtg==}
@@ -4021,7 +4021,7 @@ snapshots:
 
   '@bcoe/v8-coverage@1.0.2': {}
 
-  '@chenglou/pretext@0.0.7': {}
+  '@chenglou/pretext@1.0.0': {}
 
   '@codemirror/autocomplete@6.18.6':
     dependencies:
