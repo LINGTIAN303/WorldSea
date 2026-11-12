@@ -64,7 +64,8 @@
  * 写路径唯一经 `@/entity/outlineLinks`（幂等、对称关系双向判重、不静默回退）。
  */
 import { computed, onMounted, ref } from 'vue'
-import { useEntityStore, useRelationStore, relationshipRegistry } from '@worldsea/entity-core'
+import { relationshipRegistry } from '@worldsea/entity-core'
+import { entitiesSvc, outlineLinkStore, relationsSvc } from '../../serviceAccess'
 import type { Entity, Relation } from '@worldsea/entity-core'
 // 芽视图里的 UI 组件必须显式导入（不是全局组件）
 import { FloatingPanel } from '@worldsea/ui-kit'
@@ -77,12 +78,12 @@ import {
 
 const props = defineProps<{ node?: Entity }>()
 
-const es = useEntityStore()
-const rs = useRelationStore()
+const es = entitiesSvc()
+const rs = relationsSvc()
 
 onMounted(() => {
-  if (!rs.relations.length) void rs.loadAll()
-  if (!es.entities.length) void es.loadAll()
+  if (!rs.list().length) void rs.reload()
+  if (!es.list().length) void es.reload()
 })
 
 const LATERAL_TYPES = [
@@ -115,9 +116,9 @@ function labelOf(rel: Relation, nodeId: string): string {
 const rows = computed<LateralRow[]>(() => {
   if (!props.node) return []
   const out: LateralRow[] = []
-  for (const rel of lateralRelationsOf(rs.relations, props.node.id, allTypes)) {
+  for (const rel of lateralRelationsOf(rs.list(), props.node.id, allTypes)) {
     const otherId = rel.sourceId === props.node.id ? rel.targetId : rel.sourceId
-    const other = es.entityMap.get(otherId)
+    const other = es.get(otherId)
     if (!other) continue // 孤儿关系（节点已删）不显示——与关联实体同语义
     // 「改类型」只列同组其余两条（不含当前）；对称关系的反向也按同一条目处理
     const alts = allTypes.filter(t => t !== rel.type)
@@ -153,7 +154,7 @@ const candidates = computed(() => {
   if (!pickerOpen.value || !props.node) return []
   const linked = new Set(rows.value.map(r => r.otherId))
   const q = query.value.trim().toLowerCase()
-  return es.entities
+  return es.list()
     .filter(e => e.type === 'outline_node' && e.id !== props.node!.id && !linked.has(e.id))
     .filter(e => !q || (e.name ?? '').toLowerCase().includes(q))
     .sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '', 'zh'))
@@ -164,19 +165,19 @@ const candidates = computed(() => {
 // ── 写路径（唯一入口 outlineLinks；relationStore 传入即得即时刷新）──
 async function linkTo(c: { id: string }): Promise<void> {
   if (!props.node) return
-  await linkOutlineLateral(rs, props.node.id, c.id, relType.value)
+  await linkOutlineLateral(outlineLinkStore(), props.node.id, c.id, relType.value)
 }
 
 async function unlink(r: LateralRow): Promise<void> {
   if (!props.node) return
-  await unlinkOutlineLateral(rs, props.node.id, r.otherId, r.relType)
+  await unlinkOutlineLateral(outlineLinkStore(), props.node.id, r.otherId, r.relType)
 }
 
 /** 「改类型」：先建新（幂等）再删旧——中途失败不丢关系 */
 async function swapType(r: LateralRow): Promise<void> {
   if (!props.node || !r.altType) return
-  await linkOutlineLateral(rs, props.node.id, r.otherId, r.altType)
-  await unlinkOutlineLateral(rs, props.node.id, r.otherId, r.relType)
+  await linkOutlineLateral(outlineLinkStore(), props.node.id, r.otherId, r.altType)
+  await unlinkOutlineLateral(outlineLinkStore(), props.node.id, r.otherId, r.relType)
 }
 
 /** 跳转节点（ws-navigate 契约 {entityType, entityId}） */

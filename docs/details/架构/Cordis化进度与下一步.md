@@ -79,7 +79,7 @@ status: 执行中
 
 | 插件 | 直连 store 的非测试文件 | 说明 |
 |---|---:|---|
-| `outline` | **50 处** | 只迁了导出链的字体调用（1 文件）；主线 22 文件仍直连 |
+| ~~`outline`~~ | ~~**50 处**~~ → **0** | ✅ **批次 G 已全量迁移**（22 文件；此前只迁了导出链的字体调用） |
 | `settings` | **40 处** | 完全未迁；**已评估判定不迁移**，见 [settings 插件评估](../../plans/2026-11-12-settings插件Cordis化评估.md) |
 | `manuscript` | **22 处** | 只迁了导出链 + 手机预览（2 文件）；9 文件仍直连 |
 | `tactical-board` | 4 处 | 此前未列入任何批次 |
@@ -149,13 +149,30 @@ status: 执行中
 
 **反证过程里修强了一条测试**：首轮 `tabOverride` 反证**没变红**——因为当时只有「未设覆写返回 undefined」一条用例，加不加 `XX` 都返回 undefined。补了「设了覆写能按类型取到真实值 + 别的类型不受影响 + 清掉后回到 undefined」三条断言后，反证立刻命中。**这条经验值得复用：只测空态的服务用例没有判别力。**
 
-### 3.4 剩下的（2026-11-12 按严格口径重测，取代此前的错误结论）
+### 3.4 ✅ 批次 G · `outline` 主线（已完成）
+
+评估 `settings` 时按严格口径重测，发现 `outline` 实际有 **50 处直连 / 22 个文件**——此前只迁了导出链的 1 个字体调用，却被记成「已迁移」。收益最大，故先做。
+
+**服务目录侧只补了两个只读方法**：`world.entities.getAll()` / `world.relations.getAll()`（第 13 项服务数量不变）。
+
+为什么需要它们：`@/entity/chapterLink` 与 `@/entity/outlineLinks` 这两个共享辅助模块依赖 `getAllEntities()` / `getAllRelations()`，且注释明确写着「只读接口查重、**不改 store 状态**」。它们是**直接读磁盘取快照**，与 `reload()`（会写回内存）语义不同。这两个模块同时被 `manuscript` 与项目启动链（`plugins/boot.ts`）复用，改它接口会波及服务目录范围之外——故在 outline 的 `serviceAccess.ts` 里做**适配器**（`outlineLinkStore()` / `chapterLinkStore()` / `chapterRelationStore()`），保持模块不动。
+
+**守卫判据更新**：原守卫有两条正则 `\bes\.(entities|loadAll|add|update|remove)\b`，禁止短别名 `es` / `rs`。但这在 outline 上失效——它全程使用 `es` / `rs` 作别名，正则本该抓到，只因文件从未登记进清单才没被检查。迁移后 `es` 已是**服务对象**，正则反而误报。
+
+改为正向断言：短别名允许存在，但**必须由服务取值器赋值**（`const es = entitiesSvc()`），不能来自 store。判别力反而更强（同时管住来源与命名）。
+
+**验收**：服务目录仍 13 项（`entities` / `relations` 各加一个 `getAll()`）· 守卫 197 → **263 例**（清单 95 → 139 文件）· 全仓 **310 文件 / 2593 过 + 1 skip** · `vue-tsc` 0 · gate 6/6 · 反证 2 轮（`ParagraphForm` 还原 `useEntityStore()` → 红；`parentChildSync` 的 `rs` 还原为 store → 红）。
+
+**测试改造**：outline 有 4 个 spec 直接挂载组件或用 `useBoardLayout`，需登记服务表。新增 `outline/__tests__/storeServices.ts`（转发到真实 store，保留集成语义与 `vi.spyOn` 能力），与 notebook / manuscript 的同类辅助一致。
+
+**400 行红线触发一次**：`useBoardLayout.ts` 加 import 后 437 行（冻结 436），合并两条 import 压回 436。
+
+### 3.5 剩下的（2026-11-12 按严格口径重测）
 
 | 序 | 插件 | 直连 | 性质 |
 |---|---|---:|---|
-| 1 | `outline` | 50 处 | 真数据消费者，**收益最大**；此前被误记为「已迁移」 |
-| 2 | `manuscript` | 22 处 | 同上 |
-| 3 | `tactical-board` | 4 处 | 小，此前未进任何批次 |
+| 1 | `manuscript` | 22 处 | 真数据消费者；只迁了导出链 + 手机预览（2 文件），9 文件仍直连 |
+| 2 | `tactical-board` | 4 处 | 小，此前未进任何批次 |
 | — | `settings` | 40 处 | **已评估判定不迁移**（配置编辑器，非数据消费者），见 [评估文档](../../plans/2026-11-12-settings插件Cordis化评估.md) |
 | — | `custom` | 2 处 | 视图容器用途，**有意保留**（组件引用不跨服务边界） |
 
@@ -198,6 +215,7 @@ status: 执行中
 | **门禁行数比编辑器多 1** | 架构检查用 `split('\n').length`（= 实际行数 + 1），`Get-Content` 报的少 1 | 判断是否顶到冻结线时，以 `node -e "...split('\n').length"` 为准 |
 | **只测空态的服务用例没有判别力** | `tabOverride` 首轮反证没变红——只断言「未设覆写返回 undefined」，把实现改错也返回 undefined | 每个服务自测至少一条「设入值 → 取回该值 → 清掉 → 回到空态」的往返用例 |
 | **「已迁移插件数」口径会骗人** | 按「有文件登记进守卫清单」算得 25 个，按「插件内全部文件零直连」算得 37 个；`outline` 只迁了 1 个导出文件就被记成已迁移，实际还有 50 处直连 | 进度数字一律用**插件级**严格口径；守卫测试保持文件级（它管的是单文件是否有直连） |
+| **短别名守卫会随迁移失效** | 守卫原本用 `\bes\.(entities\|add\|...)\b` 禁短别名；outline 全程用 `es`/`rs`，迁移后它们是**服务对象**，该正则反而误报 | 改为正向断言「别名必须由 `entitiesSvc()`/`relationsSvc()` 赋值」，同时管住来源与命名 |
 
 ## 五、怎么验证自己没搞坏
 
@@ -231,9 +249,8 @@ DataCloneError: #<Object> could not be cloned.
 
 ## 七、下一步建议
 
-1. **`outline` 主线迁移**（50 处直连，收益最大；注意它此前被误记为已迁移）
-2. **`manuscript` 主线迁移**（22 处）
-3. **`tactical-board`**（4 处，小）
-4. **纠正统计口径**：文档里的进度数字改为插件级，并区分「本来就不读 store」与「迁移完成」两类
+1. **`manuscript` 主线迁移**（22 处，剩的最大项）
+2. **`tactical-board`**（4 处，小）
+3. **纠正统计口径**：文档里的进度数字改为插件级，并区分「本来就不读 store」与「迁移完成」两类
 
-`settings` **不迁移**，`custom` **有意保留**（理由见 §3.4）。每批一次 PR，等 CI 绿、review 后合并。分支从最新 `main` 切。
+`settings` **不迁移**，`custom` **有意保留**（理由见 §3.5）。每批一次 PR，等 CI 绿、review 后合并。分支从最新 `main` 切。

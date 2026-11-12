@@ -44,6 +44,14 @@ export interface WorldEntitiesService {
    * 视图首次进入、或怀疑该类型内存态过期时用它；日常读列表用 `byType`。
    */
   loadByType(type: string): Promise<void>
+  /**
+   * 直接读磁盘取**全量实体**，**不改内存态**（对应 `entityStore.getAllEntities()`）。
+   *
+   * 与 `reload()` 的区别：`reload()` 会把磁盘结果写回内存；本方法只取一份快照。
+   * 用途：跨模块的「只读查重 / 建索引」辅助（`@/entity/chapterLink` 等），
+   * 它们只需数据、不该有副作用。
+   */
+  getAll(): Promise<Entity[]>
 }
 
 /** 关系服务的读写面（对应能力 `world.relation.*`）。 */
@@ -58,6 +66,11 @@ export interface WorldRelationsService {
   update(id: string, changes: Partial<Relation>, opts?: { skipUndo?: boolean }): Promise<void>
   remove(id: string, source?: 'user' | 'agent' | 'import', opts?: { skipUndo?: boolean }): Promise<void>
   reload(): Promise<void>
+  /**
+   * 直接读磁盘取**全量关系**，**不改内存态**（对应 `relationStore.getAllRelations()`）。
+   * 语义与 `WorldEntitiesService.getAll()` 一致，供只读查重的辅助模块使用。
+   */
+  getAll(): Promise<Relation[]>
 }
 
 /** 类型 schema 服务（对应能力 `world.schema.*`）。 */

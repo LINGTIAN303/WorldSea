@@ -26,6 +26,7 @@ import {
 // 用 ReturnType 精确取 store / composable 的类型：避免 any 造成回调参数隐式 any
 import type { useEntityStore as UseEntityStore } from '@worldsea/entity-core'
 import type { useBoardLayout as UseBoardLayout } from '../board/composables/useBoardLayout'
+import { installStoreServices } from './storeServices'
 
 type EntityStoreApi = ReturnType<typeof UseEntityStore>
 type BoardLayoutApi = ReturnType<typeof UseBoardLayout>
@@ -74,6 +75,8 @@ beforeAll(async () => {
 
 async function setup() {
   setActivePinia(createPinia())
+  // useBoardLayout 已改经树服务取数（批次 G），不起树时必须登记转发服务表
+  installStoreServices()
   const es = (useEntityStoreRef as () => EntityStoreApi)()
   return { es, board: (useBoardLayoutRef as () => BoardLayoutApi)() }
 }

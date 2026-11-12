@@ -19,14 +19,15 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useRelationStore, type Entity } from '@worldsea/entity-core'
+import { type Entity } from '@worldsea/entity-core'
+import { relationsSvc } from '../../serviceAccess'
 import { lateralBadges, LATERAL_META } from '../lateralBadges'
 import { focusNodeField } from '../composables/useNodeFieldFocus'
 
 const props = defineProps<{ node?: Entity }>()
 
-const rs = useRelationStore()
-const badges = computed(() => (props.node ? lateralBadges(rs.relations ?? [], props.node.id) : []))
+const rs = relationsSvc()
+const badges = computed(() => (props.node ? lateralBadges(rs.list() ?? [], props.node.id) : []))
 
 function openDetail(): void {
   if (props.node) focusNodeField(props.node.id, '')

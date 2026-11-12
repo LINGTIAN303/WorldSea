@@ -18,6 +18,8 @@ import { join } from 'node:path'
 import { useEntityStore, useRelationStore, type Entity } from '@worldsea/entity-core'
 
 import NodeRefsSection from '../board/components/NodeRefsSection.vue'
+import { installStoreServices } from './storeServices'
+import { clearWorldServiceTable } from '../../../service-registry'
 
 function ent(id: string, type: string, name: string): Entity {
   return { id, type, name, description: '', properties: {}, tags: [], createdAt: '', updatedAt: '' } as Entity
@@ -66,6 +68,8 @@ beforeEach(async () => {
   pinia = createPinia()
   setActivePinia(pinia)
   localStorage.clear()
+  // 组件已改经树服务取数（批次 G），不起树时必须登记转发到真实 store 的服务表
+  installStoreServices()
   await seed()
 })
 
@@ -73,6 +77,7 @@ afterEach(() => {
   wrapper?.unmount()
   wrapper = undefined
   document.body.querySelectorAll('.fp-panel, .fp-overlay').forEach(el => el.remove())
+  clearWorldServiceTable()
 })
 
 describe('NodeRefsSection / 列表与候选', () => {

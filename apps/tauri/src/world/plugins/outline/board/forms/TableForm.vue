@@ -52,20 +52,20 @@
  * 表格数据由 tableRows.ts 的纯函数构建（仅直接子节点、缺值占位），组件只做配置归一化与渲染。
  */
 import { computed, ref } from 'vue'
-import { useEntityStore } from '@worldsea/entity-core'
 import { DataTable, FloatingPanel } from '@worldsea/ui-kit'
 import { resolveFormConfig } from './registry'
 import { buildTableRows, normalizeSort, type TableSourceNode } from './tableRows'
 import { resolveChildNodes } from '../outlineDerive'
 import { focusNodeField } from '../composables/useNodeFieldFocus'
 import { createChildNode } from './childNodeCreate'
+import { entitiesSvc } from '../../serviceAccess'
 
 const props = defineProps<{
   nodeId: string
   config?: Record<string, unknown>
 }>()
 
-const es = useEntityStore()
+const es = entitiesSvc()
 
 const cfg = computed(() => resolveFormConfig('table', props.config))
 const density = computed(() => (cfg.value.density === 'standard' ? 'standard' : 'compact'))
@@ -75,7 +75,7 @@ const maxHeight = computed(() => {
 })
 
 const allNodes = computed<TableSourceNode[]>(
-  () => (es.entities ?? []).filter(e => e.type === 'outline_node') as unknown as TableSourceNode[],
+  () => (es.list() ?? []).filter(e => e.type === 'outline_node') as unknown as TableSourceNode[],
 )
 
 /** 子节点增删会自动反映到行上（派生型：无需任何清理或同步逻辑） */

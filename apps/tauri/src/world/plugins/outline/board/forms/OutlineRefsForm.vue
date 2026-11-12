@@ -48,7 +48,8 @@
  * 属性面板里没有、也不该有对应输入框（关系不是字段）。
  */
 import { computed } from 'vue'
-import { useEntityStore, useRelationStore, entitySchemaRegistry, relationshipRegistry } from '@worldsea/entity-core'
+import { entitySchemaRegistry, relationshipRegistry } from '@worldsea/entity-core'
+import { entitiesSvc, relationsSvc } from '../../serviceAccess'
 // 芽视图里的 UI 组件必须显式导入（不是全局组件）
 import { WsIcon } from '@worldsea/ui-kit'
 import { resolveFormConfig } from './registry'
@@ -66,8 +67,8 @@ const props = defineProps<{
   config?: Record<string, unknown>
 }>()
 
-const es = useEntityStore()
-const rs = useRelationStore()
+const es = entitiesSvc()
+const rs = relationsSvc()
 const cfg = computed(() => resolveFormConfig('refs', props.config))
 
 const maxPerGroup = computed(() => {
@@ -85,12 +86,12 @@ const refRelationTypes = computed(() =>
 
 const entityById = computed(() => {
   const m = new Map<string, RefEntityLike>()
-  for (const e of es.entities ?? []) m.set(e.id, { id: e.id, type: e.type, name: e.name })
+  for (const e of es.list() ?? []) m.set(e.id, { id: e.id, type: e.type, name: e.name })
   return m
 })
 
 const groups = computed(() =>
-  groupOutlineRefs(rs.relations ?? [], props.nodeId, entityById.value, refRelationTypes.value),
+  groupOutlineRefs(rs.list() ?? [], props.nodeId, entityById.value, refRelationTypes.value),
 )
 
 // 信息密度（2026-10-19）：最多显示几组（组内成员上限沿用 maxPerGroup）

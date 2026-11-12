@@ -5,7 +5,7 @@
  * NodeDetailView 的事件透传到装配层（updateNodeField / unlinkChapter / openNode）；
  * BoardView 以调用形状挂载本件（防摘）。
  */
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import 'fake-indexeddb/auto'
 import { nextTick, type Component, type ComponentPublicInstance } from 'vue'
 import { mount, type VueWrapper } from '@vue/test-utils'
@@ -17,6 +17,8 @@ import type { Entity } from '@worldsea/entity-core'
 
 import NodeDetailDock from '../board/components/NodeDetailDock.vue'
 import NodeDetailView from '../board/components/NodeDetailView.vue'
+import { installStoreServices } from './storeServices'
+import { clearWorldServiceTable } from '../../../service-registry'
 
 /**
  * 抽屉载体组件（注册表取引用——包根不导出载体件本体，与 detailCarrier.spec 的相对导入同物）。
@@ -55,6 +57,12 @@ beforeEach(() => {
   setActivePinia(pinia)
   // 载体覆写落 localStorage：不清会左右用例（detailCarrier.spec 的既有纪律）
   localStorage.clear()
+  // 组件已改经树服务取数（批次 G），不起树时必须登记转发到真实 store 的服务表
+  installStoreServices()
+})
+
+afterEach(() => {
+  clearWorldServiceTable()
 })
 
 describe('NodeDetailDock', () => {

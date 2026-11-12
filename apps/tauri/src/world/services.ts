@@ -89,6 +89,7 @@ export function createWorldServices(): Record<string, unknown> {
         useEntityStore().remove(id, source, opts),
       reload: () => useEntityStore().loadAll(),
       loadByType: (type: string) => useEntityStore().loadByType(type),
+      getAll: () => useEntityStore().getAllEntities(),
     } satisfies WorldEntitiesService,
 
     'world.relations': {
@@ -103,6 +104,7 @@ export function createWorldServices(): Record<string, unknown> {
       remove: (id: string, source?: 'user' | 'agent' | 'import', opts?: { skipUndo?: boolean }) =>
         useRelationStore().remove(id, source, opts),
       reload: () => useRelationStore().loadAll(),
+      getAll: () => useRelationStore().getAllRelations(),
     } satisfies WorldRelationsService,
 
     'world.schema': {

@@ -39,7 +39,8 @@
  * 请求节点优先于「选中容器对应的节点」。
  */
 import { computed, ref, watch } from 'vue'
-import { useEntityStore, type Entity } from '@worldsea/entity-core'
+import { type Entity } from '@worldsea/entity-core'
+import { entitiesSvc } from '../../serviceAccess'
 // 芽视图里的组件必须显式导入（不是全局组件）
 import { useDetailCarrier, type DetailTab } from '@worldsea/plugin-sdk'
 import NodeDetailView from './NodeDetailView.vue'
@@ -63,13 +64,13 @@ const emit = defineEmits<{
 
 const { carrierDef, detailPanelId } = useDetailCarrier(() => 'outline_node')
 
-const es = useEntityStore()
+const es = entitiesSvc()
 const { request, clearNodeFieldFocus } = useNodeFieldFocus()
 
 /** 聚焦请求优先：允许打开**未入板**节点的详情（派生型形式的写入入口依赖此通路） */
 const node = computed<Entity | null>(() => {
   const req = request.value
-  if (req) return es.entityMap.get(req.nodeId) ?? null
+  if (req) return es.get(req.nodeId) ?? null
   return props.node ?? null
 })
 /** 只在请求节点与当前展示节点一致时下发字段名，避免串焦 */

@@ -43,10 +43,10 @@
  * 与句子式的区别：句子式一行一句（子节点描述），段落式一段正文（多行）。
  */
 import { computed, nextTick, ref, watch, type ComponentPublicInstance } from 'vue'
-import { useEntityStore } from '@worldsea/entity-core'
 import { resolveFormConfig } from './registry'
 import { injectBoardUndo } from '../composables/useBoardUndo'
 import { guardEnter, guardEsc } from './enterGuard'
+import { entitiesSvc } from '../../serviceAccess'
 
 const WRITE_DEBOUNCE = 400
 /** 正文软上限（计数提示，不硬截断） */
@@ -57,10 +57,10 @@ const props = defineProps<{
   config?: Record<string, unknown>
 }>()
 
-const es = useEntityStore()
+const es = entitiesSvc()
 const boardUndo = injectBoardUndo()
 
-const node = computed(() => (es.entities ?? []).find(e => e.id === props.nodeId))
+const node = computed(() => (es.list() ?? []).find(e => e.id === props.nodeId))
 const cfg = computed(() => resolveFormConfig('paragraph', props.config))
 const align = computed(() => (cfg.value.align === 'center' ? 'center' : 'left'))
 const maxLines = computed(() => {

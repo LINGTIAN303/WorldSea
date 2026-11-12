@@ -69,11 +69,11 @@
  * 回答属于「形式专属内容字段」，满足 声明（ownFields）/ 唯一写入入口（本组件双击）/ 长度语义（500 软上限）。
  */
 import { computed, nextTick, ref, watch, type ComponentPublicInstance } from 'vue'
-import { useEntityStore } from '@worldsea/entity-core'
 import { resolveFormConfig } from './registry'
 import { statusOf } from './progressStats'
 import { injectBoardUndo } from '../composables/useBoardUndo'
 import { guardEnter, guardEsc } from './enterGuard'
+import { entitiesSvc } from '../../serviceAccess'
 
 const WRITE_DEBOUNCE = 400
 /** 回答软上限（计数提示，不硬截断——硬截断会吞用户输入） */
@@ -86,10 +86,10 @@ const props = defineProps<{
   config?: Record<string, unknown>
 }>()
 
-const es = useEntityStore()
+const es = entitiesSvc()
 const boardUndo = injectBoardUndo()
 
-const node = computed(() => (es.entities ?? []).find(e => e.id === props.nodeId))
+const node = computed(() => (es.list() ?? []).find(e => e.id === props.nodeId))
 const cfg = computed(() => resolveFormConfig('question', props.config))
 const showStatus = computed(() => cfg.value.showStatus !== false)
 const showAnswer = computed(() => cfg.value.showAnswer !== false)

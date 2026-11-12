@@ -174,7 +174,8 @@
  * 所有写操作都遵循同一顺序：record()（撤销快照）→ 调 useBoardLayout 的原子操作 → 自动保存。
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useEntityStore, useRelationStore, type Entity } from '@worldsea/entity-core'
+import { type Entity } from '@worldsea/entity-core'
+import { chapterLinkStore, chapterRelationStore, entitiesSvc } from '../serviceAccess'
 // 芽视图里的 UI 组件必须显式导入：它们**不是全局组件**，未导入时 vue-tsc 不报错、
 // 只在渲染时静默变成空节点（2026-09-16 真机走查踩坑）
 import { CreateButton } from '@worldsea/plugin-sdk'
@@ -228,8 +229,7 @@ import { linkChapterToNode, unlinkNode } from '@/entity/chapterLink'
 
 initializeForms()
 
-const es = useEntityStore()
-const rs = useRelationStore()
+const es = entitiesSvc()
 const docs = useBoardDocs()
 const layoutApi = useBoardLayout()
 const selection = useBoardSelection()
@@ -254,7 +254,7 @@ const undoApi = useBoardUndo({
  * 不能再进实体全局栈（否则两套撤销历史会互相打架）。节点已删则静默跳过。
  */
 async function applyNodeFields(nodeId: string, values: Record<string, unknown>): Promise<void> {
-  const node = (es.entities ?? []).find(e => e.id === nodeId)
+  const node = (es.list() ?? []).find(e => e.id === nodeId)
   if (!node) return
   await es.update(nodeId, values, 'user', { skipUndo: true })
 }
@@ -272,7 +272,7 @@ async function applyNodeFields(nodeId: string, values: Record<string, unknown>):
  */
 /** 节点字段写入（含顶层 name）：逻辑见 composables/useNodeFieldWrite（BoardView 行数冻结，故外置） */
 const { updateNodeField: onUpdateNodeField } = useNodeFieldWrite({
-  findNode: id => es.entityMap.get(id),
+  findNode: id => es.get(id),
   recordContentEdit: undoApi.recordContentEdit,
   applyFields: applyNodeFields,
 })
@@ -297,7 +297,7 @@ const canUndo = undoApi.canUndo
 const canRedo = undoApi.canRedo
 
 const outlineNodes = computed<Entity[]>(
-  () => (es.entities ?? []).filter(e => e.type === 'outline_node'),
+  () => (es.list() ?? []).filter(e => e.type === 'outline_node'),
 )
 const nodesById = computed(() => new Map(outlineNodes.value.map(n => [n.id, n] as const)))
 const placedIds = computed(() => new Set(layout.value.containers.map(c => c.nodeId)))
@@ -608,7 +608,7 @@ function onLocate(nodeId: string): void {
  * 关联本身是幂等且可逆的（再关联 / 解除即可），故本轮不扩撤销条目类型。
  */
 async function linkChapter(chapterId: string, nodeId: string): Promise<void> {
-  const outcome = await linkChapterToNode(es, rs, chapterId, nodeId)
+  const outcome = await linkChapterToNode(chapterLinkStore(), chapterRelationStore(), chapterId, nodeId)
   if (!outcome.written.length) return
   await refreshChapters()
   const nodeName = (nodesById.value.get(nodeId)?.name ?? '').trim() || '未命名节点'
@@ -674,7 +674,7 @@ function onSidebarAddChapter(chapterId: string): void {
 async function onUnlinkChapter(): Promise<void> {
   const node = inspectedNode.value
   if (!node) return
-  const outcome = await unlinkNode(es, rs, node.id)
+  const outcome = await unlinkNode(chapterLinkStore(), chapterRelationStore(), node.id)
   if (!outcome.written.length) return
   await refreshChapters()
   toastInfo('已解除章节关联')

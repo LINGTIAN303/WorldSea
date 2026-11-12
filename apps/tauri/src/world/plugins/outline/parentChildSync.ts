@@ -8,12 +8,12 @@
  * 读侧真相源是 `properties.parentId + order`；本函数只负责把同一事实同步到关系表
  * （关系表供图谱/导出一类消费方使用），**不参与层级计算**。
  */
-import { useRelationStore } from '@worldsea/entity-core'
+import { relationsSvc } from './serviceAccess'
 
 /** 同步「父 → 子」关系：先清该节点既有的 parent_child 入边，再按需重建（parentId 为空则只清不建） */
 export async function syncParentChildRelation(nodeId: string, parentId: string): Promise<void> {
-  const rs = useRelationStore()
-  const existing = rs.relations.filter(
+  const rs = relationsSvc()
+  const existing = rs.list().filter(
     r => r.type === 'parent_child' && r.targetId === nodeId,
   )
   for (const rel of existing) {

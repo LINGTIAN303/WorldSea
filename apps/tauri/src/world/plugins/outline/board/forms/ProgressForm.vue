@@ -84,7 +84,6 @@
  * 不重复实现一份聚合逻辑。
  */
 import { computed, ref } from 'vue'
-import { useEntityStore } from '@worldsea/entity-core'
 import { resolveFormConfig } from './registry'
 import { normalizeScope, resolveScopeNodes } from './scopeNodes'
 import { computeProgressStats, formatCount, NODE_STATUSES, type NodeStatus } from './progressStats'
@@ -93,13 +92,14 @@ import { normalizeLimit } from './limits'
 import { FloatingPanel } from '@worldsea/ui-kit'
 import { focusNodeField } from '../composables/useNodeFieldFocus'
 import { statusOf } from './progressStats'
+import { entitiesSvc } from '../../serviceAccess'
 
 const props = defineProps<{
   nodeId: string
   config?: Record<string, unknown>
 }>()
 
-const es = useEntityStore()
+const es = entitiesSvc()
 const cfg = computed(() => resolveFormConfig('progress', props.config))
 
 const scope = computed(() => normalizeScope(cfg.value.scope))
@@ -112,7 +112,7 @@ const maxHeight = computed(() => {
 })
 
 const allNodes = computed<StorylineSourceNode[]>(
-  () => (es.entities ?? []).filter(e => e.type === 'outline_node') as unknown as StorylineSourceNode[],
+  () => (es.list() ?? []).filter(e => e.type === 'outline_node') as unknown as StorylineSourceNode[],
 )
 
 const scoped = computed(() => resolveScopeNodes(allNodes.value, scope.value, props.nodeId))

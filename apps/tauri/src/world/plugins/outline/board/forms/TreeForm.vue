@@ -65,7 +65,6 @@
  * 保持「呈现组件不承担结构编辑」的边界，避免形式组件变成第二个编辑器。
  */
 import { computed, nextTick, ref, watch } from 'vue'
-import { useEntityStore } from '@worldsea/entity-core'
 import { resolveNodeNumbering } from '../outlineDerive'
 import { resolveFormConfig } from './registry'
 import { focusNodeField } from '../composables/useNodeFieldFocus'
@@ -73,6 +72,7 @@ import { injectBoardUndo } from '../composables/useBoardUndo'
 import { formatNumbering, indentForDepth, type NumberingStyle } from './titleNumbering'
 import { guardEnter, guardEsc } from './enterGuard'
 import { buildTreeRows, defaultExpandedIds, normalizeExpandDepth, type TreeRow, type TreeScope, type TreeSourceNode } from './treeRows'
+import { entitiesSvc } from '../../serviceAccess'
 
 /** 与标题式同策略的内容写入防抖 */
 const WRITE_DEBOUNCE = 400
@@ -82,7 +82,7 @@ const props = defineProps<{
   config?: Record<string, unknown>
 }>()
 
-const es = useEntityStore()
+const es = entitiesSvc()
 /** 白板撤销栈（未装配时为 null：组件仍可用，只是内容编辑不进撤销栈） */
 const boardUndo = injectBoardUndo()
 
@@ -106,7 +106,7 @@ const maxHeight = computed(() => {
 const expandDepth = computed(() => normalizeExpandDepth(cfg.value.expandDepth))
 
 const allNodes = computed<TreeSourceNode[]>(
-  () => (es.entities ?? []).filter(e => e.type === 'outline_node') as unknown as TreeSourceNode[],
+  () => (es.list() ?? []).filter(e => e.type === 'outline_node') as unknown as TreeSourceNode[],
 )
 
 /** 展开态（会话态，不入库）——初始层数由 config.expandDepth 决定（默认 2，与原行为一致） */

@@ -59,11 +59,11 @@
  * 与标题式的区别：标题式是「一行」，卡片式是「一块」——多行摘要 + 标签 + 内边距。
  */
 import { computed, nextTick, ref, watch } from 'vue'
-import { useEntityStore } from '@worldsea/entity-core'
 import { resolveFormConfig } from './registry'
 import { statusOf } from './progressStats'
 import { injectBoardUndo } from '../composables/useBoardUndo'
 import { guardEnter, guardEsc } from './enterGuard'
+import { entitiesSvc } from '../../serviceAccess'
 
 const WRITE_DEBOUNCE = 400
 /** 摘要软上限（与句子式对齐） */
@@ -74,10 +74,10 @@ const props = defineProps<{
   config?: Record<string, unknown>
 }>()
 
-const es = useEntityStore()
+const es = entitiesSvc()
 const boardUndo = injectBoardUndo()
 
-const node = computed(() => (es.entities ?? []).find(e => e.id === props.nodeId))
+const node = computed(() => (es.list() ?? []).find(e => e.id === props.nodeId))
 const cfg = computed(() => resolveFormConfig('card', props.config))
 const showStatus = computed(() => cfg.value.showStatus !== false)
 const showTags = computed(() => cfg.value.showTags !== false)
