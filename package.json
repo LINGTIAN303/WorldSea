@@ -36,7 +36,7 @@
     "typecheck:all": "pnpm --filter @worldsea/tauri typecheck"
   },
   "dependencies": {
-    "@chenglou/pretext": "^0.0.7",
+    "@chenglou/pretext": "^1.0.0",
     "@google/model-viewer": "^4.4.0",
     "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/plugin-dialog": "^2.7.1",
