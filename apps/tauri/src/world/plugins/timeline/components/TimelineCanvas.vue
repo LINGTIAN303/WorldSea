@@ -78,7 +78,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { useEntityStore } from '@worldsea/entity-core'
+import { entitiesSvc } from '../serviceAccess'
 import type { Entity } from '@worldsea/entity-core'
 import type { Calendar } from '../calendar/types'
 import type { CalendarRuntime } from '../calendar/math'
@@ -128,7 +128,7 @@ const emit = defineEmits<{
   createEvent: [preset: CanvasCreatePreset]
 }>()
 
-const entityStore = useEntityStore()
+const entities = entitiesSvc()
 const bodyEl = ref<HTMLDivElement>()
 const viewportWidth = ref(800)
 
@@ -187,7 +187,7 @@ const drag = useTimelineCanvasDrag({
   batchMode: computed(() => props.batchMode === true),
   points: computed(() => props.points),
   eventOf: id => props.events.find(event => event.id === id),
-  update: (id, changes) => entityStore.update(id, changes),
+  update: (id, changes) => entities.update(id, changes),
   onCreate: preset => emit('createEvent', preset),
   onSelectMany: ids => emit('selectEvents', ids),
   onPanStart: pan.startPan,

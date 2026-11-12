@@ -5,17 +5,17 @@
         <div class="trash-header">
           <h3>回收站</h3>
           <div class="trash-hdr-actions">
-            <span class="trash-count">{{ trashStore.totalCount }} 项</span>
+            <span class="trash-count">{{ trash.totalCount() }} 项</span>
             <button class="trash-close" @click="close">✕</button>
           </div>
         </div>
 
-        <div class="trash-toolbar" v-if="trashStore.totalCount > 0">
+        <div class="trash-toolbar" v-if="trash.totalCount() > 0">
           <TuiButton variant="danger-ghost" :disabled="busy" @click="confirmEmptyTrash">清空回收站</TuiButton>
         </div>
 
         <div class="trash-list">
-          <div v-for="item in trashStore.entityItems" :key="item.id" class="trash-item">
+          <div v-for="item in trash.entityItems()" :key="item.id" class="trash-item">
             <div class="trash-item-info">
               <span class="trash-item-name">{{ (item.data as any).name }}</span>
               <span class="trash-item-type">{{ (item.data as any).type }}</span>
@@ -30,7 +30,7 @@
             </div>
           </div>
 
-          <div v-if="trashStore.totalCount === 0" class="trash-empty">
+          <div v-if="trash.totalCount() === 0" class="trash-empty">
             回收站为空
           </div>
         </div>
@@ -42,14 +42,12 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { TuiButton, WsInlineLoading } from '@worldsea/ui-kit'
-import { useTrashStore } from '@worldsea/entity-core'
-import { useTrash } from '@worldsea/entity-core'
+import { entitiesSvc, relationsSvc, trashSvc } from './serviceAccess'
 
 defineProps<{ show: boolean }>()
 const emit = defineEmits<{ close: [] }>()
 
-const trashStore = useTrashStore()
-const { restoreEntity, permanentDeleteEntity } = useTrash()
+const trash = trashSvc()
 const busy = ref(false)
 const busyId = ref<string | null>(null)
 
@@ -63,12 +61,11 @@ async function doRestore(trashItemId: string) {
   busy.value = true
   busyId.value = trashItemId
   try {
-    const ok = await restoreEntity(trashItemId)
+    const ok = await trash.restoreEntity(trashItemId)
     if (ok) {
-      // 恢复成功后刷新数据
-      const { useEntityStore, useRelationStore } = await import('@worldsea/entity-core')
-      await useEntityStore().loadAll()
-      await useRelationStore().loadAll()
+      // 恢复成功后刷新数据：实体表与关系表由各自服务重载（回收站服务不代劳，见 services.ts）
+      await entitiesSvc().reload()
+      await relationsSvc().reload()
     }
   } finally {
     busy.value = false
@@ -79,14 +76,14 @@ async function doRestore(trashItemId: string) {
 function doPermanentDelete(trashItemId: string) {
   if (busy.value) return
   if (confirm('永久删除后无法恢复，确定？')) {
-    permanentDeleteEntity(trashItemId)
+    trash.permanentDeleteEntity(trashItemId)
   }
 }
 
 function confirmEmptyTrash() {
   if (busy.value) return
   if (confirm('清空回收站后所有项目将永久删除，确定？')) {
-    trashStore.emptyTrash()
+    trash.emptyTrash()
   }
 }
 

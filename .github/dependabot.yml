@@ -1,0 +1,78 @@
+# 依赖更新策略
+#
+# 只覆盖仓库根 workspace（packages/* + apps/*）。`dsh/` 是我方 fork 的上游项目，
+# 自带 .github/dependabot.yml，且占全部跟踪文件的 88.6%——若在此纳入，单次更新
+# 会开出上百个 PR 淹没列表，而 dsh 的依赖应跟随上游升级节奏，不单独驱动。
+version: 2
+updates:
+  # ── 前端 / Node 依赖 ────────────────────────────────────────────
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:00'
+      timezone: Asia/Shanghai
+    open-pull-requests-limit: 5
+    # 同一批依赖合成一个 PR，避免每个补丁版本各开一个
+    groups:
+      minor-and-patch:
+        applies-to: version-updates
+        update-types: [minor, patch]
+    ignore:
+      # tauri 及其插件与 Rust 侧 crate 版本需配对，交给人工一起升。
+      # 注意：ignore.update-types 必须写 version-update:semver-* 全名；
+      # groups.update-types 才允许 minor/patch 简写。两者格式不同，写错会让
+      # Dependabot 拒绝整个文件（校验失败在 PR 的 checks 里表现为一条 fail）。
+      - dependency-name: '@tauri-apps/*'
+        update-types: ['version-update:semver-major']
+      # vue 大版本升级需要配套迁移
+      - dependency-name: vue
+        update-types: ['version-update:semver-major']
+    commit-message:
+      prefix: chore
+      include: scope
+
+  # ── Rust：worldsea-core ────────────────────────────────────────
+  - package-ecosystem: cargo
+    directory: /worldsea-core
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:00'
+      timezone: Asia/Shanghai
+    open-pull-requests-limit: 3
+    groups:
+      minor-and-patch:
+        applies-to: version-updates
+        update-types: [minor, patch]
+    commit-message:
+      prefix: chore
+      include: scope
+
+  # ── Rust：tactical-engine ──────────────────────────────────────
+  - package-ecosystem: cargo
+    directory: /tactical-engine
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:00'
+      timezone: Asia/Shanghai
+    open-pull-requests-limit: 3
+    groups:
+      minor-and-patch:
+        applies-to: version-updates
+        update-types: [minor, patch]
+    commit-message:
+      prefix: chore
+      include: scope
+
+  # ── GitHub Actions ─────────────────────────────────────────────
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: chore
+      include: scope
