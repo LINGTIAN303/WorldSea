@@ -41,7 +41,7 @@ jobs:
     name: Repo Gates (arch / fork / style / docs)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # fork:check 要 `git diff <基线提交>`，浅克隆取不到历史
           fetch-depth: 0
@@ -64,7 +64,7 @@ jobs:
     name: WASM Core (worldsea-core)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       # 缓存 ~/.cargo 与 target：无缓存时每次全量编译，约 1.5 分钟纯等待
       - uses: Swatinem/rust-cache@v2
@@ -86,7 +86,7 @@ jobs:
     name: Frontend Typecheck
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
         with:
           version: 10
@@ -112,7 +112,7 @@ jobs:
     name: Unit Tests (vitest)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
         with:
           version: 10
