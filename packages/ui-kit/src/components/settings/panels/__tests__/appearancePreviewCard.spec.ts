@@ -10,6 +10,17 @@ import AppearancePanel from '../AppearancePanel.vue'
 
 beforeEach(() => { localStorage.clear() })
 
+/**
+ * 卡片是否显示：读内联 `display`，不用 `isVisible()`。
+ *
+ * 卡由 `v-show` 控制，隐藏即内联 `display: none`；而 test-utils 的 `isVisible()` 走
+ * `getComputedStyle`，jsdom 31 起按 CSSOM 规范对**不在文档树里**的元素返回空样式，
+ * `display` 恒为 `''` → 所有元素都判可见（jsdom 25 会补默认值，故此前能过）。
+ */
+function isShown(el: { attributes: (name: string) => string | undefined }): boolean {
+  return el.attributes('style')?.includes('display: none') !== true
+}
+
 describe('AppearancePanel —— Deck 六卡分支', () => {
   it('第六张卡（idx=5）为「卡片与预览」，含视频封面三档与形象图追踪，不含主题内容', () => {
     setActivePinia(createPinia())
@@ -44,8 +55,8 @@ describe('AppearancePanel —— Deck 六卡分支', () => {
     for (const q of ['填充', '焦点', '暗化', '模糊']) {
       const w = mount(AppearancePanel, { props: { searchQuery: q } })
       const cards = w.findAll('.deck-card')
-      expect(cards[1].isVisible()).toBe(true)
-      expect(cards[0].isVisible()).toBe(false)
+      expect(isShown(cards[1])).toBe(true)
+      expect(isShown(cards[0])).toBe(false)
       w.unmount()
     }
   })
@@ -55,8 +66,8 @@ describe('AppearancePanel —— Deck 六卡分支', () => {
     for (const q of ['分区', '窗口栏', '侧栏', '内容区', '首页', '工具条', '视图', '大背景', '画布', '亮色', '暗色']) {
       const w = mount(AppearancePanel, { props: { searchQuery: q } })
       const cards = w.findAll('.deck-card')
-      expect(cards[1].isVisible()).toBe(true)
-      expect(cards[0].isVisible()).toBe(false)
+      expect(isShown(cards[1])).toBe(true)
+      expect(isShown(cards[0])).toBe(false)
       w.unmount()
     }
   })
