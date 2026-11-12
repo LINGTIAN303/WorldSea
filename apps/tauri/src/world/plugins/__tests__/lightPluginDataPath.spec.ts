@@ -109,6 +109,16 @@ const MIGRATED = [
   'outline/board/forms/TitleForm.vue',
   'outline/board/forms/TreeForm.vue',
   'outline/parentChildSync.ts',
+  // 批次 H：manuscript 主线全量迁移（此前只迁了导出链 + 手机预览）
+  'manuscript/ManuscriptView.vue',
+  'manuscript/components/BookGrid.vue',
+  'manuscript/components/BookInfoDialog.vue',
+  'manuscript/components/ChapterList.vue',
+  'manuscript/components/WritingStatsPanel.vue',
+  'manuscript/composables/useChapterEditor.ts',
+  'manuscript/composables/useChapterSnapshots.ts',
+  'manuscript/composables/useManuscriptExternalNav.ts',
+  'manuscript/composables/useWritingStats.ts',
 ] as const
 
 /**
@@ -169,6 +179,15 @@ const VIA_SHARED_ACCESSOR = new Set([
   'outline/board/forms/TitleForm.vue',
   'outline/board/forms/TreeForm.vue',
   'outline/parentChildSync.ts',
+  'manuscript/ManuscriptView.vue',
+  'manuscript/components/BookGrid.vue',
+  'manuscript/components/BookInfoDialog.vue',
+  'manuscript/components/ChapterList.vue',
+  'manuscript/components/WritingStatsPanel.vue',
+  'manuscript/composables/useChapterEditor.ts',
+  'manuscript/composables/useChapterSnapshots.ts',
+  'manuscript/composables/useManuscriptExternalNav.ts',
+  'manuscript/composables/useWritingStats.ts',
 ])
 
 async function readPluginFile(rel: string): Promise<string> {

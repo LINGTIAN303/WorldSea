@@ -13,6 +13,8 @@ import { defineComponent, h } from 'vue'
 import { useEntityStore, useUIStore, type Entity } from '@worldsea/entity-core'
 
 import { useManuscriptExternalNav } from '../composables/useManuscriptExternalNav'
+import { installStoreServices } from './storeServices'
+import { clearWorldServiceTable } from '../../../service-registry'
 
 function ent(id: string, type: string, name: string, props: Record<string, unknown> = {}): Entity {
   return { id, type, name, description: '', properties: props, tags: [], createdAt: '', updatedAt: '' } as Entity
@@ -62,12 +64,15 @@ beforeEach(async () => {
   pinia = createPinia()
   setActivePinia(pinia)
   localStorage.clear()
+  // useManuscriptExternalNav 已改经树服务取数（批次 H），不起树时必须登记转发服务表
+  installStoreServices()
   await seed()
 })
 
 afterEach(() => {
   wrapper?.unmount()
   wrapper = undefined
+  clearWorldServiceTable()
 })
 
 describe('useManuscriptExternalNav', () => {

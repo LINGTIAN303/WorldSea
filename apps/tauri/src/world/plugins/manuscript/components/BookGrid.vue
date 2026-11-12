@@ -82,8 +82,9 @@
  */
 import { computed } from 'vue'
 import draggable from 'vuedraggable'
-import { useEntityStore, type Entity } from '@worldsea/entity-core'
+import { type Entity } from '@worldsea/entity-core'
 import { TuiButton, WsEmpty, WsSkeleton, WsIcon } from '@worldsea/ui-kit'
+import { entitiesSvc } from '../serviceAccess'
 
 const props = defineProps<{
   books: Entity[]
@@ -101,7 +102,7 @@ defineEmits<{
   retry: []
 }>()
 
-const es = useEntityStore()
+const es = entitiesSvc()
 
 /** 书籍封面 asset URL（2026-10-07 归一：真值在顶层 coverImage；旧数据 properties.cover 回退） */
 function bookCover(b: Entity): string {

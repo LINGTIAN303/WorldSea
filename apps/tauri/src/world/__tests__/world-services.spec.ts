@@ -171,7 +171,7 @@ describe('真实插件依赖：timeline 声明 world.projectExtras', () => {
 })
 
 describe('world.settings：只读偏好，不转发整个 store', () => {
-  it('暴露的正是消费方实际读取的字段（5 个原有 + 4 个 timeline）', () => {
+  it('暴露的正是消费方实际读取的字段（5 个原有 + 4 个 timeline + 1 个 manuscript）', () => {
     const settings = (createWorldServices() as Record<string, Record<string, unknown>>)['world.settings']!
     expect(Object.keys(settings).sort()).toEqual([
       'autoCreateEntityEnabled',
@@ -179,6 +179,7 @@ describe('world.settings：只读偏好，不转发整个 store', () => {
       'autoCreateSelectorEnabled',
       'graphBackgroundMode',
       'panelLimitEnabled',
+      'phonePreviewMode',
       'timelineCompactMode',
       'timelineDefaultGroup',
       'timelineDefaultMode',

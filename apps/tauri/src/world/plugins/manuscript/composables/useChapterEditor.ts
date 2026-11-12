@@ -12,10 +12,10 @@ import { recordChapterDelta } from './useWritingStats'
 import { msTypewriter, msParaDim } from './useWritingPrefs'
 import { pickImageFiles, insertImageFilesInto } from '@/composables/imageInsert'
 import { plainTextToEditorHtml } from '@/composables/plainTextToEditorHtml'
-import { useEntityStore } from '@worldsea/entity-core'
 import { entitySchemaRegistry } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
 import type { SuggestionProps, SuggestionKeyDownProps } from '@tiptap/suggestion'
+import { entitiesSvc } from '../serviceAccess'
 
 const AUTOSAVE_DELAY = 2000
 
@@ -33,7 +33,7 @@ export interface MentionItem {
 export type { FindReplaceBarApi }
 
 export function useChapterEditor(currentChapter: Ref<Entity | null>) {
-  const es = useEntityStore()
+  const es = entitiesSvc()
   const saveStatus = ref<SaveStatus>('saved')
   const wordCount = ref(0)
   let saveTimer: ReturnType<typeof setTimeout> | null = null
@@ -139,7 +139,7 @@ export function useChapterEditor(currentChapter: Ref<Entity | null>) {
           suggestion: {
             char: '@',
             items: ({ query }: { query: string }) => {
-              const all = (es.entities ?? []).map(e => ({
+              const all = (es.list() ?? []).map(e => ({
                 id: e.id,
                 name: e.name,
                 type: e.type,
@@ -271,7 +271,7 @@ export function useChapterEditor(currentChapter: Ref<Entity | null>) {
    */
   async function persistContent(html: string, text: string): Promise<void> {
     if (!loadedChapterId) return
-    const live = es.entityMap.get(loadedChapterId)
+    const live = es.get(loadedChapterId)
     if (!live) return // 实体已不在（被删除等）——无从落盘
     // 写作统计的 diff 基线必须取落库前值（update 完成后 wordCount 已是新值，diff 恒 0）
     const beforeCount = (live.properties.wordCount as number) || 0

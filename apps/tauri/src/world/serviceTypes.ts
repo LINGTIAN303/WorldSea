@@ -192,6 +192,11 @@ export interface WorldSettingsService {
   timelineDragEnabled(): boolean
   /** 时间轴默认分组（timeline 芽）：'none' 为不分组 */
   timelineDefaultGroup(): string
+  /**
+   * 手机预览的展示模式（manuscript 芽）。
+   * 原代码直读 `settingsStore.phonePreviewMode`，随 manuscript 批次补入。
+   */
+  phonePreviewMode(): string
 }
 
 /**

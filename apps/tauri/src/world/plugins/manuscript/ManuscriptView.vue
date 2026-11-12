@@ -118,7 +118,7 @@
         :visible="showPreview"
         :html="previewHTML"
         :title="current?.name || ''"
-        :mode="settingsStore.phonePreviewMode"
+        :mode="settings.phonePreviewMode()"
         @close="showPreview = false"
       />
     </div>
@@ -158,7 +158,6 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
-import { useEntityStore, useRelationStore, useSettingsStore } from '@worldsea/entity-core'
 import { useDuplicateNameCheck, CustomDropdown, CreateButton } from '@worldsea/plugin-sdk'
 import { TuiButton, WsIcon, WsEmpty, useAsyncTask, useConfirm } from '@worldsea/ui-kit'
 import BookGrid from './components/BookGrid.vue'
@@ -179,10 +178,11 @@ import { useManuscriptExternalNav } from './composables/useManuscriptExternalNav
 import type { Entity } from '@worldsea/entity-core'
 // 「章节 ↔ 大纲节点」关联的唯一写入入口（新建章节归属节点时用，保证双侧一致）
 import { buildChapterLinkIndex, linkChapterToNode } from '@/entity/chapterLink'
+import { chapterLinkStore, chapterRelationStore, entitiesSvc, relationsSvc, settingsSvc } from './serviceAccess'
 
-const es = useEntityStore()
-const rs = useRelationStore()
-const settingsStore = useSettingsStore()
+const es = entitiesSvc()
+const rs = relationsSvc()
+const settings = settingsSvc()
 const { checkAndConfirmName } = useDuplicateNameCheck()
 const { confirm } = useConfirm()
 
@@ -252,12 +252,12 @@ watch(msFocusMode, (on) => {
 onBeforeUnmount(() => window.removeEventListener('keydown', onFocusEsc))
 
 const manuscripts = computed(() => {
-  return (es.entities ?? [])
+  return (es.list() ?? [])
     .filter(e => e.type === 'manuscript')
     .sort((a, b) => ((a.properties.sortOrder as number) ?? 0) - ((b.properties.sortOrder as number) ?? 0))
 })
 
-const books = computed(() => (es.entities ?? [])
+const books = computed(() => (es.list() ?? [])
   .filter(e => e.type === 'book')
   // sortOrder 升序；旧书籍无该字段排最后，首次拖拽重排后自然收敛
   .sort((a, b) => ((a.properties.sortOrder as number) ?? Number.MAX_SAFE_INTEGER) - ((b.properties.sortOrder as number) ?? Number.MAX_SAFE_INTEGER)))
@@ -294,11 +294,11 @@ const viewChapters = computed(() => {
 
 const filteredManuscripts = computed(() => {
   if (!filterOutline.value) return viewChapters.value
-  const nodeByChapter = buildChapterLinkIndex(es.entities ?? [], rs.relations ?? []).nodeByChapter
+  const nodeByChapter = buildChapterLinkIndex(es.list() ?? [], rs.list() ?? []).nodeByChapter
   return viewChapters.value.filter(m => nodeByChapter.get(m.id) === filterOutline.value)
 })
 
-const outlineNodes = computed(() => (es.entities ?? []).filter(e => e.type === 'outline_node'))
+const outlineNodes = computed(() => (es.list() ?? []).filter(e => e.type === 'outline_node'))
 
 const outlineFilterOptions = computed(() => [
   { value: '', label: '全部章节' },
@@ -410,8 +410,8 @@ async function newManuscript() {
   await es.add(entity)
   // 若当前是按某个大纲节点筛选（「在该节点下新建章节」），把归属写成**双向关联**——
   // 走唯一写入入口，否则只写章节侧、大纲白板的「打开正文」不会亮（09-18 收敛）
-  if (filterOutline.value) await linkChapterToNode(es, rs, id, filterOutline.value)
-  const created = (es.entities ?? []).find(e => e.id === id)
+  if (filterOutline.value) await linkChapterToNode(chapterLinkStore(), chapterRelationStore(), id, filterOutline.value)
+  const created = (es.list() ?? []).find(e => e.id === id)
   if (created) select(created, { focusTitle: true })
 }
 
@@ -449,8 +449,8 @@ function formatTime(iso: string): string { return new Date(iso).toLocaleString()
 async function loadBooks(): Promise<void> {
   try {
     await runBooksLoad(async () => {
-      await es.loadAll()
-      await rs.loadAll()
+      await es.reload()
+      await rs.reload()
       booksLoaded.value = true
     })
   } catch (err) {

@@ -16,6 +16,8 @@ import 'fake-indexeddb/auto'
 import { EditorContent } from '@tiptap/vue-3'
 import { useEntityStore, type Entity } from '@worldsea/entity-core'
 import { useChapterEditor } from '../composables/useChapterEditor'
+import { installStoreServices } from './storeServices'
+import { clearWorldServiceTable } from '../../../service-registry'
 
 function makeEntity(id: string, content: string): Entity {
   const now = new Date().toISOString()
@@ -42,10 +44,13 @@ describe('文稿芽 · 切章节窗口 · 脏内容归属（回归）', () => {
   beforeEach(() => {
     localStorage.clear()
     pinia = createPinia()
+    // useChapterEditor 已改经树服务取数（批次 H），不起树时必须登记转发服务表
+    installStoreServices()
   })
 
   afterEach(() => {
     vi.restoreAllMocks()
+    clearWorldServiceTable()
   })
 
   it('2000ms 窗口内切章节：脏内容写入 A（旧）、不写入 B（新），编辑器正常加载 B', async () => {

@@ -1,5 +1,5 @@
-import { useEntityStore } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
+import type { WorldEntitiesService } from '../../../services'
 
 /**
  * 写作统计（批1）：数据落所属书 `book.properties.writingStats`（每书独立，随实体存储
@@ -49,7 +49,7 @@ export function pruneOldDays(daily: Record<string, number>, retentionDays: numbe
  * 内部 await 第二次 update（book），调用方 catch 兜底。
  */
 export async function recordChapterDelta(
-  es: ReturnType<typeof useEntityStore>,
+  es: WorldEntitiesService,
   chapterLive: Entity,
   beforeCount: number,
   newTextLength: number,
@@ -58,7 +58,7 @@ export async function recordChapterDelta(
   if (!delta) return
   const bookId = (chapterLive.properties.bookId as string) || ''
   if (!bookId) return
-  const book = es.entityMap.get(bookId)
+  const book = es.get(bookId)
   if (!book) return
   const stats = readWritingStats(book)
   const key = statsDayKey()

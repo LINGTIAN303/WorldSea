@@ -80,8 +80,8 @@ status: 执行中
 | 插件 | 直连 store 的非测试文件 | 说明 |
 |---|---:|---|
 | ~~`outline`~~ | ~~**50 处**~~ → **0** | ✅ **批次 G 已全量迁移**（22 文件；此前只迁了导出链的字体调用） |
+| ~~`manuscript`~~ | ~~**22 处**~~ → **0** | ✅ **批次 H 已全量迁移**（9 文件；此前只迁了导出链 + 手机预览） |
 | `settings` | **40 处** | 完全未迁；**已评估判定不迁移**，见 [settings 插件评估](../../plans/2026-11-12-settings插件Cordis化评估.md) |
-| `manuscript` | **22 处** | 只迁了导出链 + 手机预览（2 文件）；9 文件仍直连 |
 | `tactical-board` | 4 处 | 此前未列入任何批次 |
 | `custom` | 2 处 | 视图容器用途，**有意保留**（组件引用不跨服务边界） |
 
@@ -167,14 +167,29 @@ status: 执行中
 
 **400 行红线触发一次**：`useBoardLayout.ts` 加 import 后 437 行（冻结 436），合并两条 import 压回 436。
 
-### 3.5 剩下的（2026-11-12 按严格口径重测）
+### 3.5 ✅ 批次 H · `manuscript` 主线（已完成）
+
+**9 文件 / 22 处直连**，全量迁移。此前只迁了导出链与手机预览两个文件。
+
+**服务目录侧只补 1 个字段**：`world.settings.phonePreviewMode()`（服务数量仍 13 项）。这是 `ManuscriptView` 直读 `settingsStore.phonePreviewMode` 的缺口——按既定口径「新增字段必须伴随真实消费者一起加」，随本批补。
+
+**chapterLink 适配器**：与批次 G 同因——`@/entity/chapterLink` 依赖 `getAllEntities()` / `relations` 数组两种 store 形状。本批在 `manuscript/serviceAccess.ts` 也做了一份 `chapterLinkStore()` / `chapterRelationStore()`。
+
+> **这里有一个重复信号，值得后续合并**：`outline` 与 `manuscript` 各写了一份 chapterLink 适配器，内容相同。若还有第三方要用（`plugins/boot.ts` 也在用 chapterLink），应抽到共享位置。本轮先各自内联，不提前抽象。
+
+**测试改造**：5 个 spec 需登记服务表（4 个挂载/调 composable + `useWritingStats` 改收服务对象）。新增 `manuscript/__tests__/storeServices.ts`（转发到真实 store；含 settings/ui 两个 stub 字段）。
+
+**验收**：服务目录仍 13 项（`world.settings` 加 1 字段）· 守卫 263 → **290 例**（清单 139 → 148 文件）· 全仓 **310 文件 / 2620 过 + 1 skip** · `vue-tsc` 0 · gate 6/6 · 反证 1 轮（`BookGrid` 还原 `useEntityStore()` → 红）。
+
+### 3.6 剩下的
 
 | 序 | 插件 | 直连 | 性质 |
 |---|---|---:|---|
-| 1 | `manuscript` | 22 处 | 真数据消费者；只迁了导出链 + 手机预览（2 文件），9 文件仍直连 |
-| 2 | `tactical-board` | 4 处 | 小，此前未进任何批次 |
+| 1 | `tactical-board` | 4 处 | 小，此前未进任何批次 |
 | — | `settings` | 40 处 | **已评估判定不迁移**（配置编辑器，非数据消费者），见 [评估文档](../../plans/2026-11-12-settings插件Cordis化评估.md) |
 | — | `custom` | 2 处 | 视图容器用途，**有意保留**（组件引用不跨服务边界） |
+
+`outline`（50 处）与 `manuscript`（22 处）已在批次 G / H 清零。
 
 **`settings` 的判定依据**（三条）：① 它写的是**配置本身**（`setCarrier` / `setProjectIcon` / `toggleSprout`），不是用户内容数据——服务目录的定位是统一取数口径，把配置写面做成公共 API 是契约面扩大而非解耦；② 它的 `usePluginStore` 是**管理插件**的功能本体，同 `custom` 渲染他视图组件，属「有意留在芽内」；③ 收益（口径统一）低于成本（新增 4 项服务 + 扩 2 项写面 + 28 文件改造）。
 
@@ -249,8 +264,8 @@ DataCloneError: #<Object> could not be cloned.
 
 ## 七、下一步建议
 
-1. **`manuscript` 主线迁移**（22 处，剩的最大项）
-2. **`tactical-board`**（4 处，小）
+1. **`tactical-board`**（4 处，最后一个可执行的）
+2. **合并 chapterLink 适配器**：`outline` 与 `manuscript` 各写了一份相同实现，`plugins/boot.ts` 也在用 chapterLink——若确认第三方也要，抽到共享位置
 3. **纠正统计口径**：文档里的进度数字改为插件级，并区分「本来就不读 store」与「迁移完成」两类
 
-`settings` **不迁移**，`custom` **有意保留**（理由见 §3.5）。每批一次 PR，等 CI 绿、review 后合并。分支从最新 `main` 切。
+`settings` **不迁移**，`custom` **有意保留**（理由见 §3.6）。每批一次 PR，等 CI 绿、review 后合并。分支从最新 `main` 切。

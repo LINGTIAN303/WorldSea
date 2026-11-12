@@ -54,8 +54,8 @@
  * 目标编辑在 blur/Enter 时落库（skipUndo 不适用——用户主动改目标，允许进撤销栈）。
  */
 import { ref, computed } from 'vue'
-import { useEntityStore } from '@worldsea/entity-core'
 import { useAnchoredPanel } from '@/composables/useAnchoredPanel'
+import { entitiesSvc } from '../serviceAccess'
 import {
   readWritingStats, statsDayKey, calcStreak, recentDays,
 } from '../composables/useWritingStats'
@@ -63,16 +63,16 @@ import {
 const props = defineProps<{ bookId: string; anchor: HTMLElement | null }>()
 const emit = defineEmits<{ close: [] }>()
 
-const es = useEntityStore()
+const es = entitiesSvc()
 
-const book = computed(() => (es.entities ?? []).find(e => e.id === props.bookId) ?? null)
+const book = computed(() => (es.list() ?? []).find(e => e.id === props.bookId) ?? null)
 const stats = computed(() => readWritingStats(book.value))
 const goal = computed(() => stats.value.goal)
 const todayWords = computed(() => stats.value.daily[statsDayKey()] || 0)
 const streak = computed(() => calcStreak(stats.value.daily))
 const recent14 = computed(() => recentDays(stats.value.daily, 14))
 const bookWords = computed(() =>
-  (es.entities ?? [])
+  (es.list() ?? [])
     .filter(e => e.type === 'manuscript' && ((e.properties.bookId as string) || '') === props.bookId)
     .reduce((s, m) => s + ((m.properties.wordCount as number) || 0), 0),
 )
@@ -103,7 +103,7 @@ const { panelRef, panelStyle } = useAnchoredPanel(() => props.anchor, () => emit
 
 // 未归书章节统计标注（批3）：有未归书章节时提示不计入
 const unfiledCount = computed(() =>
-  (es.entities ?? []).filter(e => e.type === 'manuscript' && !e.properties.bookId).length,
+  (es.list() ?? []).filter(e => e.type === 'manuscript' && !e.properties.bookId).length,
 )
 </script>
 
