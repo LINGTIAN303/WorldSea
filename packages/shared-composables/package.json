@@ -22,11 +22,11 @@
     "@worldsea/perf-kit": "link:../perf-kit",
     "@worldsea/plugin-sdk": "link:../plugin-sdk",
     "@worldsea/ui-kit": "link:../ui-kit",
-    "dexie": "^4.4.2"
+    "dexie": "^4.4.7"
   },
   "peerDependencies": {
     "pinia": "^3.0.0",
-    "vue": "^3.5.0"
+    "vue": "^3.5.45"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

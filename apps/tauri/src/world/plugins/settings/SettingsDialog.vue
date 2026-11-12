@@ -82,7 +82,6 @@
         </template>
       </div>
 
-      <div class="resize-handle-right" v-if="false" @mousedown="modalResizable.onResizeStart"></div>
     </div>
   </div>
   </Transition>
@@ -91,7 +90,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useUIStore, usePluginStore, isViewVisible } from '@worldsea/entity-core'
-import { useResizable, WsIcon } from '@worldsea/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import { useStyle } from '@worldsea/style-kit'
 // 设置面板基座样式（.set-card/.sc-head/.set-row/.set-toggle/.set-hint 唯一权威定义）
 import '@worldsea/ui-kit/components/settings/settings-panels.css'
@@ -126,9 +125,6 @@ const { activate, deactivate } = useFocusTrap(dialogRef, {
   escapeDeactivates: true,
   onEscape: () => close(),
 })
-
-// 模态框可调整大小（保留接口，当前未启用）
-const modalResizable = useResizable({ panelId: 'modal-settings', defaultWidth: 560, minWidth: 400, side: 'right' })
 
 const uiStore = useUIStore()
 const pluginStore = usePluginStore()
