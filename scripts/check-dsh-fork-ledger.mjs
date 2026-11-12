@@ -5,7 +5,12 @@
  *
  * 判据：
  * - `git diff <基线提交> -- dsh` 得到的每个文件 → 必须在台账里（缺失即报红，退出码 1）。
- * - 台账里登记但实际无差异的文件 → 警告（条目过期，需清理；不报红）。
+ *
+ * 基线自 2026-11-13 起是「上次追版验收提交」（含已重放的 fork 改动），而非「干净上游树」。
+ * 换树提交本身随 PR squash 被丢弃，进不了 main 历史；由此 diff 只覆盖「相对上次验收以来的
+ * 新增改动」，第三节 13 条是完整的 fork 现状登记、不再是 diff 的子集。所以这里不做
+ * 「台账条目过期」检查——它在当前基线下恒误报（13 条里永远只有刚改的那一两条在 diff 里）。
+ * 代价：某条 fork 改动被误删时门禁不报警，靠追版重放核对与运行手册 F 系列步骤兜住。
  *
  * 用法：node scripts/check-dsh-fork-ledger.mjs   （或 pnpm fork:check）
  */
@@ -50,13 +55,9 @@ const changed = execFileSync('git', ['diff', '--name-only', base, '--', 'dsh'], 
   .filter(Boolean)
 
 const missing = changed.filter(path => !ledgered.has(path))
-const stale = [...ledgered].filter(path => !changed.includes(path))
 
 console.log('== dsh fork 台账门禁 ==')
 console.log(`基线：${base} ｜ 实际改动文件：${String(changed.length)} ｜ 台账条目：${String(ledgered.size)}`)
-if (stale.length > 0) {
-  console.warn(`⚠️ 台账条目过期（实际无差异，建议清理）：\n  - ${stale.join('\n  - ')}`)
-}
 if (missing.length > 0) {
   fail(`以下改动未登记进台账：\n  - ${missing.join('\n  - ')}`)
 }
