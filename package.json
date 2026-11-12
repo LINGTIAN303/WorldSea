@@ -98,7 +98,7 @@
     "fake-indexeddb": "^6.2.5",
     "jsdom": "^25.0.1",
     "rollup-plugin-visualizer": "^7.0.1",
-    "storybook": "^8.6.18",
+    "storybook": "^10.6.6",
     "typescript": "~6.0.2",
     "vite": "^8.0.10",
     "vite-plugin-compression2": "^2.5.3",
