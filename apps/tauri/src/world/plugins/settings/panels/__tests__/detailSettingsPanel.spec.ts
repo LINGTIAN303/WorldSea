@@ -36,6 +36,17 @@ function overrideOf(type = 'character') {
   return useDetailLayoutStore().overrides[type] ?? {}
 }
 
+/**
+ * 卡片是否显示：读内联 `display`，不用 `isVisible()`。
+ *
+ * 卡由 `v-show` 控制，隐藏即内联 `display: none`；而 test-utils 的 `isVisible()` 走
+ * `getComputedStyle`，jsdom 31 起按 CSSOM 规范对**不在文档树里**的元素返回空样式，
+ * `display` 恒为 `''` → 所有卡都判可见（jsdom 25 会补默认值，故此前能过）。
+ */
+function isShown(el: { attributes: (name: string) => string | undefined }): boolean {
+  return el.attributes('style')?.includes('display: none') !== true
+}
+
 beforeEach(() => {
   pinia = createPinia()
   setActivePinia(pinia)
@@ -65,7 +76,7 @@ describe('面板骨架', () => {
   })
 
   it('搜索模式只留命中关键字的卡（flat 平铺由 CardDeck 承担）', () => {
-    const visible = (q: string) => mountPanel(q).findAll('.set-card').filter(c => c.isVisible()).length
+    const visible = (q: string) => mountPanel(q).findAll('.set-card').filter(c => isShown(c)).length
     expect(visible('时间轴')).toBe(1)
     expect(visible('分组管理')).toBe(1)
     expect(visible('命名预设')).toBe(1)

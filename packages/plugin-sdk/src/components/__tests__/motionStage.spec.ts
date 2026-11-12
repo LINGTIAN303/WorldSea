@@ -58,7 +58,9 @@ describe('MotionStage —— 区域分层（#8 动哪里/动多少处）', () =>
     const layers = [...el.querySelectorAll('.mstage-layer')] as HTMLElement[]
     expect(layers.length).toBe(1) // ghost 轨迹剔除
     expect((layers[0] as HTMLImageElement).src).toContain('p.png')
-    expect(layers[0].style.clipPath).toContain('inset(25% 25% 25% 25%)')
+    // jsdom 31 起按 CSS 简写规则折叠 inset：四边相等时 `inset(25% 25% 25% 25%)` 序列化为
+    // `inset(25%)`（jsdom 25 不折叠）。断言四边数值本身，不依赖序列化形态。
+    expect(layers[0].style.clipPath).toMatch(/^inset\(25%\)$/)
     el.remove()
   })
 
