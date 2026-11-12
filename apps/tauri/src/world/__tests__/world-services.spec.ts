@@ -11,6 +11,7 @@ import { createPinia, setActivePinia } from 'pinia'
 
 import { assemblePlugins } from '../loader'
 import { createWorldServices, WORLD_SERVICE_NAMES } from '../services'
+import { entitySchemaRegistry } from '@worldsea/entity-core'
 
 beforeEach(() => {
   setActivePinia(createPinia())
@@ -21,11 +22,11 @@ afterEach(() => {
 })
 
 describe('createWorldServices：服务方法表', () => {
-  it('提供 11 个服务，且与 WORLD_SERVICE_NAMES 完全一致', () => {
+  it('提供 13 个服务，且与 WORLD_SERVICE_NAMES 完全一致', () => {
     const services = createWorldServices()
     expect(Object.keys(services).sort()).toEqual([...WORLD_SERVICE_NAMES].sort())
     expect(WORLD_SERVICE_NAMES).toContain('world.info')
-    expect(WORLD_SERVICE_NAMES).toHaveLength(11)
+    expect(WORLD_SERVICE_NAMES).toHaveLength(13)
   })
 
   it('world.projectExtras 直通 entity-core 的两个迁移扩展点注册面，且返回 disposer', () => {
@@ -77,6 +78,14 @@ describe('createWorldServices：服务方法表', () => {
     expect(typeof schema.get).toBe('function')
     expect(typeof schema.label).toBe('function')
     expect(schema.get('__不存在的类型__')).toBeUndefined()
+  })
+
+  it('world.schema.iconName 透传注册表（含用户图标槽位覆写解析）', () => {
+    const schema = (createWorldServices() as Record<string, Record<string, (t: string) => string>>)['world.schema']!
+    expect(typeof schema.iconName).toBe('function')
+    // 未登记类型也应返回兜底图标名而非 undefined（getIconName 内部有 getDefaultIconName 兜底）
+    expect(typeof schema.iconName!('__不存在的类型__')).toBe('string')
+    expect(schema.iconName!('character')).toBe(entitySchemaRegistry.getIconName('character'))
   })
 
   it('world.info 携带树的元信息', () => {
@@ -162,7 +171,7 @@ describe('真实插件依赖：timeline 声明 world.projectExtras', () => {
 })
 
 describe('world.settings：只读偏好，不转发整个 store', () => {
-  it('暴露的正是消费方实际读取的 5 个字段', () => {
+  it('暴露的正是消费方实际读取的字段（5 个原有 + 4 个 timeline）', () => {
     const settings = (createWorldServices() as Record<string, Record<string, unknown>>)['world.settings']!
     expect(Object.keys(settings).sort()).toEqual([
       'autoCreateEntityEnabled',
@@ -170,7 +179,11 @@ describe('world.settings：只读偏好，不转发整个 store', () => {
       'autoCreateSelectorEnabled',
       'graphBackgroundMode',
       'panelLimitEnabled',
-    ])
+      'timelineCompactMode',
+      'timelineDefaultGroup',
+      'timelineDefaultMode',
+      'timelineDragEnabled',
+    ].sort())
   })
 
   it('取值来自 settingsStore（非写死的默认值）', () => {
@@ -185,6 +198,49 @@ describe('world.settings：只读偏好，不转发整个 store', () => {
     for (const forbidden of ['aiCloudKey', 'customProviders', 'getCustomKeyStoreId', 'aiLocalEndpoint', 'agentBackend']) {
       expect(settings).not.toHaveProperty(forbidden)
     }
+  })
+})
+
+describe('world.detailLayout：只给只读 Tab 覆写，不给写面', () => {
+  it('只暴露 tabOverride 一个方法', () => {
+    const dl = (createWorldServices() as Record<string, Record<string, unknown>>)['world.detailLayout']!
+    expect(Object.keys(dl)).toEqual(['tabOverride'])
+  })
+
+  it('写面归设置面：插件不得改用户的全局详情偏好', () => {
+    const dl = (createWorldServices() as Record<string, Record<string, unknown>>)['world.detailLayout']!
+    for (const forbidden of [
+      'setTabOverride',
+      'clearTabOverride',
+      'setCarrier',
+      'clearCarrier',
+      'setBackdropOverride',
+      'patch',
+      'clear',
+      'overrides',
+      'carriers',
+      'backdropMode',
+    ]) {
+      expect(dl).not.toHaveProperty(forbidden)
+    }
+  })
+
+  it('未设覆写时返回 undefined（调用方按芽声明默认序）', () => {
+    const dl = (createWorldServices() as Record<string, Record<string, (t: string) => unknown>>)['world.detailLayout']!
+    expect(dl.tabOverride!('__未设覆写的类型__')).toBeUndefined()
+  })
+
+  it('按实体类型取到真实覆写（读 store 当前值，非写死）', async () => {
+    const { useDetailLayoutStore } = await import('@worldsea/entity-core')
+    useDetailLayoutStore().setTabOverride('__probe_type__', { order: ['b', 'a'], hidden: ['x'] })
+
+    const dl = (createWorldServices() as Record<string, Record<string, (t: string) => { order?: string[] } | undefined>>)['world.detailLayout']!
+    expect(dl.tabOverride!('__probe_type__')?.order).toEqual(['b', 'a'])
+    // 按类型分key：别的类型不受影响
+    expect(dl.tabOverride!('__probe_type_other__')).toBeUndefined()
+
+    useDetailLayoutStore().clearTabOverride('__probe_type__')
+    expect(dl.tabOverride!('__probe_type__')).toBeUndefined()
   })
 })
 
@@ -240,5 +296,59 @@ describe('world.font / world.fontLibrary：只给「有效字体」，不给 pre
     for (const forbidden of ['addEntry', 'removeEntry', 'totalSize', 'isOverCapacity', 'restoreAllFonts']) {
       expect(lib).not.toHaveProperty(forbidden)
     }
+  })
+})
+
+describe('world.trash：只给「用户能做的三件事」，不暴露管线内部写入口', () => {
+  it('暴露 5 个成员：2 个只读投影 + 3 个语义动作', () => {
+    const trash = (createWorldServices() as Record<string, Record<string, unknown>>)['world.trash']!
+    expect(Object.keys(trash).sort()).toEqual([
+      'emptyTrash',
+      'entityItems',
+      'permanentDeleteEntity',
+      'restoreEntity',
+      'totalCount',
+    ])
+  })
+
+  it('不暴露 store 的 add（删除管线内部写入口，插件不得自造回收站条目）', () => {
+    const trash = (createWorldServices() as Record<string, Record<string, unknown>>)['world.trash']!
+    expect(trash).not.toHaveProperty('add')
+  })
+
+  it('不暴露半步操作 restore / permanentDelete（只动回收站、不碰磁盘与实体表）', () => {
+    const trash = (createWorldServices() as Record<string, Record<string, unknown>>)['world.trash']!
+    // 用 useTrash 的编排替换，故同名裸方法不得出现
+    expect(trash).not.toHaveProperty('restore')
+    expect(trash).not.toHaveProperty('permanentDelete')
+    expect(trash.restoreEntity).not.toBe(trash.permanentDeleteEntity)
+  })
+
+  it('只读投影读 store 当前值：空回收站下 entityItems 为空、totalCount 为 0', () => {
+    const trash = (createWorldServices() as Record<string, Record<string, () => unknown>>)['world.trash']!
+    expect(trash.entityItems!()).toEqual([])
+    expect(trash.totalCount!()).toBe(0)
+  })
+
+  it('computed 包成方法后仍保持响应式（模板里 {{ trash.totalCount() }} 能追踪到）', async () => {
+    const { computed, nextTick } = await import('vue')
+    const trash = (createWorldServices() as Record<string, Record<string, () => unknown>>)['world.trash']!
+    const count = computed(() => trash.totalCount!() as number)
+    expect(count.value).toBe(0)
+
+    const { useTrashStore } = await import('@worldsea/entity-core')
+    useTrashStore().add({
+      id: 'trash_entity_svc_probe',
+      entityType: 'entity',
+      data: { id: 'svc_probe', type: 'character', properties: {} } as never,
+      deletedAt: new Date().toISOString(),
+      deletedBy: 'user',
+    })
+    await nextTick()
+    expect(count.value, 'computed 未追踪到 store 变更').toBe(1)
+
+    useTrashStore().emptyTrash()
+    await nextTick()
+    expect(count.value).toBe(0)
   })
 })
