@@ -5,11 +5,25 @@
 
 ## 一、基线
 
-基线提交：`d08adf4`
+基线提交：`6c7ebbf`
 
-对应上游：tag `dsh-v0.2.2-rc.1`（上游提交 `66491b05e3f05ad35bcdd4f6cd7ed26041d9e3db` 的干净树；换树记录见该提交信息）。
+对应上游：tag `dsh-v0.2.2-rc.2`（上游提交 `ddac9676` 的干净树；换树记录见该提交信息）。
 
-- **前次基线**：`a71b4ba`（tag `dsh-v0.2.1-rc.5`，上游 `b830ec95…`）——追版记录见 [F7 批计划](../../plans/已完成/2026-11-04-F7-追版dsh-0.2.2-rc.1批计划.md)。
+**F8 追版后的台账收敛（2026-11-13，rc.1 → rc.2）**：我方从 **21 条减到 13 条**——不是改动减少了工作量，而是**上游把 8 处我方修复吸收进主线**：
+
+| 原条目 | 去向 |
+|---|---|
+| `apps/cli/src/profile-boot.ts`（`DSH_USER_AGENT_SUFFIX` + `userAgentProfile`） | ✅ 上游 rc.2 已实现同语义（函数与调用点逐字等价） |
+| `packages/boot/app-boot/src/index.ts`（home 层 `.env` 放行 `DEEPSEEK_BASE_URL`/`DEEPSEEK_SEARCH_BASE_URL`） | ✅ 上游 rc.2 已实现 `isHomeLayerRouteName` + `HOME_LAYER_ENDPOINT_NAMES`，与「两边都要」融合版一致 |
+| `packages/boot/app-boot/tests/app-boot.spec.ts` | ✅ 随上一项同去 |
+| `packages/client/ui-settings-account/{README.md,README.zh.md,src/client/index.ts,tests/apply.client.spec.ts}` | ✅ 上游 rc.2 已含等价改动 |
+| `packages/host/webserver/tests/webserver.spec.ts` | ✅ 上游 rc.2 已含等价用例 |
+| `packages/credentials/deepseek-account-platform/src/index.ts` | ⚠️ **上游删包重构**为 `deepseek-account`（见下条），改动随迁 |
+
+**`deepseek-account-platform` → `deepseek-account`**：上游 0.2.2-rc.1 起把抽象 account 类拆为具体 `DeepSeekAccount` 服务，按职责拆成 `account-tasks` / `client-metadata` / `details` / `logout` / `notifications` / `protocol` / `types`。我方 H2 的「回调 drain 有界等待」迁至新包 `src/index.ts` 的**同名 `finished()` 调用点**（代码逐字相同）。凭据键 `deepseek-account-platform/{default,device}` 保持原样，用户无需重新登录。
+
+- **前次基线**：`d08adf4`（tag `dsh-v0.2.2-rc.1`，上游 `66491b05…`）——追版记录见 [F7 批计划](../../plans/已完成/2026-11-04-F7-追版dsh-0.2.2-rc.1批计划.md)。
+- **更早基线**：`a71b4ba`（tag `dsh-v0.2.1-rc.5`，上游 `b830ec95…`）——见 [F6 批计划](../../plans/已完成/2026-11-03-F6-追版dsh-0.2.1-rc.5批计划.md)。
 - **更早基线**：`962c6f6`（tag `dsh-v0.2.1-rc.2`，上游 `687f282e…`）——见 [F6 批计划](../../plans/已完成/2026-11-03-F6-追版dsh-0.2.1-rc.5批计划.md)。
 - **更早基线**：`096a48c`（tag `dsh-v0.2.0-rc.2`，上游 `639ed015…`）——追版记录见 [F5 批计划](../../plans/已完成/2026-10-17-F5-追版dsh-0.2.1-rc.2批计划.md)。
 - **更早基线**：`0c6f8b2`（tag `dsh-v0.2.0-rc.1`，上游 `4878cdab…`）——追版记录见 [F2 批计划](../../plans/已完成/2026-09-29-F2-追版0.2.0-rc.1批计划.md)；`cde62e7`（tag `dsh-v0.1.7-rc.2`，上游 `477b4f42…`）——见 [F1 批计划](../../plans/已完成/2026-09-24-F1-追版rc2批计划.md)。
@@ -51,19 +65,11 @@ dsh/packages/bundle/web-app/cordis.patch.yml | 改 | C2-a：webserver 行 `exter
 dsh/packages/bundle/web-app/package.json | 改 | C2-a：增依赖 `@deepseek-ai/dsh-api-gateway`（读 `typertGateway` 的 Context 增强与 `wireStream` 类型） | 上游无此依赖边（web-app 原先只挂网关的客户端行）
 dsh/packages/bundle/web-app/tsconfig.json | 改 | C2-a：增项目引用 `../../api/gateway/tsconfig.host.json`（新依赖边所需；同 worker 运行时的做法） | 上游无
 dsh/pnpm-lock.yaml | 改 | C2-a：上述 workspace 依赖的锁文件条目——**只有 3 行**（web-app importer 内按字母序插入 `'@deepseek-ai/dsh-api-gateway': specifier: workspace:* / version: link:../../api/gateway`）。**追版纪律（F2 实测）**：换树后一律「还原上游原版锁 → 手插这 3 行 → `pnpm install --frozen-lockfile`」，**绝不让 pnpm 全量重解析**——我方那条依赖边会让上游原版锁「与 package.json 不同步」，触发 pnpm 以默认 `resolution-mode=highest` 重解析全图，把 `ui-primitives` 的 caret 范围升到最新（micromark 家族 2.0.3→2.0.4 / 2.0.1→2.1.0 / 2.0.2→2.0.3）而传递依赖仍锁旧版 → **同一包两个版本并存 → `tsc` TS2769 构建失败**。另一坑：锁文件改回原版后 `pnpm install`（含 `--force`）会短路成 `Already up to date`（1.6s）而不重链，须把 `dsh/node_modules` 移走后全新安装。**F3 复核（rc.2，2026-09-29）**：同一做法再次生效——上游原版锁手插这 3 行后 `pnpm install --frozen-lockfile` **21.8s 通过**（1685 条过供应链策略、实际 resolve/reused/downloaded，未短路、未全量重解析）；插入位置仍是 web-app importer 块内 `dsh-api-account-controller` 与 `dsh-api-job-controller` 之间（字母序）。**注意**：`@deepseek-ai/dsh-api-gateway` 作为依赖名在上游锁里另有 15 处（别的 importer 的 dependencies/devDependencies）——判「我方条目是否已在位」**只能看 web-app importer 块内**（rc.2 的 web-app 块 = 2364–2787 行），扫全文件会误判 | 上游原版锁无此条目（`link:` 条目不参与版本解析，故手插安全）
-dsh/packages/host/webserver/tests/webserver.spec.ts | 改 | C2-a：配置解析断言补 `external: false` 默认项（既有用例精确比对 Config 结果）。**G6 增补**：新增 2 例——真 Loader 挂真插件后 `lastActivity().plugin` 等于插件名（断言 path/kind/url 三者独立不混淆）；根 fiber 注册时 `plugin` 为 undefined。反证：把插件捕获改为 `undefined` 后前一例精准失败、后一例仍过（两例覆盖互补）。另 `loadComposition` 增可选 `extra`（额外 composition 行 + 内存模块）以便挂真插件。**G7 增补**：新增环形缓冲用例——`ACTIVITY_HISTORY + 3` 次请求后 `recentActivity()` 恰为 `ACTIVITY_HISTORY` 条、oldest-first、`at` 单调递增、`lastActivity()` 与环尾一致。反证：删掉 `shift()` 后该例精准失败（期望 5 实得 8） | 上游无该默认项、无 `plugin` 字段、无活动环
-dsh/packages/boot/app-boot/tests/app-boot.spec.ts | 新（台账补登） | G5/G6：`installFailLoud` 的 `activity` 供应器此前**零测试覆盖**，本轮补 2 例——`last route:` 独立成行且带插件名（`→ plugin <名>`）；供应器自身抛错时只写 1 行诊断且不含供应商的错误文案（证据永远不顶替真因）。**G7 增补**：再补 2 例——多行按「旧→新」逐行写出（末行是崩溃瞬间）；供应器返回空数组时不写任何行（headless 面） | 上游无 `activity` 参数
 dsh/packages/host/webserver/tests/webserver-external.spec.ts | 新 | C2-a：外部模式用例——不 bind + 声明端口可被他人绑定 + `dispatch` 服务注册路由/回退座/400 错误包含 + 未 bind 下 dispose 不挂 | 上游无
 dsh/packages/bundle/web-app/tests/pipe-transport.spec.ts | 新 | C2-a：管道载体用例 11 条（hello / 一元 GET+POST 体 / 流式响应 head+chunk+end / res-err / 流 item+uplink+end / 失败映射 / abort / 四类协议违规 fail-closed）；客户端侧为独立实现以免同源套套逻辑 | 上游无
 dsh/packages/bundle/web-app/tests/pipe-sse.spec.ts | 新 | G2：SSE 流 lane 用例 6 条（跨块拆帧拼接 / 注释与 event 行被忽略 / 无 data 路由产出零帧 / `sse:` 前缀分流到 SSE 读取器 / 未装 `openSseStream` 时流错误且原因点名 / 长连只 write 不 end 时 abort 收尾并触发路由 close）；同样走真实管道 + 独立客户端编解码 | 上游无
 dsh/packages/bundle/web-app/tests/pipe-response-contract.spec.ts | 新 | G4：合成响应的 pipe 目的地契约用例 2 条（路由把真 Readable pipe 进 res 后请求以 res-end 正常收尾且 body 完整 / 连续两次请求都不崩、pipe 的 close 与 finish 监听不泄漏）；真实管道 + 真 `Readable.pipe`，覆盖「插件 `stream.pipe(res)` 触发 `dest.removeListener is not a function` 使宿主崩溃」的回归 | 上游无
-dsh/packages/boot/app-boot/src/index.ts | 改 | G5：`installFailLoud` 增第四个可选参数 `activity`（`FailLoudActivity`），在 fatal 诊断后补写一行 `last route: <method> <url> → <kind> route <path>`；供应商抛错被吞掉，绝不替换真正的失败原因。动机：壳的宿主自愈需要知道「哪个插件路由正在服务时崩的」。**G7 增补**：`FailLoudActivity` 返回类型由 `string | undefined` 改为 `readonly string[]`——每次崩溃写**多行**（旧→新，末行是崩溃瞬间），空数组即不写。动机：单行只能说明「死的那一刻谁在服务」，那可能只是恰好在飞的无关请求；多行能看出「是否某插件正密集刷同一路由」 | 上游无该参数（诊断只 `inspect(err)`）
-dsh/apps/cli/src/profile-boot.ts | 改 | G5：`installFailLoud` 传入 activity 供应商——读 `app.current?.get('webServer')?.lastActivity()` 并格式化为一行。无 webServer 行时返回 undefined（headless 面不受影响）。**G6 增补**：`live.plugin` 存在时追加 ` → plugin <名>`；缺失时保持旧格式不变（上游无归属概念，不硬塞占位）。**G7 增补**：改读 `recentActivity()`，每条路由一行（`Array.map`），无 webServer 行时返回空数组 | 上游无
-dsh/packages/client/ui-settings-account/src/client/index.ts | 改 | H1（账号登录放开）：`start()` 计算回调 origin 时**优先读 `__DSH_TRANSPORT__.oauthCallbackOrigin`**，缺失才回落到原逻辑（desktop → `streamBaseUrl` 的 origin / web → `window.location.origin`）。动机：壳页面的 origin 是 `http://worldsea.localhost`（wry 自定义协议落形，无端口、不在上游 `loginOrigin()` 的 loopback 白名单内），直接当回调 origin 会被 `PlatformAuthError('protocol')` 拒绝——连 `auth_init` 都发不出去；壳因此另起一个真 loopback 监听并把它注入为回调基址。改动只读一个新增字段、用局部类型断言，**不动 `ClientTransportHooks` 接口**（把 fork 面压到 1 文件） | 上游无该字段（回调 origin 只由 `desktop`/`window.location.origin` 二分推导）；同文件的既有用例仍锁定回落路径不变
-dsh/packages/client/ui-settings-account/tests/apply.client.spec.ts | 改 | H1：新增 2 例——壳注入 `oauthCallbackOrigin` 时 web 客户端以它作回调 origin；Desktop 桥在位时它**优先于** `streamBaseUrl` 的 origin。原「browser or Desktop login carrier」用例保持不动，继续锁定回落路径 | 上游无该字段故无对应用例
-dsh/packages/client/ui-settings-account/README.md | 改 | H1：正文补 `__DSH_TRANSPORT__.oauthCallbackOrigin` 的契约（两种客户端均适用、取代计算的回调 origin，理由＝非回环 HTTP origin 的页面无法自行接收 Platform 跳转）；「已知限制」原「非回环页面登录必失败」改为「无此类壳时仍失败」，保留反向代理部署的既有结论 | 上游无该字段，故无对应段落
-dsh/packages/client/ui-settings-account/README.zh.md | 改 | H1：与英文 README 逐段对齐（正文契约段 + 已知限制段） | 同上
-dsh/packages/credentials/deepseek-account-platform/src/index.ts | 改 | H2（退出登录挂死修复）：`attempt.done` 收尾处的 `await streamPromises.finished(attempt.callback)` 改**有界等待**（`CALLBACK_DRAIN_TIMEOUT_MS = 5_000`，定时器随 race 结束即 abort 释放）。动机：该 await 原意只是「拆路由前让浏览器收完响应」，但壳的回调经**管道合成响应**送达（非真 socket），`eos` 既不对它报完成也不报错 → `attempt.done` 永不结算 → 用户 `signOut` 因 `await cancelSignIn` 永久挂住（真机实测：`phase='succeeded'` 时 30s+ 无响应，`attempt` 为空时 98ms 成功；修复后同一场景 94ms）。有界等待把「载体不报完成」退化成多等 5s 而非卡死，真 socket 载体不受影响。**注**：曾尝试在壳侧把合成响应做成真 Writable 从根上满足 `eos`，但那要动 C2 的 pipe 契约与 20 条既有用例，风险大于收益，已放弃并还原 | 上游隐含「回调由真 socket 承载、响应可感知结束」（README「完成、取消和卸载仅移除本次尝试的路由」），无「载体不报完成」的分支
+dsh/packages/credentials/deepseek-account/src/index.ts | 改 | H2（退出登录挂死修复）：`attempt.done` 收尾处的 `await streamPromises.finished(attempt.callback)` 改**有界等待**（`CALLBACK_DRAIN_TIMEOUT_MS = 5_000`，定时器随 race 结束即 abort 释放）。动机：该 await 原意只是「拆路由前让浏览器收完响应」，但壳的回调经**管道合成响应**送达（非真 socket），`eos` 既不对它报完成也不报错 → `attempt.done` 永不结算 → 用户 `signOut` 因 `await cancelSignIn` 永久挂住（真机实测：`phase='succeeded'` 时 30s+ 无响应，`attempt` 为空时 98ms 成功；修复后同一场景 94ms）。有界等待把「载体不报完成」退化成多等 5s 而非卡死，真 socket 载体不受影响。**注**：曾尝试在壳侧把合成响应做成真 Writable 从根上满足 `eos`，但那要动 C2 的 pipe 契约与 20 条既有用例，风险大于收益，已放弃并还原 | **上游 0.2.2-rc.1 起把 `deepseek-account-platform` 重构为 `deepseek-account`**（删抽象基类、拆 account-tasks/client-metadata/details/logout/notifications/protocol/types 多文件）；本改动随迁至新包 `index.ts` 的同名 `finished()` 调用点（代码逐字相同）。上游仍隐含「回调由真 socket 承载、响应可感知结束」，无「载体不报完成」的分支
 ```
 
 > **曾登记已撤（2026-10-07）**：`client/ui-commands` 的 `commandUi.face()` 挂载点（contract / service / 测试 3 文件）曾为 `/entity` 指令行样式引入并登记——**同日改判纯插件形态后整体撤出**（客户端贡献位 `commandUi.register` 原生支持图标/中文名/短提示呈现，呈现面无需动 dsh；行为链路改走壳 IPC，见 console 插件 README）。上游对照结论留档：上游非内建指令行固定渲染「注册名 + catalog 描述」（`builtinRowFace` 仅覆盖 6 个写死 definitionId），无第三方呈现面机制；若将来 WorldSea 需要「宿主指令 + 客户端呈现」，此撤撤销记录即是现成设计稿。

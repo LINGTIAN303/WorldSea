@@ -35,7 +35,6 @@ import { PROFILE_TEMPLATES } from '@deepseek-ai/dsh-official-bundles'
 import { resolveDshHome } from '@deepseek-ai/dsh-home-paths'
 import { installProxyFromEnvironment } from '@deepseek-ai/dsh-http-proxy'
 import { DSH_LAUNCH_ENVIRONMENT_KEY, type LaunchEnvironmentSnapshot } from '@deepseek-ai/dsh-launch-environment'
-import type { WebRouteActivity } from '@deepseek-ai/dsh-host-webserver'
 import { provideCmdline, type AppReady } from '@deepseek-ai/dsh-cmdline'
 import { createProcessShutdown, type ProcessShutdown } from './process-shutdown.ts'
 
@@ -263,6 +262,17 @@ export interface RunProfileOptions {
 }
 
 /**
+ * Render a profile name as an RFC 9110 `User-Agent` product version: bytes outside `tchar`, and `%`, are percent-encoded,
+ * so spaces, `/`, and non-ASCII names stay readable and reversible.
+ * @param name - the booted profile name.
+ * @returns the encoded name.
+ */
+export function userAgentProfile(name: string): string {
+  // encodeURIComponent leaves only `(` and `)` outside tchar.
+  return encodeURIComponent(name).replace(/[()]/g, char => `%${char.charCodeAt(0).toString(16).toUpperCase()}`)
+}
+
+/**
  * Boot one profile invocation end to end and leave process lifetime to the
  * mounted plugins (or to a one-shot runner the composition mounts).
  * @param options - environment snapshot, profile name, overlays, and the booted app's own arguments.
@@ -270,6 +280,8 @@ export interface RunProfileOptions {
  * @throws after disposing startup resources; cleanup failures retain the original error.
  */
 export async function runProfile(options: RunProfileOptions): Promise<{ ctx: Context; shutdown: ProcessShutdown }> {
+  // Model providers see which profile sent a request.
+  process.env.DSH_USER_AGENT_SUFFIX = `dsh-profile/${userAgentProfile(options.profile)}`
   // Before the first plugin mounts and before anything can issue a request: Node's fetch ignores the
   // proxy environment on its own, so every profile would otherwise connect directly. Resolving from
   // the launcher's snapshot — not `process.env` — is what lets a proxy declared in a `.env` layer
@@ -309,23 +321,6 @@ export async function runProfile(options: RunProfileOptions): Promise<{ ctx: Con
     process.on('SIGINT', () => { interrupt(130) })
     installFailLoud(NAME, process, async () => {
       await app.current?.fiber.dispose()
-    }, () => {
-      // The webserver outlives the failing request, so its recent dispatches show
-      // what was being served when the process died. One line per dispatch, oldest
-      // first: the last is the crash instant, earlier ones show whether a burst on
-      // one route preceded it. Absent when no webserver row is mounted (headless).
-      // `get` resolves the service store by name; importing the row type above
-      // gives the call its declared WebServer | undefined result.
-      const webServer = app.current?.get('webServer')
-      const recent = webServer?.recentActivity() ?? []
-      return recent.map((live: WebRouteActivity) => {
-        const route = `${live.kind} route ${live.path || '(fallback)'}`
-        // The plugin name is what a supervisor needs to disable the offender; the
-        // route alone only says which path prefix was live.
-        return live.plugin === undefined
-          ? `${live.method} ${live.url} → ${route}`
-          : `${live.method} ${live.url} → ${route} → plugin ${live.plugin}`
-      })
     })
 
     const rootConfig = join(composed.profile.dir, PROFILE_ROOT_FILENAME)

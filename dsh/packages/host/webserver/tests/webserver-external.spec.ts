@@ -80,7 +80,7 @@ interface Dispatched {
 
 /** Dispatch one synthetic request and collect the answer the handler writes. */
 async function dispatched(
-  server: { dispatch(req: IncomingMessage, res: ServerResponse): void },
+  server: { dispatch(req: IncomingMessage, res: ServerResponse): Promise<void> },
   path: string,
 ): Promise<Dispatched> {
   const req = new Readable({ read() {} }) as unknown as IncomingMessage
@@ -105,7 +105,7 @@ async function dispatched(
     once: () => res,
     off: () => res,
   }
-  server.dispatch(req, res as unknown as ServerResponse)
+  void server.dispatch(req, res as unknown as ServerResponse)
   return await settled.promise
 }
 

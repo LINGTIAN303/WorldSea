@@ -50,7 +50,6 @@ export type WebRouteKind = 'exact' | 'prefix'
 
 /**
  * How many recent dispatches the activity ring keeps.
- *
  * Sized so a crash report can show a short burst — a plugin looping on one route —
  * without turning the fatal diagnostic into a request log. Five covers
  * "open → poll → poll → the one that died" without dominating stderr.
@@ -101,11 +100,6 @@ export interface WebResourceRoute {
   path: string
   /** Answers HTTP GET and HEAD requests and in-process reads. */
   resource: WebResource
-}
-
-/** Narrow a named route to the resource form. */
-function isResourceRoute(route: WebRoute | WebResourceRoute): route is WebResourceRoute {
-  return 'resource' in route
 }
 
 /** One route table row: the registration plus who registered it. */
@@ -170,20 +164,26 @@ export interface Config {
    * over plain HTTP.
    */
   tls?: TlsConfig
-  /**
-   * External-carrier mode: bind nothing. The composing application owns a
-   * non-TCP carrier (a shell-owned IPC pipe) and feeds synthesized exchanges
-   * through {@link WebServer.dispatch}; `port` then only declares the
-   * authority URL display and trust fences are written against.
-   * @default false
-   */
-  external?: boolean
   /** Response compression for socket-backed HTTP requests. @default 'none' */
   compression?: 'none' | 'gzip'
   /** Gzip DEFLATE level from 0 through 9. @default 1 */
   compressionLevel?: number
   /** Minimum known response length eligible for gzip; unknown-length streams are eligible. @default 1024 */
   compressionThresholdBytes?: number
+  /**
+   * Serve without binding any listener: an external carrier owns the transport
+   * and feeds exchanges through {@link WebServer.dispatch}. The advertised
+   * origin still derives from `host` and `port`, which then only declare the
+   * authority that URL display and trust fences are written against.
+   * @default false
+   */
+  external?: boolean
+  /**
+   * IPC pipe path the external carrier serves on (`\\.\pipe\<name>` on Windows,
+   * a socket path elsewhere). Read by the bundle row that starts the carrier;
+   * absent when the invocation named none.
+   */
+  ipcPipe?: string
 }
 
 const DEFAULT_COMPRESSION = 'none' as const
@@ -432,7 +432,6 @@ export class WebServer extends Service {
       certFile: z.string().required(),
       keyFile: z.string().required(),
     }).default(undefined as never),
-    external: z.boolean().default(false),
     compression: z.union([z.const('none'), z.const('gzip')]).default(DEFAULT_COMPRESSION),
     compressionLevel: z.number().step(1).min(0).max(9).default(DEFAULT_COMPRESSION_LEVEL),
     compressionThresholdBytes: z.natural().default(DEFAULT_COMPRESSION_THRESHOLD_BYTES),
@@ -440,25 +439,14 @@ export class WebServer extends Service {
 
   private readonly exact = new Map<string, WebRouteEntry>()
   private readonly prefixes = new Map<string, WebRouteEntry>()
-  private readonly upgrades = new Map<string, WebUpgradeRoute>()
-  private readonly upgradedSockets = new Set<Duplex>()
-  /**
-   * Last dispatched request and the route that answered it. Kept only so a
-   * crash handler can report which plugin namespace was live when the process
-   * died: a plugin route that throws leaves no other record, and the failing
-   * call site is gone by the time the fatal handler runs.
-   */
   private activity: WebRouteActivity | undefined
   private activitySeq = 0
   /**
    * Ring of recent dispatches, oldest first, capped at {@link ACTIVITY_HISTORY}.
-   *
-   * {@link activity} alone answers "what was live at the instant of death", which
-   * can be an unrelated request that merely happened to be in flight. The ring
-   * shows the sequence leading up to it, so a reader can tell a plugin hammering
-   * one route from a single coincidental request.
    */
   private readonly activityHistory: WebRouteActivity[] = []
+  private readonly upgrades = new Map<string, WebUpgradeRoute>()
+  private readonly upgradedSockets = new Set<Duplex>()
   /**
    * Raw connections of a TLS listener, held until they close. A TLS connection
    * joins closeAllConnections()'s table only once its handshake completes, so a
@@ -482,9 +470,12 @@ export class WebServer extends Service {
     this.gzip = resolved.compression === 'gzip' ? createGzipMiddleware(resolved) : undefined
   }
 
-  /** The listening port (the OS-assigned value when config.port is 0), or `undefined` before `listen` binds. */
+  /**
+   * The listening port (the OS-assigned value when config.port is 0), or the
+   * declared authority port in external-carrier mode, where nothing binds.
+   */
   get port(): number | undefined {
-    return this.listenedPort
+    return this.config.external === true ? this.config.port : this.listenedPort
   }
 
   /** The configured bind address (one concrete local interface). */
@@ -512,8 +503,11 @@ export class WebServer extends Service {
     if (host === undefined) {
       throw new Error(`webserver: bind address ${JSON.stringify(this.config.host)} carries an interface zone id, which no URL can express`)
     }
-    if (this.listenedPort === undefined) throw new Error('webserver: origin read before the listener bound a port')
-    return `${this.protocol}//${host}:${String(this.listenedPort)}`
+    // An external carrier binds nothing, so the configured port is the declared
+    // authority rather than a port the OS assigned.
+    const port = this.config.external === true ? this.config.port : this.listenedPort
+    if (port === undefined) throw new Error('webserver: origin read before the listener bound a port')
+    return `${this.protocol}//${host}:${String(port)}`
   }
 
   /**
@@ -527,25 +521,9 @@ export class WebServer extends Service {
     if (table.has(route.path)) {
       throw new Error(`webserver: duplicate ${route.kind} route "${route.path}"`)
     }
-    // Read the registering fiber's name here, while `this.ctx` still resolves to
-    // the caller (cordis rebinds it through the caller's shadow context). The
-    // name is what a crash report needs; matching it to a `moduleName` happens
-    // in the reader, which owns the profile inventory.
-    const plugin = callerPluginName(this.ctx)
-    const entry: WebRouteEntry = plugin === undefined ? { route } : { route, plugin }
-    table.set(route.path, entry)
+    // The registering fiber names the plugin a crash report should blame.
+    table.set(route.path, { route, plugin: callerPluginName(this.ctx) })
     return () => { table.delete(route.path) }
-  }
-
-  /**
-   * The currently registered prefix routes, in registration order. A carrier
-   * that gates paths outside this process (a native shell proxying a page)
-   * reads this to learn which namespaces this server actually answers, so it
-   * need not keep a hand-written copy of a set that plugins change at runtime.
-   * @returns every registered prefix path, live at call time.
-   */
-  listPrefixRoutes(): string[] {
-    return [...this.prefixes.keys()]
   }
 
   /**
@@ -621,15 +599,117 @@ export class WebServer extends Service {
     }
   }
 
+  /**
+   * Answer one exchange from the route table.
+   *
+   * A carrier that owns the transport (a shell piping requests into this web
+   * server instead of a TCP socket) hands its synthesized exchanges here, so
+   * the route table and its precedence stay the single authority.
+   * @param req - request the carrier synthesized.
+   * @param res - response the carrier captures.
+   */
+  async dispatch(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    /* v8 ignore next -- `?? '/'` arm: node:http always sets url on server
+    requests; the field is only optional on the client-side IncomingMessage type */
+    const rawPath = new URL(req.url ?? '/', 'http://x').pathname
+    const matched = this.match(rawPath)
+    // Recorded before the handler runs: a handler that throws leaves the
+    // route as the only surviving evidence of which plugin was live.
+    const entry: WebRouteActivity = {
+      path: matched?.route.path ?? '',
+      ...matched?.plugin === undefined ? {} : { plugin: matched.plugin },
+      kind: matched?.route.kind ?? 'exact',
+      method: req.method ?? '',
+      url: rawPath,
+      at: ++this.activitySeq,
+    }
+    this.activity = entry
+    this.activityHistory.push(entry)
+    if (this.activityHistory.length > ACTIVITY_HISTORY) this.activityHistory.shift()
+    const responder = matched?.route ?? this.fallback
+    if (responder === undefined) {
+      res.writeHead(404)
+      res.end()
+      return
+    }
+    // A rejecting handler must not escape: without a socket there is no outer
+    // guard, so an unanswered exchange would hang the carrier's connection.
+    try {
+      if (typeof responder === 'function') await responder(req, res)
+      else if ('resource' in responder) await this.serveResource(req, res, new URL(req.url ?? '/', 'http://x'), responder.resource)
+      else await responder.handler(req, res)
+    } catch (error) {
+      this.ctx.logger.warn(error instanceof Error ? error : new Error(String(error)))
+      if (res.headersSent) {
+        res.destroy()
+        return
+      }
+      res.writeHead(400)
+      res.end()
+    }
+  }
+
+  /**
+   * The route that answered the most recent dispatch.
+   * @returns the last matched route and request, or undefined before any request.
+   */
+  lastActivity(): WebRouteActivity | undefined {
+    return this.activity
+  }
+
+  /**
+   * Recent dispatches, oldest first, at most {@link ACTIVITY_HISTORY} of them.
+   *
+   * A crash report reads this to show the sequence rather than one instant: the
+   * last request can be unrelated traffic that merely overlapped the failure.
+   * @returns the retained dispatches; empty before any request.
+   */
+  recentActivity(): readonly WebRouteActivity[] {
+    return this.activityHistory
+  }
+
+  /**
+   * Registered prefix routes, read fresh.
+   *
+   * A carrier that dials in later must see the prefixes registered since its
+   * last connection, so this reads the live table rather than a snapshot.
+   * @returns the prefix paths, in no particular order.
+   */
+  listPrefixRoutes(): string[] {
+    return [...this.prefixes.keys()]
+  }
   /** Listen; resolves once the socket is bound (rejection = FAILED fiber). */
   async [Service.init](): Promise<void> {
+    // External carrier mode: the transport belongs to whoever called
+    // `dispatch`, so binding a listener here would both open an unused port and
+    // contradict the authority the URL display advertises.
+    if (this.config.external === true) return
+    const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+      await this.dispatch(req, res)
+    }
+    // Last-resort guard: handle() rejecting would otherwise be an unhandled
+    // rejection killing the process on one malformed request (bad %-escape,
+    // client dropping mid-body). Per-request failures log and answer 400 —
+    // never a process exit.
     const listener = (req: IncomingMessage, res: ServerResponse): void => {
-      this.serve(req, res)
+      const next = (): void => {
+        void handle(req, res).catch((err: unknown) => {
+          this.ctx.logger.warn(err instanceof Error ? err : new Error(String(err)))
+          if (res.headersSent) {
+            res.destroy()
+            return
+          }
+          res.writeHead(400)
+          res.end()
+        })
+      }
+      if (this.gzip === undefined) next()
+      else this.gzip(req, res, next)
     }
     const tls = this.tlsConfig
     // Disposal waits for in-flight acquisition and closes any listener it produces.
     await this.ctx.effect(async () => {
-      if (tls === undefined || this.config.external) {
+      if (tls === undefined) {
         this.server = createServer(listener)
       } else {
         const certFile = resolve(tls.certFile)
@@ -683,34 +763,23 @@ export class WebServer extends Service {
         }
       })
 
-      if (this.config.external) {
-        // External-carrier mode: nothing binds. The composing application owns a
-        // non-TCP carrier (an IPC pipe) and feeds synthesized exchanges through
-        // dispatch(); route registration, fences, and error semantics below the
-        // serving path stay identical. `port` declares the authority URL display
-        // and trust fences are written against, with no listener behind it.
-        this.listenedPort = this.config.port
-      } else {
-        await new Promise<void>((resolve, reject) => {
-          this.server.once('error', reject)
-          this.server.listen(this.config.port, this.config.host, () => {
-            this.server.off('error', reject)
-            this.server.on('error', (err) => { this.ctx.logger.error(err) })
-            this.listenedPort = (this.server.address() as AddressInfo).port
-            resolve()
-          })
+      await new Promise<void>((resolve, reject) => {
+        this.server.once('error', reject)
+        this.server.listen(this.config.port, this.config.host, () => {
+          this.server.off('error', reject)
+          this.server.on('error', (err) => { this.ctx.logger.error(err) })
+          this.listenedPort = (this.server.address() as AddressInfo).port
+          resolve()
         })
-      }
+      })
 
       // Node does not include upgraded sockets in closeAllConnections(), and a TLS
       // connection joins that table only after its handshake. The service owns both
       // kinds with the other connections, so it tracks and destroys them explicitly.
       return async () => {
-        const serverClosed = this.server.listening
-          ? new Promise<void>((resolve) => {
-            this.server.close(() => { resolve() })
-          })
-          : Promise.resolve()
+        const serverClosed = new Promise<void>((resolve) => {
+          this.server.close(() => { resolve() })
+        })
         this.server.closeAllConnections()
         const socketsClosed = [...this.upgradedSockets, ...this.tlsConnections].map(socket => new Promise<void>((resolve) => {
           socket.once('close', () => { resolve() })
@@ -719,97 +788,6 @@ export class WebServer extends Service {
         await Promise.all([serverClosed, ...socketsClosed])
       }
     }, 'webServer.listen')
-  }
-  /**
-   * Serve one request through the registered tables with the process-safety
-   * wrapper. The node:http callback and {@link dispatch} share this path, so
-   * routing, error containment, and the gzip layer behave identically. A
-   * synthesized response carries no socket, which the compression middleware
-   * already treats as identity-transfer.
-   */
-  private serve(req: IncomingMessage, res: ServerResponse): void {
-    const next = (): void => {
-      void this.route(req, res).catch((err: unknown) => {
-        this.ctx.logger.warn(err instanceof Error ? err : new Error(String(err)))
-        if (res.headersSent) {
-          res.destroy()
-          return
-        }
-        res.writeHead(400)
-        res.end()
-      })
-    }
-    if (this.gzip === undefined) next()
-    else this.gzip(req, res, next)
-  }
-
-  /** Match one request against the named tables, then the fallback seat. */
-  private async route(req: IncomingMessage, res: ServerResponse): Promise<void> {
-    /* v8 ignore next -- `?? '/'` arm: node:http always sets url on server
-    requests; the field is only optional on the client-side IncomingMessage type */
-    const rawPath = new URL(req.url ?? '/', 'http://x').pathname
-    const matched = this.match(rawPath)
-    // Recorded before the handler runs: a handler that throws leaves the
-    // route as the only surviving evidence of which plugin was live.
-    const entry: WebRouteActivity = {
-      path: matched?.route.path ?? '',
-      ...matched?.plugin === undefined ? {} : { plugin: matched.plugin },
-      kind: matched?.route.kind ?? 'exact',
-      method: req.method ?? '',
-      url: rawPath,
-      at: ++this.activitySeq,
-    }
-    this.activity = entry
-    this.activityHistory.push(entry)
-    if (this.activityHistory.length > ACTIVITY_HISTORY) this.activityHistory.shift()
-    if (matched !== undefined) {
-      const route = matched.route
-      if (isResourceRoute(route)) {
-        await this.serveResource(req, res, new URL(req.url ?? '/', 'http://x'), route.resource)
-      } else {
-        await route.handler(req, res)
-      }
-      return
-    }
-    const fallback = this.fallback
-    if (fallback === undefined) {
-      res.writeHead(404)
-      res.end()
-      return
-    }
-    if (typeof fallback === 'function') await fallback(req, res)
-    else await this.serveResource(req, res, new URL(req.url ?? '/', 'http://x'), fallback.resource)
-  }
-
-  /**
-   * The route that answered the most recent dispatch.
-   * @returns the last matched route and request, or undefined before any request.
-   */
-  lastActivity(): WebRouteActivity | undefined {
-    return this.activity
-  }
-
-  /**
-   * Recent dispatches, oldest first, at most {@link ACTIVITY_HISTORY} of them.
-   *
-   * A crash report reads this to show the sequence rather than one instant: the
-   * last request can be unrelated traffic that merely overlapped the failure.
-   * @returns the retained dispatches; empty before any request.
-   */
-  recentActivity(): readonly WebRouteActivity[] {
-    return this.activityHistory
-  }
-
-  /**
-   * Serve one externally carried request (external-carrier mode). The carrier
-   * builds the request/response pair — the synthesizer is the carrier's, since
-   * it decides which members exist — and calls this instead of reaching a
-   * socket; everything downstream is {@link serve}.
-   * @param req - synthesized request carrying url, method, headers, and body.
-   * @param res - synthesized response the carrier owns to completion.
-   */
-  dispatch(req: IncomingMessage, res: ServerResponse): void {
-    this.serve(req, res)
   }
 
   /**

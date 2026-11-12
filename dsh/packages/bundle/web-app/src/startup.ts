@@ -1,7 +1,7 @@
 /**
  * The web app's command-line provider: it parses the `dsh --profile web` flag
- * family (`--host`, `--port`, `--public-url`, `--trusted-host`, `--no-open`, TLS,
- * `--ipc-pipe`) and its `--help` text, then provides the immutable values as
+ * family (`--host`, `--port`, `--public-url`, `--trusted-host`, `--no-open`, TLS)
+ * and its `--help` text, then provides the immutable values as
  * {@link WEB_STARTUP_SERVICE}. Ordinary rows inject that service before
  * reading it from lazy config.
  * @module @deepseek-ai/dsh-web-app/startup
@@ -69,9 +69,9 @@ function webCommand(): Command {
     .description('Serve the DeepSeek Harness browser UI.')
     .helpOption('-h, --help', 'show this help')
     .option('--host <host>', 'bind address: one concrete IPv4 or IPv6 literal of a local interface; wildcard addresses are rejected')
-    .option('--ipc-pipe <path>', 'serve over this IPC pipe instead of TCP (named pipe path or socket file); --port then only declares the authority')
     .option('--no-open', 'do not open the Web UI in the default browser')
     .option('--port <port>', 'listen port; pass 0 to let the OS pick a free one; with --ipc-pipe, the declared authority port')
+    .option('--ipc-pipe <path>', 'serve over this IPC pipe instead of TCP (named pipe path or socket file); --port then only declares the authority')
     .option('--public-url <url>', 'advertise this HTTP(S) root in the printed, opened, runtime-context, and DSH_WEB_URL forms; grants no trust')
     .option('--trusted-host <authority...>', 'extra authority the /api browser-trust fence accepts (host or host:port; repeatable)')
     .option('--tls-cert <file>', 'PEM server certificate chain; requires --tls-key')

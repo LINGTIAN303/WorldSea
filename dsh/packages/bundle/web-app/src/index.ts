@@ -18,8 +18,8 @@ import { dirname, join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { auditStartupEntries } from '@deepseek-ai/dsh-app-boot'
-import type {} from '@deepseek-ai/dsh-api-gateway'
 import type {} from '@deepseek-ai/dsh-client-connection'
+import type {} from '@deepseek-ai/dsh-api-gateway'
 import * as FrontendStatic from '@deepseek-ai/dsh-host-frontend-static'
 import { bindUrlHost, isLoopbackHost } from '@deepseek-ai/dsh-host-webserver'
 import { launchedThroughSsh, launchEnvironmentOf } from '@deepseek-ai/dsh-launch-environment'
@@ -207,7 +207,9 @@ function installPipeMode(ctx: Context, pipePath: string): void {
     }, 'web-app: pipe carrier')
     void installPipeCarrier({
       path: pipePath,
-      dispatch: (req, res) => { ctx.webServer.dispatch(req, res) },
+      // The carrier owns the response to completion, so this side starts the
+      // dispatch and never awaits it.
+      dispatch: (req, res) => { void ctx.webServer.dispatch(req, res) },
       // Read per connection: plugins register routes while the server runs, so
       // a shell that reconnects must see the routes as they are at that moment.
       routePrefixes: () => ctx.webServer.listPrefixRoutes(),
@@ -216,7 +218,7 @@ function installPipeMode(ctx: Context, pipePath: string): void {
       // SSE routes answer over a buffered body on the custom-scheme carrier, so a
       // shell that owns the page carries them here instead of through dispatch.
       openSseStream: (path, signal) =>
-        Promise.resolve(readSseResponse(path, (req, res) => { ctx.webServer.dispatch(req, res) }, signal)),
+        Promise.resolve(readSseResponse(path, (req, res) => { void ctx.webServer.dispatch(req, res) }, signal)),
       streamFailure: error => pipeCtx.typertGateway.wireStream.failure(error),
     }).then((carrier) => {
       if (state.disposed) {

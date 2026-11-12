@@ -16,7 +16,6 @@ import { connect, createServer as createTcpServer, type AddressInfo } from 'node
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import type { Duplex } from 'node:stream'
-import type { IncomingMessage, ServerResponse } from 'node:http'
 import { pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context, FiberState } from '@deepseek-ai/cordis'
@@ -24,8 +23,7 @@ import Loader from '@deepseek-ai/cordis-plugin-loader'
 import Include from '@deepseek-ai/cordis-plugin-include'
 import type { PeerScope } from '@deepseek-ai/dsh-typert-protocol'
 import HttpServer, {
-  ACTIVITY_HISTORY, bindUrlHost, isLoopbackHost, normalizeBindAddress, renderIndexInjections,
-  type TlsConfig, type WebResource, type WebRoute,
+  bindUrlHost, isLoopbackHost, normalizeBindAddress, renderIndexInjections, type TlsConfig, type WebResource, type WebRoute,
 } from '../src/index.ts'
 import { materializeTlsFixture, type TlsFixture } from './tls-fixture.ts'
 
@@ -94,7 +92,6 @@ async function loadComposition(
   gzip = false,
   host = '127.0.0.1',
   tls?: Partial<TlsConfig> | null,
-  extra?: { readonly rows: readonly string[]; readonly modules: ReadonlyMap<string, unknown> },
 ): Promise<Context> {
   const root = await mkdtemp(join(tmpdir(), 'dsh-webserver-loader-'))
   const configPath = join(root, 'cordis.yml')
@@ -119,7 +116,6 @@ async function loadComposition(
         '    compressionThresholdBytes: 16',
       ]
       : []),
-    ...extra?.rows ?? [],
     '',
   ].join('\n'))
 
@@ -130,7 +126,6 @@ async function loadComposition(
   context.loader.builtins.include = Include
   const modules = new Map<string, unknown>([
     ['@deepseek-ai/dsh-host-webserver', HttpServer],
-    ...extra?.modules ?? [],
   ])
   context.loader.internal = {
     version: 'v2',
@@ -340,7 +335,6 @@ describe('real Loader composition', () => {
     expect(HttpServer.Config({ host: '127.0.0.1', port: 0 })).toEqual({
       host: '127.0.0.1',
       port: 0,
-      external: false,
       compression: 'none',
       compressionLevel: 1,
       compressionThresholdBytes: 1024,
@@ -894,7 +888,6 @@ describe('real Loader composition', () => {
       host: '127.0.0.1',
       port: 0,
       tls,
-      external: false,
       compression: 'none',
       compressionLevel: 1,
       compressionThresholdBytes: 1024,
@@ -1083,135 +1076,5 @@ describe('real Loader composition', () => {
     const fiber = webserverFiber(second)
     expect(fiber?.state).toBe(FiberState.FAILED)
     await expect(fiber?.await()).rejects.toThrow('EADDRINUSE')
-  })
-
-  it('records the route that answered the latest dispatch, for crash evidence', { timeout: 60_000 }, async () => {
-    // A plugin route that throws leaves no other record of which namespace was
-    // live; the fatal handler runs after the failing call site is gone. The
-    // webserver keeps the last dispatch so a supervisor can name the plugin.
-    const loaded = await loadComposition()
-    const server = loaded.webServer
-    expect(server.lastActivity()).toBeUndefined()
-
-    server.register({
-      kind: 'exact',
-      path: '/probe',
-      handler: (_req, res) => {
-        res.writeHead(200, { 'content-type': 'text/plain' })
-        res.end('ok')
-      },
-    })
-    const before = await fetch(`http://127.0.0.1:${String(server.port)}/probe`)
-    expect(before.status).toBe(200)
-    const exact = server.lastActivity()
-    expect(exact?.path).toBe('/probe')
-    expect(exact?.kind).toBe('exact')
-    expect(exact?.url).toBe('/probe')
-    expect(exact?.method).toBe('GET')
-
-    // A prefix route reports its own registration path, not the requested one:
-    // that is what names the plugin namespace rather than the resource.
-    server.register({
-      kind: 'prefix',
-      path: '/ns',
-      handler: (_req, res) => {
-        res.writeHead(200, { 'content-type': 'text/plain' })
-        res.end('ns')
-      },
-    })
-    const prefixed = await fetch(`http://127.0.0.1:${String(server.port)}/ns/deep/path`)
-    expect(prefixed.status).toBe(200)
-    const prefix = server.lastActivity()
-    expect(prefix?.path).toBe('/ns')
-    expect(prefix?.kind).toBe('prefix')
-    expect(prefix?.url).toBe('/ns/deep/path')
-
-    // An unmatched request keeps the empty path so a reader can tell the
-    // fallback seat answered instead of inventing a route.
-    await fetch(`http://127.0.0.1:${String(server.port)}/nowhere`)
-    const missing = server.lastActivity()
-    expect(missing?.path).toBe('')
-    expect(missing?.url).toBe('/nowhere')
-  })
-
-  it('names the plugin that registered the live route, so a supervisor can disable it', { timeout: 60_000 }, async () => {
-    // The route path alone cannot identify the offender when a plugin's prefix
-    // and its package name differ. The registering fiber's name is read at
-    // registration time, while cordis still rebinds `ctx` to the caller, so the
-    // recorded name is the plugin's and not the webserver's.
-    const loaded = await loadComposition(0, false, '127.0.0.1', undefined, {
-      rows: ["- name: 'probe-plugin'"],
-      modules: new Map<string, unknown>([
-        ['probe-plugin', {
-          name: 'probe-plugin',
-          inject: ['webServer'],
-          apply: (ctx: Context) => {
-            ctx.effect(() => ctx.webServer.register({
-              kind: 'prefix',
-              path: '/probe-plugin/api',
-              handler: (_req: IncomingMessage, res: ServerResponse) => {
-                res.writeHead(200, { 'content-type': 'text/plain' })
-                res.end('plugin')
-              },
-            }))
-          },
-        }],
-      ]),
-    })
-    const server = loaded.webServer
-    const answered = await fetch(`http://127.0.0.1:${String(server.port)}/probe-plugin/api/deep`)
-    expect(answered.status).toBe(200)
-    const live = server.lastActivity()
-    expect(live?.plugin).toBe('probe-plugin')
-    expect(live?.path).toBe('/probe-plugin/api')
-    expect(live?.kind).toBe('prefix')
-    // The requested path stays separate from the registration path, so a reader
-    // can report both the namespace and the resource that was being served.
-    expect(live?.url).toBe('/probe-plugin/api/deep')
-  })
-
-  it('omits the plugin name for a route registered outside any plugin', { timeout: 60_000 }, async () => {
-    // Root-registered routes have no owning plugin; naming the root fiber would
-    // mislead a supervisor into offering to disable something that is not one.
-    const loaded = await loadComposition()
-    const server = loaded.webServer
-    server.register({
-      kind: 'exact',
-      path: '/no-owner',
-      handler: (_req, res) => { res.writeHead(200); res.end('ok') },
-    })
-    await fetch(`http://127.0.0.1:${String(server.port)}/no-owner`)
-    const live = server.lastActivity()
-    expect(live?.path).toBe('/no-owner')
-    expect(live?.plugin).toBeUndefined()
-  })
-
-  it('keeps a bounded ring of recent dispatches, oldest first', { timeout: 60_000 }, async () => {
-    // A crash report reads the ring, not just the last instant: the live request
-    // can be unrelated traffic that merely overlapped the failure. The ring has
-    // to stay bounded so the fatal diagnostic cannot become a request log.
-    const loaded = await loadComposition()
-    const server = loaded.webServer
-    expect(server.recentActivity()).toEqual([])
-    server.register({
-      kind: 'prefix',
-      path: '/ring',
-      handler: (_req, res) => { res.writeHead(200); res.end('ok') },
-    })
-    const total = ACTIVITY_HISTORY + 3
-    for (let index = 0; index < total; index += 1) {
-      await fetch(`http://127.0.0.1:${String(server.port)}/ring/${String(index)}`)
-    }
-    const ring = server.recentActivity()
-    expect(ring).toHaveLength(ACTIVITY_HISTORY)
-    // Oldest-first: the retained window ends on the newest dispatch.
-    expect(ring.at(-1)?.url).toBe(`/ring/${String(total - 1)}`)
-    expect(ring[0]?.url).toBe(`/ring/${String(total - ACTIVITY_HISTORY)}`)
-    // `at` is monotonic, so a reader can order entries without wall-clock time.
-    for (let index = 1; index < ring.length; index += 1) {
-      expect(ring[index]!.at).toBeGreaterThan(ring[index - 1]!.at)
-    }
-    // The single-point accessor still answers the same instant as the ring tail.
-    expect(server.lastActivity()?.url).toBe(ring.at(-1)?.url)
   })
 })
