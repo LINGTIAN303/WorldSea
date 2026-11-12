@@ -28,7 +28,8 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { useEntityStore, useRelationStore, type Entity } from '@worldsea/entity-core'
+import type { Entity } from '@worldsea/entity-core'
+import { entitiesSvc, relationsSvc } from '../serviceAccess'
 
 const props = withDefaults(defineProps<{
   modelValue?: string[]
@@ -43,18 +44,18 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{ 'update:modelValue': [ids: string[]] }>()
 
-const entityStore = useEntityStore()
-const relationStore = useRelationStore()
+const entities = entitiesSvc()
+const relations = relationsSvc()
 const query = ref('')
 const open = ref(false)
 const selected = ref<string[]>([...props.modelValue])
 
 const selectedEntities = computed(() => (
-  selected.value.map(id => entityStore.entityMap.get(id)).filter((item): item is Entity => !!item)
+  selected.value.map(id => entities.get(id)).filter((item): item is Entity => !!item)
 ))
 const candidates = computed(() => {
   const keyword = query.value.trim().toLowerCase()
-  return entityStore.entities
+  return entities.list()
     .filter(item => props.types.includes(item.type))
     .filter(item => !selected.value.includes(item.id))
     .filter(item => !keyword || item.name.toLowerCase().includes(keyword))
@@ -81,7 +82,7 @@ function remove(id: string) {
 watch(() => props.eventId, eventId => {
   const ids = new Set<string>()
   if (eventId) {
-    for (const relation of relationStore.relations) {
+    for (const relation of relations.list()) {
       if (relation.type === 'involves' && relation.sourceId === eventId) ids.add(relation.targetId)
       else if (relation.type === 'involved_in_event' && relation.targetId === eventId) ids.add(relation.sourceId)
     }

@@ -109,7 +109,7 @@
         <CausalGraph
           :event="selectedEvent"
           :events="eventList"
-          :relations="relationStore.relations"
+          :relations="[...relations.list()]"
           @navigate-to-event="navigateToEvent"
         />
         <EntityRelationSelector v-if="selectedEvent" :entity-id="selectedEvent.id" entity-type="event" relation-type="causes" />
@@ -156,11 +156,10 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
-import { useEntityStore, useRelationStore, useUIStore, useDetailLayoutStore } from '@worldsea/entity-core'
+import { detailLayoutSvc, entitiesSvc, relationsSvc, settingsSvc, uiSvc } from './serviceAccess'
 import type { Entity } from '@worldsea/entity-core'
 import { AutoLinkSuggestions, CustomDropdown, EntityCoverPanel, EntityVideoPanel, CreateButton, DynamicFieldsAdder, UniversalRelationPanel, EntityRelationSelector, EntityPager, useDuplicateNameCheck, useSelectedFollow, useBatchDelete, useConfirm, useEntityEdit, useEntityPaging, useDetailCarrier, useCarrierOpenWindow, resolveDetailTabs, adjacentTabId } from '@worldsea/plugin-sdk'
 import { toastSuccess, toastWithUndo, useUndoRedo, useAsyncTask } from '@worldsea/ui-kit'
-import { useSettingsStore } from '@/stores/settingsStore'
 import { TuiButton, WsEmpty } from '@worldsea/ui-kit'
 import TimelineChart from './components/TimelineChart.vue'
 import ConflictDetector from './components/ConflictDetector.vue'
@@ -183,15 +182,13 @@ import { useTimelinePoints } from './composables/useTimelinePoints'
 import { useTimelineGroups } from './composables/useTimelineGroups'
 import { useTimelineKeyboard } from './composables/useTimelineKeyboard'
 import { DETAIL_TAB_DECLARATIONS } from '../../detailTabDeclarations'
-import { entitySchemaRegistry } from '@worldsea/entity-core'
+import { schemaSvc } from './serviceAccess'
 
-const entityStore = useEntityStore()
-const relationStore = useRelationStore()
-const uiStore = useUIStore()
+const entities = entitiesSvc(), relations = relationsSvc(), settings = settingsSvc()
+const ui = uiSvc(), detailLayout = detailLayoutSvc()
 const { checkAndConfirmName } = useDuplicateNameCheck()
 const { confirm } = useConfirm()
 const { undo, redo } = useUndoRedo()
-const settingsStore = useSettingsStore()
 const { selectedIds, selecting, toggleSelect, clearSelection, toggleSelectMode, batchDelete } = useBatchDelete()
 const { visible: chartLoading, error: timelineError, run: runTimelineLoad } = useAsyncTask({ successHold: 0 })
 const eventsLoaded = ref(false)
@@ -209,22 +206,24 @@ const editingEvent = ref<Entity | null>(null)
 const formModalRef = ref<{ syncEntityRefAfterCreate: (id: string) => Promise<void> | void } | null>(null)
 
 // 选中事件跟随 store（updateById 按引用替换后，详情面板不能挂旧对象——封面 Tab 同口径）
-useSelectedFollow(selectedEvent, () => entityStore.entityMap)
-
 const layoutMode = ref<'horizontal' | 'vertical'>(
-  (settingsStore as any).timelineDefaultMode === 'horizontal' ? 'horizontal' : 'vertical'
+  settings.timelineDefaultMode() === 'horizontal' ? 'horizontal' : 'vertical'
 )
-const compactMode = ref((settingsStore as any).timelineCompactMode === true)
-const dragEnabled = computed(() => (settingsStore as any).timelineDragEnabled === true)
+const compactMode = ref(settings.timelineCompactMode() === true)
+const dragEnabled = computed(() => settings.timelineDragEnabled() === true)
 const viewRoot = ref<HTMLElement>()
 const formPreset = ref<Record<string, unknown> | null>(null)
 
-const eventList = computed(() => entityStore.entities.filter(e => e.type === 'event'))
+const eventList = computed(() => entities.list().filter(e => e.type === 'event'))
+// 服务不暴露 store 的 entityMap（内部索引），按 id 取值统一走 `entities.get`；
+// useSelectedFollow 形参要求真 Map，故由事件列表就地派生（只覆盖 event 类型，正是其用途）。
+const eventMap = computed(() => new Map(eventList.value.map(e => [e.id, e])))
+useSelectedFollow(selectedEvent, () => eventMap.value)
 
-const calendarApi = useTimelineCalendarActions({ events: () => eventList.value, entityStore, loadTimeline, confirm: confirm as any })
+const calendarApi = useTimelineCalendarActions({ events: () => eventList.value, entities, loadTimeline, confirm: confirm as any })
 const { calendars, active: activeCalendar, activeId: activeCalendarId, showPanel: showCalendarPanel, migrating, load: loadCalendars, saveCalendar: onCalendarSave, removeCalendar: onCalendarRemove, activateCalendar: onCalendarActivate, migrateDates, byId: calendarById } = calendarApi
 const eventCalendar = computed(() => calendarById(selectedEvent.value?.properties.calendarId as string | undefined))
-const { openNewForm, onFormSave } = useTimelineEventForm({ showForm, editingEvent, activeCalendar, preset: formPreset, entityStore, formModalRef, checkAndConfirmName, onCreated: selectEventById })
+const { openNewForm, onFormSave } = useTimelineEventForm({ showForm, editingEvent, activeCalendar, preset: formPreset, entities, formModalRef, checkAndConfirmName, onCreated: selectEventById })
 
 const tree = useEventTree(eventList)
 const { flatOrder, expandTo } = tree
@@ -233,7 +232,7 @@ const { flatOrder, expandTo } = tree
 const { points, runtime, periods, axisBands } = useTimelinePoints({ events: eventList, calendars, activeCalendar })
 const { sortMode, sortedEvents, toggleSortMode } = useTimelineSort(eventList, flatOrder, points)
 const { conflicts, hasConflicts, scanStats, mode: conflictMode, conflictCounts, truncated: conflictsTruncated } = useConflictDetection(
-  computed(() => relationStore.relations), computed(() => entityStore.entityMap), points, runtime)
+  computed(() => [...relations.list()]), computed(() => eventMap.value), points, runtime)
 const chartRef = ref<{ zoomIn: () => void; zoomOut: () => void; fitAll: () => void; focusEvent: (id: string) => void } | null>(null)
 const {
   searchQuery, unitFilter, periodFilter, importanceFilter, groupMode, groupModeOptions,
@@ -241,7 +240,7 @@ const {
 } = useTimelineFilters(
   sortedEvents,
   { points, periods, calendar: activeCalendar, layoutMode },
-  (settingsStore as any).timelineDefaultGroup ?? 'none',
+  settings.timelineDefaultGroup() ?? 'none',
 )
 /* ── 分页（2026-10-01，与 GEV 同一口径：只切「渲染哪一段」，filteredEvents 仍全量——
  * 冲突检测、批量删除取名、跨页选中都吃全量，不随翻页变化）── */
@@ -256,15 +255,16 @@ watch([searchQuery, unitFilter, periodFilter, importanceFilter], resetPage)
 const verticalEvents = computed(() => pageable.value ? pagedEvents.value : filteredEvents.value)
 const { canvasEvents, chronicleGroups, canvasGroups, chronicleOrder } = useTimelineGroups({
   verticalEvents, filteredEvents, points, calendar: activeCalendar, runtime, periods,
-  relations: computed(() => relationStore.relations), groupMode, tree, sortMode,
-  entityMap: computed(() => entityStore.entityMap),
+  relations: computed(() => [...relations.list()]), groupMode, tree, sortMode,
+  // 分组要按 id 解析**任意类型**的关联实体（角色/组织），故用全量 map，不用只含事件的 eventMap
+  entityMap: computed(() => new Map(entities.list().map(e => [e.id, e]))),
 })
 /** 详情邻接导航按屏幕顺序步进：树态用分组 + 折叠后的可见顺序，时序态用全量（跨页自动翻） */
 const { nav, step } = useTimelineNeighbors(selectedEvent, filteredEvents, selectEvent, { mode: sortMode, treeOrder: chronicleOrder })
 
-const involvedEntities = (eventId: string): Entity[] => relationStore.relations
+const involvedEntities = (eventId: string): Entity[] => relations.list()
   .filter(r => r.type === 'involves' && r.sourceId === eventId)
-  .map(r => entityStore.entityMap.get(r.targetId)).filter(Boolean) as Entity[]
+  .map(r => entities.get(r.targetId)).filter(Boolean) as Entity[]
 
 function toggleLayoutMode() {
   layoutMode.value = layoutMode.value === 'horizontal' ? 'vertical' : 'horizontal'
@@ -294,7 +294,7 @@ function onEventMenu(event: Entity, action: TimelineEventAction) {
 }
 /** 跨视图/冲突跳转：按 id 选中并聚焦（类型不符 no-op，与 GEV 的 selectById 同口径） */
 function selectEventById(id: string): void {
-  const entity = entityStore.entityMap.get(id)
+  const entity = entities.get(id)
   if (entity?.type === 'event') { selectedEvent.value = entity; conflictPeerIds.value = new Set(); focusEventInView(id) }
 }
 /** 冲突定位：选中定位方，另一方加对位环（顺序反着来，避免被 selectEventById 的清空覆盖） */
@@ -323,7 +323,7 @@ const customFieldDefs = ref<any[]>([])
 useTimelineKeyboard({
   viewRoot, chartRef,
   actions: {
-    undo: () => undo(entityStore, relationStore), redo: () => redo(entityStore, relationStore),
+    undo: () => undo(entities, relations), redo: () => redo(entities, relations),
     // 详情优先：有详情先关详情，否则退批量态（与 GEV 同规则）
     close: () => { if (selectedEvent.value) selectedEvent.value = null; else if (selecting.value) toggleSelectMode() },
     pagePrev, pageNext, switchTabBy,
@@ -332,11 +332,10 @@ useTimelineKeyboard({
 
 /** 详情 Tab：组装走 `resolveDetailTabs` 单点（2026-10-08 Tab 优化批；因果链为自绘芽的附加页）；
  *  用户覆写（排序/隐藏）按 'event' 类型生效；「关联」徽标＝选中事件的关系总数（与 GEV 同口径） */
-const detailPrefs = useDetailLayoutStore()
 const detailTabs = computed(() => {
-  const tabs = resolveDetailTabs({ hasCover: true, entityType: 'event', extras: DETAIL_TAB_DECLARATIONS.event?.extras, override: detailPrefs.tabOverrides['event'] })
+  const tabs = resolveDetailTabs({ hasCover: true, entityType: 'event', extras: DETAIL_TAB_DECLARATIONS.event?.extras, override: detailLayout.tabOverride('event') })
   const evId = selectedEvent.value?.id, assoc = tabs.find(t => t.id === 'relations')
-  if (assoc && evId) assoc.count = relationStore.relations.filter(r => r.sourceId === evId || r.targetId === evId).length
+  if (assoc && evId) assoc.count = relations.list().filter(r => r.sourceId === evId || r.targetId === evId).length
   return tabs
 })
 
@@ -348,7 +347,7 @@ watch(isEditing, on => {
   if (!editForm.value.dateCertainty) editForm.value.dateCertainty = 'exact'
 })
 
-const eventSchema = computed(() => entitySchemaRegistry.get('event'))
+const eventSchema = computed(() => schemaSvc().get('event'))
 
 const involved = computed(() => (selectedEvent.value ? involvedEntities(selectedEvent.value.id) : []))
 
@@ -366,24 +365,24 @@ const eventSubtitle = computed(() => {
 })
 
 function navigateToEvent(id: string) {
-  const found = entityStore.entityMap.get(id)
+  const found = entities.get(id)
   if (found) { selectedEvent.value = found; expandTo(id) }
 }
 
 async function deleteEvent(id: string) {
-  const entity = entityStore.entityMap.get(id)
-  const relCount = relationStore.relations.filter(r => r.sourceId === id || r.targetId === id).length
+  const entity = entities.get(id)
+  const relCount = relations.list().filter(r => r.sourceId === id || r.targetId === id).length
   const msg = relCount > 0
     ? `将删除「${entity?.name}」及其 ${relCount} 条关联关系，此操作不可完全撤销。`
     : `将删除「${entity?.name}」，此操作不可完全撤销。`
   if (!(await confirm({ type: 'danger', title: '确认删除', description: msg }))) return
   const entityData = { ...entity } as Entity
-  await entityStore.remove(id)
+  await entities.remove(id)
   selectedEvent.value = null
-  await entityStore.loadAll()
+  await entities.reload()
   toastWithUndo(`已删除「${entityData.name}」`, async () => {
-    await entityStore.add(entityData)
-    await entityStore.loadAll()
+    await entities.add(entityData)
+    await entities.reload()
     toastSuccess('已撤销删除')
   })
 }
@@ -391,8 +390,8 @@ async function deleteEvent(id: string) {
 async function loadTimeline(): Promise<void> {
   try {
     await runTimelineLoad(async () => {
-      await entityStore.loadAll()
-      await relationStore.loadAll()
+      await entities.reload()
+      await relations.reload()
       eventsLoaded.value = true
     })
   } catch (err) {
@@ -410,7 +409,7 @@ onMounted(async () => {
   await Promise.all([loadTimeline(), loadCalendars()])
 
   // 挂起位兜底：数据就绪后读回（跨视图跳转的事件发在本视图挂载前，见 Shell.onWsNavigate）
-  selectEventById(uiStore.selectedEntityId ?? '')
+  selectEventById(ui.selectedEntityId() ?? '')
 })
 
 onBeforeUnmount(() => {

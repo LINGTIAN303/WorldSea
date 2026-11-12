@@ -41,7 +41,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useEntityStore } from '@worldsea/entity-core'
+import { entitiesSvc } from '../serviceAccess'
 import { getRelationLabel } from '@worldsea/entity-core'
 import { WsIcon } from '@worldsea/ui-kit'
 
@@ -81,7 +81,7 @@ const emit = defineEmits<{
   delete: [id: string]
 }>()
 
-const entityStore = useEntityStore()
+const entities = entitiesSvc()
 const isEditing = ref(false)
 const editData = ref({ title: '', description: '', date: '', category: 'other' as CustomLifeEvent['category'] })
 
@@ -89,13 +89,13 @@ const nodeType = computed(() => props.node.type)
 
 const entityName = computed(() => {
   if (nodeType.value !== 'relation') return ''
-  const e = entityStore.entityMap.get((props.node as RelationDrivenNode).entityId)
+  const e = entities.get((props.node as RelationDrivenNode).entityId)
   return e?.name || '(未知)'
 })
 
 const entityDesc = computed(() => {
   if (nodeType.value !== 'relation') return ''
-  const e = entityStore.entityMap.get((props.node as RelationDrivenNode).entityId)
+  const e = entities.get((props.node as RelationDrivenNode).entityId)
   return e?.description?.slice(0, 60) || ''
 })
 

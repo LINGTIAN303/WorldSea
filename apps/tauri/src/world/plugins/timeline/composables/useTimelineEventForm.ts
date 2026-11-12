@@ -20,10 +20,12 @@ export interface TimelineEventFormOptions {
   activeCalendar: Ref<Calendar>
   /** 新建预填属性（画布拖拽建事件预填起止日期） */
   preset: Ref<Record<string, unknown> | null>
-  entityStore: {
+  /** 取数端口：由视图注入 `world.entities` 服务（不是 pinia store 实例） */
+  entities: {
     add: (entity: Entity) => Promise<unknown>
     update: (id: string, data: Record<string, unknown>) => Promise<unknown>
-    loadAll: () => Promise<unknown>
+    /** 与 `world.entities.reload` 同名：取数通道统一走服务，本组合式不认 store 的 loadAll */
+    reload: () => Promise<unknown>
   }
   formModalRef: Ref<{ syncEntityRefAfterCreate: (id: string) => Promise<void> | void } | null>
   checkAndConfirmName: (name: string, excludeId?: string, entityType?: string) => Promise<string | null>
@@ -60,7 +62,7 @@ export function useTimelineEventForm(options: TimelineEventFormOptions) {
       if (data.name) updateData.name = data.name
       if (data._coverPosition) updateData.coverPosition = data._coverPosition
       if (data._coverZoom) updateData.coverZoom = data._coverZoom
-      await options.entityStore.update(eventId, updateData)
+      await options.entities.update(eventId, updateData)
     } else {
       const checkedName = await options.checkAndConfirmName(data.name, undefined, 'event')
       if (!checkedName) return
@@ -74,7 +76,7 @@ export function useTimelineEventForm(options: TimelineEventFormOptions) {
         createdAt: now,
         updatedAt: now,
       }
-      await options.entityStore.add(entity)
+      await options.entities.add(entity)
       eventId = entity.id
       toastSuccess('已创建')
       await options.formModalRef.value?.syncEntityRefAfterCreate(entity.id)
@@ -86,7 +88,7 @@ export function useTimelineEventForm(options: TimelineEventFormOptions) {
     options.showForm.value = false
     options.editingEvent.value = null
     options.preset.value = null
-    await options.entityStore.loadAll()
+    await options.entities.reload()
   }
 
   return { openNewForm, onFormSave }
