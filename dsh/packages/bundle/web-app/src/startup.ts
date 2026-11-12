@@ -1,7 +1,7 @@
 /**
  * The web app's command-line provider: it parses the `dsh --profile web` flag
- * family (`--host`, `--port`, `--public-url`, `--trusted-host`, `--no-open`, TLS,
- * `--ipc-pipe`) and its `--help` text, then provides the immutable values as
+ * family (`--host`, `--port`, `--public-url`, `--trusted-host`, `--no-open`, TLS)
+ * and its `--help` text, then provides the immutable values as
  * {@link WEB_STARTUP_SERVICE}. Ordinary rows inject that service before
  * reading it from lazy config.
  * @module @deepseek-ai/dsh-web-app/startup
@@ -35,12 +35,6 @@ export interface WebStartupValues {
    * See [public deployments](../README.md#public-deployments).
    */
   publicUrl?: string
-  /**
-   * `--ipc-pipe <path>`: serve the whole tree over this pipe instead of TCP
-   * (`\\.\pipe\<name>` on Windows, a socket path elsewhere). `--port` then only
-   * declares the authority URL display and trust fences are written against.
-   */
-  ipcPipe?: string
   /** Explicit `--trusted-host` authorities, in argument order. */
   trustedHosts: string[]
   /** Server certificate chain and unencrypted private key supplied together. */
@@ -50,7 +44,6 @@ export interface WebStartupValues {
 /** The web flag family, as commander parsed it. */
 interface WebOptions {
   host?: string
-  ipcPipe?: string
   open: boolean
   port?: string
   publicUrl?: string
@@ -69,9 +62,8 @@ function webCommand(): Command {
     .description('Serve the DeepSeek Harness browser UI.')
     .helpOption('-h, --help', 'show this help')
     .option('--host <host>', 'bind address: one concrete IPv4 or IPv6 literal of a local interface; wildcard addresses are rejected')
-    .option('--ipc-pipe <path>', 'serve over this IPC pipe instead of TCP (named pipe path or socket file); --port then only declares the authority')
     .option('--no-open', 'do not open the Web UI in the default browser')
-    .option('--port <port>', 'listen port; pass 0 to let the OS pick a free one; with --ipc-pipe, the declared authority port')
+    .option('--port <port>', 'listen port; pass 0 to let the OS pick a free one')
     .option('--public-url <url>', 'advertise this HTTP(S) root in the printed, opened, runtime-context, and DSH_WEB_URL forms; grants no trust')
     .option('--trusted-host <authority...>', 'extra authority the /api browser-trust fence accepts (host or host:port; repeatable)')
     .option('--tls-cert <file>', 'PEM server certificate chain; requires --tls-key')
@@ -86,7 +78,6 @@ Examples:
                                              advertise a prefix-stripping HTTPS proxy entry and admit its authority
   dsh --profile web --tls-cert ./server-chain.pem --tls-key ./server-key.pem
                                              serve HTTPS with an existing certificate and key
-  dsh --profile web --ipc-pipe <path>        serve a pipe-only carrier (no TCP listener)
 `)
 }
 
@@ -107,9 +98,6 @@ export function apply(ctx: Context): void {
     if (options.port !== undefined && !/^\d+$/.test(options.port)) {
       program.error(`error: --port must be a number, got ${JSON.stringify(options.port)}`)
     }
-    if (options.ipcPipe !== undefined && options.ipcPipe.trim() === '') {
-      program.error('error: --ipc-pipe must be a non-empty path')
-    }
     let tls: TlsConfig | undefined
     if (options.tlsCert !== undefined && options.tlsKey !== undefined) {
       tls = { certFile: options.tlsCert, keyFile: options.tlsKey }
@@ -128,7 +116,6 @@ export function apply(ctx: Context): void {
       ...options.host !== undefined && { host: options.host },
       ...options.port !== undefined && { port: Number(options.port) },
       ...options.publicUrl !== undefined && { publicUrl: options.publicUrl },
-      ...options.ipcPipe !== undefined && { ipcPipe: options.ipcPipe },
       ...tls !== undefined && { tls },
       trustedHosts: options.trustedHost ?? [],
     } satisfies WebStartupValues)
