@@ -36,7 +36,7 @@
 import { ref, computed } from 'vue'
 import { WsIcon } from '@worldsea/ui-kit'
 import { WsEmpty } from '@worldsea/ui-kit'
-import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
+import { entitiesSvc, relationsSvc } from '../serviceAccess'
 import ExperienceNode from './ExperienceNode.vue'
 import type { CustomLifeEvent } from './ExperienceNode.vue'
 
@@ -45,13 +45,13 @@ const EXPERIENCE_REL_TYPES = ['participated_in', 'resides_in', 'belongs_to', 'me
 const props = defineProps<{ characterId: string }>()
 const emit = defineEmits<{ switchToProfile: [] }>()
 
-const entityStore = useEntityStore()
-const relationStore = useRelationStore()
+const entities = entitiesSvc()
+const relations = relationsSvc()
 
 const showAddForm = ref(false)
 const newEvent = ref({ date: '', title: '', description: '', category: 'other' as const })
 
-const selectedCharacter = computed(() => entityStore.entityMap.get(props.characterId))
+const selectedCharacter = computed(() => entities.get(props.characterId))
 
 const customEvents = computed<CustomLifeEvent[]>(() => {
   try {
@@ -63,13 +63,13 @@ const customEvents = computed<CustomLifeEvent[]>(() => {
 })
 
 const relationDrivenNodes = computed(() => {
-  const rels = relationStore.relations.filter(r =>
+  const rels = relations.list().filter(r =>
     EXPERIENCE_REL_TYPES.includes(r.type) &&
     (r.sourceId === props.characterId || r.targetId === props.characterId)
   )
   return rels.map(r => {
     const otherId = r.sourceId === props.characterId ? r.targetId : r.sourceId
-    const entity = entityStore.entityMap.get(otherId)
+    const entity = entities.get(otherId)
     return {
       type: 'relation' as const,
       relType: r.type,
@@ -152,7 +152,7 @@ async function onDeleteEvent(eventId: string) {
 
 async function saveEvents(events: CustomLifeEvent[]) {
   if (!selectedCharacter.value) return
-  await entityStore.update(selectedCharacter.value.id, {
+  await entities.update(selectedCharacter.value.id, {
     properties: {
       ...selectedCharacter.value.properties,
       _lifeEvents: JSON.stringify(events),

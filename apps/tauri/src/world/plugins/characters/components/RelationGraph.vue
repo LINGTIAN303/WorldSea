@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="relation-graph">
     <div
       ref="containerRef"
@@ -29,14 +29,14 @@
 <script setup lang="ts">
 import { ref, onMounted, nextTick, computed, watch } from 'vue'
 import { WsEmpty, WsLoadingOverlay, useAsyncTask, type LoadingStage, type LoadingStatus } from '@worldsea/ui-kit'
-import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
+import { entitiesSvc, relationsSvc } from '../serviceAccess'
 import { deduplicateEdges, useSmallCanvasGraph, type SGNode, type SGEdge } from '@worldsea/ui-kit'
 
 const props = defineProps<{ characterId: string }>()
 const emit = defineEmits<{ navigate: [id: string] }>()
 
-const entityStore = useEntityStore()
-const relationStore = useRelationStore()
+const entities = entitiesSvc()
+const relations = relationsSvc()
 const containerRef = ref<HTMLDivElement | null>(null)
 
 const REL_LOAD_STAGES: LoadingStage[] = [
@@ -76,9 +76,9 @@ const graph = useSmallCanvasGraph(containerRef, {
   },
 })
 
-const allCharacters = computed(() => entityStore.entities.filter(e => e.type === 'character'))
+const allCharacters = computed(() => entities.list().filter(e => e.type === 'character'))
 const noRelations = computed(() => {
-  const rels = relationStore.relations.filter(r =>
+  const rels = relations.list().filter(r =>
     CHARACTER_REL_TYPES.includes(r.type) &&
     (r.sourceId === props.characterId || r.targetId === props.characterId)
   )
@@ -136,7 +136,7 @@ function buildGraph(): void {
 
   addCharacter(props.characterId)
 
-  const charRels = relationStore.relations.filter(r =>
+  const charRels = relations.list().filter(r =>
     CHARACTER_REL_TYPES.includes(r.type) &&
     (r.sourceId === props.characterId || r.targetId === props.characterId)
   )

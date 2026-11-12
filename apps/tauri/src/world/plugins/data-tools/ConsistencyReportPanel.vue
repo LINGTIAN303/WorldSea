@@ -75,7 +75,7 @@
 import { ref, reactive, computed } from 'vue'
 import { TuiButton, WsIcon, WsInlineLoading, useModalShortcuts, useConfirm } from '@worldsea/ui-kit'
 import { useConsistencyChecker, type ConsistencyIssue } from '@worldsea/plugin-sdk'
-import { useRelationStore } from '@worldsea/entity-core'
+import { relationsSvc } from './serviceAccess'
 
 const props = defineProps<{ show: boolean }>()
 const emit = defineEmits<{ close: [] }>()
@@ -84,7 +84,7 @@ const emit = defineEmits<{ close: [] }>()
 useModalShortcuts(() => props.show, { id: 'consistency.close', onEscape: () => close() })
 
 const { checking, issues, runFullCheck, getIssueCountBySeverity } = useConsistencyChecker()
-const relationStore = useRelationStore()
+const relations = relationsSvc()
 const { confirm } = useConfirm()
 
 const hasRun = ref(false)
@@ -159,7 +159,7 @@ async function onFixDangling() {
   fixing.value = true
   try {
     for (const relId of relationIds) {
-      await relationStore.remove(relId)
+      await relations.remove(relId)
     }
     // Re-run check after fix
     await runFullCheck()
@@ -175,7 +175,7 @@ function navigateToEntity(entityId: string) {
 
 function navigateToRelation(relationId: string) {
   // 关系无专属视图：跳到其源实体（原实现仅关面板，按钮等于摆设）
-  const rel = relationStore.relations.find(r => r.id === relationId)
+  const rel = relations.list().find(r => r.id === relationId)
   if (!rel) return
   window.dispatchEvent(new CustomEvent('ws-select-entity', { detail: { entityId: rel.sourceId } }))
   close()
