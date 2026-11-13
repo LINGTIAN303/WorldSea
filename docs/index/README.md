@@ -76,6 +76,8 @@
 | 现行  | **GitHub 仓库配置现状与待办** | **两轮建成后的完整底单**：公开仓 + 分支保护（4 项必需检查 + `strict` + `enforce_admins`，直推 main 实测被拒）；2026-11-08 补齐元数据、**许可识别修为 MIT**、安全面五项（secret scanning / push protection / Dependabot alerts+autofix / 私有漏洞上报）、协作模板（PR/issue/SECURITY/CONTRIBUTING/CODEOWNERS）、CI 四项加固（concurrency/权限/rust-cache/检查名门禁）、合并收紧为 **squash-only**。含 `dsh/` 占 88.6% 跟踪文件对全仓级配置的约束 | [GitHub仓库配置现状与待办.md](../details/架构/GitHub仓库配置现状与待办.md) |
 | 执行中 | **Cordis 化进度与下一步** | 服务目录 13 项、批次 A–I 已合并，**迁移工作收尾**：42 个插件中 40 个零 store 直连，剩 `settings`(40 判定不迁移) 与 `custom`(2 有意保留)。`outline`(50→0)、`manuscript`(22→0)、`tactical-board`(4→0) 已在批次 G/H/I 清零。早期「已迁移 25 个插件」按文件登记数算会高估，已纠正。见 9 个踩坑处置 | [Cordis化进度与下一步.md](../details/架构/Cordis化进度与下一步.md) |
 | 执行中 | **`settings` 插件 Cordis 化评估** | **判定不迁移**：它写的是配置本身（`setCarrier`/`setProjectIcon`/`toggleSprout`）而非用户内容数据，服务目录定位是统一取数口径，把配置写面做成公共 API 是扩大契约而非解耦；`usePluginStore` 属「管理插件」功能本体，同 `custom` 渲染他视图组件，有意留芽内。附带纠正：真实剩余是 `outline`(50) / `manuscript`(22) / `tactical-board`(4) | [2026-11-12-settings插件Cordis化评估.md](../plans/2026-11-12-settings插件Cordis化评估.md) |
+| 待启动 | **产品域插件粒度与「一切皆插件」** | **实测：41 个插件 / 62,903 行，双峰极端**——5 个插件占 54.8%（outline 12,305 最大），15 个 <500 行（5 个仅 18 行且是搬迁壳）。**六贡献位中 3 个空转**（关系类型 0/41、Facet 1/41、能力 1/41），第 6 位 `form` 被关在 outline 内部未提升。四个实质缺口：入口可达性无保障（entity-tools 597 行死入口）、状态获取四套写法、能力桥零调用、类型注册不可回滚。方案：拆 4 合 1，41→约 46 | [插件粒度与一切皆插件](../plans/2026-11-13-产品域插件粒度与一切皆插件.md) |
+| 临时 | **插件重划 · 待决策清单** | 收拢本次分析中**需用户拍板**的 7 项（Q1 重划方向 / Q2 settings 处置 / Q3 死入口 / Q4 能力桥接通 / Q5 类型不可卸载 / Q6 文档重组范围 / Q7 分支清理）+ 13 项既有缺陷清单（ACL 58 条无实现、树视图重复 968 行、产物落后 9 天等）。使命完成即删除或流转 | [待决策](../plans/2026-11-13-插件重划与一切皆插件-待决策.md) · [文档重组方案](../plans/2026-11-13-项目详情文档重组方案.md) |
 
 ## 其他（misc/）
 
