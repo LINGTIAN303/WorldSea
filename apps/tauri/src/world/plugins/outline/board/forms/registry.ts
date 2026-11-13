@@ -1,13 +1,24 @@
 /**
- * forms/registry —— 表现形式注册表（自研，不走「槽位/组件」的页面搭建模型）
+ * forms/registry —— 表现形式的**兼容门面**（2026-11-13 起委托给平台级 `formRegistry`）。
  *
- * 【为什么自研】页面搭建语义（Slot/arrangement/zoneId）与「结构表达」的大纲白板不是同一件事，
- * 套用其模型只会带来语义污染（09-15 文档 §8.8.1-2 判定）。
+ * 【为什么提升】表现形式注册表已成为平台**第 6 贡献位**
+ * （`@worldsea/entity-core/core` 的 `formRegistry` + `PluginAPI.registerForm`）：
+ * 它是全仓除第二棵树之外唯一一处真正的插件式扩展点——新增一种表现形式
+ * 只需注册一个 FormDefinition，不必改编辑器代码。原来它是 outline 私有的，
+ * 不随插件启停、外界不可见、其他插件无法复用。
  *
- * 【扩展点】新增一种表现形式 = 注册一个 FormDefinition，**不需要改编辑器代码**。
- * 规格见 docs/plans/2026-09-16-大纲白板-表现形式规格.md §0.4。
+ * 【为什么保留本文件】两个理由：
+ * 1. outline 内 11 个 form 组件都从 `./registry` 取 `resolveFormConfig`，
+ *    保留导入路径可让「提升」这一步零风险落地（不改 11 个调用方）；
+ * 2. 既有测试（`formRegistry.spec` / `formsRegistration.spec`）直接测本模块机制，
+ *    行为必须不变。
+ *
+ * 【分发口径】平台 `formRegistry` 是唯一真源，本文件只做转发。
+ * - 插件注册走 `api.registerForm`（带 pluginId，可随卸载回卷）；
+ * - 本文件的 `registerForm` 保留给测试与「非插件上下文的内部注册」。
  */
 import type { Component } from 'vue'
+import { formRegistry, resolveFormConfig as resolveFromPlatform } from '@worldsea/entity-core/core'
 
 /** 派生型（只呈现，编辑须回实体侧） / 就地型（可直接编辑并写回节点字段） */
 export type FormKind = 'derived' | 'inline'
@@ -21,7 +32,7 @@ export interface FormConfigField {
    */
   type: 'text' | 'number' | 'select' | 'boolean' | 'multi-select'
   options?: Array<{ value: string; label: string }>
-  /** multi-select 专用：至少保留几项（如表格列至少 1 列），未设则不限制 */
+  /** multi-select 专用：至少保留几项（如表格列至少 1 列），未设则不限制。 */
   minSelected?: number
   default: unknown
 }
@@ -42,64 +53,39 @@ export interface FormDefinition {
   component: Component
 }
 
-const registry = new Map<string, FormDefinition>()
-
-/** 幂等注册：重复注册同 form 直接跳过 */
+/** 幂等注册：重复注册同 form 直接跳过（转发到平台注册表）。 */
 export function registerForm(def: FormDefinition): void {
-  if (registry.has(def.form)) return
-  registry.set(def.form, def)
+  formRegistry.register(def)
 }
 
 export function unregisterForm(form: string): boolean {
-  return registry.delete(form)
+  return formRegistry.unregister(form)
 }
 
 export function getForm(form: string): FormDefinition | undefined {
-  return registry.get(form)
+  return formRegistry.get(form)
 }
 
 export function getAllForms(): FormDefinition[] {
-  return Array.from(registry.values())
+  return formRegistry.getAll()
 }
 
 export function getFormsByKind(kind: FormKind): FormDefinition[] {
-  return getAllForms().filter(d => d.kind === kind)
+  return formRegistry.getByKind(kind)
 }
 
 /** 仅测试用：清空注册表，避免跨用例污染 */
 export function clearForms(): void {
-  registry.clear()
+  formRegistry.clear()
 }
 
 /**
- * 配置值克隆：数组必须复制一份。
- * 默认配置里的 `columns` 等数组若被原样返回，多个容器会共享同一引用；
- * 配置面板一旦原地修改就会污染注册表的默认值。
- */
-function cloneConfigValue(value: unknown): unknown {
-  return Array.isArray(value) ? [...value] : value
-}
-
-/**
- * 取某组件在给定配置下的**有效配置**：以 defaultConfig 打底，用组件自身 config 覆盖，
+ * 取某形式在给定配置下的**有效配置**：以 defaultConfig 打底，用组件自身 config 覆盖，
  * 并对 configSchema 声明的键做存在性兜底（用户手改 DB 缺键时不至于渲染异常）。
  */
 export function resolveFormConfig(
   form: string,
   config?: Record<string, unknown>,
 ): Record<string, unknown> {
-  const def = getForm(form)
-  const base: Record<string, unknown> = {}
-  for (const [k, v] of Object.entries(def?.defaultConfig ?? {})) {
-    base[k] = cloneConfigValue(v)
-  }
-  if (config) {
-    for (const [k, v] of Object.entries(config)) {
-      if (v !== undefined) base[k] = cloneConfigValue(v)
-    }
-  }
-  for (const field of def?.configSchema ?? []) {
-    if (base[field.key] === undefined) base[field.key] = cloneConfigValue(field.default)
-  }
-  return base
+  return resolveFromPlatform(form, config)
 }

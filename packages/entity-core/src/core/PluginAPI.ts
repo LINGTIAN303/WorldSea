@@ -12,6 +12,7 @@ import { fieldRegistry } from './FieldRegistry'
 import { storage } from './StorageBackend'
 import { facetRegistry, entitySchemaRegistryV2, compileEntitySchema } from './TraitRuntime'
 import { relationshipRegistry } from './RelationshipRegistry'
+import { formRegistry, type FormDefinition } from './FormRegistry'
 
 export interface NodeTypeDefinition {
   type: string
@@ -241,7 +242,7 @@ class PluginAPIImpl {
     }
   }
 
-  /** 派发覆盖层变更（监听器抛错逐个隔离，不影响登记/反注册本身）。 */
+  /** 派生覆盖层变更（监听器抛错逐个隔离，不影响登记/反注册本身）。 */
   private notifyOverlayChange(kind: OverlayChange['kind'], overlay: PluginOverlay): void {
     for (const listener of [...this.overlayListeners]) {
       try {
@@ -250,6 +251,22 @@ class PluginAPIImpl {
         console.error('[PluginAPI] 覆盖层变更监听器抛错（已隔离）:', error)
       }
     }
+  }
+
+  /* ─── 表现形式（第 6 贡献位，2026-11-13 从 outline 私有实现提升）─────────── */
+
+  /**
+   * 注册一种表现形式（幂等；同 id 先到者生效）。
+   *
+   * `pluginId` 由本方法回填（不让插件自己传），故 `unregisterFormsOfPlugin` 能按插件精确回卷。
+   */
+  registerForm(def: FormDefinition): void {
+    formRegistry.register({ ...def, pluginId: this.currentPluginId })
+  }
+
+  /** 撤掉某插件登记的全部表现形式（插件卸载时由注册面调用）。 */
+  unregisterFormsOfPlugin(pluginId: string): number {
+    return formRegistry.unregisterByPlugin(pluginId)
   }
 
   /** 清空所有已登记的覆盖层（拆树/项目切换时使用；逐条派发反注册事件）。 */

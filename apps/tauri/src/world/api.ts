@@ -14,6 +14,7 @@
  * 测试与未接 ctx 的调用方仍可用）。见 docs/plans/2026-11-05-阶段1A-状态归属划分.md。
  */
 import { pluginAPI } from '@worldsea/entity-core'
+import { formRegistry } from '@worldsea/entity-core/core'
 import type {
   EntityTypeSchema,
   FacetDefinition,
@@ -23,6 +24,7 @@ import type {
   RelationTypeSchemaV2,
   TraitRef,
 } from '@worldsea/entity-core'
+import type { FormDefinition } from '@worldsea/entity-core/core'
 import type { CordisContext } from '@deepseek-ai/cordis'
 
 import { registerWorldCapabilities, unregisterWorldCapabilities, type WorldCapability } from '@/shell/capabilities'
@@ -33,6 +35,15 @@ export interface WorldPluginApi {
   registerView(view: PluginView): void
   /** 注册全局覆盖层（弹窗/抽屉类面板；打开 = `ws-open-<id>` 事件，关闭 = 组件 emit close；卸载时自动撤登记） */
   registerOverlay(overlay: PluginOverlay): void
+  /**
+   * 注册一种**表现形式**（第 6 贡献位：画布节点用什么可视化呈现）。
+   *
+   * 从 `outline` 的私有注册表提升而来（2026-11-13）：它早实现了「新增一种形式 =
+   * 注册一个 FormDefinition，不改编辑器代码」，但形态私有——不随启停、外界不可见。
+   * 提升后与 view / overlay / entityType / relationType / facet / capability 并列。
+   * 卸载时随插件自动撤登记（撤销逻辑见 `tree.ts` 的 unloadPlugin）。
+   */
+  registerForm(def: FormDefinition): void
   /** 注册实体类型（Trait V2 口径） */
   registerEntityV2(params: {
     type: string
@@ -102,6 +113,13 @@ export function createPluginApi(pluginId: string, ctx?: CordisContext): WorldPlu
       tracked(
         () => pluginAPI.withPluginScope(pluginId, () => pluginAPI.registerOverlay(overlay)),
         () => { pluginAPI.unregisterOverlay(overlay.id) },
+      )
+    },
+    registerForm(def: FormDefinition) {
+      // 与 view/overlay 同口径：`pluginId` 由 withPluginScope 自动回填，卸载时按插件回卷。
+      tracked(
+        () => pluginAPI.withPluginScope(pluginId, () => pluginAPI.registerForm(def)),
+        () => { formRegistry.unregister(def.form) },
       )
     },
     // 实体/关系/Facet 类型**有意不注销**（类型元数据长期可查，关系查询会引用），故不走 tracked。
