@@ -9,6 +9,8 @@ export const manifest = {
   version: '1.0.0',
   description: '界面内多窗口，自由拼装视图面板',
   author: 'WorldSea',
+  kind: 'sprout' as const,
+  requires: ['world.settings', 'world.ui'],
 }
 
 export function apply(_ctx: unknown, api: WorldPluginApi) {

@@ -10,6 +10,8 @@ export const manifest = {
   version: '2.0.0',
   description: '管理世界观中的建筑、室内场景、地点细节',
   author: 'WorldSea',
+  kind: 'sprout' as const,
+  requires: ['world.entities', 'world.relations'],
 }
 
 export function apply(_ctx: unknown, api: WorldPluginApi) {

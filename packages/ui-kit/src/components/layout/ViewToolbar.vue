@@ -44,21 +44,18 @@
       ><WsIcon name="more-horizontal" size="sm" /></button>
       <Transition name="ws-menu">
         <div v-if="menuVisible" class="vta-menu" role="menu">
-          <button class="vta-item" role="menuitem" @click="run('ws-open-doc-export')">
-            <WsIcon name="print" size="sm" class="vta-icon" /><span class="vta-label">导出文档</span>
-          </button>
-          <button class="vta-item" role="menuitem" @click="run('ws-open-batch-edit')">
-            <WsIcon name="edit" size="sm" class="vta-icon" /><span class="vta-label">批量编辑</span>
-          </button>
-          <button class="vta-item" role="menuitem" @click="run('ws-open-import-export')">
-            <WsIcon name="trade" size="sm" class="vta-icon" /><span class="vta-label">导入/导出</span>
-          </button>
-          <button class="vta-item" role="menuitem" @click="run('ws-open-template')">
-            <WsIcon name="list" size="sm" class="vta-icon" /><span class="vta-label">模板管理</span>
-          </button>
-          <div class="vta-divider"></div>
-          <button class="vta-item vta-item--danger" role="menuitem" @click="run('ws-open-trash')">
-            <WsIcon name="trash" size="sm" class="vta-icon" /><span class="vta-label">回收站</span>
+          <!-- 插件贡献项（声明式）：overlay 清单里 slot='view-toolbar' 的自动渲染，
+               点击 dispatch `ws-open-<id>`。共享包不再知道任何插件的具体 id，
+               插件卸载后入口随登记自动消失（此前硬编码 5 项，卸载后是死按钮）。 -->
+          <button
+            v-for="item in overlayActions"
+            :key="item.id"
+            class="vta-item"
+            :class="{ 'vta-item--danger': item.danger }"
+            role="menuitem"
+            @click="run(`ws-open-${item.id}`)"
+          >
+            <WsIcon :name="item.icon" size="sm" class="vta-icon" /><span class="vta-label">{{ item.label }}</span>
           </button>
         </div>
       </Transition>
@@ -76,7 +73,8 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
-import { useUIStore, usePluginStore } from '@worldsea/entity-core'
+import { useUIStore, usePluginStore, pluginAPI } from '@worldsea/entity-core'
+import type { PluginOverlay } from '@worldsea/entity-core'
 import WsIcon from '../WsIcon.vue'
 import ViewToolbarFilter from './ViewToolbarFilter.vue'
 import BackgroundLayer from './BackgroundLayer.vue'
@@ -85,6 +83,25 @@ import BackgroundLayer from './BackgroundLayer.vue'
 // 视图组件（GenericEntityView 等）经 Teleport 把各自控件注入 #view-toolbar-*。
 const uiStore = useUIStore()
 const pluginStore = usePluginStore()
+
+/**
+ * 插件贡献的视图工具条项（**声明式**）：读 overlay 真源里 `menu.slot === 'view-toolbar'` 的条目。
+ *
+ * 为什么改成读真源：此前这 5 项把 `ws-open-<id>` 事件名硬编码在模板里，`packages/ui-kit`
+ * 因此知道 5 个世界插件的身份（含它们的 overlay id），分层方向反了——共享包不该认识插件。
+ * 更要紧的是卸载语义不成立：插件被停用后入口仍在、点击静默无效（死按钮）。
+ * 现在插件在自己清单的 `menu.slot` 声明落点，工具条只读清单，插件卸载即自动消失。
+ */
+const overlayItems = ref<PluginOverlay[]>([])
+pluginAPI.onOverlayChange(() => { overlayItems.value = [...pluginAPI.getOverlays()] })
+overlayItems.value = [...pluginAPI.getOverlays()]
+
+const overlayActions = computed(() =>
+  overlayItems.value
+    .filter(o => o.menu?.slot === 'view-toolbar')
+    .map(o => ({ id: o.id, icon: o.menu!.icon, label: o.menu!.label, order: o.menu!.order, danger: o.menu!.danger === true }))
+    .sort((a, b) => a.order - b.order),
+)
 
 const hasView = computed(() => !!uiStore.currentView)
 

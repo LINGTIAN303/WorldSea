@@ -10,6 +10,7 @@ export const manifest = {
   version: '1.0.0',
   description: '按语义域分章聚合阅读全部设定条目，支持整本导出 md / HTML',
   author: 'WorldSea',
+  requires: ['world.entities'],
   kind: 'sprout' as const,
 }
 

@@ -15,6 +15,7 @@ export function apply(_ctx: unknown, api: WorldPluginApi) {
     id: 'doc-export',
     label: '文档导出',
     component: defineAsyncComponent(() => import('@worldsea/ui-kit').then(m => m.DocExport)),
+    menu: { label: '导出文档', icon: 'print', order: 10, slot: 'view-toolbar' },
   })
 }
 

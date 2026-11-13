@@ -11,6 +11,8 @@ export const manifest = {
   version: '2.0.0',
   description: '大纲管理与章节规划',
   author: 'WorldSea',
+  kind: 'sprout' as const,
+  requires: ['world.entities', 'world.font', 'world.relations'],
 }
 
 export function apply(_ctx: unknown, api: WorldPluginApi) {

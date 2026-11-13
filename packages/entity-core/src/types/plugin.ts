@@ -62,7 +62,7 @@ export interface PluginOverlay {
   menu?: PluginOverlayMenu
 }
 
-/** 覆盖层的菜单入口声明（AppMenu 消费；点击 = dispatch `ws-open-<id>`）。 */
+/** 覆盖层的菜单入口声明（AppMenu / ViewToolbar 消费；点击 = dispatch `ws-open-<id>`）。 */
 export interface PluginOverlayMenu {
   /** 菜单显示名 */
   label: string
@@ -72,6 +72,18 @@ export interface PluginOverlayMenu {
   order: number
   /** 快捷键注册 id（菜单标注读注册表当前键位；无快捷键省略） */
   shortcutId?: string
+  /**
+   * 入口落点。缺省 = 只进 AppMenu（应用主菜单）。
+   *
+   * `'view-toolbar'` = 额外进「视图工具条 ⋯ 菜单」（每屏可达，无需先开应用菜单）。
+   *
+   * 为什么要有它：ViewToolbar 曾把 5 个插件的 `ws-open-*` 事件名**硬编码**在模板里
+   * （`ws-open-doc-export` 等），共享包因此知道了 5 个世界插件的身份——分层反了。
+   * 改为插件在自己清单里声明落点，宿主只读声明，不知道具体是谁。
+   */
+  slot?: 'view-toolbar'
+  /** 危险操作着色（如回收站）；仅 ViewToolbar 生效 */
+  danger?: boolean
 }
 
 /** 覆盖层生命周期变更（真源 `pluginAPI` 派发；OverlayHost 据此镜像增删 + 增删事件监听）。 */

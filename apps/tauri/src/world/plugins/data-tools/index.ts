@@ -7,6 +7,7 @@ export const manifest = {
   version: '1.0.0',
   description: '数据管理面板组：回收站、随笔面板、一致性报告',
   author: 'WorldSea',
+  requires: ['world.entities', 'world.relations', 'world.trash'],
   kind: 'utility' as const,
 }
 
@@ -16,7 +17,12 @@ export const manifest = {
  * 关闭 = 面板 emit close；插件卸载 = 自动撤登记（入口静默失效）。
  */
 export function apply(_ctx: unknown, api: WorldPluginApi) {
-  api.registerOverlay({ id: 'trash', label: '回收站', component: defineAsyncComponent(() => import('./TrashPanel.vue')) })
+  api.registerOverlay({
+    id: 'trash',
+    label: '回收站',
+    component: defineAsyncComponent(() => import('./TrashPanel.vue')),
+    menu: { label: '回收站', icon: 'trash', order: 90, slot: 'view-toolbar', danger: true },
+  })
   api.registerOverlay({ id: 'artifacts', label: '随笔面板', component: defineAsyncComponent(() => import('./ArtifactsPanel.vue')), menu: { label: '随笔', icon: 'document', order: 4 } })
   api.registerOverlay({ id: 'consistency', label: '一致性报告', component: defineAsyncComponent(() => import('./ConsistencyReportPanel.vue')), menu: { label: '一致性检查', icon: 'shield', order: 3 } })
 }

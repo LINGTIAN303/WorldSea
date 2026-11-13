@@ -10,6 +10,8 @@ export const manifest = {
   version: '2.0.0',
   description: '武器视图——展示和管理 Item 中拥有 WeaponFacet 的实体',
   author: 'WorldSea',
+  kind: 'sprout' as const,
+  requires: ['world.entities', 'world.relations'],
 }
 
 /**

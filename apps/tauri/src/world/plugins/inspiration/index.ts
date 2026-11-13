@@ -9,6 +9,8 @@ export const manifest = {
   version: '2.0.0',
   description: '收集创作灵感、参考图、摘抄、链接等素材',
   author: 'WorldSea',
+  kind: 'sprout' as const,
+  requires: ['world.entities'],
 }
 
 export function apply(_ctx: unknown, api: WorldPluginApi) {

@@ -10,6 +10,7 @@ export const manifest = {
   version: '2.0.0',
   description: '管理世界观中的战争、战役、冲突事件',
   author: 'WorldSea',
+  kind: 'sprout' as const,
 }
 
 export function apply(_ctx: unknown, api: WorldPluginApi) {

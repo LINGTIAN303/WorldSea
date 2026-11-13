@@ -9,6 +9,7 @@ export const manifest = {
   version: '1.0.0',
   description: '以关系图谱形式展示所有世界观实体',
   author: 'WorldSea',
+  kind: 'sprout' as const,
 }
 
 export function apply(_ctx: unknown, api: WorldPluginApi) {

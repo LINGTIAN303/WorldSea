@@ -15,6 +15,7 @@ export function apply(_ctx: unknown, api: WorldPluginApi) {
     id: 'template',
     label: '模板管理',
     component: defineAsyncComponent(() => import('@worldsea/ui-kit').then(m => m.TemplateManager)),
+    menu: { label: '模板管理', icon: 'list', order: 13, slot: 'view-toolbar' },
   })
 }
 

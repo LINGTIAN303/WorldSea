@@ -15,6 +15,7 @@ export function apply(_ctx: unknown, api: WorldPluginApi) {
     id: 'batch-edit',
     label: '批量编辑',
     component: defineAsyncComponent(() => import('@worldsea/plugin-sdk').then(m => m.BatchEditModal)),
+    menu: { label: '批量编辑', icon: 'edit', order: 11, slot: 'view-toolbar' },
   })
 }
 

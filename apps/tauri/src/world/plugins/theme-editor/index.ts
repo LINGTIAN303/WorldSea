@@ -7,6 +7,7 @@ export const manifest = {
   version: '1.0.0',
   description: '主题编辑器（Quick/Pro/Code 三模式）',
   author: 'WorldSea',
+  requires: ['world.ui'],
   kind: 'utility' as const,
 }
 

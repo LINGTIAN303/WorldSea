@@ -9,6 +9,8 @@ export const manifest = {
   version: '2.0.0',
   description: '正文写作与章节管理',
   author: 'WorldSea',
+  kind: 'sprout' as const,
+  requires: ['world.entities', 'world.font', 'world.fontLibrary', 'world.relations', 'world.settings', 'world.ui'],
 }
 
 export function apply(_ctx: unknown, api: WorldPluginApi) {
