@@ -11,13 +11,20 @@
  *    presets/standard.patch.yml`）**结构全量一致**——dsh 预设无继承机制，产品域模式的能力
  *    组成靠这份复制维持；dsh 追版若动了标准花名册而未同步本 patch，这里直接报警。
  *
- * 解析用 js-yaml + `tag:yaml.org,2002:js` 占位类型（cordis 的 `!!js` 表达式，测试只关心
+ * 解析用 js-yaml + `tag:yaml.org,2002:js` 自定义标量 tag（cordis 的 `!!js` 表达式，测试只关心
  * patch 结构，表达式体不必求值）。
+ *
+ * js-yaml 5 起 API 重写：`Type` 类与 `DEFAULT_SCHEMA.extend()` 都不再存在，改为
+ * `defineScalarTag(tagName, options)` + `Schema.withTags(...)`。两个语义差异要留意：
+ * - v5 把 `resolve` 与 `identify` 拆开：`resolve` 只负责「文本 → 值」，`identify` 负责
+ *   「值 → 该不该用这个 tag 输出」。本 spec 只解析不输出，故 `identify: () => false`。
+ * - 默认 schema 由 `DEFAULT_SCHEMA` 改为 `CORE_SCHEMA`（YAML 1.2 核心集）。本文件里的
+ *   patch 只用字符串与数组，两者对这些标量的解析一致。
  */
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import yaml from 'js-yaml'
+import { CORE_SCHEMA, defineScalarTag, load as loadYaml } from 'js-yaml'
 import { describe, expect, it } from 'vitest'
 
 const OURS = readFileSync(join(process.cwd(), 'apps/dsh-plugin-worldsea/cordis.patch.yml'), 'utf8')
@@ -37,13 +44,14 @@ interface PatchRow {
 /** patch 文件顶层 = YAML 数组，元素 = Loader patch 条目（含 insert 列表）。 */
 interface PatchFile extends Array<{ insert?: PatchRow[] }> {}
 
-const jsTag = new yaml.Type('tag:yaml.org,2002:js', {
-  kind: 'scalar',
-  resolve: () => true,
-  construct: (data: string) => ({ __jsExpr: data }),
+const jsTag = defineScalarTag<{ __jsExpr: string }>('tag:yaml.org,2002:js', {
+  // 只解析不输出：dump 场景永不走这个 tag
+  identify: () => false,
+  // v5 的 resolve 返回哨兵 NOT_RESOLVED 表示「不归我管」；这里一律认领并包成占位对象
+  resolve: source => ({ __jsExpr: source }),
 })
-const load = (text: string): PatchFile =>
-  yaml.load(text, { schema: yaml.DEFAULT_SCHEMA.extend({ explicit: [jsTag] }) }) as PatchFile
+const schema = CORE_SCHEMA.withTags(jsTag)
+const load = (text: string): PatchFile => loadYaml(text, { schema }) as PatchFile
 
 describe('worldsea 预设化 patch：结构与跨文件契约（2026-10-07）', () => {
   const rows = load(OURS).flatMap(entry => entry.insert ?? [])
