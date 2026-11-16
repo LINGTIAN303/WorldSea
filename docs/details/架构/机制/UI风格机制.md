@@ -1,8 +1,8 @@
 # UI 风格机制（产品域）
 
 > 状态：现行（B1–B3 / P1–P2 已落地；2026-11-01 液化玻璃解锁为完整风格）。
-> 计划：[2026-10-30-UI组件风格机制.md](../../plans/已完成/2026-10-30-UI组件风格机制.md) · 施工计划：[2026-10-30-UI组件风格机制-施工计划.md](../../plans/已完成/2026-10-30-UI组件风格机制-施工计划.md)
-> 包内注释说明见 [style-kit/index.md](../注释/packages/style-kit/index.md)。
+> 计划：[2026-10-30-UI组件风格机制.md](../../../plans/已完成/2026-10-30-UI组件风格机制.md) · 施工计划：[2026-10-30-UI组件风格机制-施工计划.md](../../../plans/已完成/2026-10-30-UI组件风格机制-施工计划.md)
+> 包内注释说明见 [style-kit/index.md](../../注释/packages/style-kit/index.md)。
 
 ## 一、定位
 
@@ -97,4 +97,4 @@ B1 同时修复了桥接层 `--radius-sm/md/lg` 自引用导致的半径令牌�
 - 玻璃升级为 30px 模糊 + `saturate(1.8)` + 噪声 + 染色渐变 + 镜面高光；灯箱使用 clear 变体（35% 暗化）。
 - clear 变体已配置化：`useStyle.glassVariant`（`regular | clear`），持久化 `worldsea_ui_style_glass`，写入 `<html data-glass>`；性能模式同时关闭 `--sf-clear-filter`。
 - 新拟态升级为 145° 表面渐变 + 四层阴影 + 强调色环境光晕（`--sf-ambient`）。
-- 液化玻璃（2026-11-01）从研究槽位解锁为完整风格：`liquid-glass.css` 覆盖 13 个角色；设置弹层自动启用专属玻璃层。实体卡 / 模态 / 抽屉 / Toast 通过 `apps/tauri/src/styles/liquid-glass-surfaces.css` 追加单层锥形环，浅色下改用深色发丝边，不新增 backdrop 层。路线与参数见 [液化玻璃研究](../../plans/2026-10-30-液化玻璃研究.md)。
+- 液化玻璃（2026-11-01）从研究槽位解锁为完整风格：`liquid-glass.css` 覆盖 13 个角色；设置弹层自动启用专属玻璃层。实体卡 / 模态 / 抽屉 / Toast 通过 `apps/tauri/src/styles/liquid-glass-surfaces.css` 追加单层锥形环，浅色下改用深色发丝边，不新增 backdrop 层。路线与参数见 [液化玻璃研究](../../../plans/2026-10-30-液化玻璃研究.md)。

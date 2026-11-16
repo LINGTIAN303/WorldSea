@@ -9,7 +9,7 @@
 > - **2026-10-02 附注（whisper）**：产品 Rust 面 `whisper.rs`（570 行，candle-whisper 音视频转录）随之整体退役——设置「语音」Tab 退役时确认前端与 dsh 语音输入（SenseVoice 自有推理，零引用 `transcribe_media`）均无调用；candle-core/candle-nn/candle-transformers/ureq/tokenizers/symphonia 及孤儿依赖 anyhow 自 Cargo 移除，上句「产品面保留」中的 whisper 一项自此销账。
 > - 门禁：vue-tsc 0 · vitest 59 文件/761 全绿 · cargo check 干净 · lib 测试 99/0 · 断链 0。
 > 历史留档（2026-09-23 冻结登记与 §四候选评估）见下文与 git。
-> 背景（2026-09-23 拍板）：dsh（deepseek-harness）以**迁文件**方式整体接管 Agent 面；壳仍用 Tauri；dsh 界面 100% 保留。准备方案见 [2026-09-23-dsh接管Agent面-大重构准备.md](../../plans/2026-09-23-dsh接管Agent面-大重构准备.md)；仓内 dsh 树的装构起口径见 [dsh 运行手册](dsh-运行手册.md)。
+> 背景（2026-09-23 拍板）：dsh（deepseek-harness）以**迁文件**方式整体接管 Agent 面；壳仍用 Tauri；dsh 界面 100% 保留。准备方案见 [2026-09-23-dsh接管Agent面-大重构准备.md](../../../plans/2026-09-23-dsh接管Agent面-大重构准备.md)；仓内 dsh 树的装构起口径见 [dsh 运行手册](../dsh/dsh-运行手册.md)。
 > 用途：① 施工时判定「哪些文件不再动、不再修」；② 替换完成后逐项回收可复用资产；③ 说明冻结后需要解开的接线。
 
 ---

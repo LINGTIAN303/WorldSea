@@ -107,7 +107,7 @@
 ## 文档指针（5 处）
 
 - docs/details/ARCHITECTURE.md
-- docs/details/架构/orchestration-matrix.md
+- docs/details/架构/归档/orchestration-matrix.md
 - docs/details/注释/agent-runtime/agent.md
 - docs/details/注释/agent-runtime/mcp.md
 - docs/details/注释/README.md

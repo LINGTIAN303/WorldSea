@@ -41,7 +41,7 @@
 
 `dsh/` 是我方 fork 的上游项目，改动受 `pnpm fork:check` 约束：
 
-- 每一处改动都必须登记在 `docs/details/架构/dsh-fork台账.md`
+- 每一处改动都必须登记在 `docs/details/架构/dsh/dsh-fork台账.md`
 - 改完源码必须重建产物：`tsc` → `tsdown` → `cargo build`；漏 `tsdown` 会让运行时
   仍加载旧 `lib/`，表现为「改了没生效」
 - 核对改动是否生效要 grep `lib/index.js`，只看 `src/` 会假阳性
