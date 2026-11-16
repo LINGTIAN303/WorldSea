@@ -18,10 +18,12 @@ scope: docs/details/架构/归档
 | 文档 | 原状态 | 为什么归档 | 现状看谁 |
 |---|---|---|---|
 | [Agent面冻结清单](Agent面冻结清单.md) | 已收口（2026-09-27 E8） | 冻结登记 → E7 删前端本体 → E8 物理删除包面与 Rust 面，四件裁定全删 | [总览](../总览.md) §六 |
-| [D2-产品域触点基线](D2-产品域触点基线.md) | 历史基线（2026-09-27） | D2 讨论的事实底单；其中的「工作台不自动感知外部改动」已被 FsWatcher 推翻 | [与dsh的接缝](../dsh/与dsh的接缝.md) §六 |
+| [D2-产品域触点基线](D2-产品域触点基线.md) | 历史基线（2026-09-27） | D2 讨论的事实底单；其中的「无反向事件通道」「工作台不自动感知外部改动」已被后续实现推翻 | [与dsh的接缝](../dsh/与dsh的接缝.md) §六 |
 | [orchestration-matrix](orchestration-matrix.md) | 已完成 | 所述 `kernel/ + patterns/` 拆分已落地，但 Agent 面已由 dsh 接管，旧面退场 | [总览](../总览.md) §六 |
 | [界面背景机制](界面背景机制.md) | 已作废 | v1，已被 [界面背景机制-v2](../机制/界面背景机制-v2.md) 取代 | v2 |
 | [visual-review-2026-08-07](visual-review-2026-08-07.md) | 已完成 | 桌面端视觉审查报告；所涉 Agent 面已由 dsh 接管删除，仅作设计追溯 | 无（对象已退场） |
+| [workspace-architecture-analysis](workspace-architecture-analysis.md) | 现行→历史 | Harness 文件系统底座诊断；诊断对象（旧 Agent 面）已退场，结论仍可追溯 | [总览](../总览.md) §六 |
+| [agent-space-layout](agent-space-layout.md) | 现行→历史 | Agent 空间布局的 CSS 实测量化；所描述的 `src/agent` / `src/space` 已由 dsh 接管删除 | 无（对象已退场） |
 
 ## 归档不等于作废
 
