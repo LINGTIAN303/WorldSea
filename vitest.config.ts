@@ -44,6 +44,10 @@ export default defineConfig({
     // 判据取「产物是否存在」而非「是否 CI」：本地留产物时照常跑，哪天构建链补进
     // CI 也会自动恢复覆盖，不需要回来改这里。
     //
+    // 维护：凡是 `import * as plugin from '../lib/index.js'` 的 spec 都必须列在下方，
+    // 否则本地绿、CI 红（`capability-tools.spec.ts` 曾因此漏过一次）。
+    // 新增此类 spec 时同步追加，守卫见 `apps/dsh-plugin-worldsea/__tests__/excludeList.spec.ts`。
+    //
     // 必须先展开 configDefaults.exclude：vitest 的 `exclude` 是整体覆盖而非追加，
     // 直接写自己的数组会把默认的 `**/node_modules/**` 一起丢掉，导致全仓扫描
     // （实测文件数由 311 暴涨到 1060）。
@@ -52,6 +56,7 @@ export default defineConfig({
       ...(existsSync(path.resolve(__dirname, 'dsh/vendor/schemastery/lib/index.cjs'))
         ? []
         : [
+            'apps/dsh-plugin-worldsea/__tests__/capability-tools.spec.ts',
             'apps/dsh-plugin-worldsea/__tests__/config.spec.ts',
             'apps/dsh-plugin-worldsea/__tests__/plugin-tools.spec.ts',
             'apps/dsh-plugin-worldsea/__tests__/schema-tools.spec.ts',
