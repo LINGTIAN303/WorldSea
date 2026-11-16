@@ -66,7 +66,7 @@
     "marked": "^16.1.2",
     "mind-elixir": "^5.15.1",
     "typescript": "^6.0.3",
-    "vscode-jsonrpc": "8.2.0",
+    "vscode-jsonrpc": "10.0.0",
     "vscode-languageserver-protocol": "3.18.5",
     "vscode-languageserver-types": "3.18.5",
     "vue": "^3.5.45",
