@@ -68,7 +68,7 @@
     "docx-preview": "0.4.1",
     "dompurify": "^3.4.17",
     "echarts": "^6.1.0",
-    "gpt-tokenizer": "^2.9.0",
+    "gpt-tokenizer": "^4.1.2",
     "graphology": "^0.26.0",
     "js-yaml": "^4.1.1",
     "jszip": "^3.10.1",
