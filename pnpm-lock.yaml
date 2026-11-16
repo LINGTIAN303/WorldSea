@@ -391,8 +391,8 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
       vscode-jsonrpc:
-        specifier: 8.2.0
-        version: 8.2.0
+        specifier: 10.0.0
+        version: 10.0.0
       vscode-languageserver-protocol:
         specifier: 3.18.5
         version: 3.18.5
@@ -3705,10 +3705,6 @@ packages:
     resolution: {integrity: sha512-USSfxg0vDIpTQqlQBGxF3mBARyoS8cU7LHLpbYNh6dOJt32dlskxPWB0Irrh5TllTmyf7oNLAvqDqzklbwwnpA==}
     engines: {node: '>=14.17.0'}
 
-  vscode-jsonrpc@8.2.0:
-    resolution: {integrity: sha512-C+r0eKJUIfiDIfwJhria30+TYWPtuHJXHtI7J0YlOmKAo7ogxP20T0zxB7HZQIFhIyvoBPwWskjxrvAtfjyZfA==}
-    engines: {node: '>=14.0.0'}
-
   vscode-languageserver-protocol@3.18.5:
     resolution: {integrity: sha512-FW4fBMzZ99N8xeob4py0l050wgCoRgTpEq5Xcsb9lM1bc29UKGR/wSV+4knaqFxssFHajy7OzNiKP/m3U1ZEuA==}
 
@@ -6941,8 +6937,6 @@ snapshots:
       vue: 3.5.45(typescript@6.0.3)
 
   vscode-jsonrpc@10.0.0: {}
-
-  vscode-jsonrpc@8.2.0: {}
 
   vscode-languageserver-protocol@3.18.5:
     dependencies:
