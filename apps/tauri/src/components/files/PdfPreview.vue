@@ -36,13 +36,18 @@ const truncated = ref(false)
 
 /** 渲染代次：数据切换 / 卸载后令在途渲染失效，避免旧文档写进新容器 */
 let renderToken = 0
-/** 当前文档句柄，切换或卸载时释放（worker 侧资源） */
-let currentDoc: { destroy: () => Promise<void> } | null = null
+/**
+ * 当前文档的释放句柄。
+ *
+ * pdfjs 6 起 `PDFDocumentProxy` 不再有 `destroy()`——销毁改由 `getDocument()` 返回的
+ * loadingTask 负责。故这里存的是 loadingTask 的销毁函数，而不是文档对象本身。
+ */
+let currentDestroy: (() => Promise<void>) | null = null
 
 function disposeDoc(): void {
-  if (currentDoc) {
-    void currentDoc.destroy().catch(() => { /* 已销毁/在途时忽略 */ })
-    currentDoc = null
+  if (currentDestroy) {
+    void currentDestroy().catch(() => { /* 已销毁/在途时忽略 */ })
+    currentDestroy = null
   }
 }
 
@@ -59,12 +64,13 @@ async function render(): Promise<void> {
   try {
     const pdfjsLib = await ensurePdfWorker()
     if (token !== renderToken) return
-    const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(props.data.slice(0)) }).promise
+    const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(props.data.slice(0)) })
+    const pdf = await loadingTask.promise
     if (token !== renderToken) {
-      void pdf.destroy().catch(() => {})
+      void loadingTask.destroy().catch(() => {})
       return
     }
-    currentDoc = pdf
+    currentDestroy = () => loadingTask.destroy()
     totalPages.value = pdf.numPages
     const count = Math.min(pdf.numPages, MAX_PAGES)
     truncated.value = pdf.numPages > count
