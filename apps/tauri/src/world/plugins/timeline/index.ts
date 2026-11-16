@@ -13,8 +13,21 @@ export const manifest = {
   version: '2.0.0',
   description: '管理世界观中的历史事件与时间线',
   author: 'WorldSea',
-  /** 历法与打包分区必须接进项目迁移链——依赖树提供的迁移扩展点服务（阶段 2-B）。 */
-  requires: ['world.projectExtras'],
+  kind: 'sprout' as const,
+  /**
+   * 服务依赖（两个取用通道都要声明，否则 cordis `inject` 与装载器预检都漏一半）：
+   * - `world.projectExtras`：`apply` 内经 `ctx.get` 取用，注册迁移扩展点
+   * - 其余 6 项：视图与 composable 经 `getWorldService` 取用（见 `serviceAccess.ts`）
+   */
+  requires: [
+    'world.projectExtras',
+    'world.entities',
+    'world.relations',
+    'world.schema',
+    'world.settings',
+    'world.ui',
+    'world.detailLayout',
+  ],
 }
 
 export function apply(ctx: CordisContext, api: WorldPluginApi) {

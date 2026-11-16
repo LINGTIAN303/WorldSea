@@ -12,7 +12,7 @@ import QuestionForm from './QuestionForm.vue'
 import ParagraphForm from './ParagraphForm.vue'
 import ScriptForm from './ScriptForm.vue'
 import SentenceForm from './SentenceForm.vue'
-import { registerForm } from './registry'
+import { registerForm, getAllForms, type FormDefinition } from './registry'
 import { registerAggregateForms } from './initializeAggregateForms'
 import { NUMBERING_OPTIONS } from './formOptions'
 
@@ -194,6 +194,21 @@ export function initializeForms(): void {
 
   // 聚合视图型（表格式 / 树式 / 线索式 / 进度式 / 关联实体）
   registerAggregateForms()
+}
+
+/**
+ * 把已注册的全部表现形式**提升到平台贡献位**（`api.registerForm`）。
+ *
+ * 为什么要这一步：上面的 `registerForm` 写进的是平台注册表，但**不带 pluginId**，
+ * 因此不会随插件卸载回卷。真正作为「插件贡献」登记应当走 `api.registerForm`——
+ * 它会回填 pluginId，使 `unloadPlugin` 能精确撤掉本插件的形式。
+ *
+ * 由 `outline` 的 `apply` 调用（幂等：先确保内置形式已注册，再逐条提升）。
+ * 拆成独立函数而不是塞进 `apply`，是为了让「注册表内容」与「贡献位登记」两件事分开测。
+ */
+export function publishFormsToPluginApi(api: { registerForm: (def: FormDefinition) => void }): void {
+  initializeForms()
+  for (const def of getAllForms()) api.registerForm(def)
 }
 
 /** 仅测试用：允许重新初始化 */

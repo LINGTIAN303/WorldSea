@@ -10,6 +10,8 @@ export const manifest = {
   version: '2.0.0',
   description: '管理角色战斗力数据',
   author: 'WorldSea',
+  kind: 'sprout' as const,
+  requires: ['world.entities', 'world.relations'],
 }
 
 export function apply(_ctx: unknown, api: WorldPluginApi) {

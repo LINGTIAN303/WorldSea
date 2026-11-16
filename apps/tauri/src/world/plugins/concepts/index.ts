@@ -9,6 +9,8 @@ export const manifest = {
   version: '2.0.0',
   description: '世界观中的概念、规则、百科条目',
   author: 'WorldSea',
+  kind: 'sprout' as const,
+  requires: ['world.entities'],
 }
 
 export function apply(_ctx: unknown, api: WorldPluginApi) {

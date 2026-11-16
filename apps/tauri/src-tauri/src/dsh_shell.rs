@@ -207,6 +207,12 @@ pub fn spawn_and_wait_ready(
     command.env("WORLDSEA_WORKSPACE", &workspace);
     // 凭据取向 = 库优先 + env 兜底（判定、留痕与反证开关见 dsh_credentials.rs）
     crate::dsh_credentials::apply_credential_env(&mut command, &home);
+    // host 侧发起能力调用的 loopback 端点（路径 A）：端口 + 本进程随机令牌交给宿主。
+    // 只走 env，不落盘、不进页面——宿主插件读 `WORLDSEA_CAP_ENDPOINT` / `WORLDSEA_CAP_TOKEN`。
+    if let Some((port, token)) = crate::capability_host_call::current_endpoint() {
+        command.env("WORLDSEA_CAP_ENDPOINT", format!("http://127.0.0.1:{port}/capability"));
+        command.env("WORLDSEA_CAP_TOKEN", token);
+    }
     // GUI 模式（windows_subsystem=windows）下 spawn node 会闪现控制台窗口，隐藏之
     crate::proc_quiet::hide_console(&mut command);
     let mut child = command

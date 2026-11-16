@@ -182,13 +182,13 @@ pub fn check_acl(record: &CapabilityRecord, caller: &str) -> Result<(), String> 
 }
 
 /// 下一枚 callId。
-fn next_call_id(id: &str) -> String {
+pub(crate) fn next_call_id(id: &str) -> String {
     let seq = CALL_SEQ.fetch_add(1, Ordering::Relaxed);
     format!("cap-{}-{seq}-{id}", std::process::id())
 }
 
 /// 登记在途调用并返回接收端。
-fn park_pending(call_id: &str, provider: &str) -> tokio::sync::oneshot::Receiver<Result<Value, String>> {
+pub(crate) fn park_pending(call_id: &str, provider: &str) -> tokio::sync::oneshot::Receiver<Result<Value, String>> {
     let (tx, rx) = tokio::sync::oneshot::channel();
     lock_pending().push((
         call_id.to_string(),
@@ -211,7 +211,7 @@ fn take_pending(call_id: &str) -> Option<PendingCall> {
 }
 
 /// 超时兜底线程：到点仍在等则判超时并解锁等待方。
-fn spawn_timeout(call_id: String, provider: String, timeout: Duration) {
+pub(crate) fn spawn_timeout(call_id: String, provider: String, timeout: Duration) {
     std::thread::spawn(move || {
         std::thread::sleep(timeout);
         if let Some(mut call) = take_pending(&call_id) {
@@ -229,7 +229,7 @@ fn spawn_timeout(call_id: String, provider: String, timeout: Duration) {
 
 /// 回执认领（**只有该调用的提供方窗口**能回）：成功则把结果交给等待方。
 /// 返回错误信息用于区分「无此在途调用」与「非该调用提供方」。
-fn complete(call_id: &str, provider: &str, outcome: Result<Value, String>) -> Result<(), String> {
+pub(crate) fn complete(call_id: &str, provider: &str, outcome: Result<Value, String>) -> Result<(), String> {
     let mut pending = lock_pending();
     let idx = pending
         .iter()
@@ -296,8 +296,19 @@ pub async fn cmd_capability_invoke(
     id: String,
     args: Option<Value>,
 ) -> Result<Value, String> {
-    let caller = window.label().to_string();
-    let record = find(&id).ok_or_else(|| {
+    dispatch(&app, window.label(), &id, args).await
+}
+
+/// 派发内核（`cmd_capability_invoke` 用；host 侧入口在 `capability_host_invoke.rs`，
+/// 它走事件派发而非本函数——两者共用 `find`/`check_acl`/`park_pending` 等原语）。
+async fn dispatch(
+    app: &tauri::AppHandle,
+    caller: &str,
+    id: &str,
+    args: Option<Value>,
+) -> Result<Value, String> {
+    let caller = caller.to_string();
+    let record = find(id).ok_or_else(|| {
         println!("[WORLDSEA-CAP] 拒：{caller} → {id}（未登记）");
         format!("CAPABILITY_UNKNOWN: 能力未登记（{id}）——提供方窗口未就绪或未登记该能力")
     })?;
@@ -309,14 +320,14 @@ pub async fn cmd_capability_invoke(
         format!("CAPABILITY_UNAVAILABLE: 提供方窗口 {} 未打开（工作台窗懒创建）", record.provider)
     })?;
 
-    let call_id = next_call_id(&id);
+    let call_id = next_call_id(id);
     let rx = park_pending(&call_id, &record.provider);
     spawn_timeout(call_id.clone(), record.provider.clone(), CALL_TIMEOUT);
 
     let args_json = serde_json::to_string(args.as_ref().unwrap_or(&Value::Null))
         .map_err(|e| format!("CAPABILITY_BAD_ARGS: 参数序列化失败：{e}"))?;
     let call_id_json = serde_json::to_string(&call_id).unwrap_or_else(|_| "\"\"".to_string());
-    let id_json = serde_json::to_string(&id).unwrap_or_else(|_| "\"\"".to_string());
+    let id_json = serde_json::to_string(id).unwrap_or_else(|_| "\"\"".to_string());
     // 派发到提供方窗口；脚本缺失或同步抛错时**立即**回执失败（不等 10s 超时）。
     let script = format!(
         "try {{ \
@@ -365,16 +376,3 @@ pub fn cmd_capability_result(
     complete(&call_id, &provider, outcome)?;
     Ok(true)
 }
-
-// ── 测试辅助 ─────────────────────────────────────────────────────────────
-
-/// 测试辅助：清空全局态（仅测试用；生产路径不调）。
-#[cfg(test)]
-fn reset_for_test() {
-    lock_registry().clear();
-    lock_pending().clear();
-}
-
-#[cfg(test)]
-#[path = "capabilities_tests.rs"]
-mod tests;

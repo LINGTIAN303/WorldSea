@@ -9,6 +9,7 @@ export const manifest = {
   version: '1.0.0',
   description: '以字段字典形式查看全部芽的实体 Schema、关系、视图与 AutoLink 运转',
   author: 'WorldSea',
+  requires: ['world.settings'],
   kind: 'sprout' as const,
 }
 

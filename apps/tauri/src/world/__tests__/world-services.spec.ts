@@ -152,7 +152,11 @@ describe('真实插件依赖：timeline 声明 world.projectExtras', () => {
     const { readFileSync } = await import('node:fs')
     const { join } = await import('node:path')
     const source = readFileSync(join(__dirname, '..', 'plugins', 'timeline', 'index.ts'), 'utf8')
-    expect(source).toContain("requires: ['world.projectExtras']")
+    // 2026-11-13：声明集合从「只有 projectExtras」补齐为「装载期 + 运行期两个通道的全集」，
+    // 故不再锁定单行字面量，改为断言「该服务在 requires 数组内」。
+    // 完整一致性（声明 ⊆ 取用、取用 ⊆ 声明）由 plugins/__tests__/requiresDeclaration.spec.ts 守卫。
+    const requiresBlock = source.match(/requires:\s*\[[\s\S]*?\]/)?.[0] ?? ''
+    expect(requiresBlock).toContain("'world.projectExtras'")
   })
 
   it('服务目录里确有该依赖（声明与实际提供对得上）', () => {

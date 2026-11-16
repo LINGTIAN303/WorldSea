@@ -15,6 +15,7 @@ export function apply(_ctx: unknown, api: WorldPluginApi) {
     id: 'import-export',
     label: '导入导出',
     component: defineAsyncComponent(() => import('@worldsea/ui-kit').then(m => m.ImportExportModal)),
+    menu: { label: '导入/导出', icon: 'trade', order: 12, slot: 'view-toolbar' },
   })
 }
 

@@ -10,6 +10,7 @@ export const manifest = {
   version: '1.0.0',
   description: '管理世界观中的动物、魔兽与异种生物',
   author: 'WorldSea',
+  kind: 'sprout' as const,
 }
 
 export function apply(_ctx: unknown, api: WorldPluginApi) {

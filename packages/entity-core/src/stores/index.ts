@@ -17,6 +17,9 @@ export type {
 } from './fontStore'
 export { useUIStore, SPROUT_NAV_MODES, normalizeSproutNavMode, normalizeSproutDomainFilter, normalizeSplitSidebarOrder } from './uiStore'
 export type { SproutNavMode, SproutDomainFilter, SplitSidebarOrder, SettingsTarget } from './uiStore'
+// 装配预设（阶段 2「装配是数据」）：内置形态常量表 + 与分组互转的工具
+export { ASSEMBLY_PRESETS, FULL_ASSEMBLY_LABEL, presetAsGroup, matchPreset } from './assemblyPresets'
+export type { AssemblyPreset } from './assemblyPresets'
 export { useSettingsStore, SPROUT_CATEGORIES, ANIMATION_GROUPS } from './settingsStore'
 export {
   useIconOverrideStore,

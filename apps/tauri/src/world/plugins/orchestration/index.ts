@@ -10,6 +10,8 @@ export const manifest = {
   version: '2.0.0',
   description: '创作编排面板。将复杂创作目标拆解为有序创作计划（Pipeline），支持步骤库、步骤连接、模板复用。',
   author: 'WorldSea',
+  kind: 'sprout' as const,
+  requires: ['world.entities'],
 }
 
 export function apply(_ctx: unknown, api: WorldPluginApi) {

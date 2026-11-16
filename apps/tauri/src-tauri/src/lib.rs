@@ -75,6 +75,8 @@ mod app_setup;
 mod app_prefs_dsh;
 // 壳侧能力桥——类型化能力注册表 + 调用 ACL + 两窗中转 + 审计（双 Cordis 的交界缝）
 mod capabilities;
+mod capability_host_call;
+mod capability_host_invoke;
 // 单一可见根（%USERPROFILE%\WorldSea）+ 旧 ~/.WorldSea 一次性搬迁
 mod data_root;
 // /entity 就绪卡数据面（纯插件形态：console 客户端贡献位经壳 IPC 取事实）
@@ -213,6 +215,8 @@ pub fn run() {
             capabilities::cmd_capability_result,
             // 撤登记（拆树/卸插件时收口声明面）
             capabilities::cmd_capability_unregister,
+  // host 侧发起能力调用（路径 A）：dsh 插件工具 → pipe 路由 → 本命令 → 主窗代发
+  capability_host_invoke::cmd_capability_invoke_from_host,
             // 页面流桥（openStream 钩子 → 管道 mux 流：开 / 上行 / 半关 / 取消）
             dsh_stream::cmd_stream_open,
             dsh_stream::cmd_stream_send,

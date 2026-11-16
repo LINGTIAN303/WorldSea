@@ -2,6 +2,7 @@ import type { WorldPluginApi } from '../../api'
 // 原 OutlineView（独立树视图）已于 2026-09-16 下线：其浏览形态由白板内的「树式」表现形式承载，
 // 层级重排由右栏树承载（负责人裁定：旧视图不删能力、改为成为白板里的一个容器内容）
 import BoardView from './board/BoardView.vue'
+import { publishFormsToPluginApi } from './board/forms/initializeForms'
 
 export const manifest = {
   id: 'official.outline',
@@ -11,6 +12,8 @@ export const manifest = {
   version: '2.0.0',
   description: '大纲管理与章节规划',
   author: 'WorldSea',
+  kind: 'sprout' as const,
+  requires: ['world.entities', 'world.font', 'world.relations'],
 }
 
 export function apply(_ctx: unknown, api: WorldPluginApi) {
@@ -91,6 +94,12 @@ export function apply(_ctx: unknown, api: WorldPluginApi) {
       { key: 'gridEnabled', label: '网格', fieldType: 'boolean' },
     ],
   })
+
+  // ── 表现形式（第 6 贡献位，2026-11-13 从私有注册表提升）──────────
+  // 11 种表现形式（标题/卡片/问题/段落/脚本/句子/表格/树/线索/进度/关联实体）
+  // 各自独立，此前只存在 outline 私有注册表里：不随插件启停、外界不可见。
+  // 现经平台 `api.registerForm` 登记，随插件卸载自动回卷（撤销在 tree.ts unloadPlugin）。
+  publishFormsToPluginApi(api)
 
   // ── 唯一「大纲」视图（2026-09-16 入口整合）────────────────
   // 视图 id 复用 'outline'：侧栏顺序持久化的是**视图 id 列表**（uiStore.sidebarOrder →

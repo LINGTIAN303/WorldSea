@@ -10,6 +10,8 @@ export const manifest = {
   version: '2.0.0',
   description: '自由笔记与知识管理',
   author: 'WorldSea',
+  kind: 'sprout' as const,
+  requires: ['world.entities', 'world.relations'],
 }
 
 export function apply(_ctx: unknown, api: WorldPluginApi) {

@@ -103,7 +103,6 @@ export function worldTreeState(): WorldTreeState {
 export function availablePlugins(): WorldPlugin[] {
   return [...available.values()]
 }
-
 /** 装载单个插件（供起树与真启停共用）。 */
 function loadPlugin(plugin: WorldPlugin): void {
   if (!ctx || fibers.has(plugin.manifest.id)) return
@@ -121,10 +120,11 @@ function loadPlugin(plugin: WorldPlugin): void {
   state.plugins.push(id)
 }
 
-/** 卸载单个插件（插件清理 → fiber dispose；实体/关系类型不注销）。 */
+/** 卸载单个插件（插件清理 → 形式回卷 → fiber dispose；实体/关系类型不注销）。 */
 export function unloadPlugin(id: string): boolean {
   if (!fibers.has(id)) return false
   runPluginCleanups(id)
+  const formsRemoved = pluginAPI.unregisterFormsOfPlugin(id)
   try {
     void fibers.get(id)?.dispose()
   } catch (error) {
@@ -132,7 +132,7 @@ export function unloadPlugin(id: string): boolean {
   }
   fibers.delete(id)
   state.plugins = state.plugins.filter(entry => entry !== id)
-  console.log(`[world-tree] 已卸载插件：${id}`)
+  console.log(`[world-tree] 已卸载插件：${id}${formsRemoved > 0 ? `（撤形式 ${formsRemoved} 条）` : ''}`)
   publish()
   return true
 }

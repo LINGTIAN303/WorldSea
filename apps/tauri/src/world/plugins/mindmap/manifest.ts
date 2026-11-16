@@ -12,4 +12,6 @@ export const MINDMAP_MANIFEST: WorldPluginManifest = {
   version: '2.0.0',
   description:
     '真正的树状思维导图——发散构思、整理世界观想法；节点可绑定实体，构思成熟后一键跳转落地',
+  kind: 'sprout',
+  requires: ['world.entities', 'world.ui'],
 }

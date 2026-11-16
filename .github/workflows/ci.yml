@@ -129,7 +129,7 @@ jobs:
       #
       # 曾尝试在 CI 里补构建：需要 dsh 侧独立 workspace 安装 + cosmokit 前置 +
       # 根 tsdown 配置（该配置又依赖 typert/generator 的产物），越补越深。
-      # 记为待办而非在此硬凑，详见 docs/details/架构/GitHub仓库配置现状与待办.md §3.2。
+      # 记为待办而非在此硬凑，详见 docs/details/架构/工程/GitHub仓库配置现状与待办.md §3.2。
       #
       # 报告器用 dot：默认 reporter 会为每个测试打一行，2400+ 行日志把真正的
       # 失败信息淹掉。失败细节仍会完整输出在末尾。

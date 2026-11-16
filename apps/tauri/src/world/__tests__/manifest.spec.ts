@@ -56,6 +56,14 @@ describe('validateManifest', () => {
     expect(validateManifest({ ...valid, entityTypes: ['x', 'x'] }).ok).toBe(false)
   })
 
+  it('kind 若给则须为 sprout / utility 二选一', () => {
+    expect(validateManifest({ ...valid, kind: 'sprout' }).ok).toBe(true)
+    expect(validateManifest({ ...valid, kind: 'utility' }).ok).toBe(true)
+    expect(validateManifest({ ...valid, kind: 'other' }).ok).toBe(false)
+    expect(validateManifest({ ...valid, kind: '' }).ok).toBe(false)
+    expect(validateManifest({ ...valid, kind: 1 }).ok).toBe(false)
+  })
+
   it('非对象一律拒', () => {
     for (const value of [null, undefined, 'x', 1, []]) {
       expect(validateManifest(value).ok).toBe(false)

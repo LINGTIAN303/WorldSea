@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * dsh fork 台账门禁（D10 配套）：`dsh/` 相对 fork 基线的每一处改动都必须登记在台账
- * `docs/details/架构/dsh-fork台账.md`（第三节的 ```text 代码块）。
+ * `docs/details/架构/dsh/dsh-fork台账.md`（第三节的 ```text 代码块）。
  *
  * 判据：
  * - `git diff <基线提交> -- dsh` 得到的每个文件 → 必须在台账里（缺失即报红，退出码 1）。
@@ -17,7 +17,7 @@
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 
-const LEDGER_PATH = 'docs/details/架构/dsh-fork台账.md'
+const LEDGER_PATH = 'docs/details/架构/dsh/dsh-fork台账.md'
 
 function fail(message) {
   console.error(`❌ ${message}`)

@@ -10,6 +10,8 @@ export const manifest = {
   version: '1.0.0',
   description: '棋盘式战术推演，在网格上布置实体作为棋子',
   author: 'WorldSea',
+  kind: 'sprout' as const,
+  requires: ['world.entities'],
 }
 
 export function apply(_ctx: unknown, api: WorldPluginApi) {

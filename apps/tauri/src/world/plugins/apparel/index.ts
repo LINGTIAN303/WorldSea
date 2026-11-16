@@ -9,6 +9,7 @@ export const manifest = {
   version: '2.0.0',
   description: '服饰视图——展示和管理 Item 中拥有 ApparelFacet 的实体',
   author: 'WorldSea',
+  kind: 'sprout' as const,
 }
 
 /**

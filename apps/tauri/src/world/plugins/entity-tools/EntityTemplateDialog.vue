@@ -3,13 +3,13 @@
     <div class="et-overlay" v-if="show" @click.self="close">
       <div ref="dialogRef" class="et-modal" role="dialog" aria-modal="true" aria-labelledby="et-dialog-title" tabindex="-1">
         <div class="et-header">
-          <h3 id="et-dialog-title">实体模板</h3>
+          <h3 id="et-dialog-title">场景脚手架</h3>
           <button class="et-close" @click="close">✕</button>
         </div>
 
         <div class="et-tabs">
-          <button :class="{ active: tab === 'entity' }" @click="tab = 'entity'">实体模板</button>
-          <button :class="{ active: tab === 'world' }" @click="tab = 'world'">世界观模板</button>
+          <button :class="{ active: tab === 'entity' }" @click="tab = 'entity'">单个实体</button>
+          <button :class="{ active: tab === 'world' }" @click="tab = 'world'">整套世界</button>
         </div>
 
         <!-- 实体模板 -->

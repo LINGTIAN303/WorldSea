@@ -8,6 +8,7 @@
  */
 import { afterEach, describe, expect, it } from 'vitest'
 import { pluginAPI } from '@worldsea/entity-core'
+import { formRegistry } from '@worldsea/entity-core/core'
 import { availablePlugins, disposeWorldTree, setPluginEnabled, startWorldTree, unloadPlugin, worldTreeContext, worldTreeState, WORLD_SERVICES } from '../tree'
 import { registerPluginCleanup, registerViewFor, unregisterViewFor } from '../registry'
 import type { WorldPlugin } from '../manifest'
@@ -276,5 +277,51 @@ describe('阶段 2-B · 服务目录在树内可被 ctx.get 取到', () => {
     for (const name of WORLD_SERVICES) {
       expect(ctx.get(name, false), `${name} 拆树后应不可取`).toBeFalsy()
     }
+  })
+})
+
+describe('第 6 贡献位 · 表现形式随插件卸载回卷', () => {
+  /** 只注册一个表现形式的插件——验「贡献位登记确实带 pluginId 且能按插件撤」。 */
+  const formPlugin: WorldPlugin = {
+    manifest: { id: 'ws.fake.form', name: '表现形式插件', version: '1.0.0', description: '第 6 贡献位试点' },
+    apply(_ctx, api) {
+      api.registerForm({
+        form: 'fake-form',
+        label: '假形式',
+        icon: 'list',
+        kind: 'inline',
+        defaultHeight: 40,
+        defaultConfig: {},
+        configSchema: [],
+        component: {} as never,
+      })
+    },
+  }
+
+  it('装载后形式在真源里，卸载后消失（与 view/overlay 同口径）', async () => {
+    const handle = await startWorldTree({ plugins: [formPlugin] })
+    expect(formRegistry.getAll().map(d => d.form), '装载后形式应在真源').toContain('fake-form')
+    // 归属被回填（卸载按它回卷）
+    expect(formRegistry.get('fake-form')?.pluginId, 'pluginId 应由 withPluginScope 回填').toBe('ws.fake.form')
+
+    handle.dispose()
+    await new Promise(resolve => setTimeout(resolve, 50))
+
+    expect(formRegistry.getAll().map(d => d.form), '卸载后形式应被回卷').not.toContain('fake-form')
+  })
+
+  it('真启停（setPluginEnabled 关/开）也回卷/恢复形式', async () => {
+    const handle = await startWorldTree({ plugins: [formPlugin] })
+    expect(formRegistry.get('fake-form')).toBeDefined()
+
+    setPluginEnabled('ws.fake.form', false)
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(formRegistry.get('fake-form'), '关闭后应撤登记').toBeUndefined()
+
+    setPluginEnabled('ws.fake.form', true)
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(formRegistry.get('fake-form'), '开启后应重新登记').toBeDefined()
+
+    handle.dispose()
   })
 })

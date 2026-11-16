@@ -9,6 +9,7 @@ export const manifest = {
   version: '1.0.0',
   description: '汇总浏览世界中的视觉资产：实体封面、形象图与画板作品',
   author: 'WorldSea',
+  requires: ['world.entities'],
   kind: 'sprout' as const,
 }
 

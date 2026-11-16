@@ -10,6 +10,8 @@ export const manifest = {
   version: '2.0.0',
   description: '管理世界观中的大陆、国家、城市、地标等地理区域',
   author: 'WorldSea',
+  kind: 'sprout' as const,
+  requires: ['world.entities', 'world.relations'],
 }
 
 export function apply(_ctx: unknown, api: WorldPluginApi) {

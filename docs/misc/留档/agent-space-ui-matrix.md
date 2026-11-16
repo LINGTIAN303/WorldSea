@@ -22,7 +22,7 @@
 
 ## A. 壳层矩阵
 
-> 布局基准已与 [agent-space-layout.md](../../details/前后端/agent-space-layout.md) 交叉核对（窗口栏 32px / 顶栏 48px / 主区 gap 8px padding 8px / 三栏宽度 200–400 与 240–560 / 双线分隔规范）；与本矩阵差异处已就地标注。
+> 布局基准已与 [agent-space-layout.md](../../details/架构/归档/agent-space-layout.md) 交叉核对（窗口栏 32px / 顶栏 48px / 主区 gap 8px padding 8px / 三栏宽度 200–400 与 240–560 / 双线分隔规范）；与本矩阵差异处已就地标注。
 
 ### A.1 主壳结构（AgentSpace）
 

@@ -68,6 +68,9 @@ export function validateManifest(value: unknown): ManifestCheck {
       return { ok: false, reason: 'requires 须为字符串数组' }
     }
   }
+  if (manifest.kind !== undefined && manifest.kind !== 'sprout' && manifest.kind !== 'utility') {
+    return { ok: false, reason: `kind 非法（须为 'sprout' 或 'utility'：${String(manifest.kind)}）` }
+  }
   if (manifest.domain !== undefined) {
     if (typeof manifest.domain !== 'string' || !manifest.domain.trim()) {
       return { ok: false, reason: 'domain 须为非空字符串' }

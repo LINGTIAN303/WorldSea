@@ -67,4 +67,58 @@
     .catch(function (error) {
       console.warn('[worldsea-capability] 登记失败：' + String((error && error.message) || error));
     });
+
+  /* ── host 侧发起的调用（路径 A，2026-11-17）──────────────────────────
+     链路：dsh 插件工具 → pipe HTTP 路由 → Rust `cmd_capability_invoke_from_host`
+          → emit `worldsea:capability-call` → **本段** → `cmd_capability_invoke`
+          → 提供方窗（工作台）执行 → 回执。
+
+     为什么由主窗代发：`cmd_capability_invoke` 的 ACL 按窗口 label 判，
+     host 进程没有窗口身份。主窗在 PROVIDERS 内、且 shell ACL 两窗共用，
+     由它代发既过 ACL 又符合语义（动作的意图方就是 Agent 面）。
+
+     事件监听用 Tauri 的 `event.listen`：注入脚本与页面同源，能拿到同一份 IPC。 */
+  var listen = ipc && ipc.event && ipc.event.listen;
+  if (typeof listen !== 'function') {
+    console.warn('[worldsea-capability] 无 event.listen：host 发起通道不可用');
+    return;
+  }
+
+  listen('worldsea:capability-call', function (event) {
+    var detail = (event && event.payload) || {};
+    var callId = detail.callId;
+    var id = detail.id;
+    var args = detail.args === undefined ? null : detail.args;
+
+    function fail(message) {
+      invoke('cmd_capability_result', {
+        callId: callId,
+        ok: false,
+        result: null,
+        error: String(message),
+      }).catch(function () {});
+    }
+
+    if (!id) {
+      fail('CAPABILITY_BAD_ARGS: host 请求缺少 id');
+      return;
+    }
+
+    // 由主窗发起（caller = 本窗 label `main`），提供方窗执行
+    Promise.resolve(invoke('cmd_capability_invoke', { id: id, args: args }))
+      .then(function (value) {
+        return invoke('cmd_capability_result', {
+          callId: callId,
+          ok: true,
+          result: value === undefined ? null : value,
+          error: null,
+        });
+      })
+      .catch(function (error) {
+        return fail((error && error.message) || error);
+      })
+      .catch(function () {});
+  });
+
+  console.log('[worldsea-capability] host 发起通道已装配（worldsea:capability-call）');
 })();

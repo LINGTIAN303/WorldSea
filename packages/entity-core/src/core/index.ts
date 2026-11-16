@@ -62,6 +62,8 @@ export {
 export type { IconAsset, IconAssetExt, IconAssetExportEntry, IconAssetValidation } from './customIcons'
 export { validateSchemaOverlay, applySchemaOverlay, setSchemaOverlays, getSchemaOverlay, schemaOverlayCount } from './schemaOverlay'
 export type { EntitySchemaOverlay, SchemaOverlayBase, SchemaOverlayResult } from './schemaOverlay'
+export { formRegistry, resolveFormConfig } from './FormRegistry'
+export type { FormDefinition, FormKind, FormConfigField, FormChange, FormChangeListener } from './FormRegistry'
 
 export { relationSchemaRegistry } from './RelationSchema'
 

@@ -9,6 +9,8 @@ export const manifest = {
   version: '2.0.0',
   description: '自由绘画、植入世界观图示。支持多图层、形状工具、画板持久化。',
   author: 'WorldSea',
+  kind: 'sprout' as const,
+  requires: ['world.entities'],
 }
 
 export function apply(_ctx: unknown, api: WorldPluginApi) {
