@@ -144,11 +144,15 @@ export function defineTrait(trait: TraitDefinition): TraitDefinition {
 // ─────────────────────────────────────────────
 
 /**
- * 定义一个 Facet 并注册到 facetRegistry。
- * Facet 是结构化数据块，非独立实体。
+ * 声明一个 Facet 定义（**只校验并返回，不注册**）。
+ *
+ * 注册由插件在 `apply` 里经 `api.registerFacet(...)` 完成——这样「谁贡献了哪个
+ * Facet」在插件清单上是可见的，符合六个贡献位的口径。若在这里就注册，任何
+ * `import` 到该定义文件的路径都会产生注册副作用，归属就说不清了。
+ *
+ * 详见 docs/details/架构/插件系统/插件协议.md。
  */
 export function defineFacet(facet: FacetDefinition): FacetDefinition {
-  facetRegistry.register(facet)
   return facet
 }
 

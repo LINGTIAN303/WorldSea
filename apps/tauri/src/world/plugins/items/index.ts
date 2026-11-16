@@ -1,6 +1,5 @@
 import type { WorldPluginApi } from '../../api'
 import ItemView from './ItemView.vue'
-import { WeaponFacet, ApparelFacet } from '@worldsea/entity-core/facets'
 
 export const manifest = {
   id: 'official.items',
@@ -8,18 +7,16 @@ export const manifest = {
   entityTypes: ['item'],
   secondaryDomains: ['knowledge'],
   name: '道具',
-  version: '2.0.0',
+  version: '2.1.0',
   description: '管理世界观中的道具、武器、装备等物品',
   author: 'WorldSea',
   kind: 'sprout' as const,
 }
 
 export function apply(_ctx: unknown, api: WorldPluginApi) {
-  // 注册 Facet
-  api.registerFacet(WeaponFacet)
-  api.registerFacet(ApparelFacet)
-
   // 注册 Item 实体（吸收原 weapon/apparel 的通用字段）
+  // weapon / apparel 两个 Facet 由各自插件注册（见 weapons / apparel 的 apply）；
+  // 这里只声明 item 挂载它们——「Facet 定义归属」与「实体是否挂载」是两件事。
   api.registerEntityV2({
     type: 'item',
     label: '道具',
