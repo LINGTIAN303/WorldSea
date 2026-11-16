@@ -77,7 +77,7 @@
     "mammoth": "^1.13.0",
     "marked": "^18.0.3",
     "naive-ui": "^2.45.3",
-    "pdfjs-dist": "^5.7.284",
+    "pdfjs-dist": "^6.5.438",
     "pinia": "^3.0.4",
     "segmentit": "^2.0.3",
     "turndown": "^7.2.5",
