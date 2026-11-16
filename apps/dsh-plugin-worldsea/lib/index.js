@@ -461,6 +461,53 @@ function requireString(value, field) {
   return value;
 }
 
+/**
+ * 经壳的 loopback 端点触发一次**能力桥调用**（路径 A，2026-11-17）。
+ *
+ * 为什么需要它：Agent 工具跑在 host 进程（Node），没有通往 webview 的 IPC 通道，
+ * 也没有窗口身份（能力 ACL 按窗口 label 判）。壳为此起了一条仅回环、单路径、
+ * 带随机令牌的 HTTP 端点，把请求转成「主窗代发 → 提供方窗执行」。
+ *
+ * 端点与令牌由壳在 spawn 本宿主时经 env 注入（`WORLDSEA_CAP_ENDPOINT` / `WORLDSEA_CAP_TOKEN`）；
+ * 缺失说明壳没起端点（旧壳或反证开关 WORLDSEA_NO_HOST_CALL_ENDPOINT=1），此时 fail loud——
+ * 静默返回空结果会让 Agent 误以为「没有能力」而不是「通道不可用」。
+ */
+async function callHostCapability(payload) {
+  const endpoint = process.env.WORLDSEA_CAP_ENDPOINT;
+  const token = process.env.WORLDSEA_CAP_TOKEN;
+  if (!endpoint || !token) {
+    throw new Error(
+      'CAPABILITY_UNAVAILABLE: 壳未提供能力端点（WORLDSEA_CAP_ENDPOINT/WORLDSEA_CAP_TOKEN 缺失）'
+        + '——可能是旧版壳，或按 WORLDSEA_NO_HOST_CALL_ENDPOINT 反证关闭。',
+    );
+  }
+  let response;
+  try {
+    response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-worldsea-token': token },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(15_000),
+    });
+  } catch (error) {
+    throw new Error(`CAPABILITY_UNAVAILABLE: 能力端点不可达（${endpoint}）：${String((error && error.message) || error)}`);
+  }
+  const text = await response.text();
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error(`CAPABILITY_BAD_RESPONSE: 端点回包不是 JSON（HTTP ${response.status}）：${text.slice(0, 200)}`);
+  }
+  if (parsed && parsed.ok === false) {
+    throw new Error(String(parsed.error || 'CAPABILITY_PROVIDER_ERROR: 能力调用失败（无错误说明）'));
+  }
+  if (!response.ok) {
+    throw new Error(`CAPABILITY_HTTP_${response.status}: ${text.slice(0, 200)}`);
+  }
+  return parsed ? parsed.result : null;
+}
+
 /** 外部插件 id 自查：ws. 前缀 + 点分段（与工作台 manifest 的 ID_RE 同形；内置 official.* 域不可冒名）。 */
 function requirePluginId(value) {
   const id = requireString(value, 'id');
@@ -1089,6 +1136,40 @@ const tools = [
       if (!existsSync(path)) throw new Error(`WORLDSEA_SCHEMA_UNKNOWN: 覆盖文件不存在（${type}.json）`);
       unlinkSync(path);
       return { type, note: '已删除；该实体类型回落内置默认，工作台约 1 秒内自动热重填。' };
+    },
+  },
+  {
+    name: 'world_capability',
+    description:
+      '触发 WorldSea 工作台的一次**界面动作**（能力桥）。与 world_entity_* 的区别：那些读写数据，本工具执行动作——'
+      + '如列出/打开思维导图文档、触发导出、跑布局算法。用 world_capability_list 先看当前可用能力。'
+      + '要求工作台窗已打开（提供方窗口未就绪会报 CAPABILITY_UNAVAILABLE）。',
+    parameters: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: '能力 id（如 world.mindmap.doc.list）；用 world_capability_list 查' },
+        args: { type: 'object', description: '能力参数（形状见该能力的 params 声明；无参可省）' },
+      },
+      required: ['id'],
+    },
+    output: looseOutput,
+    async execute(args, _exec) {
+      const id = requireString(args?.id, 'id');
+      const payload = { id };
+      if (args?.args !== undefined) payload.args = args.args;
+      return callHostCapability(payload);
+    },
+  },
+  {
+    name: 'world_capability_list',
+    description: '列出 WorldSea 能力桥当前已登记的能力（id / 摘要 / 参数 / 可调用方）。用于发现 world_capability 能触发什么。',
+    parameters: { type: 'object', properties: {}, required: [] },
+    output: listOutput,
+    async execute() {
+      // `__list` 是端点自带的清单动作（不经能力桥、不占用能力 id）：它只读 Rust 侧注册表，
+      // 无副作用，故不必让主窗代发。
+      const listed = await callHostCapability({ id: '__list' });
+      return asItems(Array.isArray(listed) ? listed : []);
     },
   },
 ];

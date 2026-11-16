@@ -37,6 +37,11 @@ pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
     // 主窗不再自动显示，后台吃 dsh 就绪链；签名取 AppHandle（要在后台线程建窗）
     workspace_window::startup_visibility(app.handle());
 
+    // ── host 侧发起能力调用的 loopback 端点（路径 A，2026-11-17）─────────────
+    // 必须在 `dsh_shell::install`（会 spawn host）之前起：spawn 时要把端口与令牌经 env
+    // 交给宿主插件。反证开关 WORLDSEA_NO_HOST_CALL_ENDPOINT=1（关掉后 host 工具应报不可用）。
+    install_host_call_endpoint(app.handle());
+
     // ── 壳接入与协议桥 ────────────────────────────────────────────────────
     // 装配全在 dsh_shell::install（spawn/就绪/守护）与 dsh_bridge::attach（协议页/回退）：
     // UI origin 与传输面分离，界面 100% 保留；口径见 docs/plans/ 对应批计划。
@@ -136,6 +141,43 @@ pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
 
 /// 托盘是否激活：决定关闭窗口是「最小化到托盘」还是「直接退出」
 struct TrayActive(bool);
+
+/// 起 host 侧能力调用的 loopback 端点（路径 A）。
+///
+/// 处理函数把请求转给 `capabilities::invoke_from_host` —— 它做 ACL 校验后派发到提供方窗。
+/// 端点自身只管「回环 + 单路径 + 令牌」三条安全口径（见 `capability_host_call.rs` 头注）。
+fn install_host_call_endpoint(app: &tauri::AppHandle) {
+    if crate::capability_host_call::disabled() {
+        println!("[WORLDSEA-CAP] host 调用口按 WORLDSEA_NO_HOST_CALL_ENDPOINT 关闭（反证模式）");
+        return;
+    }
+    let app_for_handler = app.clone();
+    // 清单提供者：直接读 `capabilities` 的注册表（`cmd_capability_list` 的同源实现）
+    crate::capability_host_call::set_list_provider(std::sync::Arc::new(|| {
+        serde_json::to_value(crate::capabilities::list()).unwrap_or(serde_json::json!([]))
+    }));
+    let handler: crate::capability_host_call::Handler = std::sync::Arc::new(
+        move |id: String, args: Option<serde_json::Value>, caller: Option<String>| {
+            let app = app_for_handler.clone();
+            // handler 是同步签名（端点线程里跑），而 invoke_from_host 是 async：
+            // 用 block_on 会与 Tauri 的 tokio 运行时冲突，故另起一个运行时驱动单次调用。
+            let runtime = match tokio::runtime::Builder::new_current_thread().enable_all().build() {
+                Ok(runtime) => runtime,
+                Err(error) => return Err(format!("CAPABILITY_UNAVAILABLE: 端点运行时构建失败：{error}")),
+            };
+            let caller = caller.unwrap_or_else(|| "main".to_string());
+            runtime.block_on(crate::capability_host_invoke::invoke_from_host(&app, &caller, &id, args))
+        },
+    );
+    match crate::capability_host_call::start(handler) {
+        Ok(endpoint) => {
+            crate::capability_host_call::set_current(endpoint.port(), endpoint.token().to_string());
+            // 端点随进程存活：故意泄漏句柄（Drop 会停监听，而壳生命周期 = 进程生命周期）
+            std::mem::forget(endpoint);
+        }
+        Err(error) => eprintln!("[WORLDSEA-CAP] host 调用口启动失败（能力桥将只有页面侧可用）：{error}"),
+    }
+}
 
 /// 关闭行为：托盘激活时关闭窗口仅隐藏到托盘，进程与 Agent 长任务
 /// 继续运行；托盘菜单「退出」才是真正退出。托盘未激活时保持默认（关闭即退出）。

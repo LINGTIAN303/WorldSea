@@ -165,9 +165,11 @@ describe('注册面：world_* 工具清单（与壳侧 NATIVE_TOOLS 同步）', 
     'world_entity_list', 'world_entity_search', 'world_entity_get', 'world_entity_put', 'world_entity_update', 'world_entity_delete',
     'world_relation_list', 'world_relation_put', 'world_relation_delete',
     'world_plugin_template', 'world_plugin_write', 'world_plugin_list', 'world_plugin_read', 'world_plugin_delete',
+    // 能力桥（路径 A，2026-11-17）：host 侧触发界面动作 + 发现面
+    'world_capability', 'world_capability_list',
   ]
 
-  it('实际注册面 = 21 条具名清单（多一条或少一条都报红）', () => {
+  it('实际注册面 = 23 条具名清单（多一条或少一条都报红）', () => {
     const names = [...loadTools().keys()].sort()
     expect(names).toEqual([...EXPECTED].sort())
   })
