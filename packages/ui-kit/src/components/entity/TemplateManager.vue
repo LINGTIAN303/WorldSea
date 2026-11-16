@@ -2,7 +2,7 @@
   <div class="tm-overlay" v-if="show" @click.self="close">
     <div class="tm-modal" :style="{ width: modalResizable.width.value + 'px' }">
       <div class="tm-header">
-        <h3><WsIcon name="outline" size="sm" /> 模板管理</h3>
+        <h3><WsIcon name="outline" size="sm" /> 我的模板</h3>
         <button class="tm-close" @click="close">✕</button>
       </div>
 
