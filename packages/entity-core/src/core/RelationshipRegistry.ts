@@ -2,7 +2,6 @@
 
 import type { RelationTypeSchemaV2 } from '../types/relation'
 import { relationSchemaRegistry } from './RelationSchema'
-import { inverseRegistry } from './inverseRegistry'
 
 // ─────────────────────────────────────────────
 // RelationshipRegistry — 全局关系注册中心
@@ -211,17 +210,20 @@ export const relationshipRegistry = new RelationshipRegistryClass()
 // ─────────────────────────────────────────────
 
 /**
- * 将 relationshipRegistry（V2）中的所有关系同步到旧版注册表：
- * ① relationSchemaRegistry（旧版依赖方仍查它，如 canvas-engine 图数据标签）；
- * ② inverseRegistry（useBidirectional / useEdgeDedup 的 inverse 查表——2026-10-15 补：
- *    此前它仅覆盖旧枚举 relationTypes，V2 关系（note_link 等）的 getInverse 恒为 undefined
- *    ⇒ createBidirectional 只建 forward 单记录（「双向」名不副实）。
- *    补同步后 V2 关系与旧枚举行为对齐；「已注册不覆盖」保护旧枚举既有语义。
- * 在全局关系定义加载后调用一次（包入口 side-effect）。
+ * 将 relationshipRegistry（V2）中的关系同步到旧版 `relationSchemaRegistry`。
+ *
+ * 旧版表仍有消费方（canvas-engine 图数据边标签、`RelationTypeSerializer` 导出），
+ * 故保留为镜像而非删除。切项目时 `useProjectSwitcher` 会 `clear()` 它，之后必须
+ * 再调本函数恢复——包入口的 side-effect 只跑一次，不会自动重来。
+ *
+ * 逆关系**不再写进这里**：`inverseRegistry` 已是本注册表的派生视图（见 inverseRegistry.ts），
+ * 它自带状态时曾与注册表冲突 15 条，现在没有第二份数据可写。
  */
 export function syncToLegacyRegistry(): void {
   for (const schema of relationshipRegistry.getAll()) {
-    if (!relationSchemaRegistry.get(schema.type)) {
+    const existing = relationSchemaRegistry.get(schema.type)
+    // 幂等：已存在则刷新字段（旧表曾被 clear() 清空后需要重建，故不能只「不存在才写」）
+    if (!existing) {
       relationSchemaRegistry.register({
         typeKey: schema.type,
         label: schema.label,
@@ -233,16 +235,25 @@ export function syncToLegacyRegistry(): void {
         pluginId: schema.pluginId,
       })
     }
-    // inverse 同步（幂等；旧枚举已注册者不覆盖）
-    if (schema.inverseType && !inverseRegistry.hasInverse(schema.type)) {
-      inverseRegistry.register(schema.type, schema.inverseType)
-    }
   }
 }
 
 // ─────────────────────────────────────────────
-// defineRelation — 关系定义工厂函数
+// 关系标签查询（唯一权威）
 // ─────────────────────────────────────────────
+
+/**
+ * 取关系类型的中文标签。
+ *
+ * **唯一权威来源是本注册表**——此前它读 `RelationTypeLabels` 静态表（38 项），
+ * 而注册表有 211 项，导致 187 条关系（89%）在 AutoLink 提醒、撤销栈条目名、
+ * 家族树边名等用户可见面显示英文 id。静态表已删除。
+ *
+ * 未注册的类型返回自身 id（fail-visible：宁可显示 id 也不伪造中文）。
+ */
+export function getRelationLabel(type: string): string {
+  return relationshipRegistry.get(type)?.label || type
+}
 
 /**
  * 定义一个全局关系并注册到 relationshipRegistry。

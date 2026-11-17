@@ -118,7 +118,7 @@
 <script setup lang="ts">
 import { toastSuccess } from '@worldsea/ui-kit'
 import { ref, watch, computed, onBeforeUnmount } from 'vue'
-import { useEntityStore, useRelationStore, entitySchemaRegistry, relationSchemaRegistry } from '@worldsea/entity-core'
+import { useEntityStore, useRelationStore, entitySchemaRegistry, relationshipRegistry, getRelationLabel } from '@worldsea/entity-core'
 import { RelationTypes } from '@worldsea/entity-core'
 import { useBidirectional } from '@worldsea/entity-core/composables'
 import EntityRelationSelector from './EntityRelationSelector.vue'
@@ -354,11 +354,10 @@ async function loadRelations() {
   }
 
   let groupArray: RelationGroupState[] = Array.from(groups.entries()).map(([type, rels]) => {
-    const schema = relationSchemaRegistry.get(type)
     const def = (props.tabDefs ?? []).find(d => d.relationType === type)
     return {
       type,
-      label: def?.label || schema?.label || type,
+      label: def?.label || getRelationLabel(type),
       relations: rels,
       collapsed: false,
     }
@@ -428,15 +427,17 @@ interface EditPropDef {
   placeholder?: string
 }
 
+/** 编辑属性：schema.properties 优先、硬编码兜底，见 docs/plans/2026-11-17-关系权威源收敛.md */
 const editProps = computed<EditPropDef[]>(() => {
   if (!editingRel.value) return []
-  const props = RELATION_EDIT_PROPS[editingRel.value.type] || []
-  return props
+  const type = editingRel.value.type
+  const declared = relationshipRegistry.get(type)?.properties
+  if (!declared?.length) return RELATION_EDIT_PROPS[type] || []
+  return declared.map(f => ({ key: f.key, label: f.label, type: f.fieldType === 'textarea' ? 'textarea' : 'text' }))
 })
 
 function getTypeLabel(relType: string): string {
-  const schema = relationSchemaRegistry.get(relType)
-  return schema?.label || relType
+  return getRelationLabel(relType)
 }
 
 function startEdit(rel: EnhancedRelation, event?: MouseEvent) {
@@ -544,9 +545,6 @@ const RELATION_EDIT_PROPS: Record<string, EditPropDef[]> = {
   [RelationTypes.CAUSES]: [
     { key: 'mechanism', label: '机制', type: 'textarea' },
   ],
-  [RelationTypes.PRECEDES]: [
-    { key: 'gap', label: '间隔', type: 'text' },
-  ],
   [RelationTypes.BORDERS]: [
     { key: 'length', label: '长度', type: 'text' },
     { key: 'type', label: '类型', type: 'text' },
@@ -572,9 +570,6 @@ const RELATION_EDIT_PROPS: Record<string, EditPropDef[]> = {
     { key: 'detail', label: '详情', type: 'textarea' },
   ],
   [RelationTypes.OCCURRED_AT]: [
-    { key: 'detail', label: '地点', type: 'text' },
-  ],
-  [RelationTypes.HAPPENS_IN]: [
     { key: 'detail', label: '地点', type: 'text' },
   ],
   [RelationTypes.ASSOCIATED_WITH]: [

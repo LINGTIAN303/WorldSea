@@ -1,5 +1,6 @@
 import { entitySchemaRegistry } from './EntitySchema'
 import { relationSchemaRegistry } from './RelationSchema'
+import { relationshipRegistry } from './RelationshipRegistry'
 
 export interface TypeInfo {
   type: string
@@ -144,7 +145,9 @@ export function registerEdgeType(info: Partial<EdgeTypeInfo> & { type: string })
 export function getEdgeTypeInfo(type: string): EdgeTypeInfo {
   return edgeTypeMap.get(type) || {
     type,
-    label: relationSchemaRegistry.get(type)?.label || type,
+    // 标签统一走关系注册表（唯一权威）；此前读旧版 relationSchemaRegistry 镜像，
+    // 切项目后该镜像曾被清空而退化为显示英文 id。
+    label: relationshipRegistry.get(type)?.label || relationSchemaRegistry.get(type)?.label || type,
     coolColor: '#5a5a7a',
     warmColor: '#5a5a7a',
     dashed: false,

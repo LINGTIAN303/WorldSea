@@ -51,8 +51,6 @@ export {
   getEffectiveIconOverride,
   iconOverrideVersion,
   RelationTypes,
-  RelationTypeLabels,
-  InverseRelation,
   getRelationLabel,
   registerNodeType,
   getNodeTypeInfo,

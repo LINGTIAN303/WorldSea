@@ -75,12 +75,7 @@ export type { PluginAPIType, NodeTypeDefinition, WorkflowTemplateDefinition, Ext
 
 export { inverseRegistry } from './inverseRegistry'
 
-export {
-  RelationTypes,
-  RelationTypeLabels,
-  InverseRelation,
-  getRelationLabel,
-} from './relationTypes'
+export { RelationTypes } from './relationTypes'
 export type { RelationType } from './relationTypes'
 
 export {
@@ -222,6 +217,7 @@ export {
   relationshipRegistry,
   defineRelation,
   syncToLegacyRegistry,
+  getRelationLabel,
 } from './RelationshipRegistry'
 
 export {
