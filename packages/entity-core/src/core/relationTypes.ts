@@ -21,15 +21,13 @@ export const RelationTypes = {
   ALLIED_WITH: 'allied_with',
   REFERENCES: 'references',
   INSPIRED_BY: 'inspired_by',
-  HAPPENS_IN: 'happens_in',
-  CAUSES: 'causes',
-  PRECEDES: 'precedes',
   INVOLVED_IN: 'involved_in',
   OCCURRED_AT: 'occurred_at',
   LOCATED_AT: 'located_at',
   SPOUSE_OF: 'spouse_of',
   SIBLING_OF: 'sibling_of',
   MENTOR_OF: 'mentor_of',
+  CAUSES: 'causes',
   INHABITS: 'inhabits',
   DROPS: 'drops',
   HUNTS: 'hunts',
@@ -41,121 +39,13 @@ export const RelationTypes = {
 
 export type RelationType = (typeof RelationTypes)[keyof typeof RelationTypes]
 
-export const RelationTypeLabels: Record<RelationType, string> = {
-  [RelationTypes.PARENT_OF]: '父子',
-  [RelationTypes.CHILD_OF]: '子父',
-  [RelationTypes.KNOWS]: '认识',
-  [RelationTypes.RESIDES_IN]: '居住',
-  [RelationTypes.BELONGS_TO]: '属于',
-  [RelationTypes.LOCATED_IN]: '位于',
-  [RelationTypes.BORDERS]: '接壤',
-  [RelationTypes.ROUTE]: '航路',
-  [RelationTypes.CONTAINS]: '包含',
-  [RelationTypes.CAPITAL_OF]: '首都',
-  [RelationTypes.NOTABLE_FOR]: '著名',
-  [RelationTypes.ENCLAVE_OF]: '飞地',
-  [RelationTypes.MEMBER_OF]: '成员',
-  [RelationTypes.PARTICIPATED_IN]: '参与',
-  [RelationTypes.ASSOCIATED_WITH]: '关联',
-  [RelationTypes.OWNED_BY]: '归属',
-  [RelationTypes.OWNS]: '拥有',
-  [RelationTypes.CONTROLS]: '控制',
-  [RelationTypes.HOSTILE_TO]: '敌对',
-  [RelationTypes.ALLIED_WITH]: '同盟',
-  [RelationTypes.REFERENCES]: '引用',
-  [RelationTypes.INSPIRED_BY]: '启发',
-  [RelationTypes.HAPPENS_IN]: '发生于',
-  [RelationTypes.CAUSES]: '导致',
-  [RelationTypes.PRECEDES]: '先于',
-  [RelationTypes.INVOLVED_IN]: '涉及',
-  [RelationTypes.OCCURRED_AT]: '发生于',
-  [RelationTypes.LOCATED_AT]: '位于',
-  [RelationTypes.SPOUSE_OF]: '配偶',
-  [RelationTypes.SIBLING_OF]: '兄弟姐妹',
-  [RelationTypes.MENTOR_OF]: '师徒',
-  [RelationTypes.INHABITS]: '栖息于',
-  [RelationTypes.DROPS]: '产出',
-  [RelationTypes.HUNTS]: '猎杀',
-  [RelationTypes.TAMES]: '驯服/契约',
-  [RelationTypes.BELIEVES_IN]: '信奉',
-  [RelationTypes.HOLY_SITE]: '圣地',
-  [RelationTypes.FESTIVAL_OF]: '节日归属',
-}
-
-export function getRelationLabel(type: string): string {
-  return RelationTypeLabels[type as RelationType] || type
-}
-
-/** @deprecated 使用 inverseRegistry 代替 */
-export const InverseRelation: Partial<Record<RelationType, RelationType>> = {
-  [RelationTypes.PARENT_OF]: RelationTypes.CHILD_OF,
-  [RelationTypes.CHILD_OF]: RelationTypes.PARENT_OF,
-  [RelationTypes.LOCATED_IN]: RelationTypes.CONTAINS,
-  [RelationTypes.CONTAINS]: RelationTypes.LOCATED_IN,
-  [RelationTypes.CAPITAL_OF]: RelationTypes.CONTAINS,
-  [RelationTypes.OWNS]: RelationTypes.OWNED_BY,
-  [RelationTypes.OWNED_BY]: RelationTypes.OWNS,
-  [RelationTypes.CONTROLS]: RelationTypes.BELONGS_TO,
-  [RelationTypes.BELONGS_TO]: RelationTypes.CONTROLS,
-  [RelationTypes.HOSTILE_TO]: RelationTypes.HOSTILE_TO,
-  [RelationTypes.ALLIED_WITH]: RelationTypes.ALLIED_WITH,
-  [RelationTypes.KNOWS]: RelationTypes.KNOWS,
-  [RelationTypes.BORDERS]: RelationTypes.BORDERS,
-  [RelationTypes.ROUTE]: RelationTypes.ROUTE,
-  [RelationTypes.MEMBER_OF]: RelationTypes.CONTAINS,
-  [RelationTypes.ENCLAVE_OF]: RelationTypes.CONTAINS,
-  [RelationTypes.REFERENCES]: RelationTypes.REFERENCES,
-  [RelationTypes.INSPIRED_BY]: RelationTypes.REFERENCES,
-  [RelationTypes.ASSOCIATED_WITH]: RelationTypes.ASSOCIATED_WITH,
-  [RelationTypes.PARTICIPATED_IN]: RelationTypes.PARTICIPATED_IN,
-  [RelationTypes.HAPPENS_IN]: RelationTypes.LOCATED_IN,
-  [RelationTypes.CAUSES]: RelationTypes.CAUSES,
-  [RelationTypes.PRECEDES]: RelationTypes.PRECEDES,
-  [RelationTypes.NOTABLE_FOR]: RelationTypes.NOTABLE_FOR,
-  [RelationTypes.RESIDES_IN]: RelationTypes.LOCATED_IN,
-}
-
-import { inverseRegistry } from './inverseRegistry'
-
-inverseRegistry.register(RelationTypes.PARENT_OF, RelationTypes.CHILD_OF)
-inverseRegistry.register(RelationTypes.CHILD_OF, RelationTypes.PARENT_OF)
-inverseRegistry.register(RelationTypes.LOCATED_IN, RelationTypes.CONTAINS)
-inverseRegistry.register(RelationTypes.CONTAINS, RelationTypes.LOCATED_IN)
-inverseRegistry.register(RelationTypes.CAPITAL_OF, RelationTypes.CONTAINS)
-inverseRegistry.register(RelationTypes.OWNS, RelationTypes.OWNED_BY)
-inverseRegistry.register(RelationTypes.OWNED_BY, RelationTypes.OWNS)
-inverseRegistry.register(RelationTypes.CONTROLS, RelationTypes.BELONGS_TO)
-inverseRegistry.register(RelationTypes.BELONGS_TO, RelationTypes.CONTROLS)
-inverseRegistry.register(RelationTypes.HOSTILE_TO, RelationTypes.HOSTILE_TO)
-inverseRegistry.register(RelationTypes.ALLIED_WITH, RelationTypes.ALLIED_WITH)
-inverseRegistry.register(RelationTypes.KNOWS, RelationTypes.KNOWS)
-inverseRegistry.register(RelationTypes.BORDERS, RelationTypes.BORDERS)
-inverseRegistry.register(RelationTypes.ROUTE, RelationTypes.ROUTE)
-inverseRegistry.register(RelationTypes.MEMBER_OF, RelationTypes.CONTAINS)
-inverseRegistry.register(RelationTypes.ENCLAVE_OF, RelationTypes.CONTAINS)
-inverseRegistry.register(RelationTypes.REFERENCES, RelationTypes.REFERENCES)
-inverseRegistry.register(RelationTypes.INSPIRED_BY, RelationTypes.REFERENCES)
-inverseRegistry.register(RelationTypes.ASSOCIATED_WITH, RelationTypes.ASSOCIATED_WITH)
-inverseRegistry.register(RelationTypes.PARTICIPATED_IN, RelationTypes.PARTICIPATED_IN)
-inverseRegistry.register(RelationTypes.HAPPENS_IN, RelationTypes.LOCATED_IN)
-inverseRegistry.register(RelationTypes.CAUSES, RelationTypes.CAUSES)
-inverseRegistry.register(RelationTypes.PRECEDES, RelationTypes.PRECEDES)
-inverseRegistry.register(RelationTypes.NOTABLE_FOR, RelationTypes.NOTABLE_FOR)
-inverseRegistry.register(RelationTypes.RESIDES_IN, RelationTypes.LOCATED_IN)
-inverseRegistry.register(RelationTypes.SPOUSE_OF, RelationTypes.SPOUSE_OF)
-inverseRegistry.register(RelationTypes.SIBLING_OF, RelationTypes.SIBLING_OF)
-inverseRegistry.register(RelationTypes.MENTOR_OF, RelationTypes.MENTOR_OF)
-inverseRegistry.register(RelationTypes.INHABITS, 'habitat_of')
-inverseRegistry.register('habitat_of', RelationTypes.INHABITS)
-inverseRegistry.register(RelationTypes.DROPS, 'dropped_by')
-inverseRegistry.register('dropped_by', RelationTypes.DROPS)
-inverseRegistry.register(RelationTypes.HUNTS, 'hunted_by')
-inverseRegistry.register('hunted_by', RelationTypes.HUNTS)
-inverseRegistry.register(RelationTypes.TAMES, 'tamed_by')
-inverseRegistry.register('tamed_by', RelationTypes.TAMES)
-inverseRegistry.register(RelationTypes.BELIEVES_IN, 'faith_member')
-inverseRegistry.register('faith_member', RelationTypes.BELIEVES_IN)
-inverseRegistry.register(RelationTypes.HOLY_SITE, 'holy_site_of')
-inverseRegistry.register('holy_site_of', RelationTypes.HOLY_SITE)
-inverseRegistry.register(RelationTypes.FESTIVAL_OF, 'faith_festival')
-inverseRegistry.register('faith_festival', RelationTypes.FESTIVAL_OF)
+// 本文件只保留 `RelationTypes` 常量表（给 `UniversalRelationPanel` 的编辑属性表做键）。
+// 关系标签与逆关系查询已收敛到 `RelationshipRegistry`：
+// - 标签 → `getRelationLabel`（RelationshipRegistry.ts，读注册表 211 项）
+// - 逆关系 → `inverseRegistry`（RelationshipRegistry 的派生视图）
+//
+// 此处原有三块内容已删除（2026-11-17 关系权威源收敛）：
+//   ① `RelationTypeLabels` 静态表（38 项）——是注册表的过期副本，导致 187/211 条标签错误
+//   ② `InverseRelation`（@deprecated，无消费方）
+//   ③ 42 行手写的 `inverseRegistry.register(...)`——与注册表的 inverseType 冲突 15 条，
+//      其中 5 条把非对称关系注册成自指（被当作对称关系处理），会建出源目标相同的反向边

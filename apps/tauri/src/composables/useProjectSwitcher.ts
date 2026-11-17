@@ -8,7 +8,7 @@ import { computed, ref } from 'vue'
 import { useAsyncTask } from '@worldsea/ui-kit/composables/useAsyncTask'
 import { getProjectManager, setStorageProjectDir } from '@worldsea/entity-core/core'
 import type { ProjectInfo } from '@worldsea/entity-core/core'
-import { entitySchemaRegistry, relationSchemaRegistry, entitySchemaRegistryV2 } from '@worldsea/entity-core/core'
+import { entitySchemaRegistry, relationSchemaRegistry, entitySchemaRegistryV2, syncToLegacyRegistry } from '@worldsea/entity-core/core'
 import { usePluginStore, useEntityStore, useRelationStore, useFileStore, useIconOverrideStore, useIconAssetStore } from '@worldsea/entity-core/stores'
 
 import { pluginAPI } from '@worldsea/entity-core'
@@ -324,6 +324,11 @@ export function useProjectSwitcher() {
     entitySchemaRegistry.clear()
     entitySchemaRegistryV2.clear()
     relationSchemaRegistry.clear()
+    // 1.1 关系镜像表立即从 V2 权威源重建（2026-11-17 关系权威源收敛）。
+    //     此前只 clear 不重建：恢复依赖包入口的 side-effect，而包入口只在模块首次加载时执行一次，
+    //     故切一次项目后该表恒为空 —— 全局图谱边标签从「属于」退化成显示 `belongs_to`。
+    //     重建是无条件的：`relationshipRegistry` 是注册表（不随项目清空），它就是权威源。
+    syncToLegacyRegistry()
     // 视图清**真源**（pluginAPI）：显示侧（pluginStore）由 viewSync 订阅即时镜像；
     // sidebarOrder 是用户排序偏好，刻意保留——重播种后各视图回到原位置（2026-09-25 D 批）。
     pluginAPI.clearViews()
