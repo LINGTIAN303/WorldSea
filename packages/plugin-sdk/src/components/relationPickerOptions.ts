@@ -3,6 +3,11 @@
  * 关系类型一律写字符串字面量（值与 entity-core RelationTypes 一致）：本文件会被 mock 了
  * `@worldsea/entity-core/core` 的测试图连带加载，root 入口 re-export 届时是空壳，引用常量会在
  * 模块求值期拿到 undefined——字面量免疫。按芽拆出的静态表见 faithRelationOptions.ts。
+ *
+ * **字符串字面量绕过类型检查**：注册表删掉的关系类型在这里不会报错，只会变成
+ * 「用户能选中、但注册表不认识」的幽灵。已知两处（2026-11-17 清理）：
+ * `happens_in`→`happened_in`、`precedes`→`parallel_to`。守卫见
+ * `__tests__/relationPickerGhosts.spec.ts`。
  */
 export interface RelationProperty {
   key: string
@@ -37,7 +42,7 @@ export function guessRelationType(srcType: string, tgtType: string): string {
     [`concept_organization`]: 'associated_with',
     [`concept_event`]: 'associated_with',
     [`concept_item`]: 'associated_with',
-    [`region_event`]: 'happens_in',
+    [`region_event`]: 'happened_in',
     [`creature_region`]: 'inhabits',
     [`region_creature`]: 'habitat_of',
     [`creature_item`]: 'drops',
@@ -139,17 +144,17 @@ export const RELATION_TYPE_OPTIONS: Record<string, Array<{ type: string; label: 
   ],
   'event_region': [
     { type: 'occurred_at', label: '发生于' },
-    { type: 'happens_in', label: '发生在' },
+    { type: 'happened_in', label: '发生在' },
     { type: 'associated_with', label: '关联' },
   ],
   'region_event': [
-    { type: 'happens_in', label: '发生在' },
+    { type: 'happened_in', label: '发生在' },
     { type: 'occurred_at', label: '发生于' },
     { type: 'associated_with', label: '关联' },
   ],
   'event_event': [
     { type: 'causes', label: '导致' },
-    { type: 'precedes', label: '先于' },
+    { type: 'parallel_to', label: '并行于' },
     { type: 'associated_with', label: '关联' },
   ],
   'organization_organization': [
@@ -356,9 +361,6 @@ export const RELATION_PROPERTIES: Record<string, RelationProperty[]> = {
   'causes': [
     { key: 'mechanism', label: '因果机制', type: 'textarea', placeholder: '描述因果关系的详细机制' },
   ],
-  'precedes': [
-    { key: 'gap', label: '时间间隔', type: 'text' },
-  ],
   'borders': [
     { key: 'length', label: '边境长度', type: 'text' },
     { key: 'type', label: '边境类型', type: 'text', placeholder: '如：山脉、河流、城墙' },
@@ -384,9 +386,6 @@ export const RELATION_PROPERTIES: Record<string, RelationProperty[]> = {
     { key: 'detail', label: '著名原因', type: 'textarea' },
   ],
   'occurred_at': [
-    { key: 'detail', label: '具体地点', type: 'text' },
-  ],
-  'happens_in': [
     { key: 'detail', label: '具体地点', type: 'text' },
   ],
   'associated_with': [
