@@ -382,8 +382,8 @@ importers:
         specifier: ^16.1.2
         version: 16.4.2
       mind-elixir:
-        specifier: ^5.15.1
-        version: 5.15.1
+        specifier: ^6.0.3
+        version: 6.0.3
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
@@ -3038,8 +3038,8 @@ packages:
     resolution: {integrity: sha512-I9jwMn07Sy/IwOj3zVkVik2JTvgpaykDZEigL6Rx6N9LbMywwUSMtxET+7lVoDLLd3O3IXwJwvuuns8UB/HeAg==}
     engines: {node: '>=4'}
 
-  mind-elixir@5.15.1:
-    resolution: {integrity: sha512-Lm/IfNC3jnxqcchKsjkaX/arXDvgPvpPT+BLfTH2Kl1taO9+RPtv/jrCevn1LqPzHoWL2Yl4QeP/xFpjZuZFHw==}
+  mind-elixir@6.0.3:
+    resolution: {integrity: sha512-rsReFKTxfrcAuWjhfslY/9szWa0hyrMcO1hzG8kl74mLiTcXgZXKCksb8QR8B6VUA5EzDOrOQdxGoR83plQT5w==}
 
   minimatch@10.2.6:
     resolution: {integrity: sha512-vpLQEs+VLCr1nU0BXS07maYoFwlDAH0gngQuuttxIwutDFEMHq2blX+8vpgxDdK3J1PwjCJiep77OitTZ4Ll1A==}
@@ -6204,7 +6204,7 @@ snapshots:
 
   min-indent@1.0.1: {}
 
-  mind-elixir@5.15.1: {}
+  mind-elixir@6.0.3: {}
 
   minimatch@10.2.6:
     dependencies:
