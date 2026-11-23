@@ -129,8 +129,8 @@ importers:
         specifier: ^1.13.0
         version: 1.13.0
       marked:
-        specifier: ^18.0.3
-        version: 18.2.0
+        specifier: ^18.2.1
+        version: 18.2.1
       naive-ui:
         specifier: ^2.45.3
         version: 2.45.3(vue@3.5.45(typescript@6.0.3))
@@ -379,8 +379,8 @@ importers:
         specifier: ^6.1.0
         version: 6.1.0
       marked:
-        specifier: ^16.1.2
-        version: 16.4.2
+        specifier: ^18.2.1
+        version: 18.2.1
       mind-elixir:
         specifier: ^5.15.1
         version: 5.15.1
@@ -544,8 +544,8 @@ importers:
         specifier: ^3.4.17
         version: 3.4.17
       marked:
-        specifier: ^18.0.3
-        version: 18.2.0
+        specifier: ^18.2.1
+        version: 18.2.1
       prismjs:
         specifier: ^1.29.0
         version: 1.30.0
@@ -3019,18 +3019,13 @@ packages:
     engines: {node: '>=12.0.0'}
     hasBin: true
 
-  marked@16.4.2:
-    resolution: {integrity: sha512-TI3V8YYWvkVf3KJe1dRkpnjs68JUPyEa5vjKrp1XEEJUAOaQc+Qj+L1qWbPd0SJuAdQkFU0h73sXXqwDYxsiDA==}
-    engines: {node: '>= 20'}
-    hasBin: true
-
   marked@17.0.6:
     resolution: {integrity: sha512-gB0gkNafnonOw0obSTEGZTT86IuhILt2Wfx0mWH/1Au83kybTayroZ/V6nS25mN7u8ASy+5fMhgB3XPNrOZdmA==}
     engines: {node: '>= 20'}
     hasBin: true
 
-  marked@18.2.0:
-    resolution: {integrity: sha512-KaeL+tAbtvI930q7HE2PN5lYXYdT8EiSmxHlN6F3rsfb57wd5mp5W5TLazpdj4inTQBJdgjYwbs40W/0VUGU+Q==}
+  marked@18.2.1:
+    resolution: {integrity: sha512-ii4bxCTCqqwpT86XZWgJNs+ZnAIZksmLGYMViWA7PDIXYIeNo1x6cDdX3JOip9NM/cI6p8z57FxliACboTruMA==}
     engines: {node: '>= 20'}
     hasBin: true
 
@@ -5544,7 +5539,7 @@ snapshots:
       '@codemirror/lint': 6.9.8
       '@codemirror/state': 6.7.6
       '@codemirror/view': 6.43.15
-      marked: 18.2.0
+      marked: 18.2.1
       vscode-languageserver-protocol: 3.18.5
 
   codemirror@6.0.2:
@@ -6196,11 +6191,9 @@ snapshots:
       underscore: 1.13.8
       xmlbuilder: 10.1.1
 
-  marked@16.4.2: {}
-
   marked@17.0.6: {}
 
-  marked@18.2.0: {}
+  marked@18.2.1: {}
 
   min-indent@1.0.1: {}
 
