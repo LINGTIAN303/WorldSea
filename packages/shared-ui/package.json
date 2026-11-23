@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "dompurify": "^3.4.17",
-    "marked": "^18.0.3",
+    "marked": "^18.2.1",
     "prismjs": "^1.29.0"
   },
   "devDependencies": {
